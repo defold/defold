@@ -54,23 +54,6 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(defmethod handle-event :filter-text-changed [{:keys [ui-state fx/event]}]
-  {:set-ui-state (assoc ui-state :filter-term event)})
-
-(defmethod handle-event :filter-key-pressed [{:keys [^KeyEvent fx/event ui-state]}]
-  (when (= KeyCode/ESCAPE (.getCode event))
-    {:set-ui-state (assoc ui-state :filter-term "")}))
-
-(defmethod handle-event :jump-to [{:keys [section ^Node parent]}]
-  (let [^ScrollPane scroll-pane (.lookup parent "#scroll-pane")
-        ^Node node (.lookup parent (str "#" section))
-        content-height (-> scroll-pane .getContent .getBoundsInLocal .getHeight)
-        viewport-height (-> scroll-pane .getViewportBounds .getHeight)]
-    (when (> content-height viewport-height)
-      (.setVvalue scroll-pane (/ (- (.getMinY (.getBoundsInParent node))
-                                    24) ;; form padding
-                                 (- content-height viewport-height))))))
-
 (def with-anchor-pane-props
   (fx/make-ext-with-props fx.anchor-pane/props))
 
@@ -145,40 +128,28 @@
 
 ;; region string input
 
-(defn- string-input [{:keys [value on-value-changed]}]
+(defmethod form-input-view :string [{:keys [value on-value-changed]}]
   {:fx/type text-field
    :text-formatter {:fx/type :text-formatter
                     :value-converter :default
                     :value value
                     :on-value-changed on-value-changed}})
 
-(defmethod form-input-view :string [{:keys [value path]}]
-  {:fx/type string-input
-   :value value
-   :on-value-changed {:event-type :set
-                      :path path}})
-
 ;; endregion
 
 ;; region boolean input
 
-(defn- boolean-input [{:keys [value on-value-changed]}]
+(defmethod form-input-view :boolean [{:keys [value on-value-changed]}]
   {:fx/type :check-box
    :style-class ["check-box" "cljfx-form-check-box"]
    :selected value
    :on-selected-changed on-value-changed})
 
-(defmethod form-input-view :boolean [{:keys [value path]}]
-  {:fx/type boolean-input
-   :value value
-   :on-value-changed {:event-type :set
-                      :path path}})
-
 ;; endregion
 
 ;; region integer input
 
-(defn- integer-input [{:keys [value on-value-changed]}]
+(defmethod form-input-view :integer [{:keys [value on-value-changed]}]
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
@@ -187,17 +158,11 @@
                     :value (int value)
                     :on-value-changed on-value-changed}})
 
-(defmethod form-input-view :integer [{:keys [value path]}]
-  {:fx/type integer-input
-   :value value
-   :on-value-changed {:event-type :set
-                      :path path}})
-
 ;; endregion
 
 ;; region number input
 
-(defn- number-input [{:keys [value on-value-changed]}]
+(defmethod form-input-view :number [{:keys [value on-value-changed]}]
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
@@ -206,12 +171,6 @@
                     :value value
                     :on-value-changed on-value-changed}})
 
-(defmethod form-input-view :number [{:keys [value path]}]
-  {:fx/type number-input
-   :value value
-   :on-value-changed {:event-type :set
-                      :path path}})
-
 ;; endregion
 
 ;; region vec4 input
@@ -219,7 +178,7 @@
 (defmethod handle-event :route-vec4-change [{:keys [value index to fx/event]}]
   {:dispatch (assoc to :fx/event (assoc value index event))})
 
-(defn- vec4-input [{:keys [value on-value-changed]}]
+(defmethod form-input-view :vec4 [{:keys [value on-value-changed]}]
   (let [labels ["X" "Y" "Z" "W"]]
     {:fx/type :h-box
      :padding {:left 5}
@@ -233,7 +192,8 @@
                           :children [{:fx/type :label
                                       :min-width :use-pref-size
                                       :text (get labels i)}
-                                     {:fx/type number-input
+                                     {:fx/type form-input-view
+                                      :type :number
                                       :h-box/hgrow :always
                                       :value n
                                       :on-value-changed {:event-type :route-vec4-change
@@ -242,18 +202,16 @@
                                                          :index i}}]}))
                      value)}))
 
-(defmethod form-input-view :vec4 [{:keys [value path]}]
-  {:fx/type vec4-input
-   :value value
-   :on-value-changed {:event-type :set
-                      :path path}})
-
 ;; endregion
 
 ;; region choicebox input
 
-(defn- choicebox-input [{:keys [value on-value-changed options from-string to-string]
-                         :or {to-string str}}]
+(defmethod form-input-view :choicebox [{:keys [value
+                                               on-value-changed
+                                               options
+                                               from-string
+                                               to-string]
+                                        :or {to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type :combo-box
@@ -273,11 +231,6 @@
      :cell-factory (fn [x]
                      {:text (value->label x)})
      :items (sort (mapv first options))}))
-
-(defmethod form-input-view :choicebox [{:keys [path] :as field}]
-  (assoc field :fx/type choicebox-input
-               :on-value-changed {:event-type :set
-                                  :path path}))
 
 ;; endregion
 
@@ -328,8 +281,8 @@
                            state-path
                            ;; value
                            value
-                           on-edited ;; fx/event is {:index int :item item}
                            on-added ;; fx/event is [item ...]
+                           on-edited ;; fx/event is {:index int :item item}
                            on-removed ;; fx/event is #{index ...}
                            ;; field
                            element
@@ -387,8 +340,7 @@
                                                  {:text v
                                                   :converter :default}
 
-                                                 {:text (str v)
-                                                  :converter :default}))
+                                                 {:text (str v)}))
 
                                :context-menu {:fx/type :context-menu
                                               :items [{:fx/type :menu-item
@@ -412,35 +364,35 @@
                              :image "icons/32/Icons_M_11_minus.png"
                              :fit-size 16}]}]}))
 
-(defmethod handle-event :add-list-items [{:keys [value path fx/event]}]
-  {:set [path (into value event)]})
+(defmethod handle-event :add-list-items [{:keys [value on-value-changed fx/event]}]
+  {:dispatch (assoc on-value-changed :fx/event (into value event))})
 
-(defmethod handle-event :remove-list-items [{:keys [value path fx/event]}]
-  {:set [path (into []
-                    (keep-indexed
-                      (fn [i x]
-                        (when-not (contains? event i)
-                          x)))
-                    value)]})
+(defmethod handle-event :remove-list-items [{:keys [value on-value-changed fx/event]}]
+  (let [new-value (into []
+                        (keep-indexed
+                          (fn [i x]
+                            (when-not (contains? event i)
+                              x)))
+                        value)]
+    {:dispatch (assoc on-value-changed :fx/event new-value)}))
 
-(defmethod handle-event :edit-list-item [{:keys [value path fx/event]}]
+(defmethod handle-event :edit-list-item [{:keys [value on-value-changed fx/event]}]
   (let [{:keys [index item]} event]
-    {:set [path (assoc value index item)]}))
+    {:dispatch (assoc on-value-changed :fx/event (assoc value index item))}))
 
-(defmethod form-input-view :list [{:keys [path value]
+(defmethod form-input-view :list [{:keys [value on-value-changed]
                                    :or {value []}
                                    :as field}]
   (assoc field :fx/type list-input
-               :state-path path
                :on-edited {:event-type :edit-list-item
                            :value value
-                           :path path}
+                           :on-value-changed on-value-changed}
                :on-added {:event-type :add-list-items
                           :value value
-                          :path path}
+                          :on-value-changed on-value-changed}
                :on-removed {:event-type :remove-list-items
                             :value value
-                            :path path}))
+                            :on-value-changed on-value-changed}))
 
 ;; endregion
 
@@ -453,7 +405,10 @@
   (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
     {:dispatch (assoc to :fx/event resource)}))
 
-(defn- resource-input [{:keys [value on-value-changed filter resource-string-converter]}]
+(defmethod form-input-view :resource [{:keys [value
+                                              on-value-changed
+                                              filter
+                                              resource-string-converter]}]
   {:fx/type :h-box
    :spacing 4
    :children [{:fx/type text-field
@@ -475,13 +430,6 @@
                            :to on-value-changed
                            :filter filter}}]})
 
-(defmethod form-input-view :resource [{:keys [path value filter resource-string-converter]}]
-  {:fx/type resource-input
-   :value value
-   :on-value-changed {:event-type :set :path path}
-   :filter filter
-   :resource-string-converter resource-string-converter})
-
 ;; endregion
 
 ;; region file input
@@ -493,7 +441,7 @@
                                             (.getWindow (.getScene ^Node (.getSource event))))]
     {:dispatch (assoc to :fx/event (.getAbsolutePath file))}))
 
-(defn- file-input [{:keys [value on-value-changed filter title]}]
+(defmethod form-input-view :file [{:keys [on-value-changed value filter title]}]
   {:fx/type :h-box
    :spacing 4
    :children [{:fx/type text-field
@@ -509,13 +457,6 @@
                            :filter filter
                            :title title}}]})
 
-(defmethod form-input-view :file [{:keys [path value filter title]}]
-  {:fx/type file-input
-   :value value
-   :on-value-changed {:event-type :set :path path}
-   :filter filter
-   :title title})
-
 ;; endregion
 
 ;; region directory input
@@ -524,7 +465,7 @@
   (when-let [file (ui/choose-directory (or title "Select Directory") nil)]
     {:dispatch (assoc to :fx/event file)}))
 
-(defn- directory-input [{:keys [value on-value-changed title]}]
+(defmethod form-input-view :directory [{:keys [on-value-changed value title]}]
   {:fx/type :h-box
    :spacing 4
    :children [{:fx/type text-field
@@ -538,12 +479,6 @@
                :on-action {:event-type :route-selected-directory
                            :to on-value-changed
                            :title title}}]})
-
-(defmethod form-input-view :directory [{:keys [path value title]}]
-  {:fx/type directory-input
-   :value value
-   :on-value-changed {:event-type :set :path path}
-   :title title})
 
 ;; endregion
 
@@ -663,7 +598,7 @@
       {:fx/type fx/ext-on-instance-lifecycle
        :on-created #(.show ^ComboBox %)
        :desc (wrap-input
-               (assoc column :fx/type choicebox-input
+               (assoc column :fx/type form-input-view
                              :value item
                              :on-value-changed {:event-type :commit-table-edit
                                                 :edit-path edit-path
@@ -681,14 +616,14 @@
        :desc {:fx/type fx/ext-on-instance-lifecycle
               :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
               :desc (wrap-input
-                      (assoc column :fx/type vec4-input
+                      (assoc column :fx/type form-input-view
                                     :value item
                                     :on-value-changed {:event-type :keep-table-edit
                                                        :state-path state-path}))}}
 
       :string
       {:fx/type fxui/ext-focused-by-default
-       :desc (wrap-input (assoc column :fx/type string-input
+       :desc (wrap-input (assoc column :fx/type form-input-view
                                        :value item
                                        :on-value-changed {:event-type :commit-table-edit
                                                           :edit-path edit-path
@@ -756,13 +691,13 @@
      :cell-value-factory (fxui/partial table-cell-value-factory path)
      :cell-factory (fxui/partial table-cell-factory column (dissoc edit :value))}))
 
-(defn- table-input [{:keys [value
-                            on-value-changed
-                            columns
-                            state
-                            state-path]
-                     :or {value []}
-                     :as field}]
+(defmethod form-input-view :table [{:keys [value
+                                           on-value-changed
+                                           columns
+                                           state
+                                           state-path]
+                                    :or {value []}
+                                    :as field}]
   (let [{:keys [selected-indices edit]} state
         disable-remove (empty? selected-indices)
         default-row (form/table-row-defaults field)
@@ -829,22 +764,126 @@
                                     :image "icons/32/Icons_M_11_minus.png"
                                     :fit-size 16}]}]}}))
 
-(defmethod form-input-view :table [{:keys [path]
-                                    :as field}]
-  (assoc field :fx/type table-input
-               :on-value-changed {:event-type :set
-                                  :path path}
-               :state-path path))
-
 ;; endregion
 
-(defn- field-view [field]
-  (form-input-view field))
+;; region 2panel-input
+
+(defmethod handle-event :2panel-key-added [{:keys [value
+                                                   on-value-changed
+                                                   key-path
+                                                   default-row
+                                                   fx/event]}]
+  (let [new-value (into value
+                        (map #(assoc-in default-row key-path %))
+                        event)]
+    {:dispatch (assoc on-value-changed :fx/event new-value)}))
+
+(defmethod handle-event :2panel-key-edited [{:keys [value on-value-changed key-path]
+                                             {:keys [index item]} :fx/event}]
+  (let [new-value (assoc-in value (into [index] key-path) item)]
+    {:dispatch (assoc on-value-changed :fx/event new-value)}))
+
+(defmethod handle-event :2panel-key-removed [{:keys [value on-value-changed fx/event]}]
+  {:dispatch (assoc on-value-changed :fx/event (into []
+                                                     (keep-indexed
+                                                       (fn [i x]
+                                                         (when-not (contains? event i)
+                                                           x)))
+                                                     value))})
+
+(defmethod handle-event :2panel-value-set [{:keys [value path on-value-changed fx/event]}]
+  {:dispatch (assoc on-value-changed :fx/event (assoc-in value path event))})
+
+(defmethod handle-event :2panel-value-clear [{:keys [value path on-value-changed]}]
+  {:dispatch (assoc on-value-changed :fx/event (update-in value (butlast path) dissoc (last path)))})
+
+(defmethod form-input-view :2panel [{:keys [value
+                                            on-value-changed
+                                            state
+                                            state-path
+                                            panel-key
+                                            panel-form
+                                            resource-string-converter]
+                                     :as field}]
+  (let [default-row (form/two-panel-defaults field)
+        key-path (:path panel-key)
+        selected-index (-> state :key :selected-indices peek)]
+    {:fx/type :v-box
+     :spacing 4
+     :children
+     [(cond-> {:fx/type list-input
+               :value (mapv #(get-in % key-path) value)
+               :on-added {:event-type :2panel-key-added
+                          :value value
+                          :on-value-changed on-value-changed
+                          :key-path key-path
+                          :default-row default-row}
+               :on-edited {:event-type :2panel-key-edited
+                           :value value
+                           :on-value-changed on-value-changed
+                           :key-path key-path}
+               :on-removed {:event-type :2panel-key-removed
+                            :value value
+                            :on-value-changed on-value-changed}
+               :state-path (conj state-path :key)
+               :element panel-key
+               :resource-string-converter resource-string-converter}
+
+              (contains? state :key)
+              (assoc :state (:key state)))
+      {:fx/type :v-box
+       :spacing 6
+       :children
+       (if (some? selected-index)
+         (into []
+               (comp
+                 (mapcat :fields)
+                 (map
+                   (fn [field]
+                     (let [field-path (into [selected-index] (:path field))
+                           field-value (get-in value field-path ::no-value)
+                           field-state-path (conj state-path :val selected-index (:path field))
+                           field-state (get-in state [:val selected-index (:path field)] ::no-value)]
+                       {:fx/type :v-box
+                        :spacing 4
+                        :children
+                        [{:fx/type :h-box
+                          :spacing 4
+                          :pref-height cell-height
+                          :children (cond-> [{:fx/type :label
+                                              :h-box/margin {:top 5}
+                                              :text (:label field)}]
+                                            (and (form/optional-field? field)
+                                                 (not= field-value ::no-value))
+                                            (conj {:fx/type icon-button
+                                                   :image "icons/32/Icons_S_02_Reset.png"
+                                                   :on-action {:event-type :2panel-value-clear
+                                                               :path field-path
+                                                               :value value
+                                                               :on-value-changed on-value-changed}}))}
+                         (cond->
+                           (assoc field :fx/type form-input-view
+                                        :value (if (= ::no-value field-value)
+                                                 (form/field-default field)
+                                                 field-value)
+                                        :on-value-changed {:event-type :2panel-value-set
+                                                           :path field-path
+                                                           :value value
+                                                           :on-value-changed on-value-changed}
+                                        :state-path field-state-path
+                                        :resource-string-converter resource-string-converter)
+                           (not= ::no-value field-state)
+                           (assoc :state field-state))]}))))
+               (:sections panel-form))
+         [])}]}))
+
+;; endregion
 
 (defn- make-row [values ui-state resource-string-converter row field]
   (let [{:keys [path label help visible]} field
         value (get values path ::no-value)
-        state (get-in ui-state path ::no-value)
+        state-path [:components path]
+        state (get-in ui-state state-path ::no-value)
         error (settings/get-setting-error
                 (when-not (= value ::no-value) value)
                 field
@@ -892,11 +931,14 @@
                    :alignment :center-left
                    :children [(cond-> field
                                       :always
-                                      (assoc :fx/type field-view
+                                      (assoc :fx/type form-input-view
                                              :resource-string-converter resource-string-converter
                                              :value (if (= ::no-value value)
                                                       (form/field-default field)
-                                                      value))
+                                                      value)
+                                             :on-value-changed {:event-type :set
+                                                                :path path}
+                                             :state-path state-path)
 
                                       (not= ::no-value state)
                                       (assoc :state state))]}))))
@@ -997,6 +1039,13 @@
     (assoc section :visible (or visible (boolean (some :visible fields)))
                    :fields fields)))
 
+(defmethod handle-event :filter-text-changed [{:keys [ui-state fx/event]}]
+  {:set-ui-state (assoc ui-state :filter-term event)})
+
+(defmethod handle-event :filter-key-pressed [{:keys [^KeyEvent fx/event ui-state]}]
+  (when (= KeyCode/ESCAPE (.getCode event))
+    {:set-ui-state (assoc ui-state :filter-term "")}))
+
 (defn- filter-text-field [{:keys [text]}]
   {:fx/type :text-field
    :id "filter-text-field"
@@ -1030,6 +1079,18 @@
       [[] false]
       sections)))
 
+;; region jump-to
+
+(defmethod handle-event :jump-to [{:keys [section ^Node parent]}]
+  (let [^ScrollPane scroll-pane (.lookup parent "#scroll-pane")
+        ^Node node (.lookup parent (str "#" section))
+        content-height (-> scroll-pane .getContent .getBoundsInLocal .getHeight)
+        viewport-height (-> scroll-pane .getViewportBounds .getHeight)]
+    (when (> content-height viewport-height)
+      (.setVvalue scroll-pane (/ (- (.getMinY (.getBoundsInParent node))
+                                    24) ;; form padding
+                                 (- content-height viewport-height))))))
+
 (defn- jump-to-button [{:keys [visible-titles]}]
   {:fx/type :menu-button
    :text "Jump to..."
@@ -1042,6 +1103,8 @@
                         :on-action {:event-type :jump-to
                                     :section (section-id title)}
                         :text title})))})
+
+;; endregion
 
 (defn- form-view [{:keys [parent form-data ui-state resource-string-converter]}]
   (let [{:keys [sections values]} form-data

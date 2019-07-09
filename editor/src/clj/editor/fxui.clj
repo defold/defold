@@ -9,7 +9,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.ui :as ui]
             [editor.util :as eutil])
-  (:import [clojure.lang Fn IFn IHashEq]
+  (:import [clojure.lang Fn IFn IHashEq MultiFn]
            [javafx.application Platform]
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
@@ -27,57 +27,14 @@
       (:value desc))
     (delete [_ _ _])))
 
-(defn make-ext-with-extra-props
-  "Creates extension lifecycle that allows specifying additional props
-
-  `props-config` is a map from arbitrary keys to values created by
-  `cljfx.prop/make`
-
-  Returned extension lifecycle expects these keys:
-  - `:desc` (required) - description of underlying component, can have
-    additional keys from `props-config`, such props will be applied *after*
-    applying other props from description"
-  [props-config]
-  (let [lifecycle (fx.lifecycle/wrap-extra-props fx.lifecycle/dynamic props-config)]
-    (reify fx.lifecycle/Lifecycle
-      (create [_ desc opts]
-        (fx.lifecycle/create lifecycle (:desc desc) opts))
-      (advance [_ component desc opts]
-        (fx.lifecycle/advance lifecycle component (:desc desc) opts))
-      (delete [_ component opts]
-        (fx.lifecycle/delete lifecycle component opts)))))
-
-(defn- wrap-event-handler [f mapper]
-  (fn [e]
-    (f (mapper e))))
-
-(def ext-wrap-map-events
-  "Extension lifecycle that transforms map event before passing it to a handler
-
-  Expected keys:
-  - `:desc` (required) - description of underlying component whose map events
-    will be transformed
-  - `:mapper` (required) - function of 1 argument (event) whose return value
-    will be passed to map event handler"
-  (reify fx.lifecycle/Lifecycle
-    (create [_ {:keys [desc mapper]} opts]
-      (let [new-handler (wrap-event-handler (:fx.opt/map-event-handler opts) mapper)
-            new-opts (assoc opts :fx.opt/map-event-handler new-handler)]
-        (with-meta {:mapper mapper
-                    :event-handler new-handler
-                    :child (fx.lifecycle/create fx.lifecycle/dynamic desc new-opts)}
-                   {`fx.component/instance #(-> % :child fx.component/instance)})))
-    (advance [_ component {:keys [desc mapper]} opts]
-      (if (= mapper (:mapper component))
-        (let [new-opts (assoc opts :fx.opt/map-event-handler (:event-handler component))]
-          (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc new-opts)))
-        (let [new-handler (wrap-event-handler (:fx.opt/map-event-handler opts) mapper)
-              new-opts (assoc opts :fx.opt/map-event-handler new-handler)]
-          (-> component
-              (assoc :mapper mapper :event-handler new-handler)
-              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc new-opts))))))
-    (delete [_ {:keys [child]} opts]
-      (fx.lifecycle/delete fx.lifecycle/dynamic child opts))))
+(extend-protocol fx.lifecycle/Lifecycle
+  MultiFn
+  (create [_ desc opts]
+    (fx.lifecycle/create fx.lifecycle/dynamic-fn->dynamic desc opts))
+  (advance [_ component desc opts]
+    (fx.lifecycle/advance fx.lifecycle/dynamic-fn->dynamic component desc opts))
+  (delete [_ component opts]
+    (fx.lifecycle/delete fx.lifecycle/dynamic-fn->dynamic component opts)))
 
 (defn focus-when-on-scene! [^Node node]
   (if (some? (.getScene node))
