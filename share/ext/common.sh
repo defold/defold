@@ -251,9 +251,9 @@ function cmi() {
             #  -fstack-protector
 #            local stl="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/sources/cxx-stl/stlport/stlport"
 
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -isysroot ${sysroot} ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
@@ -272,9 +272,9 @@ function cmi() {
             local llvm="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
 
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -isysroot ${sysroot} ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
