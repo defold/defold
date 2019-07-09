@@ -43,6 +43,7 @@ public class ExtenderUtilTest {
     private MockFileSystem fileSystem;
     private Project project;
     private File tmpDir;
+    private Bundle bundle;
 
     private void createDirs(MockFileSystem fileSystem, String path) {
         if (!path.isEmpty()) {

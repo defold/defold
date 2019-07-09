@@ -178,7 +178,7 @@ public class BundleHelperTest {
         Map<String, Object> main = ExtenderUtil.readYaml(resource);
         Map<String, Object> platforms = (Map<String, Object>)main.getOrDefault("platforms", null);
         assertNotNull(platforms);
-        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("armv7-android", null);
+        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("android", null);
         assertNotNull(platform);
         Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
         assertNotNull(bundle);
@@ -202,7 +202,7 @@ public class BundleHelperTest {
 
         Map<String, Object> platforms = (Map<String, Object>)merged.getOrDefault("platforms", null);
         assertNotNull(platforms);
-        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("armv7-android", null);
+        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("android", null);
         assertNotNull(platform);
         Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
         assertNotNull(bundle);
