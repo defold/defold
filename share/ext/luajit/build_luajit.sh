@@ -146,6 +146,9 @@ case $1 in
 		function cmi_make() {
 					TAR_SKIP_BIN=0
 					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
+					# Note: Luajit sets this to 10.4, which is less than what we support.
+					#       This value is set to the same as MIN_OSX_SDK_VERSION in waf_dynamo.py
+					export MACOSX_DEPLOYMENT_TARGET="10.7"
 					export DEFOLD_ARCH="32"
 					set -e
 					make -j8
