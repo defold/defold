@@ -89,6 +89,8 @@ public class ProjectBuildTest {
         count++;
         createFile(contentRoot, "builtins/render/default.display_profiles", "");
         count++;
+        createFile(contentRoot, "builtins/graphics/default.texture_profiles", "");
+        count++;
         createFile(contentRoot, "builtins/input/default.gamepads", "");
         count++;
         createFile(contentRoot, "input/game.input_binding", "");
@@ -107,18 +109,31 @@ public class ProjectBuildTest {
     {
         assertEquals(expectedValue, properties.getStringValue(category, key));
     }
-    
+
+    static private void checkProjectSettingArray(BobProjectProperties properties, String category, String key, String[] expectedValues)
+    {
+        String[] values = properties.getStringArrayValue(category, key, new String[0]);
+
+        assertEquals(expectedValues.length, values.length);
+
+        for (int i = 0; i < expectedValues.length; i++) {
+            String actual = values[i];
+            String expected = expectedValues[i];
+            assertEquals(expected, actual);
+        }
+    }
+
     @Test
     public void testGamePropertiesBuildtimeTransform() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
-    	projectName = "Game Project Properties Transform";
-    	createDefaultFiles();
-    	createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[display]" + "\nvariable_dt = 1\n" + "vsync = 1\n" + "update_frequency = 30\n");
-    	build();
-    	BobProjectProperties outputProps = new BobProjectProperties();
-    	outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
-    	
-    	checkProjectSetting(outputProps, "display", "vsync", "0");
-    	checkProjectSetting(outputProps, "display", "update_frequency", "0");
+        projectName = "Game Project Properties Transform";
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[display]" + "\nvariable_dt = 1\n" + "vsync = 1\n" + "update_frequency = 30\n");
+        build();
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+
+        checkProjectSetting(outputProps, "display", "vsync", "0");
+        checkProjectSetting(outputProps, "display", "update_frequency", "0");
     }
 
     @Test
@@ -126,7 +141,7 @@ public class ProjectBuildTest {
         projectName = "Game Project Properties";
         createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\n");
-        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\n");
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\nempty_list =\nempty_list2 =,,,\nlist1 = a\nlist2 = a,b,c\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
@@ -161,6 +176,12 @@ public class ProjectBuildTest {
 
         // Check so empty custom properties are included as empty strings
         checkProjectSetting(outputProps, "custom", "should_be_empty", "");
+
+        // Check different types of string array values
+        checkProjectSettingArray(outputProps, "custom", "empty_list", new String[0]);
+        checkProjectSettingArray(outputProps, "custom", "empty_list2", new String[0]);
+        checkProjectSettingArray(outputProps, "custom", "list1", new String[]{"a"});
+        checkProjectSettingArray(outputProps, "custom", "list2", new String[]{"a", "b", "c"});
     }
 
     private String createFile(String root, String name, String content) throws IOException {

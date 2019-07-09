@@ -12,8 +12,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.ArrayList;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 
@@ -59,6 +59,42 @@ public class BobProjectProperties {
             }
         }
         return defaultValue;
+    }
+
+    /**
+     * Get property as an array of strings based on a comma separated value, with default value
+     * @param category property category
+     * @param key category key
+     * @param defaultValue
+     * @return property value as an array of strings. defaultValue if not set
+     */
+    public String[] getStringArrayValue(String category, String key, String[] defaultValue) {
+        Map<String, String> group = this.properties.get(category);
+        if (group != null) {
+            String val = group.get(key);
+            if (val != null) {
+                String[] values = val.trim().split(",");
+                ArrayList<String> outValues = new ArrayList<String>();
+                for (String v : values) {
+                    v = v.trim();
+                    if (v.length() > 0) {
+                        outValues.add(v);
+                    }
+                }
+                return outValues.toArray(new String[outValues.size()]);
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Get property as an array of strings based on a comma separated value
+     * @param category property category
+     * @param key category key
+     * @return property value as an array of strings. null if not set
+     */
+    public String[] getStringArrayValue(String category, String key) {
+        return getStringArrayValue(category, key, null);
     }
 
     /**

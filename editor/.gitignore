@@ -23,3 +23,5 @@ pom.xml.asc
 /.pydevproject
 /resources/doc/
 /build
+/preflight-report.txt
+

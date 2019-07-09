@@ -6,8 +6,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
-import org.glassfish.grizzly.http.util.HexUtils;
+import java.math.BigInteger;
 
 /**
  * LRU-cache for etags
@@ -48,7 +47,7 @@ public class ETagCache {
                 n = is.read(buffer);
             }
             is.close();
-            return HexUtils.convert(md.digest());
+            return new BigInteger(1, md.digest()).toString(16);
 
         } catch (IOException e) {
             return null;
