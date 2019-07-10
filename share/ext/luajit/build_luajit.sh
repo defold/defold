@@ -49,7 +49,7 @@ function luajit_configure() {
 		armv7-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS="" #"${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
+			export CROSS="" # is this needed for clang? -> "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
 			export HOST_CC="clang -m32"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
@@ -57,7 +57,7 @@ function luajit_configure() {
 		arm64-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS="" #"${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin/aarch64-linux-android${ANDROID_64_VERSION}-"
+			export CROSS="" # is this needed for clang? -> "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin/aarch64-linux-android${ANDROID_64_VERSION}-"
 			export HOST_CC="clang -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"

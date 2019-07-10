@@ -13,11 +13,13 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Also defined in build.py _strip_engine
+# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
+#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
@@ -304,15 +306,15 @@ def default_flags(self):
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
 
-        sysroot='%s/android-ndk-r%s/toolchains/llvm/prebuilt/%s-x86_64/sysroot' % (ANDROID_ROOT, ANDROID_NDK_VERSION, self.env['BUILD_PLATFORM'])
+        sysroot='%s/toolchains/llvm/prebuilt/%s-x86_64/sysroot' % (ANDROID_NDK_ROOT, self.env['BUILD_PLATFORM'])
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
-                                      '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
+                                      '-I%s/sources/android/native_app_glue' % (ANDROID_NDK_ROOT),
+                                      '-I%s/sources/android/cpufeatures' % (ANDROID_NDK_ROOT),
+                                      #'-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
                                       '-isysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
@@ -693,7 +695,7 @@ def _strip_executable(bld, platform, target_arch, path):
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
         build_tool = getAndroidBuildtoolName(target_arch)
-        strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
+        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1628,8 +1630,8 @@ def detect(conf):
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-        bintools    = '%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
-        llvm        = '%s/android-ndk-r%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_platform, arch)
+        bintools    = '%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
+        llvm        = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
         conf.env['CC'] = '%s/%s' % (llvm, clang_name)
         conf.env['CXX'] = '%s/%s++' % (llvm, clang_name)
