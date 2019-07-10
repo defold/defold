@@ -3,6 +3,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -10,11 +11,13 @@
             [editor.ui :as ui]
             [editor.util :as eutil])
   (:import [clojure.lang Fn IFn IHashEq MultiFn]
+           [com.defold.control ListCell]
            [javafx.application Platform]
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
-           [javafx.scene.control TextInputControl]))
+           [javafx.scene.control TextInputControl ListView]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -109,6 +112,25 @@
           (.selectRange ^TextInputControl instance anchor caret)))
       (retract! [_ _ _ _]))
     fx.lifecycle/scalar))
+
+(def list-cell-factory-prop
+  "Prop-config that provides simple list cell instead of text-field based one
+
+  Value for such prop is a function of list view item that returns cell's prop
+  map (without `:fx/type`)"
+  (fx.prop/make
+    (fx.mutator/setter #(.setCellFactory ^ListView %1 %2))
+    (fx.lifecycle/detached-prop-map fx.list-cell/props)
+    :coerce
+    #(let [props-vol (volatile! {})]
+       (reify Callback
+         (call [_ _]
+           (proxy [ListCell] []
+             (updateItem [item empty]
+               (let [^ListCell this this
+                     props @props-vol]
+                 (proxy-super updateItem item empty)
+                 (vreset! props-vol (% props this item empty))))))))))
 
 (def on-text-input-selection-changed-prop
   "Prop-config that will observe changes for selection in TextInputControl

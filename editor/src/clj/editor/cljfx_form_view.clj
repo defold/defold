@@ -21,13 +21,13 @@
             [editor.workspace :as workspace])
   (:import [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent ScrollPane TableColumn$CellEditEvent TableView]
+           [javafx.scene.control Cell ComboBox ListView$EditEvent ScrollPane TableColumn$CellEditEvent TableView ListView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private cell-height 27)
+(def ^:private cell-height 28)
 
 (g/defnk produce-form-view [renderer form-data ui-state]
   (renderer {:form-data form-data
@@ -119,7 +119,16 @@
           (contains? props :image)
           add-image))
 
-(defmulti form-input-view :type)
+(defmulti form-input-view
+  "Form input component function
+
+  Expects a form field with specific keys for each `:type`, plus:
+  - `:value` - current-value
+  - `:on-value-changed` - a map event that will get notification of  new value
+  - `:state` - this component's local state
+  - `:state-path` - a path for `assoc-in` used by component to change it's state
+  - `:resource-string-converter` - a resource string converter"
+  :type)
 
 (defmethod form-input-view :default [{:keys [value type] :as field}]
   {:fx/type :label
@@ -170,6 +179,22 @@
                     :value-converter number-converter
                     :value value
                     :on-value-changed on-value-changed}})
+
+;; endregion
+
+;; region url input
+
+(defmethod handle-event :skip-malformed-urls [{:keys [fx/event on-value-changed]}]
+  (when event
+    {:dispatch (assoc on-value-changed :fx/event event)}))
+
+(defmethod form-input-view :url [{:keys [value on-value-changed]}]
+  {:fx/type text-field
+   :text-formatter {:fx/type :text-formatter
+                    :value-converter uri-string-converter
+                    :value value
+                    :on-value-changed {:event-type :skip-malformed-urls
+                                       :on-value-changed on-value-changed}}})
 
 ;; endregion
 
@@ -236,10 +261,16 @@
 
 ;; region list view input
 
-(defmethod handle-event :on-list-item-edit [{:keys [^ListView$EditEvent fx/event on-edited]}]
-  (let [new-element (.getNewValue event)]
-    (when (some? new-element)
-      {:dispatch (assoc on-edited :fx/event {:index (.getIndex event) :item new-element})})))
+(defmethod handle-event :on-list-edit-start [{:keys [^ListView$EditEvent fx/event state-path ui-state]}]
+  {:set-ui-state (assoc-in ui-state (conj state-path :edit) {:index (.getIndex event)
+                                                             :list (.getTarget event)})})
+
+(defmethod handle-event :on-list-edit-cancel [{:keys [state-path ui-state]}]
+  {:set-ui-state (update-in ui-state state-path dissoc :edit)})
+
+(defmethod handle-event :commit-list-item [{:keys [index fx/event on-edited state-path ui-state]}]
+  {:set-ui-state (update-in ui-state state-path dissoc :edit)
+   :dispatch (assoc on-edited :fx/event {:index index :item event})})
 
 (defmethod handle-event :add-list-element [{:keys [value
                                                    on-added
@@ -274,20 +305,90 @@
 (defmethod handle-event :list-select [{:keys [state-path fx/event ui-state]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
 
+(def ^:private ext-with-list-cell-factory-props
+  (fx/make-ext-with-props
+    {:cell-factory fxui/list-cell-factory-prop}))
+
+(def ^:private ext-with-key-pressed-props
+  (fx/make-ext-with-props
+    {:on-filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
+     :on-key-pressed (fxui/make-event-handler-prop KeyEvent/KEY_PRESSED)}))
+
+(defmethod handle-event :cancel-list-edit-on-escape [{:keys [^KeyEvent fx/event
+                                                             ui-state
+                                                             state-path]}]
+  (when (= KeyCode/ESCAPE (.getCode event))
+    (when-let [cell (ui/closest-node-of-type ListView (.getTarget event))]
+      [[:set-ui-state (update-in ui-state state-path dissoc :edit)]
+       [:cancel-edit cell]])))
+
+(defn- focus-text-field-when-on-scene! [^Node node]
+  (fxui/focus-when-on-scene! (.lookup node "TextField")))
+
+(defn- show-combo-box! [^ComboBox combo-box]
+  (.show combo-box))
+
+(defn- edited-list-cell-view [element field item]
+  (let [edit (-> field :state :edit)
+        desc {:fx/type ext-with-key-pressed-props
+              :props {:on-filter-key-pressed {:event-type :cancel-list-edit-on-escape
+                                              :state-path (:state-path element)}}
+              :desc (cond-> (assoc element :fx/type form-input-view
+                                           :value item
+                                           :state-path (conj (:state-path field) :edit :state)
+                                           :on-value-changed {:event-type :commit-list-item
+                                                              :state-path (:state-path element)
+                                                              :on-edited (:on-edited field)
+                                                              :index (:index edit)})
+                            (contains? edit :state)
+                            (assoc :state (:state edit)))}]
+    (case (:type element)
+      (:resource :vec4 :url :string :integer :number)
+      {:fx/type fx/ext-on-instance-lifecycle
+       :on-created focus-text-field-when-on-scene!
+       :desc desc}
+
+      :choicebox
+      {:fx/type fx/ext-on-instance-lifecycle
+       :on-created show-combo-box!
+       :desc desc}
+
+      desc)))
+
+(defn- list-cell-factory [element edit [i v]]
+  (let [edited (= (:index edit) i)
+        ref {:fx/type fx/ext-get-ref :ref ::edit}]
+    (if edited
+      (case (:type element)
+        :url
+        {:style {:-fx-padding 0}
+         :graphic ref}
+
+        :resource
+        {:style {:-fx-padding [2 2 2 0]}
+         :graphic ref}
+
+        {:graphic ref})
+      {:text (case (:type element)
+               :choicebox (get (into {} (:options element)) v)
+               :resource (resource/resource->proj-path v)
+               (str v))})))
+
 (defn- list-input [{:keys [;; state
                            state
                            state-path
                            ;; value
                            value
-                           on-added ;; fx/event is [item ...]
-                           on-edited ;; fx/event is {:index int :item item}
-                           on-removed ;; fx/event is #{index ...}
+                           on-added                         ;; gives [item ...]
+                           on-edited                        ;; gives {:index int :item item}
+                           on-removed                       ;; gives #{index ...}
                            ;; field
                            element
                            resource-string-converter]
                     :or {state {:selected-indices []}
-                         value []}}]
-  (let [{:keys [selected-indices]} state
+                         value []}
+                    :as field}]
+  (let [{:keys [selected-indices edit]} state
         disable-add (not (form/has-default? element))
         disable-remove (empty? selected-indices)
         add-event (if (= :resource (:type element))
@@ -306,49 +407,50 @@
                       :state-path state-path}]
     {:fx/type :v-box
      :spacing 4
-     :children [{:fx/type fxui/ext-with-advance-events
-                 :desc {:fx/type fx.ext.list-view/with-selection-props
-                        :props {:selection-mode :multiple
-                                :selected-indices selected-indices
-                                :on-selected-indices-changed {:event-type :list-select
-                                                              :state-path state-path}}
-                        :desc {:fx/type :list-view
-                               :style-class ["list-view" "cljfx-form-list-view"]
-                               :items (vec value)
-                               :editable true
-                               :on-edit-commit {:event-type :on-list-item-edit
-                                                :on-edited on-edited}
-                               :pref-height (+ 2                   ;; top and bottom insets
-                                               1                   ;; bottom padding
-                                               9                   ;; horizontal progress bar height
-                                               (* cell-height
-                                                  (max (count value) 1)))
-                               :fixed-cell-size cell-height
-                               :cell-factory (fn [v]
-                                               (case (:type element)
-                                                 :url
-                                                 {:text (str v)
-                                                  :converter uri-string-converter}
-
-                                                 :resource
-                                                 {:text (resource/resource->proj-path v)
-                                                  :converter resource-string-converter}
-
-                                                 :string
-                                                 {:text v
-                                                  :converter :default}
-
-                                                 {:text (str v)}))
-
-                               :context-menu {:fx/type :context-menu
-                                              :items [{:fx/type :menu-item
-                                                       :text "Add"
-                                                       :disable disable-add
-                                                       :on-action add-event}
-                                                      {:fx/type :menu-item
-                                                       :text "Remove"
-                                                       :disable disable-remove
-                                                       :on-action remove-event}]}}}}
+     :children [{:fx/type fx/ext-let-refs
+                 :refs (when edit
+                         {::edit (edited-list-cell-view
+                                   (assoc element
+                                     :resource-string-converter resource-string-converter
+                                     :state-path state-path)
+                                   field
+                                   (get value (:index edit)))})
+                 :desc {:fx/type fxui/ext-with-advance-events
+                        :desc
+                        {:fx/type ext-with-list-cell-factory-props
+                         :props {:cell-factory (fxui/partial list-cell-factory
+                                                             element
+                                                             (dissoc edit :value))}
+                         :desc
+                         {:fx/type fx.ext.list-view/with-selection-props
+                          :props {:selection-mode :multiple
+                                  :selected-indices selected-indices
+                                  :on-selected-indices-changed {:event-type :list-select
+                                                                :state-path state-path}}
+                          :desc
+                          {:fx/type :list-view
+                           :style-class ["list-view" "cljfx-form-list-view"]
+                           :items (into [] (map-indexed vector) value)
+                           :editable true
+                           :on-edit-start {:event-type :on-list-edit-start
+                                           :state-path state-path}
+                           :on-edit-cancel {:event-type :on-list-edit-cancel
+                                            :state-path state-path}
+                           :pref-height (+ 2                ;; top and bottom insets
+                                           1                ;; bottom padding
+                                           9                ;; horizontal scrollbar height
+                                           (* cell-height
+                                              (max (count value) 1)))
+                           :fixed-cell-size cell-height
+                           :context-menu {:fx/type :context-menu
+                                          :items [{:fx/type :menu-item
+                                                   :text "Add"
+                                                   :disable disable-add
+                                                   :on-action add-event}
+                                                  {:fx/type :menu-item
+                                                   :text "Remove"
+                                                   :disable disable-remove
+                                                   :on-action remove-event}]}}}}}}
                 {:fx/type :h-box
                  :spacing 4
                  :children [{:fx/type icon-button
@@ -584,16 +686,11 @@
 (defmethod handle-event :table-select [{:keys [ui-state state-path fx/event]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
 
-(def ^:private ext-with-key-pressed-props
-  (fx/make-ext-with-props
-    {:on-filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
-     :on-key-pressed (fxui/make-event-handler-prop KeyEvent/KEY_PRESSED)}))
-
-(defn- edited-cell-view [column
-                         {:keys [value on-value-changed state-path]
-                          :or {value []}}
-                         i
-                         item]
+(defn- edited-table-cell-view [column
+                               {:keys [value on-value-changed state-path]
+                                :or {value []}}
+                               i
+                               item]
   (let [wrap-input (fn [desc]
                      {:fx/type ext-with-key-pressed-props
                       :props {:on-filter-key-pressed {:event-type :cancel-table-edit-on-escape
@@ -603,7 +700,7 @@
     (case (:type column)
       :choicebox
       {:fx/type fx/ext-on-instance-lifecycle
-       :on-created #(.show ^ComboBox %)
+       :on-created show-combo-box!
        :desc (wrap-input
                (assoc column :fx/type form-input-view
                              :value item
@@ -621,7 +718,7 @@
                                 :value value
                                 :on-value-changed on-value-changed}}
        :desc {:fx/type fx/ext-on-instance-lifecycle
-              :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
+              :on-created focus-text-field-when-on-scene!
               :desc (wrap-input
                       (assoc column :fx/type form-input-view
                                     :value item
@@ -1095,7 +1192,7 @@
         viewport-height (-> scroll-pane .getViewportBounds .getHeight)]
     (when (> content-height viewport-height)
       (.setVvalue scroll-pane (/ (- (.getMinY (.getBoundsInParent node))
-                                    24) ;; form padding
+                                    24)                     ;; form padding
                                  (- content-height viewport-height))))))
 
 (defn- jump-to-button [{:keys [visible-titles]}]
@@ -1185,8 +1282,13 @@
                                  (form/clear-value! ops path))))
                     :set-ui-state (fn [ui-state _]
                                     (g/set-property! view-id :ui-state ui-state))
-                    :cancel-edit (fn [^Cell cell _]
-                                   (fx/run-later (.cancelEdit cell)))
+                    :cancel-edit (fn [x _]
+                                   (cond
+                                     (instance? Cell x)
+                                     (fx/run-later (.cancelEdit ^Cell x))
+
+                                     (instance? ListView x)
+                                     (.edit ^ListView x -1)))
                     :open-resource (fn [[node value] _]
                                      (ui/run-command node :open {:resources [value]}))})
                  (wrap-force-refresh view-id))}
