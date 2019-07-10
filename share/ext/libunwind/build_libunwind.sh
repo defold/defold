@@ -37,7 +37,7 @@ case $CONF_TARGET in
             patch -p1 -s -f < ../../android_changes.patch || exit 1
 
             echo -e "Building libunwind with ndk-build"
-            ${ANDROID_NDK}/ndk-build APP_ABI=armeabi-v7a NDK_PROJECTPATH="." APP_STL=c++_static NDK_DEBUG=0 -B -j16 || exit 1
+            ${ANDROID_NDK_ROOT}/ndk-build APP_ABI=armeabi-v7a NDK_PROJECTPATH="." APP_STL=c++_static NDK_DEBUG=0 -B -j16 || exit 1
             popd
 
             echo -e "Copying library to build folder"
@@ -66,7 +66,7 @@ case $CONF_TARGET in
             patch -p1 -s -f < ../../android_changes.patch || exit 1
 
             echo -e "Building libunwind with ndk-build"
-            ${ANDROID_NDK}/ndk-build NDK_PROJECTPATH="." APP_STL=c++_static NDK_DEBUG=0 -B -j16 || exit 1
+            ${ANDROID_NDK_ROOT}/ndk-build NDK_PROJECTPATH="." APP_STL=c++_static NDK_DEBUG=0 -B -j16 || exit 1
             popd
 
             echo -e "Copying library to build folder"
