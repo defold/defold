@@ -73,7 +73,7 @@ case $CONF_TARGET in
             mkdir -p $PREFIX/lib/$CONF_TARGET
             mkdir -p $PREFIX/include/$CONF_TARGET/
 
-            cp -v libunwind_android/obj/local/arm64-v8a/libunwind.a $PREFIX/lib/$CONF_TARGET/
+            cp -v libunwind_android/obj/local/arm64-v8a/libunwind_defold.a $PREFIX/lib/$CONF_TARGET/
             cp -vr libunwind_android/include/* $PREFIX/include/$CONF_TARGET/
         }
         ;;
