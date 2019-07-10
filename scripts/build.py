@@ -688,7 +688,7 @@ class Configuration(object):
         strip = "strip"
         if 'android' in self.target_platform:
             ANDROID_NDK_VERSION = '20'
-            ANDROID_NDK_ROOT = os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+            ANDROID_NDK_ROOT = os.path.join(self.dynamo_home, 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
             ANDROID_GCC_VERSION = '4.9'
             if target_platform == 'armv7-android':
                 ANDROID_PLATFORM = 'arm-linux-androideabi'
