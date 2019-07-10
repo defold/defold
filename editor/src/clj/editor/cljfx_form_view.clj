@@ -175,8 +175,8 @@
 
 ;; region vec4 input
 
-(defmethod handle-event :route-vec4-change [{:keys [value index to fx/event]}]
-  {:dispatch (assoc to :fx/event (assoc value index event))})
+(defmethod handle-event :on-vec4-element-change [{:keys [value index on-value-changed fx/event]}]
+  {:dispatch (assoc on-value-changed :fx/event (assoc value index event))})
 
 (defmethod form-input-view :vec4 [{:keys [value on-value-changed]}]
   (let [labels ["X" "Y" "Z" "W"]]
@@ -196,8 +196,8 @@
                                       :type :number
                                       :h-box/hgrow :always
                                       :value n
-                                      :on-value-changed {:event-type :route-vec4-change
-                                                         :to on-value-changed
+                                      :on-value-changed {:event-type :on-vec4-element-change
+                                                         :on-value-changed on-value-changed
                                                          :value value
                                                          :index i}}]}))
                      value)}))
@@ -236,26 +236,26 @@
 
 ;; region list view input
 
-(defmethod handle-event :route-list-item-edit [{:keys [^ListView$EditEvent fx/event to]}]
+(defmethod handle-event :on-list-item-edit [{:keys [^ListView$EditEvent fx/event on-edited]}]
   (let [new-element (.getNewValue event)]
     (when (some? new-element)
-      {:dispatch (assoc to :fx/event {:index (.getIndex event) :item new-element})})))
+      {:dispatch (assoc on-edited :fx/event {:index (.getIndex event) :item new-element})})))
 
-(defmethod handle-event :route-added-list-element [{:keys [value
-                                                           value-to
-                                                           state-path
-                                                           ui-state
-                                                           element]}]
-  [[:dispatch (assoc value-to :fx/event [element])]
+(defmethod handle-event :add-list-element [{:keys [value
+                                                   on-added
+                                                   state-path
+                                                   ui-state
+                                                   element]}]
+  [[:dispatch (assoc on-added :fx/event [element])]
    [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) [(count value)])]])
 
-(defmethod handle-event :route-added-list-resources [{:keys [workspace
-                                                             project
-                                                             filter
-                                                             value
-                                                             value-to
-                                                             state-path
-                                                             ui-state]}]
+(defmethod handle-event :add-list-resource [{:keys [workspace
+                                                    project
+                                                    filter
+                                                    value
+                                                    on-added
+                                                    state-path
+                                                    ui-state]}]
   (let [resources (dialogs/make-resource-dialog workspace project {:ext filter
                                                                    :selection :multiple})]
     (when-not (empty? resources)
@@ -263,17 +263,15 @@
             added-count (count resources)
             indices (vec (range value-count
                                 (+ value-count added-count)))]
-        [[:dispatch (assoc value-to :fx/event resources)]
+        [[:dispatch (assoc on-added :fx/event resources)]
          [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) indices)]]))))
 
-(defmethod handle-event :remove-list-selection [{:keys [value-to
-                                                        state-path
-                                                        ui-state]}]
+(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
   (let [indices-path (conj state-path :selected-indices)]
-    [[:dispatch (assoc value-to :fx/event (set (get-in ui-state indices-path)))]
+    [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
      [:set-ui-state (assoc-in ui-state indices-path [])]]))
 
-(defmethod handle-event :route-list-select [{:keys [state-path fx/event ui-state]}]
+(defmethod handle-event :list-select [{:keys [state-path fx/event ui-state]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
 
 (defn- list-input [{:keys [;; state
@@ -293,18 +291,18 @@
         disable-add (not (form/has-default? element))
         disable-remove (empty? selected-indices)
         add-event (if (= :resource (:type element))
-                    {:event-type :route-added-list-resources
+                    {:event-type :add-list-resource
                      :value value
-                     :value-to on-added
+                     :on-added on-added
                      :state-path state-path
                      :filter (:filter element)}
-                    {:event-type :route-added-list-element
+                    {:event-type :add-list-element
                      :value value
-                     :value-to on-added
+                     :on-added on-added
                      :state-path state-path
                      :element (form/field-default element)})
         remove-event {:event-type :remove-list-selection
-                      :value-to on-removed
+                      :on-removed on-removed
                       :state-path state-path}]
     {:fx/type :v-box
      :spacing 4
@@ -312,14 +310,14 @@
                  :desc {:fx/type fx.ext.list-view/with-selection-props
                         :props {:selection-mode :multiple
                                 :selected-indices selected-indices
-                                :on-selected-indices-changed {:event-type :route-list-select
+                                :on-selected-indices-changed {:event-type :list-select
                                                               :state-path state-path}}
                         :desc {:fx/type :list-view
                                :style-class ["list-view" "cljfx-form-list-view"]
                                :items (vec value)
                                :editable true
-                               :on-edit-commit {:event-type :route-list-item-edit
-                                                :to on-edited}
+                               :on-edit-commit {:event-type :on-list-item-edit
+                                                :on-edited on-edited}
                                :pref-height (+ 2                   ;; top and bottom insets
                                                1                   ;; bottom padding
                                                9                   ;; horizontal progress bar height
@@ -401,9 +399,12 @@
 (defmethod handle-event :open-resource [{:keys [^Event fx/event value]}]
   {:open-resource [(.getTarget event) value]})
 
-(defmethod handle-event :route-selected-resource [{:keys [workspace project filter to]}]
+(defmethod handle-event :on-resource-selected [{:keys [workspace
+                                                       project
+                                                       filter
+                                                       on-value-changed]}]
   (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
-    {:dispatch (assoc to :fx/event resource)}))
+    {:dispatch (assoc on-value-changed :fx/event resource)}))
 
 (defmethod form-input-view :resource [{:keys [value
                                               on-value-changed
@@ -426,20 +427,23 @@
                            :value value}}
               {:fx/type icon-button
                :text "\u2026"
-               :on-action {:event-type :route-selected-resource
-                           :to on-value-changed
+               :on-action {:event-type :on-resource-selected
+                           :on-value-changed on-value-changed
                            :filter filter}}]})
 
 ;; endregion
 
 ;; region file input
 
-(defmethod handle-event :route-selected-file [{:keys [to filter ^Event fx/event title]}]
+(defmethod handle-event :on-file-selected [{:keys [on-value-changed
+                                                   filter
+                                                   ^Event fx/event
+                                                   title]}]
   (when-let [file (dialogs/make-file-dialog (or title "Select File")
                                             filter
                                             nil
                                             (.getWindow (.getScene ^Node (.getSource event))))]
-    {:dispatch (assoc to :fx/event (.getAbsolutePath file))}))
+    {:dispatch (assoc on-value-changed :fx/event (.getAbsolutePath file))}))
 
 (defmethod form-input-view :file [{:keys [on-value-changed value filter title]}]
   {:fx/type :h-box
@@ -452,8 +456,8 @@
                                 :on-value-changed on-value-changed}}
               {:fx/type icon-button
                :text "\u2026"
-               :on-action {:event-type :route-selected-file
-                           :to on-value-changed
+               :on-action {:event-type :on-file-selected
+                           :on-value-changed on-value-changed
                            :filter filter
                            :title title}}]})
 
@@ -461,9 +465,9 @@
 
 ;; region directory input
 
-(defmethod handle-event :route-selected-directory [{:keys [to title]}]
+(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title]}]
   (when-let [file (ui/choose-directory (or title "Select Directory") nil)]
-    {:dispatch (assoc to :fx/event file)}))
+    {:dispatch (assoc on-value-changed :fx/event file)}))
 
 (defmethod form-input-view :directory [{:keys [on-value-changed value title]}]
   {:fx/type :h-box
@@ -476,8 +480,8 @@
                                 :on-value-changed on-value-changed}}
               {:fx/type icon-button
                :text "\u2026"
-               :on-action {:event-type :route-selected-directory
-                           :to on-value-changed
+               :on-action {:event-type :on-directory-selected
+                           :on-value-changed on-value-changed
                            :title title}}]})
 
 ;; endregion
@@ -504,23 +508,23 @@
     (assoc-in value edit-path (:value edit))))
 
 (defmethod handle-event :on-table-edit-cancel [{:keys [value
-                                                       value-to
+                                                       on-value-changed
                                                        ui-state
                                                        state-path]}]
   (let [edit (get-in ui-state (conj state-path :edit))]
     (cond-> [[:set-ui-state (update-in ui-state state-path dissoc :edit)]]
 
             (some? (:value edit))
-            (conj [:dispatch (assoc value-to :fx/event (value-with-edit value edit))]))))
+            (conj [:dispatch (assoc on-value-changed :fx/event (value-with-edit value edit))]))))
 
 (defmethod handle-event :commit-table-edit [{:keys [fx/event
                                                     edit-path
                                                     ui-state
                                                     state-path
                                                     value
-                                                    value-to]}]
+                                                    on-value-changed]}]
   (.edit ^TableView (get-in ui-state (conj state-path :edit :table)) -1 nil)
-  {:dispatch (assoc value-to :fx/event (assoc-in value edit-path event))})
+  {:dispatch (assoc on-value-changed :fx/event (assoc-in value edit-path event))})
 
 (defmethod handle-event :keep-table-edit [{:keys [ui-state state-path fx/event]}]
   (let [state (get-in ui-state state-path)]
@@ -540,7 +544,7 @@
                                                                   ui-state
                                                                   state-path
                                                                   value
-                                                                  value-to]}]
+                                                                  on-value-changed]}]
   (when (= KeyCode/ENTER (.getCode event))
     (when-let [edit (get-in ui-state (conj state-path :edit))]
       (when (some? (:value edit))
@@ -548,21 +552,24 @@
                     :edit-path edit-path
                     :state-path state-path
                     :value value
-                    :value-to value-to
+                    :on-value-changed on-value-changed
                     :fx/event (:value edit)}}))))
 
-(defmethod handle-event :route-add-table-element [{:keys [ui-state
-                                                          state-path
-                                                          value
-                                                          value-to
-                                                          element]}]
+(defmethod handle-event :on-table-element-added [{:keys [ui-state
+                                                         state-path
+                                                         value
+                                                         on-value-changed
+                                                         element]}]
   (let [new-value (into value [element])]
-    [[:dispatch (assoc value-to :fx/event new-value)]
+    [[:dispatch (assoc on-value-changed :fx/event new-value)]
      [:set-ui-state (assoc-in ui-state
                               (conj state-path :selected-indices)
                               [(dec (count new-value))])]]))
 
-(defmethod handle-event :remove-table-selection [{:keys [value value-to ui-state state-path]}]
+(defmethod handle-event :remove-table-selection [{:keys [value
+                                                         on-value-changed
+                                                         ui-state
+                                                         state-path]}]
   (let [indices-path (conj state-path :selected-indices)
         selected-indices (set (get-in ui-state indices-path))
         new-value (into []
@@ -571,7 +578,7 @@
                             (when-not (contains? selected-indices i)
                               x)))
                         value)]
-    [[:dispatch (assoc value-to :fx/event new-value)]
+    [[:dispatch (assoc on-value-changed :fx/event new-value)]
      [:set-ui-state (assoc-in ui-state indices-path [])]]))
 
 (defmethod handle-event :table-select [{:keys [ui-state state-path fx/event]}]
@@ -604,7 +611,7 @@
                                                 :edit-path edit-path
                                                 :state-path state-path
                                                 :value value
-                                                :value-to on-value-changed}))}
+                                                :on-value-changed on-value-changed}))}
 
       :vec4
       {:fx/type ext-with-key-pressed-props
@@ -612,7 +619,7 @@
                                 :edit-path edit-path
                                 :state-path state-path
                                 :value value
-                                :value-to on-value-changed}}
+                                :on-value-changed on-value-changed}}
        :desc {:fx/type fx/ext-on-instance-lifecycle
               :on-created #(fxui/focus-when-on-scene! (.lookup ^Node % "TextField"))
               :desc (wrap-input
@@ -629,7 +636,7 @@
                                                           :edit-path edit-path
                                                           :state-path state-path
                                                           :value value
-                                                          :value-to on-value-changed}))}
+                                                          :on-value-changed on-value-changed}))}
 
       {:fx/type :label
        :wrap-text true
@@ -685,7 +692,7 @@
                      :state-path state-path
                      :column-path path}
      :on-edit-cancel {:event-type :on-table-edit-cancel
-                      :value-to on-value-changed
+                      :on-value-changed on-value-changed
                       :state-path state-path}
      :text label
      :cell-value-factory (fxui/partial table-cell-value-factory path)
@@ -702,14 +709,14 @@
         disable-remove (empty? selected-indices)
         default-row (form/table-row-defaults field)
         disable-add (nil? default-row)
-        on-added {:event-type :route-add-table-element
+        on-added {:event-type :on-table-element-added
                   :value value
-                  :value-to on-value-changed
+                  :on-value-changed on-value-changed
                   :state-path state-path
                   :element default-row}
         on-removed {:event-type :remove-table-selection
                     :value value
-                    :value-to on-value-changed
+                    :on-value-changed on-value-changed
                     :state-path state-path}]
     {:fx/type fx/ext-let-refs
      :refs (when edit
