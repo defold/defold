@@ -1630,6 +1630,8 @@ def detect(conf):
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
+
+        # Todo: I think bintools could be removed and we just use llvm path?
         bintools    = '%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
         llvm        = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
