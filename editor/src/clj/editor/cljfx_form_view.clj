@@ -124,7 +124,7 @@
 
   Expects a form field with specific keys for each `:type`, plus:
   - `:value` - current-value
-  - `:on-value-changed` - a map event that will get notification of  new value
+  - `:on-value-changed` - a map event that will get notification of new value
   - `:state` - this component's local state
   - `:state-path` - a path for `assoc-in` used by component to change it's state
   - `:resource-string-converter` - a resource string converter"
@@ -135,6 +135,47 @@
    :wrap-text true
    :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
 
+(defmulti cell-input-view
+  "Analogous to form input, but displayed in a cell (in list-view or table-view)
+
+  Expects same keys as [[form-input-view]], but `:on-value-changed` is used for
+  temporarily saving value while continuing edit. Additional keys:
+  - `:on-commit` - a map event that will get notification with committed value
+  - `:on-cancel` - a map event that will get notification if user cancels edit"
+  :type)
+
+(def ^:private ext-with-key-pressed-props
+  (fx/make-ext-with-props
+    {:on-filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
+     :on-key-pressed (fxui/make-event-handler-prop KeyEvent/KEY_PRESSED)}))
+
+(defmethod handle-event :cancel-on-escape [{:keys [on-cancel ^KeyEvent fx/event]}]
+  (when (= KeyCode/ESCAPE (.getCode event))
+    {:dispatch (assoc on-cancel :fx/event event)}))
+
+(defn- wrap-cancel-on-escape [desc on-cancel]
+  {:fx/type ext-with-key-pressed-props
+   :props {:on-filter-key-pressed {:event-type :cancel-on-escape
+                                   :on-cancel on-cancel}}
+   :desc desc})
+
+(defn- default-cell-input-view [field]
+  (wrap-cancel-on-escape
+    (assoc field :fx/type form-input-view
+                 :on-value-changed (:on-commit field))
+    (:on-cancel field)))
+
+(defmethod cell-input-view :default [field]
+  (default-cell-input-view field))
+
+(defn- focus-text-field-when-on-scene! [^Node node]
+  (fxui/focus-when-on-scene! (.lookup node "TextField")))
+
+(defn- wrap-focus-text-field [desc]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created focus-text-field-when-on-scene!
+   :desc desc})
+
 ;; region string input
 
 (defmethod form-input-view :string [{:keys [value on-value-changed]}]
@@ -143,6 +184,9 @@
                     :value-converter :default
                     :value value
                     :on-value-changed on-value-changed}})
+
+(defmethod cell-input-view :string [field]
+  (wrap-focus-text-field (default-cell-input-view field)))
 
 ;; endregion
 
@@ -167,6 +211,9 @@
                     :value (int value)
                     :on-value-changed on-value-changed}})
 
+(defmethod cell-input-view :integer [field]
+  (wrap-focus-text-field (default-cell-input-view field)))
+
 ;; endregion
 
 ;; region number input
@@ -179,6 +226,9 @@
                     :value-converter number-converter
                     :value value
                     :on-value-changed on-value-changed}})
+
+(defmethod cell-input-view :number [field]
+  (wrap-focus-text-field (default-cell-input-view field)))
 
 ;; endregion
 
@@ -195,6 +245,9 @@
                     :value value
                     :on-value-changed {:event-type :skip-malformed-urls
                                        :on-value-changed on-value-changed}}})
+
+(defmethod cell-input-view :url [field]
+  (wrap-focus-text-field (default-cell-input-view field)))
 
 ;; endregion
 
@@ -227,6 +280,41 @@
                                                          :index i}}]}))
                      value)}))
 
+(defmethod handle-event :keep-edit [{:keys [state-path ui-state fx/event on-value-changed]}]
+  [[:set-ui-state (assoc-in ui-state (conj state-path :value) event)]
+   [:dispatch (assoc on-value-changed :fx/event event)]])
+
+(defmethod handle-event :commit-on-enter [{:keys [^KeyEvent fx/event on-commit state-path ui-state]}]
+  (when (and (= KeyCode/ENTER (.getCode event)))
+    (let [value (get-in ui-state (conj state-path :value) ::no-value)]
+      (when-not (= value ::no-value)
+        {:dispatch (assoc on-commit :fx/event value)}))))
+
+(defn- wrap-commit-on-enter [desc on-commit state-path]
+  {:fx/type ext-with-key-pressed-props
+   :props {:on-key-pressed {:event-type :commit-on-enter
+                            :on-commit on-commit
+                            :state-path state-path}}
+   :desc desc})
+
+(defmethod cell-input-view :vec4 [{:keys [on-cancel
+                                          on-commit
+                                          on-value-changed
+                                          state
+                                          state-path]
+                                   :as field}]
+  (-> field
+      (assoc :fx/type form-input-view
+             :state-path (conj state-path :form-input-state)
+             :on-value-changed {:event-type :keep-edit
+                                :state-path state-path
+                                :on-value-changed on-value-changed})
+      (cond-> (contains? state :form-input-state)
+              (assoc :state (:form-input-state state)))
+      (wrap-cancel-on-escape on-cancel)
+      (wrap-commit-on-enter on-commit state-path)
+      (wrap-focus-text-field)))
+
 ;; endregion
 
 ;; region choicebox input
@@ -256,6 +344,14 @@
      :cell-factory (fn [x]
                      {:text (value->label x)})
      :items (sort (mapv first options))}))
+
+(defn- show-combo-box! [^ComboBox combo-box]
+  (.show combo-box))
+
+(defmethod cell-input-view :choicebox [field]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created show-combo-box!
+   :desc (default-cell-input-view field)})
 
 ;; endregion
 
@@ -309,54 +405,36 @@
   (fx/make-ext-with-props
     {:cell-factory fxui/list-cell-factory-prop}))
 
-(def ^:private ext-with-key-pressed-props
-  (fx/make-ext-with-props
-    {:on-filter-key-pressed (fxui/make-event-filter-prop KeyEvent/KEY_PRESSED)
-     :on-key-pressed (fxui/make-event-handler-prop KeyEvent/KEY_PRESSED)}))
+(defmethod handle-event :cancel-list-edit [{:keys [^KeyEvent fx/event
+                                                   ui-state
+                                                   state-path]}]
+  (when-let [cell (ui/closest-node-of-type ListView (.getTarget event))]
+    [[:set-ui-state (update-in ui-state state-path dissoc :edit)]
+     [:cancel-edit cell]]))
 
-(defmethod handle-event :cancel-list-edit-on-escape [{:keys [^KeyEvent fx/event
-                                                             ui-state
-                                                             state-path]}]
-  (when (= KeyCode/ESCAPE (.getCode event))
-    (when-let [cell (ui/closest-node-of-type ListView (.getTarget event))]
-      [[:set-ui-state (update-in ui-state state-path dissoc :edit)]
-       [:cancel-edit cell]])))
+(defmethod handle-event :keep-list-edit [{:keys [ui-state state-path fx/event]}]
+  {:set-ui-state (assoc-in ui-state (conj state-path :edit :value) event)})
 
-(defn- focus-text-field-when-on-scene! [^Node node]
-  (fxui/focus-when-on-scene! (.lookup node "TextField")))
+(defn- edited-list-cell-view [element {:keys [state-path state on-edited] :as field} item]
+  (let [edit (:edit state)]
+    (-> element
+        (assoc :fx/type cell-input-view
+               :value item
+               :on-cancel {:event-type :cancel-list-edit
+                           :state-path state-path}
+               :on-value-changed {:event-type :keep-list-edit
+                                  :state-path state-path}
+               :on-commit {:event-type :commit-list-item
+                           :state-path state-path
+                           :on-edited on-edited
+                           :index (:index edit)}
+               :resource-string-converter (:resource-string-converter field)
+               :state-path (conj state-path :edit :state))
+        (cond-> (contains? edit :state)
+                (assoc :state (:state edit))))))
 
-(defn- show-combo-box! [^ComboBox combo-box]
-  (.show combo-box))
-
-(defn- edited-list-cell-view [element field item]
-  (let [edit (-> field :state :edit)
-        desc {:fx/type ext-with-key-pressed-props
-              :props {:on-filter-key-pressed {:event-type :cancel-list-edit-on-escape
-                                              :state-path (:state-path element)}}
-              :desc (cond-> (assoc element :fx/type form-input-view
-                                           :value item
-                                           :state-path (conj (:state-path field) :edit :state)
-                                           :on-value-changed {:event-type :commit-list-item
-                                                              :state-path (:state-path element)
-                                                              :on-edited (:on-edited field)
-                                                              :index (:index edit)})
-                            (contains? edit :state)
-                            (assoc :state (:state edit)))}]
-    (case (:type element)
-      (:resource :vec4 :url :string :integer :number)
-      {:fx/type fx/ext-on-instance-lifecycle
-       :on-created focus-text-field-when-on-scene!
-       :desc desc}
-
-      :choicebox
-      {:fx/type fx/ext-on-instance-lifecycle
-       :on-created show-combo-box!
-       :desc desc}
-
-      desc)))
-
-(defn- list-cell-factory [element edit [i v]]
-  (let [edited (= (:index edit) i)
+(defn- list-cell-factory [element edit-index [i v]]
+  (let [edited (= edit-index i)
         ref {:fx/type fx/ext-get-ref :ref ::edit}]
     (if edited
       (case (:type element)
@@ -379,12 +457,11 @@
                            state-path
                            ;; value
                            value
-                           on-added                         ;; gives [item ...]
-                           on-edited                        ;; gives {:index int :item item}
-                           on-removed                       ;; gives #{index ...}
+                           on-added                         ;; [item ...]
+                           on-edited                        ;; {:index int :item item}
+                           on-removed                       ;; #{index ...}
                            ;; field
-                           element
-                           resource-string-converter]
+                           element]
                     :or {state {:selected-indices []}
                          value []}
                     :as field}]
@@ -410,9 +487,7 @@
      :children [{:fx/type fx/ext-let-refs
                  :refs (when edit
                          {::edit (edited-list-cell-view
-                                   (assoc element
-                                     :resource-string-converter resource-string-converter
-                                     :state-path state-path)
+                                   element
                                    field
                                    (get value (:index edit)))})
                  :desc {:fx/type fxui/ext-with-advance-events
@@ -420,7 +495,7 @@
                         {:fx/type ext-with-list-cell-factory-props
                          :props {:cell-factory (fxui/partial list-cell-factory
                                                              element
-                                                             (dissoc edit :value))}
+                                                             (:index edit))}
                          :desc
                          {:fx/type fx.ext.list-view/with-selection-props
                           :props {:selection-mode :multiple
@@ -533,6 +608,9 @@
                            :on-value-changed on-value-changed
                            :filter filter}}]})
 
+(defmethod cell-input-view :resource [field]
+  (wrap-focus-text-field (default-cell-input-view field)))
+
 ;; endregion
 
 ;; region file input
@@ -633,13 +711,12 @@
     (when (contains? state :edit)
       {:set-ui-state (assoc-in ui-state (conj state-path :edit :value) event)})))
 
-(defmethod handle-event :cancel-table-edit-on-escape [{:keys [^KeyEvent fx/event
-                                                              ui-state
-                                                              state-path]}]
-  (when (= KeyCode/ESCAPE (.getCode event))
-    (when-let [^Cell cell (ui/closest-node-of-type Cell (.getTarget event))]
-      [[:set-ui-state (update-in ui-state state-path dissoc :edit)]
-       [:cancel-edit cell]])))
+(defmethod handle-event :cancel-table-edit [{:keys [^KeyEvent fx/event
+                                                    ui-state
+                                                    state-path]}]
+  (when-let [^Cell cell (ui/closest-node-of-type Cell (.getTarget event))]
+    [[:set-ui-state (update-in ui-state state-path dissoc :edit)]
+     [:cancel-edit cell]]))
 
 (defmethod handle-event :commit-kept-table-edit-on-enter [{:keys [^KeyEvent fx/event
                                                                   edit-path
@@ -687,89 +764,52 @@
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
 
 (defn- edited-table-cell-view [column
-                               {:keys [value on-value-changed state-path]
+                               {:keys [value
+                                       on-value-changed
+                                       state-path
+                                       state
+                                       resource-string-converter]
                                 :or {value []}}
-                               i
                                item]
-  (let [wrap-input (fn [desc]
-                     {:fx/type ext-with-key-pressed-props
-                      :props {:on-filter-key-pressed {:event-type :cancel-table-edit-on-escape
-                                                      :state-path state-path}}
-                      :desc desc})
-        edit-path (into [i] (:path column))]
-    (case (:type column)
-      :choicebox
-      {:fx/type fx/ext-on-instance-lifecycle
-       :on-created show-combo-box!
-       :desc (wrap-input
-               (assoc column :fx/type form-input-view
-                             :value item
-                             :on-value-changed {:event-type :commit-table-edit
-                                                :edit-path edit-path
-                                                :state-path state-path
-                                                :value value
-                                                :on-value-changed on-value-changed}))}
-
-      :vec4
-      {:fx/type ext-with-key-pressed-props
-       :props {:on-key-pressed {:event-type :commit-kept-table-edit-on-enter
-                                :edit-path edit-path
-                                :state-path state-path
-                                :value value
-                                :on-value-changed on-value-changed}}
-       :desc {:fx/type fx/ext-on-instance-lifecycle
-              :on-created focus-text-field-when-on-scene!
-              :desc (wrap-input
-                      (assoc column :fx/type form-input-view
-                                    :value item
-                                    :on-value-changed {:event-type :keep-table-edit
-                                                       :state-path state-path}))}}
-
-      :string
-      {:fx/type fxui/ext-focused-by-default
-       :desc (wrap-input (assoc column :fx/type form-input-view
-                                       :value item
-                                       :on-value-changed {:event-type :commit-table-edit
-                                                          :edit-path edit-path
-                                                          :state-path state-path
-                                                          :value value
-                                                          :on-value-changed on-value-changed}))}
-
-      {:fx/type :label
-       :wrap-text true
-       :text (str (:type column) " " (pr-str value))})))
+  (let [{:keys [edit]} state
+        edit-path (into [(:index edit)] (:path column))
+        input-state-path (conj state-path :edit :state)]
+      (-> column
+          (assoc :fx/type cell-input-view
+                 :value item
+                 :on-value-changed {:event-type :keep-table-edit
+                                    :state-path state-path}
+                 :on-cancel {:event-type :cancel-table-edit
+                             :state-path state-path}
+                 :on-commit {:event-type :commit-table-edit
+                             :edit-path edit-path
+                             :state-path state-path
+                             :value value
+                             :on-value-changed on-value-changed}
+                 :resource-string-converter resource-string-converter
+                 :state-path input-state-path)
+          (cond-> (contains? edit :state)
+                  (assoc :state (:state edit))))))
 
 (defn- table-cell-value-factory [path [i x]]
   [i (get-in x path)])
 
 (defn- table-cell-factory [{:keys [path type] :as column} edit [i x]]
   (let [edited (and (= i (:index edit))
-                    (= path (:path edit)))]
-    (case [type edited]
-      [:choicebox false]
-      {:text (get (into {} (:options column)) x)}
-
-      [:choicebox true]
-      {:style {:-fx-padding -2}
-       :graphic {:fx/type fx/ext-get-ref :ref ::edit}}
-
-      [:vec4 false]
-      {:text (->> x
-                  (mapv field-expression/format-number)
-                  (string/join "  "))}
-
-      [:vec4 true]
-      {:style {:-fx-padding "-2 0 0 0"}
-       :graphic {:fx/type fx/ext-get-ref :ref ::edit}}
-
-      [:string false]
-      {:text x}
-
-      [:string true]
-      {:style {:-fx-padding -1}
-       :graphic {:fx/type fx/ext-get-ref :ref ::edit}}
-
-      {:text (str type ": " x)})))
+                    (= path (:path edit)))
+        ref {:fx/type fx/ext-get-ref :ref ::edit}]
+    (if edited
+      (-> type
+          (case
+            :choicebox {:style {:-fx-padding -2}}
+            :vec4 {:style {:-fx-padding "-2 0 0 0"}}
+            :string {:style {:-fx-padding -1}}
+            {})
+          (assoc :graphic ref))
+      {:text (case type
+               :choicebox (get (into {} (:options column)) x)
+               :vec4 (->> x (mapv field-expression/format-number) (string/join "  "))
+               (str x))})))
 
 (defn- table-column [{:keys [path label type] :as column}
                      {:keys [state state-path value on-value-changed]
@@ -822,7 +862,7 @@
                                        columns)
                    edited-value (or (:value edit)
                                     (get-in value (into [(:index edit)] (:path edit))))]
-               {::edit (edited-cell-view edited-column field (:index edit) edited-value)}))
+               {::edit (edited-table-cell-view edited-column field edited-value)}))
      :desc {:fx/type :v-box
             :spacing 4
             :children [{:fx/type :stack-pane
