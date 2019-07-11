@@ -51,12 +51,14 @@
   (g/transact (add-profile node-id name qualifiers)))
 
 (g/defnk produce-form-data-desc [_node-id]
-  {:sections
+  {:navigation false
+   :sections
    [{:title "Display Profiles"
      :fields [{:path [:profiles]
                :label "Profile"
                :type :2panel
                :panel-key {:path [:name] :type :string :default "New Display Profile"}
+               ;; TODO add support for this:
                :on-add (partial add-profile! _node-id "New Display Profile" [])
                :on-remove (fn [vals] (g/transact (map #(g/delete-node (:node-id %)) vals)))
                :set (fn [v path val] (g/set-property! (:node-id v) (first path) val))

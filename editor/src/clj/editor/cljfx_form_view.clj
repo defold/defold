@@ -718,22 +718,6 @@
     [[:set-ui-state (update-in ui-state state-path dissoc :edit)]
      [:cancel-edit cell]]))
 
-(defmethod handle-event :commit-kept-table-edit-on-enter [{:keys [^KeyEvent fx/event
-                                                                  edit-path
-                                                                  ui-state
-                                                                  state-path
-                                                                  value
-                                                                  on-value-changed]}]
-  (when (= KeyCode/ENTER (.getCode event))
-    (when-let [edit (get-in ui-state (conj state-path :edit))]
-      (when (some? (:value edit))
-        {:dispatch {:event-type :commit-table-edit
-                    :edit-path edit-path
-                    :state-path state-path
-                    :value value
-                    :on-value-changed on-value-changed
-                    :fx/event (:value edit)}}))))
-
 (defmethod handle-event :on-table-element-added [{:keys [ui-state
                                                          state-path
                                                          value
@@ -803,10 +787,12 @@
           (case
             :choicebox {:style {:-fx-padding -2}}
             :vec4 {:style {:-fx-padding "-2 0 0 0"}}
-            :string {:style {:-fx-padding -1}}
+            (:integer :number :string) {:style {:-fx-padding -1}}
+            :resource {:style {:-fx-padding [0 2 2 0]}}
             {})
           (assoc :graphic ref))
       {:text (case type
+               :resource (resource/resource->proj-path x)
                :choicebox (get (into {} (:options column)) x)
                :vec4 (->> x (mapv field-expression/format-number) (string/join "  "))
                (str x))})))
@@ -820,6 +806,10 @@
      :sortable false
      :min-width (cond
                   (and (= :vec4 type)
+                       (= path (:path edit)))
+                  235
+
+                  (and (= :resource type)
                        (= path (:path edit)))
                   235
 
