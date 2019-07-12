@@ -1156,6 +1156,32 @@ namespace dmGameObject
         return 1;
     }
 
+    /*# gets the game object instance world transform matrix
+     *
+     * @name go.get_world_transform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script
+     * @return transform [type:matrix4] instance world transform
+     * @examples
+     *
+     * Get the world transform of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local m = go.get_world_transform()
+     * ```
+     *
+     * Get the world transform of another game object instance with id "x":
+     *
+     * ```lua
+     * local m = go.get_world_transform("x")
+     * ```
+     */
+    int Script_GetWorldTransform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L,1);
+        dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(instance));
+        return 1;
+    }
+
     /*# gets the id of an instance
      * Returns or constructs an instance identifier. The instance id is a hash
      * of the absolute path to the instance.
@@ -1837,6 +1863,7 @@ namespace dmGameObject
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
         {"get_world_scale_uniform", Script_GetWorldScaleUniform},
+        {"get_world_transform",     Script_GetWorldTransform},
         {"get_id",                  Script_GetId},
         {"animate",                 Script_Animate},
         {"cancel_animations",       Script_CancelAnimations},
