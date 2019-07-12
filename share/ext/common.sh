@@ -248,8 +248,9 @@ function cmi() {
             local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
             #  -fstack-protector
-#            local stl="${ANDROID_NDK_ROOT}/sources/cxx-stl/stlport/stlport"
 
+            # Note: no-c++11-narrowing is added for the upgrade from NDK 10e to 20. Clang is much more vigilant than gcc,
+            #       so to save time by not having to patch bullet (and others presumably) we skip narrowing.
             export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
             export CPPFLAGS=${CFLAGS}
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"

@@ -24,6 +24,8 @@ case $CONF_TARGET in
         readonly VERSION=8ba86320a71bcdc7b411070c0c0f101cf2131cf2
 
         function cmi_make() {
+            # Note: For Android 32/64, we have to rename libunwind since it is now shipped with the NDK
+            #       and is not compatible with our code.
             echo -e "Checking out libunwind into libunwind_android"
             git clone https://android.googlesource.com/platform/external/libunwind libunwind_android
             pushd libunwind_android

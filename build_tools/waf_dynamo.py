@@ -314,7 +314,6 @@ def default_flags(self):
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/sources/android/native_app_glue' % (ANDROID_NDK_ROOT),
                                       '-I%s/sources/android/cpufeatures' % (ANDROID_NDK_ROOT),
-                                      #'-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
                                       '-isysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
@@ -322,12 +321,10 @@ def default_flags(self):
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
-        # -lgnustl_static -lsupc++
+        # -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
-                '-static-libstdc++'
-                #'-L%s' % stl_lib] + getAndroidLinkFlags(target_arch))
-                ] + getAndroidLinkFlags(target_arch))
+                '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
         # Default to asmjs output
@@ -1630,8 +1627,6 @@ def detect(conf):
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-
-        # Todo: I think bintools could be removed and we just use llvm path?
         bintools    = '%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
         llvm        = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
