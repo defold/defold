@@ -435,7 +435,7 @@
 
 (defn- list-cell-factory [element edit-index [i v]]
   (let [edited (= edit-index i)
-        ref {:fx/type fx/ext-get-ref :ref ::edit}]
+        ref {:fx/type fx/ext-get-ref :ref [::edit edit-index]}]
     (if edited
       (case (:type element)
         :url
@@ -486,10 +486,10 @@
      :spacing 4
      :children [{:fx/type fx/ext-let-refs
                  :refs (when edit
-                         {::edit (edited-list-cell-view
-                                   element
-                                   field
-                                   (get value (:index edit)))})
+                         {[::edit (:index edit)] (edited-list-cell-view
+                                                   element
+                                                   field
+                                                   (get value (:index edit)))})
                  :desc {:fx/type fxui/ext-with-advance-events
                         :desc
                         {:fx/type ext-with-list-cell-factory-props
@@ -780,7 +780,7 @@
 (defn- table-cell-factory [{:keys [path type] :as column} edit [i x]]
   (let [edited (and (= i (:index edit))
                     (= path (:path edit)))
-        ref {:fx/type fx/ext-get-ref :ref ::edit}]
+        ref {:fx/type fx/ext-get-ref :ref [::edit (:index edit) (:path edit)]}]
     (if edited
       (-> type
           (case
@@ -820,6 +820,7 @@
                      :state-path state-path
                      :column-path path}
      :on-edit-cancel {:event-type :on-table-edit-cancel
+                      :value value
                       :on-value-changed on-value-changed
                       :state-path state-path}
      :text label
@@ -848,12 +849,14 @@
                     :state-path state-path}]
     {:fx/type fx/ext-let-refs
      :refs (when edit
-             (let [edited-column (some #(when (= (:path edit) (:path %))
+             (let [i (:index edit)
+                   path (:path edit)
+                   edited-column (some #(when (= (:path edit) (:path %))
                                           %)
                                        columns)
                    edited-value (or (:value edit)
-                                    (get-in value (into [(:index edit)] (:path edit))))]
-               {::edit (edited-table-cell-view edited-column field edited-value)}))
+                                    (get-in value (into [i] path)))]
+               {[::edit i path] (edited-table-cell-view edited-column field edited-value)}))
      :desc {:fx/type :v-box
             :spacing 4
             :children [{:fx/type :stack-pane
