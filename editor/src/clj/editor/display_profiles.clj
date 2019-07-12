@@ -13,7 +13,7 @@
 
 (def pb-def {:ext "display_profiles"
              :label "Display Profiles"
-             :view-types [:form-view :cljfx-form-view :text]
+             :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
              :pb-class Render$DisplayProfiles})
 
@@ -58,8 +58,7 @@
                :label "Profile"
                :type :2panel
                :panel-key {:path [:name] :type :string :default "New Display Profile"}
-               ;; TODO add support for this:
-               :on-add (partial add-profile! _node-id "New Display Profile" [])
+               :on-add #(add-profile! _node-id "New Display Profile" [])
                :on-remove (fn [vals] (g/transact (map #(g/delete-node (:node-id %)) vals)))
                :set (fn [v path val] (g/set-property! (:node-id v) (first path) val))
                :panel-form {:sections

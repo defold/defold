@@ -542,14 +542,18 @@
 (defmethod handle-event :add-list-items [{:keys [value on-value-changed fx/event]}]
   {:dispatch (assoc on-value-changed :fx/event (into value event))})
 
+(defn- keep-indices [indices coll]
+  (into []
+        (keep-indexed
+          (fn [i x]
+            (when (indices i) x)))
+        coll))
+
+(defn- remove-indices [indices coll]
+  (keep-indices (complement indices) coll))
+
 (defmethod handle-event :remove-list-items [{:keys [value on-value-changed fx/event]}]
-  (let [new-value (into []
-                        (keep-indexed
-                          (fn [i x]
-                            (when-not (contains? event i)
-                              x)))
-                        value)]
-    {:dispatch (assoc on-value-changed :fx/event new-value)}))
+  {:dispatch (assoc on-value-changed :fx/event (remove-indices event value))})
 
 (defmethod handle-event :edit-list-item [{:keys [value on-value-changed fx/event]}]
   (let [{:keys [index item]} event]
@@ -735,12 +739,7 @@
                                                          state-path]}]
   (let [indices-path (conj state-path :selected-indices)
         selected-indices (set (get-in ui-state indices-path))
-        new-value (into []
-                        (keep-indexed
-                          (fn [i x]
-                            (when-not (contains? selected-indices i)
-                              x)))
-                        value)]
+        new-value (remove-indices selected-indices value)]
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
      [:set-ui-state (assoc-in ui-state indices-path [])]]))
 
@@ -791,11 +790,13 @@
             :resource {:style {:-fx-padding [0 2 2 0]}}
             {})
           (assoc :graphic ref))
-      {:text (case type
-               :resource (resource/resource->proj-path x)
-               :choicebox (get (into {} (:options column)) x)
-               :vec4 (->> x (mapv field-expression/format-number) (string/join "  "))
-               (str x))})))
+      (case type
+        (:integer :number) {:text (field-expression/format-number x)
+                            :alignment :center-right}
+        :resource {:text (resource/resource->proj-path x)}
+        :choicebox {:text (get (into {} (:options column)) x)}
+        :vec4 {:text (->> x (mapv field-expression/format-number) (string/join "  "))}
+        {:text (str x)}))))
 
 (defn- table-column [{:keys [path label type] :as column}
                      {:keys [state state-path value on-value-changed]
@@ -904,32 +905,53 @@
 
 (defmethod handle-event :2panel-key-added [{:keys [value
                                                    on-value-changed
+                                                   on-add
                                                    key-path
                                                    default-row
                                                    fx/event]}]
   (let [new-value (into value
                         (map #(assoc-in default-row key-path %))
                         event)]
-    {:dispatch (assoc on-value-changed :fx/event new-value)}))
+    (if on-add
+      (do (on-add) nil)
+      {:dispatch (assoc on-value-changed :fx/event new-value)})))
 
-(defmethod handle-event :2panel-key-edited [{:keys [value on-value-changed key-path]
+(defmethod handle-event :2panel-key-edited [{:keys [value on-value-changed key-path set]
                                              {:keys [index item]} :fx/event}]
-  (let [new-value (assoc-in value (into [index] key-path) item)]
-    {:dispatch (assoc on-value-changed :fx/event new-value)}))
+  (if set
+    (do (set (get value index) key-path item) nil)
+    (let [new-value (assoc-in value (into [index] key-path) item)]
+      {:dispatch (assoc on-value-changed :fx/event new-value)})))
 
-(defmethod handle-event :2panel-key-removed [{:keys [value on-value-changed fx/event]}]
-  {:dispatch (assoc on-value-changed :fx/event (into []
-                                                     (keep-indexed
-                                                       (fn [i x]
-                                                         (when-not (contains? event i)
-                                                           x)))
-                                                     value))})
+(defmethod handle-event :2panel-key-removed [{:keys [value
+                                                     on-value-changed
+                                                     fx/event
+                                                     on-remove]}]
+  (if on-remove
+    (do (on-remove (keep-indices event value)) nil)
+    {:dispatch (assoc on-value-changed :fx/event (remove-indices event value))}))
 
-(defmethod handle-event :2panel-value-set [{:keys [value path on-value-changed fx/event]}]
-  {:dispatch (assoc on-value-changed :fx/event (assoc-in value path event))})
+(defmethod handle-event :2panel-value-set [{:keys [value
+                                                   index
+                                                   value-path
+                                                   on-value-changed
+                                                   fx/event
+                                                   set]}]
+  (if set
+    (do (set (get value index) value-path event) nil)
+    (let [new-value (assoc-in value (into [index] value-path) event)]
+      {:dispatch (assoc on-value-changed :fx/event new-value)})))
 
-(defmethod handle-event :2panel-value-clear [{:keys [value path on-value-changed]}]
-  {:dispatch (assoc on-value-changed :fx/event (update-in value (butlast path) dissoc (last path)))})
+(defmethod handle-event :2panel-value-clear [{:keys [value
+                                                     index
+                                                     value-path
+                                                     on-value-changed
+                                                     set]}]
+  (if set
+    (do (set (get value index) value-path nil) nil)
+    (let [path (into [index] value-path)
+          new-value (update-in value (butlast path) dissoc (last path))]
+      {:dispatch (assoc on-value-changed :fx/event new-value)})))
 
 (defmethod form-input-view :2panel [{:keys [value
                                             on-value-changed
@@ -941,7 +963,8 @@
                                      :as field}]
   (let [default-row (form/two-panel-defaults field)
         key-path (:path panel-key)
-        selected-index (-> state :key :selected-indices peek)]
+        selected-index (-> state :key :selected-indices peek)
+        fn-setter (:set field)]
     {:fx/type :v-box
      :spacing 4
      :children
@@ -951,14 +974,17 @@
                           :value value
                           :on-value-changed on-value-changed
                           :key-path key-path
-                          :default-row default-row}
+                          :default-row default-row
+                          :on-add (:on-add field)}
                :on-edited {:event-type :2panel-key-edited
                            :value value
                            :on-value-changed on-value-changed
+                           :set fn-setter
                            :key-path key-path}
                :on-removed {:event-type :2panel-key-removed
                             :value value
-                            :on-value-changed on-value-changed}
+                            :on-value-changed on-value-changed
+                            :on-remove (:on-remove field)}
                :state-path (conj state-path :key)
                :element panel-key
                :resource-string-converter resource-string-converter}
@@ -992,7 +1018,9 @@
                                             (conj {:fx/type icon-button
                                                    :image "icons/32/Icons_S_02_Reset.png"
                                                    :on-action {:event-type :2panel-value-clear
-                                                               :path field-path
+                                                               :index selected-index
+                                                               :value-path (:path field)
+                                                               :set fn-setter
                                                                :value value
                                                                :on-value-changed on-value-changed}}))}
                          (cond->
@@ -1001,8 +1029,10 @@
                                                  (form/field-default field)
                                                  field-value)
                                         :on-value-changed {:event-type :2panel-value-set
-                                                           :path field-path
+                                                           :index selected-index
+                                                           :value-path (:path field)
                                                            :value value
+                                                           :set fn-setter
                                                            :on-value-changed on-value-changed}
                                         :state-path field-state-path
                                         :resource-string-converter resource-string-converter)
