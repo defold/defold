@@ -762,6 +762,42 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
     dmGameObject::Delete(m_Collection, c2, false);
 }
 
+TEST_F(HierarchyTest, TestTransformGettersFromScript)
+{
+    dmGameObject::HInstance controller = dmGameObject::New(m_Collection, "/transform.goc");
+    dmGameObject::HInstance parent     = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child      = dmGameObject::New(m_Collection, "/go.goc");
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, controller, "controller"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent"));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, child, "child"));
+
+    dmGameObject::SetPosition(parent, Point3(12,4,2));
+    dmGameObject::SetPosition(child, Point3(-12,-4,-2));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Test 0: go.get_world_position(child)
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmGameObject::SetScale(parent, Vector3(100, 99, 1));
+    dmGameObject::SetScale(child,  Vector3(1.0/100.0, 1.0/99.0, 1.0));
+
+    // Test 1: go.get_world_scale(child)
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    const float rot_90_deg = 3.14159265f / 2.0f;
+
+    dmGameObject::SetRotation(parent, Quat::rotationZ(rot_90_deg));
+    dmGameObject::SetRotation(child, Quat::rotationZ(-rot_90_deg));
+
+    // Test 2: go.get_world_rotation(child)
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Test 3: go.get_world_transform(child)
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+}
+
 TEST_F(HierarchyTest, TestHierarchyFromScript)
 {
     dmGameObject::HInstance controller = dmGameObject::New(m_Collection, "/parenting.goc");
