@@ -71,7 +71,8 @@
       ([] "number-string-converter")
       ([v] (field-expression/format-number v)))
     (fromString [v]
-      (field-expression/to-double v))))
+      (or (field-expression/to-double v)
+          (throw (RuntimeException.))))))
 
 (def int-converter
   (proxy [StringConverter] []
@@ -79,7 +80,8 @@
       ([] "int-string-converter")
       ([v] (field-expression/format-int v)))
     (fromString [v]
-      (int (field-expression/to-double v)))))
+      (or (int (field-expression/to-double v))
+          (throw (RuntimeException.))))))
 
 (defn- make-resource-string-converter [workspace]
   (proxy [StringConverter] []
