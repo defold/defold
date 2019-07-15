@@ -73,6 +73,14 @@
     (fromString [v]
       (field-expression/to-double v))))
 
+(def int-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "int-string-converter")
+      ([v] (field-expression/format-int v)))
+    (fromString [v]
+      (int (field-expression/to-double v)))))
+
 (defn- make-resource-string-converter [workspace]
   (proxy [StringConverter] []
     (toString
@@ -207,7 +215,7 @@
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type :text-formatter
-                    :value-converter :integer
+                    :value-converter int-converter
                     :value (int value)
                     :on-value-changed on-value-changed}})
 
@@ -366,6 +374,7 @@
 
 (defmethod handle-event :commit-list-item [{:keys [index fx/event on-edited state-path ui-state]}]
   (ui/run-later
+    (prn (.getSelectedIndices (.getSelectionModel ^ListView (get-in ui-state (conj state-path :edit :list)))))
     (.select (.getSelectionModel ^ListView (get-in ui-state (conj state-path :edit :list)))
              ^int index))
   {:set-ui-state (update-in ui-state state-path dissoc :edit)
