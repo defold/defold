@@ -71,7 +71,17 @@
       ([] "number-string-converter")
       ([v] (field-expression/format-number v)))
     (fromString [v]
-      (field-expression/to-double v))))
+      (or (field-expression/to-double v)
+          (throw (RuntimeException.))))))
+
+(def int-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "int-string-converter")
+      ([v] (field-expression/format-int v)))
+    (fromString [v]
+      (or (int (field-expression/to-double v))
+          (throw (RuntimeException.))))))
 
 (defn- make-resource-string-converter [workspace]
   (proxy [StringConverter] []
@@ -207,7 +217,7 @@
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type :text-formatter
-                    :value-converter :integer
+                    :value-converter int-converter
                     :value (int value)
                     :on-value-changed on-value-changed}})
 
