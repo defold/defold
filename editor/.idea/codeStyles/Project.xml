@@ -4,6 +4,7 @@
     <option name="SOFT_MARGINS" value="80,90" />
     <ClojureCodeStyleSettings>{
   :cljfx.composite/props :only-indent
+  :clojure.core/defmulti :only-indent
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
   :cursive.formatting/imports-use-vectors true
