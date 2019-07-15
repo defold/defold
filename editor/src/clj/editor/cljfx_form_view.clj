@@ -365,6 +365,9 @@
   {:set-ui-state (update-in ui-state state-path dissoc :edit)})
 
 (defmethod handle-event :commit-list-item [{:keys [index fx/event on-edited state-path ui-state]}]
+  (ui/run-later
+    (.select (.getSelectionModel ^ListView (get-in ui-state (conj state-path :edit :list)))
+             ^int index))
   {:set-ui-state (update-in ui-state state-path dissoc :edit)
    :dispatch (assoc on-edited :fx/event {:index index :item event})})
 

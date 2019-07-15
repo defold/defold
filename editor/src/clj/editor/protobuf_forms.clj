@@ -28,8 +28,8 @@
   (g/update-property! node-id :pb assoc-in path value))
 
 (defn- longest-prefix-size [enum-values]
-  (if (empty? enum-values)
-    0
+  (case (count enum-values)
+    (0 1) 0
     (->> enum-values
          (mapv #(-> % first name))
          (apply map hash-set)
