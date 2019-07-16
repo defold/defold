@@ -796,6 +796,10 @@ TEST_F(HierarchyTest, TestTransformGettersFromScript)
 
     // Test 3: go.get_world_transform(child)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmGameObject::Delete(m_Collection, controller, false);
+    dmGameObject::Delete(m_Collection, parent, false);
+    dmGameObject::Delete(m_Collection, child, false);
 }
 
 TEST_F(HierarchyTest, TestHierarchyFromScript)
@@ -847,8 +851,6 @@ TEST_F(HierarchyTest, TestHierarchyFromScript)
     dmGameObject::SetParent(controller, parent);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ((void*)0, dmGameObject::GetParent(controller));
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameObject::Delete(m_Collection, controller, false);
     dmGameObject::Delete(m_Collection, parent, false);
