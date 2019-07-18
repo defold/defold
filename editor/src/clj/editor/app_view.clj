@@ -1282,7 +1282,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- make-title
   ([] "Defold Editor 2.0")
-  ([project-title] (str (make-title) " - " project-title)))
+  ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
   (let [settings      (g/node-value project :settings)
