@@ -22,6 +22,25 @@ namespace dmPhysics
         COLLISION_OBJECT_TYPE_COUNT
     };
 
+    enum JointType
+    {
+        JOINT_TYPE_SPRING,
+        JOINT_TYPE_FIXED,
+        JOINT_TYPE_HINGE,
+        JOINT_TYPE_SLIDER,
+        JOINT_TYPE_COUNT
+    };
+
+    enum JointResult
+    {
+        RESULT_OK = 0,
+        RESULT_NOT_SUPPORTED = 1,
+        RESULT_ID_EXISTS = 2,
+        RESULT_ID_NOT_FOUND = 3,
+        RESULT_NOT_CONNECTED = 4,
+        RESULT_UNKNOWN_ERROR = 5,
+    };
+
     /// 3D context handle.
     typedef struct Context3D* HContext3D;
     /// 3D world handle.
@@ -41,6 +60,9 @@ namespace dmPhysics
     typedef void* HCollisionObject2D;
     /// 2D cull-set handle
     typedef void* HHullSet2D;
+
+    /// Generic Joint handle
+    typedef void* HJoint;
 
     /// Empty cell value, see SetGridShapeHull
     const uint32_t GRIDSHAPE_EMPTY_CELL = 0xffffffff;
@@ -1128,6 +1150,103 @@ namespace dmPhysics
      * @param new_shape The shape to connect
      */
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
+
+    struct ConnectJointParams
+    {
+        bool m_CollideConnected;
+
+        union {
+            struct
+            {
+                float m_Length;
+                float m_FrequencyHz;
+                float m_DampingRatio;
+            } m_SpringJointParams;
+
+            struct
+            {
+                float m_MaxLength;
+            } m_FixedJointParams;
+
+            struct
+            {
+                float m_JointAngle; // read only
+                float m_JointSpeed; // read only
+                float m_ReferenceAngle;
+                float m_LowerAngle;
+                float m_UpperAngle;
+                float m_MaxMotorTorque;
+                float m_MotorSpeed;
+                bool m_EnableLimit;
+                bool m_EnableMotor;
+            } m_HingeJointParams;
+
+            struct
+            {
+                float m_JointTranslation; // read only
+                float m_JointSpeed; // read only
+                float m_LocalAxisA[3];
+                float m_ReferenceAngle;
+                bool m_EnableLimit;
+                float m_LowerTranslation;
+                float m_UpperTranslation;
+                bool m_EnableMotor;
+                float m_MaxMotorForce;
+                float m_MotorSpeed;
+            } m_SliderJointParams;
+        };
+
+        ConnectJointParams()
+        {
+        }
+
+        ConnectJointParams(JointType type)
+        {
+            m_CollideConnected = false;
+            switch (type)
+            {
+                case JOINT_TYPE_SPRING:
+                    m_SpringJointParams.m_Length = 1.0f;
+                    m_SpringJointParams.m_FrequencyHz = 0.0f;
+                    m_SpringJointParams.m_DampingRatio = 0.0f;
+                    break;
+
+                case JOINT_TYPE_FIXED:
+                    m_FixedJointParams.m_MaxLength = 0.0f;
+                    break;
+                case JOINT_TYPE_HINGE:
+                    m_HingeJointParams.m_ReferenceAngle = 0.0f;
+                    m_HingeJointParams.m_LowerAngle = 0.0f;
+                    m_HingeJointParams.m_UpperAngle = 0.0f;
+                    m_HingeJointParams.m_MaxMotorTorque = 0.0f;
+                    m_HingeJointParams.m_MotorSpeed = 0.0f;
+                    m_HingeJointParams.m_EnableLimit = false;
+                    m_HingeJointParams.m_EnableMotor = false;
+                    break;
+                case JOINT_TYPE_SLIDER:
+                    m_SliderJointParams.m_LocalAxisA[0] = 1.0f;
+                    m_SliderJointParams.m_LocalAxisA[1] = 0.0f;
+                    m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
+                    m_SliderJointParams.m_ReferenceAngle = 0.0f;
+                    m_SliderJointParams.m_EnableLimit = false;
+                    m_SliderJointParams.m_LowerTranslation = 0.0f;
+                    m_SliderJointParams.m_UpperTranslation = 0.0f;
+                    m_SliderJointParams.m_EnableMotor = false;
+                    m_SliderJointParams.m_MaxMotorForce = 0.0f;
+                    m_SliderJointParams.m_MotorSpeed = 0.0f;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params);
+    bool GetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, ConnectJointParams& params);
+    bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params);
+    void DeleteJoint2D(HWorld2D world, HJoint joint);
+    bool GetJointReactionForce2D(HWorld2D world, HJoint joint, Vectormath::Aos::Vector3& force, float inv_dt);
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
 }
 
 #endif // PHYSICS_H

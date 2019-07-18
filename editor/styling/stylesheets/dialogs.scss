@@ -7,6 +7,10 @@ $light-grey-darker: derive($light-grey, -20%);
 
 $grey: #393c41;
 
+$button-grey: #52575C;
+$button-mid-grey: #393c41;
+$button-dark-grey-header: #373a40;
+
 $blue: #5BC0FF;
 $blue-lighter: derive($blue, 20%);
 $blue-lightest: derive($blue, 40%);
@@ -126,6 +130,28 @@ $spacing-largest: 40px;
   &:hover, &:focused {
     -fx-text-fill: $red-lighter;
     -fx-border-color: $red-lighter;
+  }
+}
+
+.button-icon {
+  -fx-text-fill: $light-grey;
+  -fx-background-radius: 2px;
+  -fx-border-radius: 2px;
+  -fx-background-color: $button-mid-grey;
+  -fx-padding: 0;
+  -fx-min-width: 28px;
+  -fx-max-width: 28px;
+  -fx-pref-width: 28px;
+  -fx-min-height: 28px;
+  -fx-max-height: 28px;
+  -fx-pref-height: 28px;
+  -fx-focus-traversable: false;
+  -fx-border-width: 0;
+  &:hover {
+    -fx-background-color: $button-grey;
+  }
+  &:armed {
+    -fx-background-color: $button-dark-grey-header !important;
   }
 }
 

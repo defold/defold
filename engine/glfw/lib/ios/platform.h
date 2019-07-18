@@ -82,6 +82,7 @@ struct _GLFWwin_struct {
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
+    GLFWgamepadfun       gamepadCallback;
 
     // User selected window settings
     int       fullscreen;      // Fullscreen flag
@@ -120,6 +121,7 @@ struct _GLFWwin_struct {
     int       glMajor, glMinor, glRevision;
     int       glForward, glDebug, glProfile;
     int       highDPI;
+    int       clientAPI;
 
     PFNGLGETSTRINGIPROC GetStringi;
 

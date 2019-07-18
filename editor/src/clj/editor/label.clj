@@ -187,7 +187,7 @@
    :material (resource/resource->proj-path material)})
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
+  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
                :aabb aabb
                :transform (math/->mat4-scale scale)}
@@ -195,10 +195,7 @@
         texture-recip-uniform (font/get-texture-recip-uniform font-map)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
-      (let [min (types/min-p aabb)
-            max (types/max-p aabb)
-            size [(- (.x max) (.x min)) (- (.y max) (.y min)) 0]
-            [w h _] size
+      (let [[w h _] size
             offset (pivot-offset pivot size)
             lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
         (assoc scene :renderable {:render-fn render-tris
@@ -261,7 +258,7 @@
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
   (property line-break g/Bool)
-    
+
   (property font resource/Resource
             (value (gu/passthrough font-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -304,24 +301,23 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
                                            (font/layout-text font-map text line-break (first size) tracking leading)))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow aabb-size pivot]
-                                        (cond-> {:text-layout text-layout
-                                                 :font-data font-data
-                                                 :color color
-                                                 :outline outline
-                                                 :shadow shadow
-                                                 :align (pivot->h-align pivot)}
-                                          font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                         h (second aabb-size)]
-                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output aabb-size g/Any :cached (g/fnk [text-layout]
-                                         [(:width text-layout) (:height text-layout) 0]))
-  (output aabb g/Any :cached (g/fnk [pivot aabb-size]
-                                    (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
-                                          [min-x min-y _] (offset-fn [0 0 0])
-                                          [max-x max-y _] (offset-fn aabb-size)]
-                                      (geom/coords->aabb [min-x min-y 0]
-                                                         [max-x max-y 0]))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot]
+                                        (let [text-size [(:width text-layout) (:height text-layout) 0]]
+                                          (cond-> {:text-layout text-layout
+                                                   :font-data font-data
+                                                   :color color
+                                                   :outline outline
+                                                   :shadow shadow
+                                                   :align (pivot->h-align pivot)}
+                                            font-data (assoc :offset (let [[x y] (pivot-offset pivot text-size)
+                                                                           h (second text-size)]
+                                                                       [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))))))
+  (output aabb g/Any :cached (g/fnk [pivot size]
+                               (let [offset-fn (partial mapv + (pivot-offset pivot size))
+                                     [min-x min-y _] (offset-fn [0 0 0])
+                                     [max-x max-y _] (offset-fn size)]
+                                 (geom/coords->aabb [min-x min-y 0]
+                                                    [max-x max-y 0]))))
   (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)

@@ -65,3 +65,11 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
     return 0;
 }
 
+//========================================================================
+// Get joystick hats states
+//========================================================================
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    return 0;
+}

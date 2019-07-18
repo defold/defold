@@ -169,6 +169,11 @@ namespace dmScript
         {0,0}
     };
 
+    bool IsVector3(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR3];
+    }
+
     Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index)
     {
         return (Vectormath::Aos::Vector3*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3]);
@@ -308,6 +313,11 @@ namespace dmScript
         {"__eq", Vector3_eq},
         {0,0}
     };
+
+    bool IsVector4(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR4];
+    }
 
     Vectormath::Aos::Vector4* ToVector4(lua_State *L, int index)
     {

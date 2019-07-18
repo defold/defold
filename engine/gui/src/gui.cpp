@@ -1435,11 +1435,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
-        uint32_t n = animations->Size();
 
         uint32_t active_animations = 0;
 
-        for (uint32_t i = 0; i < n; ++i)
+        for (uint32_t i = 0; i < animations->Size(); ++i)
         {
             Animation* anim = &(*animations)[i];
 
@@ -1532,13 +1531,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        n = animations->Size();
+        uint32_t n = animations->Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
 
             if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
             {
+                // If we have cancelled an animation, its callback won't be called which means
+                // we potentially get dangling lua refs in the script system
+                if (anim->m_Cancelled && anim->m_AnimationComplete)
+                {
+                    if (!anim->m_AnimationCompleteCalled)
+                    {
+                        anim->m_AnimationCompleteCalled = 1;
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
+                }
+
                 animations->EraseSwap(i);
                 i--;
                 n--;
@@ -3577,7 +3587,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             const Animation* anim = &scene->m_Animations[i];
             if (value == anim->m_Value)
             {
-                //scene->m_Animations.EraseSwap(i);
+                // Make sure to invoke the callback when we are re-using the
+                // animation index so that we can clean up dangling ref's in
+                // the gui_script module.
+                if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+                {
+                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                }
+
                 animation_index = i;
                 break;
             }

@@ -80,12 +80,14 @@
     (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
     (g/set-property self :modified-lines lines :modified-indent-type indent-type)))
 
-(defn- load-fn [eager-loading? connect-breakpoints? project self resource]
+(defn- load-fn [additional-load-fn eager-loading? connect-breakpoints? project self resource]
   (concat
     (when eager-loading?
       (eager-load self resource))
     (when connect-breakpoints?
-      (g/connect self :breakpoints project :breakpoints))))
+      (g/connect self :breakpoints project :breakpoints))
+    (when additional-load-fn
+      (additional-load-fn project self resource))))
 
 (g/defnk produce-breakpoint-rows [regions]
   (into (sorted-set)
@@ -140,11 +142,11 @@
   (output dirty? g/Bool (g/fnk [_node-id editable? resource save-value source-value]
                           (and editable? (some? save-value) (not= source-value (hash save-value))))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label eager-loading?] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
   (let [debuggable? (contains? tags :debuggable)
-        load-fn (partial load-fn eager-loading? debuggable?)
+        load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
         args (-> args
-                 (dissoc :eager-loading?)
+                 (dissoc :additional-load-fn :eager-loading?)
                  (assoc :load-fn load-fn
                         :read-fn read-fn
                         :write-fn write-fn

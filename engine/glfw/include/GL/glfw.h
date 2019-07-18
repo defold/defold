@@ -204,6 +204,17 @@ typedef unsigned char   GLubyte;
 #define GLFW_RELEASE            0
 #define GLFW_PRESS              1
 
+#define GLFW_HAT_CENTERED       0
+#define GLFW_HAT_UP             1
+#define GLFW_HAT_RIGHT          2
+#define GLFW_HAT_DOWN           4
+#define GLFW_HAT_LEFT           8
+
+#define GLFW_HAT_RIGHTUP        (GLFW_HAT_RIGHT | GLFW_HAT_UP)
+#define GLFW_HAT_RIGHTDOWN      (GLFW_HAT_RIGHT | GLFW_HAT_DOWN)
+#define GLFW_HAT_LEFTDOWN       (GLFW_HAT_LEFT | GLFW_HAT_DOWN)
+#define GLFW_HAT_LEFTUP         (GLFW_HAT_LEFT | GLFW_HAT_UP)
+
 /* Keyboard key definitions: 8-bit ISO-8859-1 (Latin 1) encoding is used
  * for printable keys (such as A-Z, 0-9 etc), and values above 256
  * represent special (non-printable) keys (e.g. F1, Page Up etc).
@@ -363,6 +374,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_OPENGL_DEBUG_CONTEXT 0x00020017
 #define GLFW_OPENGL_PROFILE       0x00020018
 #define GLFW_WINDOW_HIGH_DPI      0x00020019
+#define GLFW_CLIENT_API           0x0002001A
 
 /* GLFW_OPENGL_PROFILE tokens */
 #define GLFW_OPENGL_CORE_PROFILE  0x00050001
@@ -376,6 +388,10 @@ typedef unsigned char   GLubyte;
 #define GLFW_KEY_REPEAT           0x00030005
 #define GLFW_AUTO_POLL_EVENTS     0x00030006
 
+/* GLFW_CLIENT_API modes */
+#define GLFW_NO_API                        0
+#define GLFW_OPENGL_API           0x00030001
+
 /* glfwWaitThread wait modes */
 #define GLFW_WAIT                 0x00040001
 #define GLFW_NOWAIT               0x00040002
@@ -384,6 +400,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_PRESENT              0x00050001
 #define GLFW_AXES                 0x00050002
 #define GLFW_BUTTONS              0x00050003
+#define GLFW_HATS                 0x00050004
 
 /* glfwReadImage/glfwLoadTexture2D flags */
 #define GLFW_NO_RESCALE_BIT       0x00000001 /* Only for glfwReadImage */
@@ -452,6 +469,7 @@ typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
+typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
 
 
 /*************************************************************************
@@ -511,6 +529,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickParam( int joy, int param );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
+GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy, unsigned char *hats, int numhats );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id );
 
 /* Time */
@@ -571,6 +590,7 @@ GLFWAPI void  GLFWAPIENTRY glfwUnacquireAuxContext(void* context);
 // Trying to mimic somewhat the features of glfw 3.0
 typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetGamepadCallback( GLFWgamepadfun cbfun );
 
 #ifdef __cplusplus
 }

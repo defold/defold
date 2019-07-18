@@ -1,11 +1,17 @@
 package com.dynamo.bob.test.util;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.TreeMap;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.StringUtils;
 
 import com.dynamo.bob.fs.AbstractFileSystem;
 import com.dynamo.bob.fs.IMountPoint;
@@ -60,12 +66,33 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
     @Override
     public void saveCache() {}
 
-    @Override
-    public void walk(String path, IWalker walker, Collection<String> results) {
+    // Sort a list of paths based on lexicographically
+    // Needed to be able to mimic the directory traversal on disc
+    class SortPath implements Comparator<String> {
+        public int compare(String a, String b) {
+            return a.compareTo(b);
+        }
+    }
+
+    private List<String> getResourcePaths() {
+        List<String> paths = new ArrayList<String>();
         Iterator<Map.Entry<String, MockResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, MockResource> entry = (Map.Entry<String, MockResource>)it.next();
-            String entryPath = entry.getKey();
+            paths.add(entry.getKey());
+        }
+        Collections.sort(paths, new SortPath());
+        return paths;
+    }
+
+    @Override
+    public void walk(String path, IWalker walker, Collection<String> results) {
+
+        List<String> paths = getResourcePaths();
+        ListIterator<String> it = paths.listIterator(0);
+
+        while (it.hasNext()) {
+            String entryPath = (String) it.next();
 
             boolean isInPath = entryPath.startsWith(path);
             if (isInPath) {
@@ -75,9 +102,9 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
                     if (!walker.handleDirectory(entryPath, results)) {
                         // If we should skip this directory, continue loop until entryPath does not match anymore.
                         while (it.hasNext()) {
-                            Map.Entry<String, MockResource> subEntry = (Map.Entry<String, MockResource>)it.next();
-                            String subEntryPath = subEntry.getKey();
+                            String subEntryPath = (String) it.next();
                             if (!subEntryPath.startsWith(entryPath)) {
+                                it.previous();
                                 break;
                             }
                         }

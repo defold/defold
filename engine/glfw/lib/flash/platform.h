@@ -118,6 +118,7 @@ struct _GLFWwin_struct {
     int       glMajor, glMinor, glRevision;
     int       glForward, glDebug, glProfile;
     int       highDPI;
+    int       clientAPI;
 
 
 // ========= PLATFORM SPECIFIC PART ======================================

@@ -95,7 +95,7 @@ public class AndroidBundler implements IBundler {
         ArrayList<File> classesDex = new ArrayList<File>();
 
         List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "").split(",");
+        String[] architecturesStrings = project.option("architectures", "armv7-android,arm64-android").split(",");
         for (int i = 0; i < architecturesStrings.length; i++) {
             architectures.add(Platform.get(architecturesStrings[i]));
         }
@@ -151,7 +151,7 @@ public class AndroidBundler implements IBundler {
         }
 
         Platform targetPlatform = Platform.Armv7Android;
-        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "", variant);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
@@ -160,7 +160,14 @@ public class AndroidBundler implements IBundler {
         IResource sourceManifestFile = helper.getResource("android", "manifest");
 
         Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
-        helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+        try {
+            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+        } catch (CompileExceptionError e) {
+            // Pass along
+            throw e;
+        } catch (Exception e) {
+            throw new CompileExceptionError(sourceManifestFile, -1, e);
+        }
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -172,42 +179,10 @@ public class AndroidBundler implements IBundler {
         // AAPT needs all resources on disc
         Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
 
-        // Find the actual android resource folders on disc
-        Set<String> androidResourceFolders = new HashSet<>();
-        {
-            for (Map.Entry<String, IResource> entry : androidResources.entrySet()) {
-                String absPath = entry.getValue().getAbsPath();                                 // /topfolder/extension/res/android/res/path/to/res.xml
-                String relativePath = entry.getKey();                                           // path/to/res.xml
-                String dir = absPath.substring(0, absPath.length() - relativePath.length());    // /topfolder/extension/res/android/res
-                androidResourceFolders.add(dir);
-            }
-        }
-
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
-
-        // bundleResources = allResources - androidResources
-        // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
-        // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
-        Map<String, IResource> bundleResources;
-        {
-            Map<String, IResource> newBundleResources = new HashMap<>();
-            for (Map.Entry<String, IResource> entry : allResources.entrySet()) {
-                boolean discarded = false;
-                for (String resourceFolder : androidResourceFolders) {
-                    if (entry.getValue().getAbsPath().startsWith(resourceFolder)) {
-                        discarded = true;
-                        break;
-                    }
-                }
-                if (!discarded) {
-                    newBundleResources.put(entry.getKey(), entry.getValue());
-                }
-            }
-            bundleResources = newBundleResources;
-        }
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, targetPlatform);
 
         BundleHelper.throwIfCanceled(canceled);
 

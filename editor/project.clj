@@ -63,7 +63,7 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
-                     [cljfx "1.2.12"]
+                     [cljfx "1.3.1"]
 
                      [org.openjfx/javafx-base "12"]
                      [org.openjfx/javafx-base "12" :classifier "linux"]
@@ -103,7 +103,9 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+
+                     [org.snakeyaml/snakeyaml-engine "1.0"]]
 
   :source-paths      ["src/clj"]
 
@@ -114,7 +116,6 @@
   :resource-paths    ["resources" "generated-resources"]
 
   :proto-paths       ["../com.dynamo.cr/com.dynamo.cr.common/proto"
-                      "../com.dynamo.cr/com.dynamo.cr.rlog/proto"
                       "../engine/ddf/src"
                       "../engine/engine/proto"
                       "../engine/gameobject/proto"
@@ -177,7 +178,7 @@
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
-                                :dependencies      [[clj-async-profiler-mg "0.4.0"]
+                                :dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [org.clojure/test.check   "0.9.0"]

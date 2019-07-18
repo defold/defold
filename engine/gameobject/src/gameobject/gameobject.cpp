@@ -2814,7 +2814,9 @@ namespace dmGameObject
 
     Quat GetWorldRotation(HInstance instance)
     {
-        return Quat(instance->m_Collection->m_WorldTransforms[instance->m_Index].getUpper3x3());
+        Matrix4 world_transform = instance->m_Collection->m_WorldTransforms[instance->m_Index];
+        dmTransform::ResetScale(&world_transform);
+        return Quat(world_transform.getUpper3x3());
     }
 
     float GetWorldUniformScale(HInstance instance)

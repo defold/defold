@@ -31,15 +31,50 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
 
+    struct CollisionComponent;
+    struct JointEndPoint;
+
+    /// Joint entry that will keep track of joint connections from collision components.
+    struct JointEntry
+    {
+        dmhash_t m_Id;
+        dmPhysics::JointType m_Type;
+        dmPhysics::HJoint m_Joint;
+        JointEntry* m_Next;
+        JointEndPoint* m_EndPoint;
+        JointEntry(dmhash_t id, dmPhysics::HJoint joint, JointEntry* next)
+        {
+            m_Id = id;
+            m_Joint = joint;
+            m_Next = next;
+        }
+    };
+
+    /// Joint end point to keep track of joint connections to collision components.
+    struct JointEndPoint
+    {
+        JointEndPoint* m_Next;
+        CollisionComponent* m_Owner;
+        JointEntry* m_JointEntry;
+    };
+
     struct CollisionComponent
     {
         CollisionObjectResource* m_Resource;
         dmGameObject::HInstance m_Instance;
+
         union
         {
             dmPhysics::HCollisionObject3D m_Object3D;
             dmPhysics::HCollisionObject2D m_Object2D;
         };
+
+        /// Linked list of joints FROM this component.
+        JointEntry* m_Joints;
+
+        /// Linked list of joints TO this component.
+        JointEndPoint* m_JointEndPoints;
+
         uint16_t m_Mask;
         uint16_t m_ComponentIndex;
         // True if the physics is 3D
@@ -63,10 +98,15 @@ namespace dmGameSystem
             dmPhysics::HWorld2D m_World2D;
             dmPhysics::HWorld3D m_World3D;
         };
+        float m_LastDT; // Used to calculate joint reaction force and torque.
         uint8_t m_ComponentIndex;
         uint8_t m_3D : 1;
         dmArray<CollisionComponent*> m_Components;
     };
+
+    // Forward declarations
+    static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint);
+    static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry);
 
     void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
@@ -331,6 +371,9 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_AddedToUpdate = false;
         component->m_StartAsEnabled = true;
+        component->m_Joints = 0x0;
+        component->m_JointEndPoints = 0x0;
+
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
@@ -354,6 +397,34 @@ namespace dmGameSystem
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
+
+        // Destroy joint ends
+        JointEndPoint* joint_end = component->m_JointEndPoints;
+        while (joint_end) {
+            JointEntry* joint_entry = joint_end->m_JointEntry;
+            DeleteJoint(world, joint_entry->m_Joint);
+            joint_entry->m_Joint = 0x0;
+
+            JointEndPoint* next = joint_end->m_Next;
+            delete joint_end;
+            joint_end = next;
+        }
+        component->m_JointEndPoints = 0x0;
+
+        // Destroy joints
+        JointEntry* joint_entry = component->m_Joints;
+        while (joint_entry)
+        {
+            if (joint_entry->m_Joint)
+            {
+                DeleteJoint(world, joint_entry);
+            }
+            JointEntry* next = joint_entry->m_Next;
+            delete joint_entry;
+            joint_entry = next;
+        }
+        component->m_Joints = 0x0;
+
         if (physics_context->m_3D)
         {
             if (component->m_Object3D != 0)
@@ -814,6 +885,8 @@ namespace dmGameSystem
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 
+        world->m_LastDT = params.m_UpdateContext->m_DT;
+
         g_NumPhysicsTransformsUpdated = 0;
 
         if (physics_context->m_3D)
@@ -1091,6 +1164,268 @@ namespace dmGameSystem
         }
     }
 
+    // Find a JointEntry in the linked list of a collision component based on the joint id.
+    static JointEntry* FindJointEntry(CollisionWorld* world, CollisionComponent* component, dmhash_t id)
+    {
+        JointEntry* joint_entry = component->m_Joints;
+        while (joint_entry)
+        {
+            if (joint_entry->m_Id == id)
+            {
+                return joint_entry;
+            }
+            joint_entry = joint_entry->m_Next;
+        }
+
+        return 0x0;
+    }
+
+    inline bool IsJointsSupported(CollisionWorld* world)
+    {
+        if (world->m_3D)
+        {
+            dmLogError("joints are currently only available in 2D physics");
+            return false;
+        }
+        return true;
+    }
+
+    // Connects a joint between two components, a JointEntry with the id must exist for this to succeed.
+    dmPhysics::JointResult CreateJoint(void* _world, void* _component_a, dmhash_t id, const Vectormath::Aos::Point3& apos, void* _component_b, const Vectormath::Aos::Point3& bpos, dmPhysics::JointType type, const dmPhysics::ConnectJointParams& joint_params)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component_a = (CollisionComponent*)_component_a;
+        CollisionComponent* component_b = (CollisionComponent*)_component_b;
+
+        // Check if there is already a joint with this id
+        JointEntry* joint_entry = FindJointEntry(world, component_a, id);
+        if (joint_entry) {
+            return dmPhysics::RESULT_ID_EXISTS;
+        }
+
+        dmPhysics::HJoint joint_handle = dmPhysics::CreateJoint2D(world->m_World2D, component_a->m_Object2D, apos, component_b->m_Object2D, bpos, type, joint_params);
+
+        // NOTE: For the future, we might think about preallocating these structs
+        // in batches (when needed) and store them in an object pool.
+        // - so that when deleting a collision world, it's easy to delete everything quickly (as opposed to traversing each component).
+        // - so we can avoid the frequent new/delete.
+
+        // Create new joint entry to hold the generic joint handle
+        joint_entry = new JointEntry(id, joint_handle, component_a->m_Joints);
+        component_a->m_Joints = joint_entry;
+        joint_entry->m_Type = type;
+
+        // Setup a joint end point for component B.
+        JointEndPoint* new_end_point = new JointEndPoint();
+        new_end_point->m_Next = component_b->m_JointEndPoints;
+        new_end_point->m_JointEntry = joint_entry;
+        new_end_point->m_Owner = component_b;
+        component_b->m_JointEndPoints = new_end_point;
+
+        joint_entry->m_EndPoint = new_end_point;
+
+        return dmPhysics::RESULT_OK;
+    }
+
+    dmPhysics::JointResult DestroyJoint(void* _world, void* _component, dmhash_t id)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        DeleteJoint(world, joint_entry);
+
+        // Remove joint entry from list on component instance
+        if (component->m_Joints == joint_entry) {
+            component->m_Joints = joint_entry->m_Next;
+        } else {
+            JointEntry* j = component->m_Joints;
+            while (j) {
+                if (j->m_Next == joint_entry) {
+                    j->m_Next = joint_entry->m_Next;
+                    break;
+                }
+                j = j->m_Next;
+            }
+        }
+
+        delete joint_entry;
+
+        return dmPhysics::RESULT_OK;
+    }
+
+    dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        joint_type = joint_entry->m_Type;
+        bool r = GetJointParams2D(world->m_World2D, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+    }
+
+    dmPhysics::JointResult GetJointType(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        joint_type = joint_entry->m_Type;
+
+        return dmPhysics::RESULT_OK;
+    }
+
+    dmPhysics::JointResult SetJointParams(void* _world, void* _component, dmhash_t id, const dmPhysics::ConnectJointParams& joint_params)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        bool r = SetJointParams2D(world->m_World2D, joint_entry->m_Joint, joint_entry->m_Type, joint_params);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+    }
+
+    static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry)
+    {
+        assert(joint_entry);
+
+        DeleteJoint(world, joint_entry->m_Joint);
+        joint_entry->m_Joint = 0x0;
+
+        // Remove end point
+        assert(joint_entry->m_EndPoint);
+        JointEndPoint* end_point = joint_entry->m_EndPoint;
+        CollisionComponent* owner_component = end_point->m_Owner;
+
+        // Find and remove end point from previous component_b
+        bool removed = false;
+        JointEndPoint* end_point_prev = 0x0;
+        JointEndPoint* end_point_next = owner_component->m_JointEndPoints;
+        while (end_point_next) {
+            if (end_point_next == end_point)
+            {
+                if (end_point_prev) {
+                    end_point_prev->m_Next = end_point_next->m_Next;
+                } else {
+                    owner_component->m_JointEndPoints = end_point_next->m_Next;
+                }
+
+                removed = true;
+                break;
+            }
+            end_point_prev = end_point_next;
+            end_point_next = end_point_next->m_Next;
+        }
+
+        assert(removed);
+        delete end_point;
+    }
+
+    static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint)
+    {
+        assert(joint);
+        if (!world->m_3D)
+        {
+            dmPhysics::DeleteJoint2D(world->m_World2D, joint);
+        }
+    }
+
+    dmPhysics::JointResult GetJointReactionForce(void* _world, void* _component, dmhash_t id, Vectormath::Aos::Vector3& force)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        bool r = GetJointReactionForce2D(world->m_World2D, joint_entry->m_Joint, force, 1.0f / world->m_LastDT);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+    }
+
+    dmPhysics::JointResult GetJointReactionTorque(void* _world, void* _component, dmhash_t id, float& torque)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (!IsJointsSupported(world)) {
+            return dmPhysics::RESULT_NOT_SUPPORTED;
+        }
+
+        CollisionComponent* component = (CollisionComponent*)_component;
+        JointEntry* joint_entry = FindJointEntry(world, component, id);
+
+        if (!joint_entry) {
+            return dmPhysics::RESULT_ID_NOT_FOUND;
+        }
+
+        if (!joint_entry->m_Joint) {
+            return dmPhysics::RESULT_NOT_CONNECTED;
+        }
+
+        bool r = GetJointReactionTorque2D(world->m_World2D, joint_entry->m_Joint, torque, 1.0f / world->m_LastDT);
+        return (r ? dmPhysics::RESULT_OK : dmPhysics::RESULT_UNKNOWN_ERROR);
+    }
+
     void SetGravity(void* _world, const Vectormath::Aos::Vector3& gravity)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -1122,4 +1457,6 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)_component;
         return dmGameObject::GetIdentifier(component->m_Instance);
     }
+
+
 }

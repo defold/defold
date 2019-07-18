@@ -215,19 +215,19 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(targetLanguage);
         switch(targetLanguage) {
-			case LANGUAGE_MSL:
-			    compileMSL(builder, file_out_spv, spirvShaderStage, resource, resourceOutput, isDebug, soft_fail);
-			break;
+            case LANGUAGE_MSL:
+                compileMSL(builder, file_out_spv, spirvShaderStage, resource, resourceOutput, isDebug, soft_fail);
+            break;
 
-			case LANGUAGE_SPIRV:
-				byte[] spv_data = FileUtils.readFileToByteArray(file_out_spv);
-				builder.setBinary(ByteString.copyFrom(spv_data));
-			break;
+            case LANGUAGE_SPIRV:
+                byte[] spv_data = FileUtils.readFileToByteArray(file_out_spv);
+                builder.setBinary(ByteString.copyFrom(spv_data));
+            break;
 
-			case LANGUAGE_GLSL:
+            case LANGUAGE_GLSL:
                 throw new CompileExceptionError("GLSL not implemented as SPIRV target language", null);
 
-			default:
+            default:
                 throw new CompileExceptionError("Unknown compiler target languge", null);
         }
 
@@ -240,63 +240,79 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
-         	switch(platformKey) {
-         		case X86Darwin:
-        		case X86_64Darwin:
-        		{
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
-                    is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "", isDebug, soft_fail);
-                    if (builder != null)
-                    {
-                        shaderDescBuilder.addShaders(builder);
-                    }
-        		}
-                break;
-
-        		case X86Win32:
-        		case X86_64Win32:
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
-        		break;
-
-        		case X86Linux:
-        		case X86_64Linux:
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
-        		break;
-
-        		case Armv7Darwin:
-        		case Arm64Darwin:
-                case X86_64Ios:
-        		{
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
-                    is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug, soft_fail);
-                    if (builder != null)
-                    {
-                        shaderDescBuilder.addShaders(builder);
-                    }
-        		}
-     			break;
-
-        		case Armv7Android:
-        		case Arm64Android:
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+            switch(platformKey) {
+                case X86Darwin:
+                case X86_64Darwin:
+                {
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
                     }
-        		break;
+                }
+                break;
 
-        		case JsWeb:
-        		case WasmWeb:
-        			shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
-        		break;
-        		default:
+                case X86Win32:
+                case X86_64Win32:
+                {
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    if (builder != null)
+                    {
+                        shaderDescBuilder.addShaders(builder);
+                    }
+                }
+                break;
+
+                case X86Linux:
+                case X86_64Linux:
+                {
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    if (builder != null)
+                    {
+                        shaderDescBuilder.addShaders(builder);
+                    }
+                }
+                break;
+
+                case Armv7Darwin:
+                case Arm64Darwin:
+                case X86_64Ios:
+                {
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "es", isDebug, soft_fail);
+                    if (builder != null)
+                    {
+                        shaderDescBuilder.addShaders(builder);
+                    }
+                }
+                break;
+
+                case Armv7Android:
+                case Arm64Android:
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    if (builder != null)
+                    {
+                        shaderDescBuilder.addShaders(builder);
+                    }
+                break;
+
+                case JsWeb:
+                case WasmWeb:
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                break;
+                default:
                     System.err.println("Unsupported platform for shader program builder: " + platformKey);
                 break;
-         	}
+            }
         }
         else
         {

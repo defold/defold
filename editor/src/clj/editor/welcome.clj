@@ -689,6 +689,7 @@
                                       (fs/delete-directory! dest-directory {:fail :silently}))
                                     (close-dialog-and-open-project! (io/file dest-directory "game.project") false)))
                                 (catch Throwable error
+                                  (fs/delete-directory! dest-directory {:fail :silently})
                                   (ui/run-later
                                     (hide-progress! root)
                                     (error-reporting/report-exception! error)))))))
@@ -716,6 +717,7 @@
                                       (ui/run-later
                                         (hide-progress! root)))
                                     (catch Throwable error
+                                      (fs/delete-directory! dest-directory {:fail :silently})
                                       (ui/run-later
                                         (hide-progress! root)
                                         (cond

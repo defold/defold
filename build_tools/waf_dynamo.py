@@ -808,7 +808,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                android:screenOrientation="portrait"
                 android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="%(lib_name)s" />
@@ -1783,3 +1782,4 @@ def set_options(opt):
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')

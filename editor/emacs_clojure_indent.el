@@ -2,6 +2,7 @@
 (customize-set-variable 'clojure-indent-style 'align-arguments)
 
 (define-clojure-indent
+  (assoc 1)
   (make-nodes 2)
   (fnk 1)
   (precluding-errors 1)

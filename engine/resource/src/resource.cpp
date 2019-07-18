@@ -197,7 +197,7 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     SResourceFactory* factory = (SResourceFactory*) user_data;
     factory->m_HttpStatus = status_code;
 
-    if (strcmp(key, "Content-Length") == 0)
+    if (dmStrCaseCmp(key, "Content-Length") == 0)
     {
         factory->m_HttpContentLength = strtol(value, 0, 10);
         if (factory->m_HttpContentLength < 0) {
