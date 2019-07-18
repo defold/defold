@@ -1,6 +1,5 @@
 (ns editor.welcome
-  (:require [camel-snake-kebab :as camel]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
@@ -10,6 +9,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.git :as git]
+            [editor.jfx :as jfx]
             [editor.login :as login]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -19,27 +19,27 @@
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.updater :as ui.updater]
-            [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
             [util.thread-util :refer [preset!]]
             [util.time :as time])
-  (:import (clojure.lang ExceptionInfo)
-           (java.io File FileOutputStream PushbackReader)
-           (java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException)
-           (javax.net.ssl SSLException)
-           (java.time Instant)
-           (java.util.zip ZipInputStream)
-           (javafx.beans.property SimpleObjectProperty StringProperty)
-           (javafx.event Event)
-           (javafx.scene Node Parent Scene)
-           (javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup)
-           (javafx.scene.image ImageView Image)
-           (javafx.scene.input KeyEvent MouseEvent)
-           (javafx.scene.layout HBox Priority Region StackPane VBox)
-           (javafx.scene.shape Rectangle)
-           (javafx.scene.text Text TextFlow)
-           (org.apache.commons.io FilenameUtils)))
+  (:import [clojure.lang ExceptionInfo]
+           [java.io File FileOutputStream PushbackReader]
+           [java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException]
+           [java.time Instant]
+           [java.util.zip ZipInputStream]
+           [javafx.beans.property SimpleObjectProperty StringProperty]
+           [javafx.event Event]
+           [javafx.geometry Pos]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
+           [javafx.scene.image ImageView Image]
+           [javafx.scene.input KeyEvent MouseEvent]
+           [javafx.scene.layout HBox Priority Region StackPane VBox]
+           [javafx.scene.shape Rectangle]
+           [javafx.scene.text Text TextFlow]
+           [javax.net.ssl SSLException]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -194,6 +194,9 @@
                              (.getAbsolutePath project-file) (str (Instant/now)))]
     (prefs/set-prefs prefs recent-projects-prefs-key timestamps-by-path)))
 
+(defn remove-recent-project! [prefs ^File project-file]
+  (prefs/update-prefs prefs recent-projects-prefs-key dissoc (.getAbsolutePath project-file)))
+
 ;; -----------------------------------------------------------------------------
 ;; New project creation
 ;; -----------------------------------------------------------------------------
@@ -305,31 +308,55 @@
     (when-some [project-file (ui/choose-file opts)]
       (close-dialog-and-open-project! project-file false))))
 
+(defn- timestamp-label [timestamp]
+  (doto (Label.)
+    (ui/add-style! "timestamp")
+    (ui/text! (if (some? timestamp)
+                (time/vague-description timestamp)
+                "Unknown"))))
+
+(defn- title-label [title matching-indices]
+  (doto (fuzzy-choices/make-matched-text-flow title matching-indices)
+    (ui/add-style! "title")))
+
 (defn- make-project-entry
-  ^Node [^String title ^String description ^Instant timestamp matching-indices]
+  ^Node [^String title ^String description ^Instant timestamp matching-indices on-remove]
   (assert (string? (not-empty title)))
   (assert (or (nil? description) (string? (not-empty description))))
   (doto (HBox.)
     (ui/add-style! "project-entry")
-    (ui/children! [(doto (VBox.)
-                     (HBox/setHgrow Priority/ALWAYS)
-                     (ui/add-style! "title-and-description")
-                     (ui/children! (if (nil? description)
-                                     [(doto (fuzzy-choices/make-matched-text-flow title matching-indices) (ui/add-style! "title"))]
-                                     [(doto (fuzzy-choices/make-matched-text-flow title matching-indices) (ui/add-style! "title"))
-                                      (doto (Label. description) (ui/add-style! "description"))])))
-                   (doto (Label.)
-                     (ui/add-style! "timestamp")
-                     (ui/text! (if (some? timestamp)
-                                 (time/vague-description timestamp)
-                                 "Unknown")))])))
+    (ui/children!
+      [(doto (VBox.)
+         (HBox/setHgrow Priority/ALWAYS)
+         (ui/add-style! "title-and-description")
+         (ui/children! (if (nil? description)
+                         [(title-label title matching-indices)]
+                         [(title-label title matching-indices)
+                          (doto (Label. description) (ui/add-style! "description"))])))
+       (if on-remove
+         (doto (VBox.)
+           (.setAlignment Pos/CENTER_RIGHT)
+           (ui/children!
+             [(doto (Button.)
+                (ui/add-style! "remove-button")
+                (ui/on-action!
+                  (fn [_]
+                    (on-remove)))
+                (.setGraphic (jfx/get-image-view "icons/32/Icons_S_01_SmallClose.png" 10)))
+              (timestamp-label timestamp)]))
+         (timestamp-label timestamp))])))
 
 (defn- make-recent-project-entry
-  ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}]
-  (make-project-entry title (.getParent project-file) last-opened nil))
+  ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}
+         recent-projects-list-view
+         prefs]
+  (let [on-remove #(do
+                     (remove-recent-project! prefs project-file)
+                     (ui/items! recent-projects-list-view (recent-projects prefs)))]
+    (make-project-entry title (.getParent project-file) last-opened nil on-remove)))
 
 (defn- make-home-pane
-  ^Parent [last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! recent-projects]
+  ^Parent [last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! prefs]
   (let [home-pane (ui/load-fxml "welcome/home-pane.fxml")
         open-from-disk-buttons (.lookupAll home-pane "#open-from-disk-button")
         show-open-from-disk-dialog! (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project!)]
@@ -346,9 +373,10 @@
         (b/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
         (doto recent-projects-list
           (.setFixedCellSize 56.0)
-          (ui/items! recent-projects)
-          (ui/cell-factory! (fn [recent-project]
-                              {:graphic (make-recent-project-entry recent-project)}))
+          (ui/items! (recent-projects prefs))
+          (ui/cell-factory!
+            (fn [recent-project]
+              {:graphic (make-recent-project-entry recent-project recent-projects-list prefs)}))
           (.setOnMouseClicked (ui/event-handler event
                                 (when (= 2 (.getClickCount ^MouseEvent event))
                                   (open-selected-project!)))))))
@@ -495,7 +523,7 @@
         description (some-> (:description dashboard-project) string/trim not-empty)
         last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)
         matching-indices (fuzzy-choices/matching-indices dashboard-project)]
-    (make-project-entry name description last-updated matching-indices)))
+    (make-project-entry name description last-updated matching-indices nil)))
 
 (defn- make-import-project-pane
   ^Parent [new-project-location-directory clone-project! dashboard-client]
@@ -658,7 +686,6 @@
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
          stage (ui/make-dialog-stage)
          scene (Scene. root)
-         recent-projects (recent-projects prefs)
          last-opened-project-directory (last-opened-project-directory prefs)
          new-project-location-directory (new-project-location-directory last-opened-project-directory)
          close-dialog-and-open-project! (fn [^File project-file newly-created?]
@@ -771,7 +798,11 @@
          template-category-buttons-toggle-group (ToggleGroup.)
          new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
          show-new-project-pane! (fn [] (.selectToggle pane-buttons-toggle-group new-project-pane-button))
-         home-pane-button (make-pane-button "HOME" (make-home-pane last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! recent-projects))
+         home-pane-button (make-pane-button "HOME"
+                                            (make-home-pane last-opened-project-directory
+                                                            show-new-project-pane!
+                                                            close-dialog-and-open-project!
+                                                            prefs))
          import-project-button (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))
          pane-buttons [home-pane-button new-project-pane-button import-project-button]
          screen-name (fn [selected-pane-button selected-template-category-button]

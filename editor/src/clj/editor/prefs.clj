@@ -1,7 +1,6 @@
 
 (ns editor.prefs
-  (:require [clojure.edn :as edn]
-            [clojure.data.json :as json]
+  (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [service.log :as log]
             [cognitect.transit :as transit])
@@ -50,6 +49,11 @@
   (set-prefs [prefs key value]
     (.put prefs key (transit-str value))
     value))
+
+(defn update-prefs [this key f & args]
+  (let [value (get-prefs this key ::not-found)]
+    (when-not (= ::not-found value)
+      (set-prefs this key (apply f value args)))))
 
 (defrecord DevPreferences [path store]
   PreferenceStore
