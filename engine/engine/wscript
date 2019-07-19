@@ -64,10 +64,25 @@ namespace dmEngineVersion
     sound_lib = 'sound'
     if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
+
+        # For Vulkan/MoltenVK
+        if Options.options.with_vulkan and architecture == 'x86_64':
+            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface'])
+
+            # Note: To get validation layers to work, replace MoltenVK with 'vulkan'. For more info, see README.md in engine/graphics/src/vulkan
+            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
+
+            # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
+            conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
+
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
+
+        # For Vulkan/MoltenVK
+        if Options.options.with_vulkan and architecture == 'arm64':
+            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
     elif operating_sys == "linux":
