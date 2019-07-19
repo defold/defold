@@ -8,6 +8,21 @@
 
 namespace dmGraphics
 {
+    static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle;
+
+    // This functions is invoked by the vulkan layer whenever
+    // it has something to say, which can be info, warnings, errors and such.
+    // Only used when validation layers are enabled.
+    static VKAPI_ATTR VkBool32 VKAPI_CALL g_vk_debug_callback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT             messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData)
+    {
+        dmLogInfo("Validation Layer: %s", pCallbackData->pMessage);
+        return VK_FALSE;
+    }
+
     static bool ValidateRequiredExtensions(const char** extensionNames, uint8_t extensionCount)
     {
         uint32_t vk_extension_count              = 0;
@@ -43,9 +58,11 @@ namespace dmGraphics
 
             if (extensions_found_save == extensions_found)
             {
-                dmLogError("Required extension '%s' is not supported.", req_ext_name);
+                dmLogError("Vulkan instance extension '%s' is not supported.", req_ext_name);
             }
         }
+
+        delete[] vk_extension_list;
 
         return extensions_found == extensionCount;
     }
@@ -83,7 +100,7 @@ namespace dmGraphics
 
             if (!layer_found)
             {
-                dmLogError("Validation Layer '%s' is not supported", validationLayers[ext]);
+                dmLogError("Vulkan validation layer '%s' is not supported", validationLayers[ext]);
                 all_layers_found = false;
             }
         }
@@ -137,7 +154,10 @@ namespace dmGraphics
             }
         }
 
-        ValidateRequiredExtensions(vk_required_extensions.Begin(), vk_required_extensions.Size());
+        if (!ValidateRequiredExtensions(vk_required_extensions.Begin(), vk_required_extensions.Size()))
+        {
+            return false;
+        }
 
         vk_instance_create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         vk_instance_create_info.pApplicationInfo        = &vk_application_info;
@@ -151,7 +171,40 @@ namespace dmGraphics
 
         if (res != VK_SUCCESS)
         {
+            // TODO: Translate res to something printable
             return false;
+        }
+
+        if (enableValidation && enabled_layer_count > 0)
+        {
+            assert(g_vk_debug_callback_handle == 0);
+            VkDebugUtilsMessengerCreateInfoEXT vk_debug_messenger_create_info = {};
+
+            vk_debug_messenger_create_info.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+            vk_debug_messenger_create_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+            vk_debug_messenger_create_info.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+
+            vk_debug_messenger_create_info.pfnUserCallback = g_vk_debug_callback;
+
+            PFN_vkCreateDebugUtilsMessengerEXT func_ptr =
+                (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT");
+
+            if (func_ptr)
+            {
+                if(func_ptr(vk_instance, &vk_debug_messenger_create_info, 0, &g_vk_debug_callback_handle) != VK_SUCCESS)
+                {
+                    dmLogError("Vulkan validation requested but could not create validation layer callback, reason: vkCreateDebugUtilsMessengerEXT failed");
+                }
+            }
+            else
+            {
+                dmLogError("Vulkan validation requested but could create validation layer callback, reason: could not find 'vkCreateDebugUtilsMessengerEXT'");
+            }
         }
 
         return true;
