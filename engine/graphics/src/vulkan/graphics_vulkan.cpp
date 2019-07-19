@@ -25,7 +25,17 @@ namespace dmGraphics
                 dmLogError("Could not initialize glfw.");
                 return 0x0;
             }
+
+            VkInstance vk_instance;
+            if (CreateVkInstance(&vk_instance, g_enable_validation) != VK_SUCCESS)
+            {
+                dmLogError("Could not create Vulkan instance");
+                return 0x0;
+            }
+
             g_Context = new Context();
+            g_Context->m_Instance = vk_instance;
+
             return g_Context;
         }
         return 0x0;
@@ -42,7 +52,7 @@ namespace dmGraphics
 
     bool Initialize()
     {
-        return glfwInit() && CreateVkInstance(g_enable_validation);
+        return glfwInit();
     }
 
     void Finalize()
@@ -64,6 +74,12 @@ namespace dmGraphics
 
         if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        if (CreateVKWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI) != VK_SUCCESS)
+        {
+            dmLogError("Could not create vulkan surface.");
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 

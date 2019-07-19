@@ -42,6 +42,9 @@ def build(bld):
 
       obj.find_sources_in_dirs('. vulkan ../proto/graphics')
 
+      if bld.env.PLATFORM == 'x86_64-darwin':
+        obj.source.append('vulkan/macosx/graphics_vulkan_macosx_surface.mm')
+
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                            includes = ['. null', '../proto'],
                            proto_gen_py = True,

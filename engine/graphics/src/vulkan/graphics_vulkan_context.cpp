@@ -110,9 +110,8 @@ namespace dmGraphics
          return all_layers_found;
     }
 
-    bool CreateVkInstance(bool enableValidation)
+    VkResult CreateVkInstance(VkInstance* vkInstanceOut, bool enableValidation)
     {
-        VkInstance           vk_instance;
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};
         dmArray<const char*> vk_required_extensions;
@@ -156,7 +155,7 @@ namespace dmGraphics
 
         if (!ValidateRequiredExtensions(vk_required_extensions.Begin(), vk_required_extensions.Size()))
         {
-            return false;
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
         vk_instance_create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -167,12 +166,10 @@ namespace dmGraphics
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
         vk_instance_create_info.ppEnabledLayerNames     = &enabled_layer_names;
 
-        VkResult res = vkCreateInstance(&vk_instance_create_info, 0, &vk_instance);
-
+        VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)
         {
-            // TODO: Translate res to something printable
-            return false;
+            return res;
         }
 
         if (enableValidation && enabled_layer_count > 0)
@@ -192,11 +189,11 @@ namespace dmGraphics
             vk_debug_messenger_create_info.pfnUserCallback = g_vk_debug_callback;
 
             PFN_vkCreateDebugUtilsMessengerEXT func_ptr =
-                (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT");
+                (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(*vkInstanceOut, "vkCreateDebugUtilsMessengerEXT");
 
             if (func_ptr)
             {
-                if(func_ptr(vk_instance, &vk_debug_messenger_create_info, 0, &g_vk_debug_callback_handle) != VK_SUCCESS)
+                if(func_ptr(*vkInstanceOut, &vk_debug_messenger_create_info, 0, &g_vk_debug_callback_handle) != VK_SUCCESS)
                 {
                     dmLogError("Vulkan validation requested but could not create validation layer callback, reason: vkCreateDebugUtilsMessengerEXT failed");
                 }
@@ -207,6 +204,6 @@ namespace dmGraphics
             }
         }
 
-        return true;
+        return VK_SUCCESS;
     }
 }
