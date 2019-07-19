@@ -23,6 +23,8 @@ namespace dmGraphics
     {
         uint32_t dummy;
     };
+
+    bool CreateVkInstance(bool enableValidation = false);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__
 

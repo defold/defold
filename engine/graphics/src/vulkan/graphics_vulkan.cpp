@@ -8,6 +8,10 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
+// TODO: This should probably be configurable, or defined by
+//       build system somehow.
+static bool g_enable_validation = true;
+
 namespace dmGraphics
 {
     static Context* g_Context = 0;
@@ -38,7 +42,7 @@ namespace dmGraphics
 
     bool Initialize()
     {
-        return glfwInit();
+        return glfwInit() && CreateVkInstance(g_enable_validation);
     }
 
     void Finalize()
