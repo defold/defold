@@ -488,38 +488,42 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     wndconfig.glDebug        = _glfwLibrary.hints.glDebug ? GL_TRUE : GL_FALSE;
     wndconfig.glProfile      = _glfwLibrary.hints.glProfile;
     wndconfig.highDPI        = _glfwLibrary.hints.highDPI;
+    wndconfig.clientAPI      = _glfwLibrary.hints.clientAPI;
 
-    if( wndconfig.glMajor == 1 && wndconfig.glMinor > 5 )
+    if (wndconfig.clientAPI != GLFW_NO_API)
     {
-        // OpenGL 1.x series ended with version 1.5
-        return GL_FALSE;
-    }
-    else if( wndconfig.glMajor == 2 && wndconfig.glMinor > 1 )
-    {
-        // OpenGL 2.x series ended with version 2.1
-        return GL_FALSE;
-    }
-    else if( wndconfig.glMajor == 3 && wndconfig.glMinor > 3 )
-    {
-        // OpenGL 3.x series ended with version 3.3
-        return GL_FALSE;
-    }
-    else
-    {
-        // For now, let everything else through
-    }
+        if( wndconfig.glMajor == 1 && wndconfig.glMinor > 5 )
+        {
+            // OpenGL 1.x series ended with version 1.5
+            return GL_FALSE;
+        }
+        else if( wndconfig.glMajor == 2 && wndconfig.glMinor > 1 )
+        {
+            // OpenGL 2.x series ended with version 2.1
+            return GL_FALSE;
+        }
+        else if( wndconfig.glMajor == 3 && wndconfig.glMinor > 3 )
+        {
+            // OpenGL 3.x series ended with version 3.3
+            return GL_FALSE;
+        }
+        else
+        {
+            // For now, let everything else through
+        }
 
-    if( wndconfig.glProfile &&
-        ( wndconfig.glMajor < 3 || ( wndconfig.glMajor == 3 && wndconfig.glMinor < 2 ) ) )
-    {
-        // Context profiles are only defined for OpenGL version 3.2 and above
-        return GL_FALSE;
-    }
+        if( wndconfig.glProfile &&
+            ( wndconfig.glMajor < 3 || ( wndconfig.glMajor == 3 && wndconfig.glMinor < 2 ) ) )
+        {
+            // Context profiles are only defined for OpenGL version 3.2 and above
+            return GL_FALSE;
+        }
 
-    if( wndconfig.glForward && wndconfig.glMajor < 3 )
-    {
-        // Forward-compatible contexts are only defined for OpenGL version 3.0 and above
-        return GL_FALSE;
+        if( wndconfig.glForward && wndconfig.glMajor < 3 )
+        {
+            // Forward-compatible contexts are only defined for OpenGL version 3.0 and above
+            return GL_FALSE;
+        }
     }
 
     // Clear for next open call
@@ -584,44 +588,48 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
 
     // Read back window and context parameters
     _glfwPlatformRefreshWindowParams();
-    _glfwRefreshContextParams();
 
-    if( _glfwWin.glMajor < wndconfig.glMajor ||
-        ( _glfwWin.glMajor == wndconfig.glMajor &&
-          _glfwWin.glMinor < wndconfig.glMinor ) )
+    if (wndconfig.clientAPI != GLFW_NO_API)
     {
-        glfwCloseWindow();
-        return GL_FALSE;
-    }
+        _glfwRefreshContextParams();
 
-    // Do we have non-power-of-two textures (added to core in version 2.0)?
-    _glfwWin.has_GL_ARB_texture_non_power_of_two =
-        ( _glfwWin.glMajor >= 2 ) ||
-        glfwExtensionSupported( "GL_ARB_texture_non_power_of_two" );
+        if( _glfwWin.glMajor < wndconfig.glMajor ||
+            ( _glfwWin.glMajor == wndconfig.glMajor &&
+              _glfwWin.glMinor < wndconfig.glMinor ) )
+        {
+            glfwCloseWindow();
+            return GL_FALSE;
+        }
 
-    // Do we have automatic mipmap generation (added to core in version 1.4)?
-    _glfwWin.has_GL_SGIS_generate_mipmap =
-        ( _glfwWin.glMajor >= 2 ) || ( _glfwWin.glMinor >= 4 ) ||
-        glfwExtensionSupported( "GL_SGIS_generate_mipmap" );
+        // Do we have non-power-of-two textures (added to core in version 2.0)?
+        _glfwWin.has_GL_ARB_texture_non_power_of_two =
+            ( _glfwWin.glMajor >= 2 ) ||
+            glfwExtensionSupported( "GL_ARB_texture_non_power_of_two" );
 
-    //
-    // The following check for glGetString(i) is a modification to improve compatibility
-    // with Linux. We have encountered cases where GL_VERSION is 3.0 or higher but where
-    // the function glGetStringi could not be found. In these cases we fallback to the
-    // deprecated function glGetString. This should not change the control-flow for any
-    // other platform.
-    //
-    // 2016-04-29
-    // Jakob Pogulis <jakob.pogulis@king.com>
-    // Ragnar Svensson <ragnar.svensson@king.com>
-    //
-    _glfwWin.GetStringi = NULL;
-    if (_glfwWin.glMajor > 2) {
-        _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress("glGetStringi");
-        if (!_glfwWin.GetStringi) {
-            if (glfwGetProcAddress("glGetString") == NULL) {
-                glfwCloseWindow();
-                return GL_FALSE;
+        // Do we have automatic mipmap generation (added to core in version 1.4)?
+        _glfwWin.has_GL_SGIS_generate_mipmap =
+            ( _glfwWin.glMajor >= 2 ) || ( _glfwWin.glMinor >= 4 ) ||
+            glfwExtensionSupported( "GL_SGIS_generate_mipmap" );
+
+        //
+        // The following check for glGetString(i) is a modification to improve compatibility
+        // with Linux. We have encountered cases where GL_VERSION is 3.0 or higher but where
+        // the function glGetStringi could not be found. In these cases we fallback to the
+        // deprecated function glGetString. This should not change the control-flow for any
+        // other platform.
+        //
+        // 2016-04-29
+        // Jakob Pogulis <jakob.pogulis@king.com>
+        // Ragnar Svensson <ragnar.svensson@king.com>
+        //
+        _glfwWin.GetStringi = NULL;
+        if (_glfwWin.glMajor > 2) {
+            _glfwWin.GetStringi = (PFNGLGETSTRINGIPROC) glfwGetProcAddress("glGetStringi");
+            if (!_glfwWin.GetStringi) {
+                if (glfwGetProcAddress("glGetString") == NULL) {
+                    glfwCloseWindow();
+                    return GL_FALSE;
+                }
             }
         }
     }
@@ -702,6 +710,9 @@ GLFWAPI void GLFWAPIENTRY glfwOpenWindowHint( int target, int hint )
             break;
         case GLFW_WINDOW_HIGH_DPI:
             _glfwLibrary.hints.highDPI = hint;
+            break;
+        case GLFW_CLIENT_API:
+            _glfwLibrary.hints.clientAPI = hint;
             break;
         default:
             break;
@@ -969,6 +980,8 @@ GLFWAPI int GLFWAPIENTRY glfwGetWindowParam( int param )
             return _glfwWin.glProfile;
         case GLFW_WINDOW_HIGH_DPI:
             return _glfwWin.highDPI;
+        case GLFW_CLIENT_API:
+            return _glfwWin.clientAPI;
         default:
             return 0;
     }
