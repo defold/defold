@@ -116,7 +116,6 @@
   :resource-paths    ["resources" "generated-resources"]
 
   :proto-paths       ["../com.dynamo.cr/com.dynamo.cr.common/proto"
-                      "../com.dynamo.cr/com.dynamo.cr.rlog/proto"
                       "../engine/ddf/src"
                       "../engine/engine/proto"
                       "../engine/gameobject/proto"

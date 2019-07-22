@@ -1,8 +1,0 @@
-Manifest-Version: 1.0
-Bundle-ManifestVersion: 2
-Bundle-Name: Inject
-Bundle-SymbolicName: javax.inject
-Bundle-Version: 1.0.0.qualifier
-Bundle-ClassPath: javax.inject.jar
-Export-Package: javax.inject;version="1.0.0"
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6
