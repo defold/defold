@@ -50,30 +50,24 @@
 
 
 (def ^:private form-sections
-  {
-   :sections
-   [
-    {
-     :title "Render"
-     :fields
-     [
-      {
-       :path [:script]
-       :type :resource
-       :filter "render_script"
-       :label "Script"
-       }
-      {
-       :path [:named-materials]
-       :type :table
-       :label "Materials"
-       :columns [{:path [:name] :label "Name" :type :string :default "New Material"}
-                 {:path [:material] :label "Material" :type :resource :filter "material" :default nil}]
-       }
-      ]
-     }
-    ]
-   })
+  {:navigation false
+   :sections [{:title "Render"
+               :fields [{:path [:script]
+                         :type :resource
+                         :filter "render_script"
+                         :label "Script"}
+                        {:path [:named-materials]
+                         :type :table
+                         :label "Materials"
+                         :columns [{:path [:name]
+                                    :label "Name"
+                                    :type :string
+                                    :default "New Material"}
+                                   {:path [:material]
+                                    :label "Material"
+                                    :type :resource
+                                    :filter "material"
+                                    :default nil}]}]}]})
 
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
@@ -174,5 +168,5 @@
     :ddf-type Render$RenderPrototypeDesc
     :load-fn load-render
     :icon "icons/32/Icons_30-Render.png"
-    :view-types [:form-view :text]
+    :view-types [:cljfx-form-view :text]
     :label "Render"))

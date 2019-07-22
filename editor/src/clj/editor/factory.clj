@@ -42,6 +42,7 @@
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
+   :navigation false
    :sections [{:title (get-in factory-types [factory-type :title])
                :fields [{:path [:prototype]
                          :label "Prototype"
@@ -140,7 +141,7 @@
                                      :ddf-type GameSystem$FactoryDesc
                                      :load-fn (partial load-factory :game-object)
                                      :icon (get-in factory-types [:game-object :icon])
-                                     :view-types [:form-view :text]
+                                     :view-types [:cljfx-form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
                                      :tag-opts {:component {:transform-properties #{}}}
@@ -152,7 +153,7 @@
                                      :ddf-type GameSystem$CollectionFactoryDesc
                                      :load-fn (partial load-factory :collection)
                                      :icon (get-in factory-types [:collection :icon])
-                                     :view-types [:form-view :text]
+                                     :view-types [:cljfx-form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
                                      :tag-opts {:component {:transform-properties #{}}}
