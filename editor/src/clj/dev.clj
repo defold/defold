@@ -201,7 +201,7 @@
 (defn object-methods
   "Returns all the public methods on the specified Object. The result is a
   sorted set of vectors that include the method name in keyword format, followed
-  by the argument type symbols, an arrow (->) and finally the return type."
+  by a vector of argument type symbols, an arrow (->), and the return type."
   [^Object instance]
   (into (sorted-set)
         (keep (fn [^MethodDescriptor md]
@@ -211,11 +211,10 @@
                              (not (Modifier/isStatic mod)))
                     (let [name (.getName md)]
                       (when-not (internal-method-name? name)
-                        (-> (into [(keyword name)]
-                                  (map class-symbol)
-                                  (.getParameterTypes m))
-                            (conj arrow-symbol)
-                            (conj (class-symbol (.getReturnType m))))))))))
+                        [(keyword name)
+                         (mapv class-symbol (.getParameterTypes m))
+                         arrow-symbol
+                         (class-symbol (.getReturnType m))]))))))
         (.getMethodDescriptors (object-bean-info instance))))
 
 (defn successor-tree
