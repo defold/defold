@@ -11,6 +11,9 @@ if platform == 'darwin' or platform == 'x86_64-darwin':
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
 
+    # tmp
+    dmglfw.source.remove(os.path.join('cocoa','cocoa_joystick.m'))
+
     if Options.options.with_vulkan:
         dmglfw.source.remove(os.path.join('cocoa','cocoa_window.m'))
     else:
