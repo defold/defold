@@ -37,7 +37,7 @@
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group ImageCursor]
    [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeTableView TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TableView TabPane Tab TextField Tooltip SelectionMode SelectionModel SplitPane]
-   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
+   [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCombination KeyEvent MouseButton MouseEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.scene.shape SVGPath]
@@ -147,6 +147,16 @@
   (closest-node-where (fn [^Node node]
                         (.contains (.getStyleClass node) style-class))
                       leaf-node))
+
+(defn nodes-along-path?
+  "Returns true if it is possible to trace a path from the leaf node up to (but
+  not including) the root that includes needle. Also true if needle = leaf."
+  [leaf needle root]
+  (boolean
+    (some #(identical? needle %)
+          (take-while #(not (identical? root %))
+                      (iterate #(.getParent ^Node %)
+                               leaf)))))
 
 (defn make-stage
   ^Stage []
@@ -456,8 +466,34 @@
 (defn focus? [^Node node]
   (.isFocused node))
 
+(defn double-click-event? [^MouseEvent event]
+  (and (= MouseEvent/MOUSE_CLICKED (.getEventType event))
+       (= MouseButton/PRIMARY (.getButton event))
+       (= 2 (.getClickCount event))
+
+       ;; Special handling for specific view types.
+       (condp instance? (.getSource event)
+         TreeView
+         ;; Only count double-clicks on selected tree items. Ignore disclosure arrow clicks.
+         (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
+           (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell clicked-node)]
+             (when (and (.isSelected tree-cell)
+                        (not (.isEmpty tree-cell)))
+               (if-some [disclosure-node (.getDisclosureNode tree-cell)]
+                 (not (nodes-along-path? clicked-node disclosure-node tree-cell))
+                 true))))
+
+         ListView
+         ;; Only count double-clicks on selected list items.
+         (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
+           (when-some [^ListCell tree-cell (closest-node-of-type ListCell clicked-node)]
+             (and (.isSelected tree-cell)
+                  (not (.isEmpty tree-cell)))))
+
+         true)))
+
 (defn on-double! [^Node node fn]
-  (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
+  (.setOnMouseClicked node (event-handler e (when (double-click-event? e)
                                               (fn e)))))
 
 (defn on-click! [^Node node fn]
@@ -923,6 +959,47 @@
     (when-not (= -1 row)
       (.scrollTo tree-view row))))
 
+(defn- custom-tree-view-mouse-pressed! [^MouseEvent event]
+  (when (= MouseButton/PRIMARY (.getButton event))
+    (let [target (.getTarget event)]
+      ;; Did the user click on a tree cell?
+      (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell target)]
+        (when-some [disclosure-node (.getDisclosureNode tree-cell)]
+          ;; Did the user click on the disclosure node?
+          (when (nodes-along-path? target disclosure-node tree-cell)
+            ;; Consume the event and manually toggle the expanded state for the
+            ;; associated tree item. If the Alt modifier key is held, recursively
+            ;; set the expanded state for all children.
+            (when-some [tree-item (.getTreeItem tree-cell)]
+              (.consume event)
+              (let [new-expanded-state (not (.isExpanded tree-item))]
+                (if-not (.isAltDown event)
+                  (.setExpanded tree-item new-expanded-state)
+                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)]
+                    (.setExpanded tree-item new-expanded-state)))))))))))
+
+(def ^:private custom-tree-view-mouse-pressed-event-filter
+  (event-handler event
+    (custom-tree-view-mouse-pressed! event)))
+
+(def ignore-event-filter
+  (event-handler event
+    (.consume ^Event event)))
+
+(defn customize-tree-view!
+  "Customize the behavior of the supplied tree-view for our purposes. Currently
+  the following customizations are applied:
+  * Alt-clicking on an items disclosure arrow toggles expansion state for all
+    child items recursively.
+
+  Additional opts:
+  * :double-click-expand?
+    If true, double-clicking will toggle expansion of a tree item."
+  [^TreeView tree-view opts]
+  (.addEventFilter tree-view MouseEvent/MOUSE_PRESSED custom-tree-view-mouse-pressed-event-filter)
+  (when-not (:double-click-expand? opts)
+    (.addEventFilter tree-view MouseEvent/MOUSE_RELEASED ignore-event-filter)))
+
 (extend-protocol HasSelectionModel
   ChoiceBox     (selection-model [this] (.getSelectionModel this))
   ComboBox      (selection-model [this] (.getSelectionModel this))
@@ -1283,8 +1360,9 @@
    (bind-double-click! node command {}))
   ([^Node node command user-data]
    (.addEventFilter node MouseEvent/MOUSE_CLICKED
-                    (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
-                                       (run-command node command user-data false (fn [] (.consume e))))))))
+                    (event-handler e
+                      (when (double-click-event? e)
+                        (run-command node command user-data false (fn [] (.consume e))))))))
 
 (defn key-combo
   [^String acc]

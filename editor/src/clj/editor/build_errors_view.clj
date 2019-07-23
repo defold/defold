@@ -233,6 +233,7 @@
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
+    (ui/customize-tree-view! {:double-click-expand? false})
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
