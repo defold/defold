@@ -31,7 +31,7 @@ namespace dmInput
         }
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
-        context->m_GamepadMaps.SetCapacity(8, 16);
+        context->m_GamepadMaps.SetCapacity(8, 64);
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
@@ -375,6 +375,9 @@ namespace dmInput
                                 break;
                             }
                         }
+                    }
+                    if (context->m_GamepadMaps.Full()) {
+                        context->m_GamepadMaps.SetCapacity(8, context->m_GamepadMaps.Capacity() * 2);
                     }
                     context->m_GamepadMaps.Put(device_id, config);
                 }
