@@ -5,6 +5,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -377,6 +380,15 @@ public class IOSBundler implements IBundler {
             String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
 
             BundleHelper.throwIfCanceled(canceled);
+
+            // SUPDER DUPER HACK since <array> will not be copied correctly between the entitlements.
+            IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+            InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+            OutputStream outStream = new FileOutputStream(entitlementOut);
+            byte[] buffer = new byte[is.available()];
+            is.read(buffer);
+            outStream.write(buffer);
+            /*
             try {
                 XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                 XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
@@ -394,6 +406,7 @@ public class IOSBundler implements IBundler {
                         Iterator<String> keys = customEntitlements.getKeys();
                         while (keys.hasNext()) {
                             String key = keys.next();
+                            System.out.println("key: " + key);
 
                             if (entitlements.getProperty(key) == null) {
                                 logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
@@ -404,8 +417,11 @@ public class IOSBundler implements IBundler {
                         entitlements.append(customEntitlements);
                     }
                 }
-
+                System.out.println("entitlements:");
                 entitlementOut.deleteOnExit();
+                StringWriter writer = new StringWriter();
+                entitlements.save(writer);
+                System.out.println(writer.toString());
                 entitlements.save(entitlementOut);
             } catch (ConfigurationException e) {
                 logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
@@ -413,7 +429,7 @@ public class IOSBundler implements IBundler {
             } catch (IOException e) {
                 logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
                 throw new RuntimeException(e);
-            }
+            }*/
 
             BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
