@@ -11,13 +11,11 @@
    [editor.ui :as ui])
   (:import
    (com.defold.control TreeCell)
-   (editor.outline ItemIterator)
-   (javafx.collections FXCollections ObservableList ListChangeListener ListChangeListener$Change)
+   (javafx.collections FXCollections ObservableList)
    (javafx.event Event)
-   (javafx.scene Scene Node Parent)
-   (javafx.scene.control Button Cell ColorPicker Label TextField TitledPane TextArea TreeView TreeItem Menu MenuItem MenuBar Tab ProgressBar SelectionMode)
-   (javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat)
-   (javafx.scene.input MouseEvent)
+   (javafx.scene Node)
+   (javafx.scene.control SelectionMode TreeItem TreeView)
+   (javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode)
    (javafx.util Callback)))
 
 (set! *warn-on-reflection* true)
@@ -504,7 +502,6 @@
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? false})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setEventDispatcher (ui/make-shortcut-dispatcher tree-view [(ui/key-combo "Space")]))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped proj-graph app-view outline-view e))))
