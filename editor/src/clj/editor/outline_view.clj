@@ -502,6 +502,7 @@
   (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
+      (ui/customize-tree-view! {:double-click-expand? false})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setEventDispatcher (ui/make-shortcut-dispatcher tree-view [(ui/key-combo "Space")]))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
