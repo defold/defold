@@ -152,11 +152,11 @@
   "Returns true if it is possible to trace a path from the leaf node up to (but
   not including) the root that includes needle. Also true if needle = leaf."
   [leaf needle root]
-  (boolean
-    (some #(identical? needle %)
-          (take-while #(not (identical? root %))
-                      (iterate #(.getParent ^Node %)
-                               leaf)))))
+  (->> leaf
+       (iterate #(.getParent ^Node %))
+       (take-while #(not (identical? root %)))
+       (some #(identical? needle %))
+       boolean))
 
 (defn make-stage
   ^Stage []
@@ -472,25 +472,26 @@
        (= 2 (.getClickCount event))
 
        ;; Special handling for specific view types.
-       (condp instance? (.getSource event)
-         TreeView
-         ;; Only count double-clicks on selected tree items. Ignore disclosure arrow clicks.
-         (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
-           (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell clicked-node)]
-             (when (and (.isSelected tree-cell)
-                        (not (.isEmpty tree-cell)))
-               (if-some [disclosure-node (.getDisclosureNode tree-cell)]
-                 (not (nodes-along-path? clicked-node disclosure-node tree-cell))
-                 true))))
+       (boolean
+         (condp instance? (.getSource event)
+           TreeView
+           ;; Only count double-clicks on selected tree items. Ignore disclosure arrow clicks.
+           (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
+             (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell clicked-node)]
+               (when (and (.isSelected tree-cell)
+                          (not (.isEmpty tree-cell)))
+                 (if-some [disclosure-node (.getDisclosureNode tree-cell)]
+                   (not (nodes-along-path? clicked-node disclosure-node tree-cell))
+                   true))))
 
-         ListView
-         ;; Only count double-clicks on selected list items.
-         (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
-           (when-some [^ListCell tree-cell (closest-node-of-type ListCell clicked-node)]
-             (and (.isSelected tree-cell)
-                  (not (.isEmpty tree-cell)))))
+           ListView
+           ;; Only count double-clicks on selected list items.
+           (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
+             (when-some [^ListCell tree-cell (closest-node-of-type ListCell clicked-node)]
+               (and (.isSelected tree-cell)
+                    (not (.isEmpty tree-cell)))))
 
-         true)))
+           true))))
 
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (double-click-event? e)
