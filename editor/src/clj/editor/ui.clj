@@ -997,8 +997,9 @@
   * :double-click-expand?
     If true, double-clicking will toggle expansion of a tree item."
   [^TreeView tree-view opts]
-  (.addEventFilter tree-view MouseEvent/MOUSE_PRESSED custom-tree-view-mouse-pressed-event-filter)
-  (when-not (:double-click-expand? opts)
+  ;; TEMPORARILY DISABLED because it breaks non-selected item expansion in the Outline.
+  #_(.addEventFilter tree-view MouseEvent/MOUSE_PRESSED custom-tree-view-mouse-pressed-event-filter)
+  #_(when-not (:double-click-expand? opts)
     (.addEventFilter tree-view MouseEvent/MOUSE_RELEASED ignore-event-filter)))
 
 (extend-protocol HasSelectionModel
