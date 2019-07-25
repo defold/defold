@@ -500,7 +500,7 @@
   (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
-      (ui/customize-tree-view! {:double-click-expand? false})
+      (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
