@@ -1,22 +1,20 @@
 (ns editor.outline-view
-  (:require
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.error-reporting :as error-reporting]
-   [editor.handler :as handler]
-   [editor.jfx :as jfx]
-   [editor.outline :as outline]
-   [editor.resource :as resource]
-   [editor.types :as types]
-   [editor.ui :as ui])
-  (:import
-   (com.defold.control TreeCell)
-   (javafx.collections FXCollections ObservableList)
-   (javafx.event Event)
-   (javafx.scene Node)
-   (javafx.scene.control SelectionMode TreeItem TreeView)
-   (javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode)
-   (javafx.util Callback)))
+  (:require [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.error-reporting :as error-reporting]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.outline :as outline]
+            [editor.resource :as resource]
+            [editor.types :as types]
+            [editor.ui :as ui])
+  (:import [com.defold.control TreeCell]
+           [javafx.collections FXCollections ObservableList]
+           [javafx.event Event]
+           [javafx.scene Node]
+           [javafx.scene.control SelectionMode TreeItem TreeView]
+           [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
