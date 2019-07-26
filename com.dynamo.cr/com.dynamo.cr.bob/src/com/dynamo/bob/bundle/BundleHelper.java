@@ -433,7 +433,6 @@ public class BundleHelper {
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
         resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
         resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
-        resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
 
         List<String> extraPackages = new ArrayList<>();
 
