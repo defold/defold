@@ -18,7 +18,7 @@ ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14' # Android 4.0
-ANDROID_TARGET_API_LEVEL='23'
+ANDROID_TARGET_API_LEVEL='28'
 ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
@@ -934,12 +934,12 @@ def android_package(task):
     # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
     # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
     # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.firebase.firebase-messaging-17.3.4" % dynamo_home]
+    res_dirs = ["%s/ext/share/java/res/androidx.coordinatorlayout.coordinatorlayout-1.0.0" % dynamo_home,
+                "%s/ext/share/java/res/androidx.core.core-1.0.2" % dynamo_home,
+                "%s/ext/share/java/res/androidx.media.media-1.0.1" % dynamo_home,
+                "%s/ext/share/java/res/com.google.android.gms.play-services-base-17.0.0" % dynamo_home,
+                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-17.0.0" % dynamo_home,
+                "%s/ext/share/java/res/com.google.firebase.firebase-messaging-19.0.1" % dynamo_home]
 
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
