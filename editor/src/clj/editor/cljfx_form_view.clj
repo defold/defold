@@ -27,7 +27,9 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private cell-height 28)
+(def ^:private line-height 27)
+
+(def ^:private cell-height (inc line-height))
 
 (g/defnk produce-form-view [renderer form-data ui-state]
   (renderer {:form-data form-data
@@ -884,11 +886,11 @@
                                  :desc {:fx/type :table-view
                                         :style-class ["table-view" "cljfx-table-view"]
                                         :editable true
-                                        :fixed-cell-size cell-height
-                                        :pref-height (+ cell-height ;; header
+                                        :fixed-cell-size line-height
+                                        :pref-height (+ line-height ;; header
                                                         2   ;; insets
                                                         9   ;; bottom scrollbar
-                                                        (* cell-height
+                                                        (* line-height
                                                            (max 1 (count value))))
                                         :columns (mapv #(table-column % field)
                                                        columns)
@@ -1025,7 +1027,7 @@
                         :children
                         [{:fx/type :h-box
                           :spacing 4
-                          :pref-height cell-height
+                          :pref-height line-height
                           :children (cond-> [{:fx/type :label
                                               :h-box/margin {:top 5}
                                               :text (:label field)}]
@@ -1107,7 +1109,7 @@
                    :grid-pane/column 2
                    :visible visible
                    :managed visible
-                   :min-height cell-height
+                   :min-height line-height
                    :alignment :center-left
                    :children [(cond-> field
                                       :always
@@ -1149,8 +1151,8 @@
                                                   :min-width 150
                                                   :max-width 150}
                                                  {:fx/type :column-constraints
-                                                  :min-width cell-height
-                                                  :max-width cell-height}
+                                                  :min-width line-height
+                                                  :max-width line-height}
                                                  {:fx/type :column-constraints
                                                   :hgrow :always
                                                   :min-width 200
