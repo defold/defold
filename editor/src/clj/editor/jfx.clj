@@ -23,9 +23,9 @@
                         image)))))
 
 (defn get-image-view
-  ([name]
+  (^ImageView [name]
    (ImageView. ^Image (get-image name)))
-  ([name size]
+  (^ImageView [name size]
    (let [iv (ImageView. ^Image (get-image name))]
      (.setFitWidth iv size)
      (.setFitHeight iv size)

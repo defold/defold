@@ -63,7 +63,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Parent Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene.control Labeled MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.layout AnchorPane StackPane]
@@ -193,13 +193,12 @@
   ^String [resource is-dirty]
   ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
   ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
-  ;; control is internal. We also cannot replace them with double underscores to
-  ;; escape them, as they will show up in the Tab labels and there is no way to
-  ;; enable mnemonic parsing for them. As a workaround, we replace underscores
-  ;; with the HORIZONTAL SCAN LINE-9 unicode character, which looks very similar
-  ;; to an underscore in the font that we use.
+  ;; control is internal and not exposed in any way. Here we escape the double
+  ;; underscores so that the overflow dropdown menu will work correctly. We also
+  ;; have a workaround that enables mnemonic parsing for the tabs themselves in
+  ;; the make-tab! function.
   (let [resource-name (resource/resource-name resource)
-        escaped-resource-name (string/replace resource-name "_" "\u23BD")]
+        escaped-resource-name (string/replace resource-name "_" "__")]
     (if is-dirty
       (str "*" escaped-resource-name)
       escaped-resource-name)))
@@ -1450,7 +1449,13 @@ If you do not specifically require different script states, consider changing th
     (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
-    (.setGraphic tab (jfx/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
+    (let [graphic (jfx/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16)]
+      ;; Workaround to ensure editor tabs have mnemonic parsing enabled.
+      (ui/observe (.parentProperty graphic)
+                  (fn [_ _ ^Labeled parent]
+                    (println "New parent!" parent)
+                    (some-> parent (.setMnemonicParsing true))))
+      (.setGraphic tab graphic))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
