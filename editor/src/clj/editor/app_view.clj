@@ -63,7 +63,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Labeled MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.layout AnchorPane StackPane]
@@ -189,20 +189,6 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
-(defn- tab-title
-  ^String [resource is-dirty]
-  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
-  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
-  ;; control is internal and not exposed in any way. Here we escape the double
-  ;; underscores so that the overflow dropdown menu will work correctly. We also
-  ;; have a workaround that enables mnemonic parsing for the tabs themselves in
-  ;; the make-tab! function.
-  (let [resource-name (resource/resource-name resource)
-        escaped-resource-name (string/replace resource-name "_" "__")]
-    (if is-dirty
-      (str "*" escaped-resource-name)
-      escaped-resource-name)))
-
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -255,9 +241,10 @@
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
-                                                            resource (:resource (get open-views view))
-                                                            is-dirty (contains? open-dirty-views view)
-                                                            title (tab-title resource is-dirty)]]
+                                                            resource-name (resource/resource-name (:resource (get open-views view)))
+                                                            title (if (contains? open-dirty-views view)
+                                                                    (str "*" resource-name)
+                                                                    resource-name)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
@@ -1424,7 +1411,7 @@ If you do not specifically require different script states, consider changing th
 (defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
-        tab        (doto (Tab. (tab-title resource false))
+        tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
                      (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
                      (ui/user-data! ::view-type view-type))
@@ -1449,13 +1436,7 @@ If you do not specifically require different script states, consider changing th
     (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
-    (let [graphic (jfx/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16)]
-      ;; Workaround to ensure editor tabs have mnemonic parsing enabled.
-      (ui/observe (.parentProperty graphic)
-                  (fn [_ _ ^Labeled parent]
-                    (println "New parent!" parent)
-                    (some-> parent (.setMnemonicParsing true))))
-      (.setGraphic tab graphic))
+    (.setGraphic tab (jfx/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
