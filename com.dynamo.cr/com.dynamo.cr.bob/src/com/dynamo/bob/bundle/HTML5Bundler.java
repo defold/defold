@@ -248,6 +248,9 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_DEV_HEAD", devHead);
         infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
 
+        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
+        infoData.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
+
         /// Legacy properties for backwards compatibility
         {
             infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));

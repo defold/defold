@@ -741,6 +741,11 @@
    :default "",
    :path ["html5" "engine_arguments"]}
   {:type :string,
+   :help "scale mode for canvas, by default 'Downscale Fit'",
+   :default "downscale_fit",
+   :path ["html5" "scale_mode"]
+   :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale" ]]}
+  {:type :string,
    :help "the application id as issued by Facebook",
    :default "",
    :path ["facebook" "appid"]}
