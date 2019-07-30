@@ -189,6 +189,21 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
+(defn- tab-title
+  ^String [resource is-dirty]
+  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
+  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
+  ;; control is internal. We also cannot replace them with double underscores to
+  ;; escape them, as they will show up in the Tab labels and there is no way to
+  ;; enable mnemonic parsing for them. As a workaround, we replace underscores
+  ;; with the HORIZONTAL SCAN LINE-9 unicode character, which looks very similar
+  ;; to an underscore in the font that we use.
+  (let [resource-name (resource/resource-name resource)
+        escaped-resource-name (string/replace resource-name "_" "\u23BD")]
+    (if is-dirty
+      (str "*" escaped-resource-name)
+      escaped-resource-name)))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -241,10 +256,9 @@
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
-                                                            resource-name (resource/resource-name (:resource (get open-views view)))
-                                                            title (if (contains? open-dirty-views view)
-                                                                    (str "*" resource-name)
-                                                                    resource-name)]]
+                                                            resource (:resource (get open-views view))
+                                                            is-dirty (contains? open-dirty-views view)
+                                                            title (tab-title resource is-dirty)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
@@ -1411,7 +1425,7 @@ If you do not specifically require different script states, consider changing th
 (defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
-        tab        (doto (Tab. (resource/resource-name resource))
+        tab        (doto (Tab. (tab-title resource false))
                      (.setContent parent)
                      (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
                      (ui/user-data! ::view-type view-type))
