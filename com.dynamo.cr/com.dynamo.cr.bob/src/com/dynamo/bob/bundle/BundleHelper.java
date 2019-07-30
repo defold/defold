@@ -437,8 +437,12 @@ public class BundleHelper {
 
         List<String> extraPackages = new ArrayList<>();
 
+        extraPackages.add("com.google.firebase");
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
+        extraPackages.add("androidx.core");
+        extraPackages.add("androidx.coordinatorlayout");
+        extraPackages.add("androidx.media");
 
         if (bundleContext != null) {
             List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
