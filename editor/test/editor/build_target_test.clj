@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
             [editor.pipeline :as pipeline]
@@ -11,7 +10,8 @@
             [editor.system :as system]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
+            [support.test-support :refer [with-clean-system]]
+            [util.digestable :as digestable])
   (:import [com.google.protobuf ByteString]
            [java.io StringWriter]
            [java.net URI]
@@ -21,7 +21,7 @@
 
 (defn- digest-string [value]
   (with-open [writer (StringWriter.)]
-    (bt/digest! value writer)
+    (digestable/digest! value writer)
     (.flush writer)
     (.toString writer)))
 
@@ -36,6 +36,9 @@
                                        (.getPath root-dir)
                                        (io/file root-dir path)
                                        (.getBytes text "UTF-8"))))
+
+(defn- mock-module-level-function []
+  nil)
 
 (deftest digest-strings
   ;; Here we test the strings that will be hashed during the digest process.
@@ -89,7 +92,7 @@
           "#dg/Bytes [0, 32, 64]" (byte-array [0 32 64])
           "#dg/ByteString [65, 66, 67]" (ByteString/copyFrom "ABC" "UTF-8")
           "#dg/Class java.io.StringWriter" StringWriter
-          "#dg/Function editor.build-target/content-hash" bt/content-hash
+          "#dg/Function editor.build-target-test/mock-module-level-function" mock-module-level-function
           "#dg/Matrix4d [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]" (doto (Matrix4d.) .setIdentity)
           "#dg/URI \"https://www.defold.com\"" (URI. "https://www.defold.com")))
 
