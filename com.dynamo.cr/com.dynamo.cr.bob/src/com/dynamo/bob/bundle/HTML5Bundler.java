@@ -236,18 +236,6 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
 
         BundleHelper.throwIfCanceled(canceled);
-        String devInit = "";
-        String devHead = "";
-        String inlineHtml = "";
-        boolean includeDevTool = projectProperties.getBooleanValue("html5", "include_dev_tool", false);
-        if (includeDevTool) {
-            devInit = "MemoryStats.Initialise()";
-            devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
-            inlineHtml = IOUtils.toString(getResource("development.inl"));
-        }
-        infoData.put("DEFOLD_DEV_INIT", devInit);
-        infoData.put("DEFOLD_DEV_HEAD", devHead);
-        infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
 
         String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
         infoData.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
@@ -308,11 +296,6 @@ public class HTML5Bundler implements IBundler {
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
-
-        if (includeDevTool) {
-            FileUtils.copyURLToFile(getResource("development.css"), new File(appDir, "development.css"));
-            FileUtils.copyURLToFile(getResource("development.js"), new File(appDir, "development.js"));
-        }
     }
 
     private void createSplitFiles(File buildDir, File targetDir) throws IOException {

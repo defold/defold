@@ -711,10 +711,6 @@
    :help "The size, in megabytes, of the application's heap",
    :default 256,
    :path ["html5" "heap_size"]}
-  {:type :boolean,
-   :help "add html dev tool to application",
-   :default false,
-   :path ["html5" "include_dev_tool"]}
   {:type :resource,
    :filter "html",
    :preserve-extension true,
