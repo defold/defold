@@ -698,13 +698,19 @@
    :path ["windows" "iap_provider"]
    :options [["" "None"] ["Gameroom" "Gameroom"]]}
   {:type :boolean,
-   :help "set to true if you wish to adjust the application heap memory size",
+   :help "This setting is deprecated. Set to true if you wish to adjust the application heap memory size",
    :default false,
+   :deprecated true
    :path ["html5" "set_custom_heap_size"]}
   {:type :integer,
-   :help "the size, in bytes, of the application's heap",
+   :help "This setting is deprecated. The size, in bytes, of the application's heap",
    :default 0,
+   :deprecated true
    :path ["html5" "custom_heap_size"]}
+  {:type :integer,
+   :help "The size, in megabytes, of the application's heap",
+   :default 256,
+   :path ["html5" "heap_size"]}
   {:type :boolean,
    :help "add html dev tool to application",
    :default false,

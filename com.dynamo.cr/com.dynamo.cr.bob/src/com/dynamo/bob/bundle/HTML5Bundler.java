@@ -198,15 +198,16 @@ public class HTML5Bundler implements IBundler {
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
-        int customHeapSize = -1;
-        if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
-            Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
-            if (null != size) {
-                customHeapSize = size.intValue();
+        // Same value as engine is compiled with; 268435456
+        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+        
+        {// Deprecated method of setting the heap sie. For backwards compatibility
+            if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
+                Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
+                if (null != size) {
+                    customHeapSize = size.intValue();
+                }
             }
-        }
-        if (customHeapSize < 0) {
-            customHeapSize = 256*1024*1024; // Same value as engine is compiled with; 268435456
         }
 
         BundleHelper.throwIfCanceled(canceled);
