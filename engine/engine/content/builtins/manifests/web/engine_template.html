@@ -3,8 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, minimal-ui, shrink-to-fit=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- The above 4 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
     <title>{{project.title}} {{project.version}}</title>
     <style type='text/css'>
@@ -21,8 +22,8 @@
         user-select: none;
         position: fixed; /* Prevent overscroll */
         background-color: rgb(0, 0, 0);
-    	margin:0;
-    	padding:0;
+        margin:0;
+        padding:0;
     }
 
     .canvas-app-container {
@@ -38,6 +39,27 @@
         /* Auto width and height in Safari/Chrome fullscreen. */
         width: auto;
         height: auto;
+    }
+
+    #canvas {
+        outline: none;
+        border: 0;
+        width: 100%;
+    }
+    canvas:focus, canvas:active {
+        outline: none;
+        border: 0;
+        ie-dummy: expression(this.hideFocus=true);
+        -moz-outline-style: none;
+    }
+    div {
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
     }
 
     .canvas-app-progress {
@@ -64,27 +86,6 @@
         border-color: transparent;
         padding: 10px 20px;
     }
-
-    #canvas {
-        outline: none;
-        border: 0;
-        width: 100%;
-    }
-    canvas:focus, canvas:active {
-        outline: none;
-        border: 0;
-        ie-dummy: expression(this.hideFocus=true);
-        -moz-outline-style: none;
-    }
-    div {
-        -webkit-tap-highlight-color: rgba(0,0,0,0);
-        -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        -khtml-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-    }
     </style>
 </head>
 
@@ -98,7 +99,7 @@
     <!-- -->
     <script id='engine-loader' type='text/javascript' src="dmloader.js"></script>
     <!-- -->
-
+    
     <script id='engine-setup' type='text/javascript'>
     var extra_params = {
         archive_location_filter: function( path ) {
@@ -124,16 +125,23 @@
         return scriptDirectory + path;
     };
 
+    var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
     // Resize on init, screen resize and orientation change
     function resize_game_canvas() {
+        // Hack for iOS when exit from Fullscreen mode
+        if (is_iOS) {
+            window.scrollTo(0, 0);
+        }
+
         var app_container = document.getElementById('app-container');
         var game_canvas = document.getElementById('canvas');
-        {{#display.high_dpi}}
+    {{#display.high_dpi}}
         var dpi = window.devicePixelRatio || 1;
-        {{/display.high_dpi}}
-        {{^display.high_dpi}}
+    {{/display.high_dpi}}
+    {{^display.high_dpi}}
         var dpi = 1;
-        {{/display.high_dpi}}
+    {{/display.high_dpi}}
         var innerWidth = window.innerWidth;
         var innerHeight = window.innerHeight;
         var width = {{display.width}};
@@ -141,7 +149,7 @@
         var targetRatio = width / height;
         var actualRatio = innerWidth / innerHeight;
     {{#DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
-    //Downscale fit
+        //Downscale fit
         if (innerWidth < width || innerHeight < height) {
             if (actualRatio > targetRatio) {
                 width = innerHeight * targetRatio;
@@ -166,14 +174,14 @@
         game_canvas.height = height * dpi;
     {{/DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
     {{#DEFOLD_SCALE_MODE_IS_STRETCH}}
-    //Stretch
+        //Stretch
         app_container.style.width = innerWidth + "px";
         app_container.style.height = innerHeight + "px";
         game_canvas.width = innerWidth * dpi;
         game_canvas.height = innerHeight * dpi;
     {{/DEFOLD_SCALE_MODE_IS_STRETCH}}
     {{#DEFOLD_SCALE_MODE_IS_FIT}}
-    //Fit
+        //Fit
         if (actualRatio > targetRatio) {
             width = innerHeight * targetRatio;
             height = innerHeight;
@@ -192,7 +200,7 @@
         game_canvas.height = height * dpi;
     {{/DEFOLD_SCALE_MODE_IS_FIT}}
     {{#DEFOLD_SCALE_MODE_IS_NO_SCALE}}
-    //No scale
+        //No scale
         var margin_left = ((innerWidth - width) / 2);
         margin_left = margin_left > 0 ? margin_left : 0;
         var margin_top = ((innerHeight - height) / 2);
