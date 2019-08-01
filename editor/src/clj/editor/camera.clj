@@ -10,10 +10,18 @@
 
 (set! *warn-on-reflection* true)
 
+(def fov-x-35mm-full-frame 54.4)
+(def fov-y-35mm-full-frame 37.8)
+
 (s/defn camera-forward-vector :- Vector3d
   [camera :- Camera]
   (math/rotate (types/rotation camera)
                (Vector3d. 0.0 0.0 -1.0)))
+
+(s/defn camera-focus-point :- Point3d
+  [camera :- Camera]
+  (let [^Vector4d p (:focus-point camera)]
+    (Point3d. (.x p) (.y p) (.z p))))
 
 (s/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
@@ -143,8 +151,8 @@
          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
          rotation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))]
      (types/->Camera t position rotation
-                     0.1 10000.0
-                     (get opts :fov-x 30.0) (get opts :fov-y 30.0)
+                     1.0 10000.0
+                     (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
                      (Vector4d. 0.0 0.0 0.0 1.0)
                      filter-fn))))
 
@@ -374,7 +382,7 @@
       (button-interpretation key :idle))))
 
 
-(s/defn camera-fov-from-aabb :- s/Num
+(s/defn camera-orthographic-fov-from-aabb :- s/Num
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
@@ -398,7 +406,7 @@
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (let [aspect (/ (:fov-x camera) (:fov-y camera))
-        [^double fov-x ^double fov-y] (camera-fov-from-aabb camera viewport aabb)
+        [^double fov-x ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
         [fov-x fov-y] (if (> (/ fov-x aspect) (* aspect fov-y))
                         [fov-x (/ fov-x aspect)]
                         [(* aspect fov-y) fov-y])
@@ -438,7 +446,7 @@
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (let [fov-x (:fov-x camera)
-        [_ ^double fov-y] (camera-fov-from-aabb camera viewport aabb)
+        [_ ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
         filter-fn (or (:filter-fn camera) identity)]
     (-> camera
       (camera-set-center aabb)
@@ -446,17 +454,39 @@
       filter-fn)))
 
 (s/defn camera-orthographic->perspective :- Camera
-  [camera :- Camera]
+  [camera :- Camera ^double fov-y]
+  ;; Fov is specified as degrees between the forward vector and the frustum edge.
   (assert (= :orthographic (:type camera)))
-  (assoc camera
-    :type :perspective
-    :fov-x 30.0
-    :fov-y 30.0))
+  (let [^double fov-x-distance (:fov-x camera)
+        ^double fov-y-distance (:fov-y camera)
+        ^double fov-y-rad (math/deg->rad fov-y)
+        aspect (/ fov-x-distance fov-y-distance)
+        focus-distance (/ fov-y-distance (Math/tan fov-y-rad))
+        focus-pos (camera-focus-point camera)
+        cam-forward (camera-forward-vector camera)
+        cam-pos (math/offset-scaled focus-pos cam-forward (- focus-distance))]
+    (assoc camera
+      :type :perspective
+      :position cam-pos
+      :fov-x (* fov-y aspect)
+      :fov-y fov-y)))
 
 (s/defn camera-perspective->orthographic :- Camera
   [camera :- Camera]
   (assert (= :perspective (:type camera)))
-  (assoc camera :type :orthographic))
+  (let [focus-pos (camera-focus-point camera)
+        focus-distance (.length (math/subtract-vector focus-pos (:position camera)))
+        ^double fov-x-rad (math/deg->rad (:fov-x camera))
+        ^double fov-y-rad (math/deg->rad (:fov-y camera))
+        fov-x-distance (* focus-distance (Math/tan fov-x-rad))
+        fov-y-distance (* focus-distance (Math/tan fov-y-rad))
+        cam-forward (camera-forward-vector camera)
+        cam-pos (math/offset-scaled focus-pos cam-forward (- 5000))]
+    (assoc camera
+      :type :orthographic
+      :position cam-pos
+      :fov-x fov-x-distance
+      :fov-y fov-y-distance)))
 
 (s/defn camera-ensure-orthographic :- Camera
   [camera :- Camera]
@@ -475,8 +505,8 @@
         (recur (next corners)
                (min distance near)
                (max distance far)))
-      [(max 1.0 near)
-       (max 10.0 far)])))
+      [(max 1.0 (- near 0.0001))
+       (max 10.0 (+ far 0.0001))])))
 
 (g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
   (let [filter-fn (or (:filter-fn local-camera) identity)
@@ -488,7 +518,7 @@
         fov-y (:fov-y local-camera)
         fov-x (* aspect fov-y)
         [z-near z-far] (if (nil? scene-aabb)
-                         [0.1 10000.0]
+                         [1.0 10000.0]
                          (find-z-extents (types/position local-camera)
                                          (camera-forward-vector local-camera)
                                          scene-aabb))]

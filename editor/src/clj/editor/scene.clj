@@ -3,7 +3,6 @@
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
-            [editor.colors :as colors]
             [editor.error-reporting :as error-reporting]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -28,7 +27,6 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [internal.util :as util]
             [service.log :as log]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
@@ -936,7 +934,7 @@
     (when (not= current-type projection-type)
       (let [new-camera (case projection-type
                          :orthographic (c/camera-perspective->orthographic old-camera)
-                         :perspective (c/camera-orthographic->perspective old-camera))]
+                         :perspective (c/camera-orthographic->perspective old-camera c/fov-y-35mm-full-frame))]
         (set-camera! camera-controller old-camera new-camera false)))))
 
 (handler/defhandler :frame-selection :global
