@@ -14,14 +14,7 @@
     * drag the selected text but block mouse down/up events to the engine.
     */
     body {
-        -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        -khtml-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
         position: fixed; /* Prevent overscroll */
-        background-color: rgb(0, 0, 0);
         margin:0;
         padding:0;
     }
@@ -46,12 +39,14 @@
         border: 0;
         width: 100%;
     }
+
     canvas:focus, canvas:active {
         outline: none;
         border: 0;
         ie-dummy: expression(this.hideFocus=true);
         -moz-outline-style: none;
     }
+
     div {
         -webkit-tap-highlight-color: rgba(0,0,0,0);
         -webkit-touch-callout: none;
@@ -81,20 +76,53 @@
     }
 
     .button {
-        color: #fff;
-        background-color: #1e64ea;
         border-color: transparent;
-        padding: 10px 20px;
+        float:left;
+        color: #006fff;
+	    padding-left: 50%;
+	    padding: 0px 0px 0px 12px;
+	    cursor:pointer;
     }
+
+    .link {
+	  text-align: right;
+	  color: #4e5258;
+    }
+
+    .link, .button {
+		font-family: Helvetica;
+		font-size: 14px;
+		font-weight: normal;
+		font-style: normal;
+		font-stretch: normal;
+		line-height: normal;
+		letter-spacing: 0px;
+		padding-top: 12px;
+    }
+
+    a {
+	  font-weight: 600;
+	  color: #006fff;
+	  text-decoration: none;
+	}
+
+    body {
+        background-color: #ffffff;
+    }
+
     </style>
 </head>
 
 <body>
     <div id="app-container" class="canvas-app-container">
         <canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display.height}}"></canvas>
+{{#html5.show_fullscreen_button}}
+        <div class="button" onclick="Module.toggleFullscreen();">Fullscreen</div>
+{{/html5.show_fullscreen_button}}
+{{#html5.show_made_with_defold}}
+        <div class="link">Made with <a href="https://defold.com/">Defold</a></div>
+{{/html5.show_made_with_defold}}
     </div>
-
-    <button id="fullscreen" class="button">Fullscreen</button>
 
     <!-- -->
     <script id='engine-loader' type='text/javascript' src="dmloader.js"></script>
@@ -126,7 +154,13 @@
     };
 
     var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
+    var buttonHeight = 0;
+{{#html5.show_made_with_defold}}
+    buttonHeight = 42;
+{{/html5.show_made_with_defold}}
+{{#html5.show_fullscreen_button}}
+    buttonHeight = 42;
+{{/html5.show_fullscreen_button}}
     // Resize on init, screen resize and orientation change
     function resize_game_canvas() {
         // Hack for iOS when exit from Fullscreen mode
@@ -143,7 +177,7 @@
         var dpi = 1;
     {{/display.high_dpi}}
         var innerWidth = window.innerWidth;
-        var innerHeight = window.innerHeight;
+        var innerHeight = window.innerHeight - buttonHeight;
         var width = {{display.width}};
         var height = {{display.height}};
         var targetRatio = width / height;
@@ -168,17 +202,11 @@
             app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
             app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
         }
-        app_container.style.width = width + "px";
-        app_container.style.height = height + "px";
-        game_canvas.width = width * dpi;
-        game_canvas.height = height * dpi;
     {{/DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
     {{#DEFOLD_SCALE_MODE_IS_STRETCH}}
         //Stretch
-        app_container.style.width = innerWidth + "px";
-        app_container.style.height = innerHeight + "px";
-        game_canvas.width = innerWidth * dpi;
-        game_canvas.height = innerHeight * dpi;
+        width = innerWidth;
+        height = innerHeight;
     {{/DEFOLD_SCALE_MODE_IS_STRETCH}}
     {{#DEFOLD_SCALE_MODE_IS_FIT}}
         //Fit
@@ -194,10 +222,6 @@
             app_container.style.marginLeft = "0px";
             app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
         }
-        app_container.style.width = width + "px";
-        app_container.style.height = height + "px";
-        game_canvas.width = width * dpi;
-        game_canvas.height = height * dpi;
     {{/DEFOLD_SCALE_MODE_IS_FIT}}
     {{#DEFOLD_SCALE_MODE_IS_NO_SCALE}}
         //No scale
@@ -207,11 +231,11 @@
         margin_top = margin_top > 0 ? margin_top : 0;
         app_container.style.marginLeft = margin_left + "px";
         app_container.style.marginTop = margin_top + "px";
+    {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
         app_container.style.width = width + "px";
-        app_container.style.height = height + "px";
+        app_container.style.height = height + buttonHeight + "px";
         game_canvas.width = width * dpi;
         game_canvas.height = height * dpi;
-    {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
     }
     resize_game_canvas();
     window.addEventListener('resize', resize_game_canvas, false);
@@ -227,11 +251,6 @@
         }
         document.head.appendChild(engineJS);
     }
-
-    /* Fullscreen button */
-    document.getElementById("fullscreen").onclick = function (e) {
-        Module.toggleFullscreen();
-    };
 
     </script>
     <script id='engine-start' type='text/javascript'>

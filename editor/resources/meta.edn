@@ -701,11 +701,15 @@
    :help "This setting is deprecated. Set to true if you wish to adjust the application heap memory size",
    :default false,
    :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
    :path ["html5" "set_custom_heap_size"]}
   {:type :integer,
    :help "This setting is deprecated. The size, in bytes, of the application's heap",
    :default 0,
    :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
    :path ["html5" "custom_heap_size"]}
   {:type :integer,
    :help "The size, in megabytes, of the application's heap",
@@ -742,6 +746,14 @@
    :help "comma separated list of engine arguments",
    :default "",
    :path ["html5" "engine_arguments"]}
+   {:type :boolean,
+   :help "set to true if you want to have the fullscreen button",
+   :default true
+   :path ["html5" "show_fullscreen_button"]}
+  {:type :boolean,
+   :help "set to true if you want to have the 'Made with Defold' link",
+   :default true
+   :path ["html5" "show_made_with_defold"]}
   {:type :string,
    :help "scale mode for canvas, by default 'Downscale Fit'",
    :default "downscale_fit",
