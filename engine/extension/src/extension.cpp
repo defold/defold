@@ -21,6 +21,7 @@ namespace dmExtension
         uint32_t desc_size,
         const char *name,
         Result (*app_init)(AppParams*),
+        void   (*post_render)(AppParams*),
         Result (*app_finalize)(AppParams*),
         Result (*initialize)(Params*),
         Result (*finalize)(Params*),
@@ -35,6 +36,7 @@ namespace dmExtension
         desc->Finalize = finalize;
         desc->Update = update;
         desc->OnEvent = on_event;
+        desc->PostRender = post_render;
         desc->m_Next = g_FirstExtension;
         g_FirstExtension = desc;
     }
@@ -81,6 +83,17 @@ namespace dmExtension
         }
 
         return ret;
+    }
+
+    void PostRender(AppParams* params)
+    {
+        dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+        while (ed) {
+            if (ed->PostRender && ed->m_AppInitialized) {
+                ed->PostRender(params);
+            }
+            ed = (dmExtension::Desc*) ed->m_Next;
+        }
     }
 
     Result AppFinalize(AppParams* params)

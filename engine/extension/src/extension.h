@@ -13,6 +13,7 @@ namespace dmExtension
     {
         const char* m_Name;
         Result (*AppInitialize)(AppParams* params);
+        void   (*PostRender)(AppParams* params);
         Result (*AppFinalize)(AppParams* params);
         Result (*Initialize)(Params* params);
         Result (*Finalize)(Params* params);
@@ -34,6 +35,12 @@ namespace dmExtension
      * @return RESULT_OK on success
      */
     Result AppInitialize(AppParams* params);
+
+    /**
+     * Call post render functions for extensions
+     * @param params parameters
+     */
+    void PostRender(AppParams* params);
 
     /**
      * Initialize all extends at application level

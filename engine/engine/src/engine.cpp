@@ -1340,6 +1340,13 @@ bail:
 
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
 
+                // Call post render functions for extensions, if available.
+                // We do it here at the end of the frame (before swap buffers/flip)
+                // if any extension wants to render on top of the game.
+                dmExtension::AppParams app_params;
+                app_params.m_ConfigFile = engine->m_Config;
+                dmExtension::PostRender(&app_params);
+
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
