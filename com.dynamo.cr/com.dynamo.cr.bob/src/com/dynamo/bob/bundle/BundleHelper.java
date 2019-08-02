@@ -171,7 +171,7 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-     public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
+    public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         String data = new String(resource.getContent());
         Template template = Mustache.compiler().compile(data);
         StringWriter sw = new StringWriter();
