@@ -14,9 +14,9 @@
 	* drag the selected text but block mouse down/up events to the engine.
 	*/
 	body {
-		{{^DEFOLD_SCALE_MODE_IS_NO_SCALE}}
+	{{^DEFOLD_SCALE_MODE_IS_NO_SCALE}}
 		position: fixed; /* Prevent overscroll */
-		{{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
+	{{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
 		margin:0;
 		padding:0;
 	}
@@ -76,11 +76,9 @@
 {{/html5.show_made_with_defold}}
 		</div>
 	</div>
-
 	<!-- -->
 	<script id='engine-loader' type='text/javascript' src="dmloader.js"></script>
 	<!-- -->
-	
 	<script id='engine-setup' type='text/javascript'>
 	var extra_params = {
 		archive_location_filter: function( path ) {
