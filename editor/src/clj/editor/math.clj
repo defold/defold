@@ -354,4 +354,4 @@
      :normal normal
      :view-proj view-proj
      :world-view world-view
-     :world-view-proj (doto (Matrix4d. view-proj) (.mul world))}))
+     :world-view-proj world-view-proj}))

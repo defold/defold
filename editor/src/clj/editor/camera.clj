@@ -381,7 +381,6 @@
     (let [key [button shift ctrl alt meta]]
       (button-interpretation key :idle))))
 
-
 (s/defn camera-orthographic-fov-from-aabb :- s/Num
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
@@ -416,20 +415,43 @@
         (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
         filter-fn)))
 
+(defn find-perspective-frame-distance
+  ^double [corners corner->coord ^double full-fov-deg]
+  (let [^double half-fov-rad (math/deg->rad (* full-fov-deg 0.5))
+        comp-half-fov-rad (- ^double math/half-pi half-fov-rad)
+        tan-comp-half-fov-rad (Math/tan comp-half-fov-rad)]
+    (reduce (fn [^double max-distance ^Point3d corner]
+              (max max-distance
+                   (+ (.z corner)
+                      (* tan-comp-half-fov-rad
+                         (Math/abs ^double (corner->coord corner))))))
+            Double/NEGATIVE_INFINITY
+            corners)))
+
 (s/defn camera-perspective-frame-aabb :- Camera
-  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
-  ;; TODO: Dolly camera so that the aabb fits within the frustum.
+  [camera :- Camera ^AABB aabb :- AABB]
   (assert (= :perspective (:type camera)))
-  (let [filter-fn (or (:filter-fn camera) identity)]
-    (-> camera
-        (camera-set-center aabb)
+  (let [^double full-fov-x-deg (:fov-x camera)
+        ^double full-fov-y-deg (:fov-y camera)
+        filter-fn (or (:filter-fn camera) identity)
+        new-camera (camera-set-center camera aabb)
+        view-matrix (camera-view-matrix new-camera)
+        corners (mapv (fn [^Point3d corner]
+                        (.transform view-matrix corner)
+                        corner)
+                      (geom/aabb->corners aabb))
+        distance (max (find-perspective-frame-distance corners #(.x ^Point3d %) full-fov-x-deg)
+                      (find-perspective-frame-distance corners #(.y ^Point3d %) full-fov-y-deg))
+        cam-forward (camera-forward-vector new-camera)]
+    (-> new-camera
+        (update :position #(math/offset-scaled % cam-forward (- distance)))
         filter-fn)))
 
 (s/defn camera-frame-aabb :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (case (:type camera)
     :orthographic (camera-orthographic-frame-aabb camera viewport aabb)
-    :perspective (camera-perspective-frame-aabb camera viewport aabb)))
+    :perspective (camera-perspective-frame-aabb camera aabb)))
 
 (defn camera-orthographic-realign ^Camera
   [^Camera camera ^Region viewport ^AABB aabb]
