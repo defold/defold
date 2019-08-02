@@ -725,7 +725,8 @@
   {:type :resource,
    :filter "css",
    :preserve-extension true,
-   :help "css detail for html shell",
+   :help "css will be inlined into index.html template",
+   :default "/builtins/manifests/web/light_theme.css",
    :label "Custom .css"
    :path ["html5" "cssfile"]}
   {:type :resource,
