@@ -133,7 +133,10 @@ public class HTML5Bundler implements IBundler {
                 throw new RuntimeException(e);
             }
         } else {
-            return getClass().getResource(String.format("resources/jsweb/%s", defaultValue));
+            if (defaultValue != null) {
+                return getClass().getResource(String.format("resources/jsweb/%s", defaultValue));
+            }
+            return null;
         }
     }
 
@@ -194,7 +197,8 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
-        URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
+
+        URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", null);
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
@@ -213,7 +217,12 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("exe-name", enginePrefix);
-        infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
+
+        if (splashImage != null) {
+            infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
+        } else {
+            infoData.put("DEFOLD_SPLASH_IMAGE", false);
+        }
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
 
         // Check if game has configured a Facebook App ID
@@ -295,7 +304,9 @@ public class HTML5Bundler implements IBundler {
 
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
-        FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
+        if (splashImage != null) {
+            FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
+        }
     }
 
     private void createSplitFiles(File buildDir, File targetDir) throws IOException {
