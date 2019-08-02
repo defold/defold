@@ -278,9 +278,6 @@ var Progress = {
 
     updateProgress: function (percentage, text) {
         Progress.bar.style.width = percentage + "%";
-
-        text = (typeof text === 'undefined') ? Math.round(percentage) + "%" : text;
-        Progress.bar.innerText = text;
     },
 
     removeProgress: function () {
