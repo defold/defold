@@ -221,6 +221,8 @@ public class HTML5Bundler implements IBundler {
         if (splashImage != null) {
             infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
         } else {
+            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
+            // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
             infoData.put("DEFOLD_SPLASH_IMAGE", false);
         }
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
