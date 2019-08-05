@@ -3,9 +3,12 @@
     <option name="RIGHT_MARGIN" value="80" />
     <option name="SOFT_MARGINS" value="80,90" />
     <ClojureCodeStyleSettings>{
+  :cljfx.composite/props :only-indent
+  :clojure.core/defmulti :only-indent
   :cursive.formatting/align-conditionals false
   :cursive.formatting/align-maps false
   :cursive.formatting/imports-use-vectors true
+  :dynamo.graph/make-nodes :only-indent
   :dynamo.graph/precluding-errors :only-indent
   :dynamo.graph/with-auto-evaluation-context :only-indent
   :dynamo.graph/with-auto-or-fake-evaluation-context :only-indent
@@ -18,6 +21,7 @@
   :editor.gl/gl-push-matrix :only-indent
   :editor.gl/with-gl-bindings :only-indent
   :editor.handler/defhandler :only-indent
+  :editor.resource-io/with-error-translation :only-indent
   :editor.resource-node/register-ddf-resource-type :only-indent
   :editor.ui/event-handler :only-indent
   :editor.ui/invalidation-listener :only-indent

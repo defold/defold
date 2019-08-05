@@ -1156,6 +1156,32 @@ namespace dmGameObject
         return 1;
     }
 
+    /*# gets the game object instance world transform matrix
+     *
+     * @name go.get_world_transform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script
+     * @return transform [type:matrix4] instance world transform
+     * @examples
+     *
+     * Get the world transform of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local m = go.get_world_transform()
+     * ```
+     *
+     * Get the world transform of another game object instance with id "x":
+     *
+     * ```lua
+     * local m = go.get_world_transform("x")
+     * ```
+     */
+    int Script_GetWorldTransform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L,1);
+        dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(instance));
+        return 1;
+    }
+
     /*# gets the id of an instance
      * Returns or constructs an instance identifier. The instance id is a hash
      * of the absolute path to the instance.
@@ -1566,6 +1592,9 @@ namespace dmGameObject
      * frame. Note that game objects scheduled for deletion will be counted against
      * `max_instances` in "game.project" until they are actually removed.
      *
+     * [icon:attention] Deleting a game object containing a particle FX component emitting particles will not immediately stop the particle FX from emitting particles. You need to manually stop the particle FX using `particlefx.stop()`.
+     * [icon:attention] Deleting a game object containing a sound component that is playing will not immediately stop the sound from playing. You need to manually stop the sound using `sound.stop()`.
+     *
      * @name go.delete
      * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
@@ -1834,6 +1863,7 @@ namespace dmGameObject
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
         {"get_world_scale_uniform", Script_GetWorldScaleUniform},
+        {"get_world_transform",     Script_GetWorldTransform},
         {"get_id",                  Script_GetId},
         {"animate",                 Script_Animate},
         {"cancel_animations",       Script_CancelAnimations},

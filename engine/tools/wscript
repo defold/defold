@@ -47,6 +47,7 @@ def configure(conf):
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')

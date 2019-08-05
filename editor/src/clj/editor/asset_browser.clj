@@ -719,6 +719,7 @@
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
+      (ui/customize-tree-view! {:double-click-expand? true})
       (ui/bind-double-click! :open)
       (ui/bind-key-commands! {"Enter" :open
                               "F2" :rename})

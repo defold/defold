@@ -1365,6 +1365,8 @@ namespace dmGameSystem
                 removed = true;
                 break;
             }
+            end_point_prev = end_point_next;
+            end_point_next = end_point_next->m_Next;
         }
 
         assert(removed);

@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -11,6 +12,7 @@
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 
+#include <graphics/graphics.h>
 #include <hid/hid.h>
 #include <input/input_ddf.h>
 
@@ -25,6 +27,8 @@ struct Trigger
     dmInputDDF::GamepadType m_Type;
     uint32_t m_Index;
     bool m_Modifiers[dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT];
+    uint32_t m_HatMask;
+    bool m_Skip;
 };
 
 struct Driver
@@ -35,13 +39,31 @@ struct Driver
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
 };
 
-void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, bool* axis, uint32_t* index, float* value, float* delta);
+void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
+bool IsIgnoredTrigger(uint32_t trigger_id) {
+    // Ignore connected/disconnected triggers.
+    if (trigger_id == dmInputDDF::GAMEPAD_CONNECTED ||
+        trigger_id == dmInputDDF::GAMEPAD_DISCONNECTED) {
+        return true;
+    }
+
+    return false;
+}
 
 dmHID::HContext g_HidContext = 0;
 
+static volatile bool g_SkipTrigger = false;
+
+static void sig_handler(int _)
+{
+    (void)_;
+    g_SkipTrigger = true;
+}
+
 int main(int argc, char *argv[])
 {
+
     int result = 0;
     dmHID::HGamepad gamepad = dmHID::INVALID_GAMEPAD_HANDLE;
     dmHID::HGamepad gamepads[dmHID::MAX_GAMEPAD_COUNT];
@@ -53,7 +75,6 @@ int main(int argc, char *argv[])
 
     FILE* out = 0x0;
 
-    uint32_t gamepad_count = 0;
 
     const char* filename = "default.gamepads";
     if (argc > 1)
@@ -61,6 +82,31 @@ int main(int argc, char *argv[])
 
     g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(g_HidContext);
+    dmGraphics::Initialize();
+
+    dmGraphics::ContextParams graphics_context_params;
+    graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    graphics_context_params.m_VerifyGraphicsCalls = false;
+    dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
+    if (graphics_context == 0x0)
+    {
+        dmLogFatal("Unable to create the graphics context.");
+        return 1;
+    }
+
+    dmGraphics::WindowParams window_params;
+    window_params.m_Width = 32;
+    window_params.m_Height = 32;
+    window_params.m_Samples = 0;
+    window_params.m_Title = "gdc";
+    window_params.m_Fullscreen = 0;
+    window_params.m_PrintDeviceInfo = false;
+    window_params.m_HighDPI = 0;
+    dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(graphics_context, &window_params);
+
+retry:
+    uint32_t gamepad_count = 0;
     dmHID::Update(g_HidContext);
 
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
@@ -73,8 +119,14 @@ int main(int argc, char *argv[])
     }
     if (gamepad_count == 0)
     {
-        printf("No connected gamepads, bye!\n");
-        goto bail;
+        printf("No connected gamepads, rechecking in 3 seconds. "); fflush(stdout);
+        dmTime::Sleep(1000000);
+        printf("2.. "); fflush(stdout);
+        dmTime::Sleep(1000000);
+        printf("1.. "); fflush(stdout);
+        dmTime::Sleep(1000000);
+        printf("Rechecking...\n");
+        goto retry;
     }
     if (gamepad_count > 1)
     {
@@ -94,7 +146,8 @@ int main(int argc, char *argv[])
                 gamepad = gamepads[index-1];
                 break;
             }
-            printf("Invalid input, try again: ");
+            printf("Invalid input!");
+            goto bail;
         }
     }
     else
@@ -118,10 +171,13 @@ int main(int argc, char *argv[])
     dmHID::GetGamepadPacket(gamepad, &packet);
     prev_packet = packet;
 
-    bool axis;
+    dmInputDDF::GamepadType gamepad_type;
     uint32_t index;
     float value;
     float delta;
+
+    // Register signal handler so user can press Ctrl+C to skip a trigger.
+    signal(SIGINT, sig_handler);
 
     printf("* Don't press anything on the gamepad...\n");
     timer = wait_delay;
@@ -129,7 +185,7 @@ int main(int argc, char *argv[])
     {
         dmHID::Update(g_HidContext);
         dmHID::GetGamepadPacket(gamepad, &packet);
-        GetDelta(&prev_packet, &packet, &axis, &index, &value, &delta);
+        GetDelta(&prev_packet, &packet, &gamepad_type, &index, &value, &delta);
         if (dmMath::Abs(delta) < 0.01f)
         {
             timer -= dt;
@@ -145,16 +201,30 @@ int main(int argc, char *argv[])
             prev_packet = packet;
         }
     }
+
+    printf("* NOTE: If gamepad is missing a trigger, you can skip it with Ctrl+C.\n");
     for (uint8_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
+        // Ignore connected/disconnected triggers.
+        if (IsIgnoredTrigger(dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Value)) {
+            continue;
+        }
+
         State state = STATE_WAITING;
         timer = wait_delay;
         bool run = true;
         while (run)
         {
+            if (g_SkipTrigger) {
+                printf("Skipping trigger.\n");
+                driver.m_Triggers[i].m_Skip = true;
+                g_SkipTrigger = false;
+                break;
+            }
+
             dmHID::Update(g_HidContext);
             dmHID::GetGamepadPacket(gamepad, &packet);
-            GetDelta(&prev_packet, &packet, &axis, &index, &value, &delta);
+            GetDelta(&prev_packet, &packet, &gamepad_type, &index, &value, &delta);
             switch (state)
             {
             case STATE_WAITING:
@@ -171,15 +241,21 @@ int main(int argc, char *argv[])
                     timer -= dt;
                     if (timer < 0.0f)
                     {
-                        driver.m_Triggers[i].m_Type = axis ? dmInputDDF::GAMEPAD_TYPE_AXIS : dmInputDDF::GAMEPAD_TYPE_BUTTON;
+                        driver.m_Triggers[i].m_Type = gamepad_type;
                         driver.m_Triggers[i].m_Index = index;
                         if (dmMath::Abs(delta) > 1.5f)
                             driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
-                        else if (axis)
+                        else if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS)
                             driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
                         if (delta < 0.0f)
                             driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE] = true;
-                        printf("\ttype: %s, index: %d, value: %.2f\n", axis ? "axis" : "button", index, value);
+
+                        if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+                            driver.m_Triggers[i].m_HatMask = (uint32_t)value;
+                        }
+
+                        static const char* gamepad_types[] = {"axis", "button", "hat"};
+                        printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
                         run = false;
                     }
                 }
@@ -215,7 +291,7 @@ bail:
     return result;
 }
 
-void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, bool* axis, uint32_t* index, float* value, float* delta)
+void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
 {
     float max_delta = -1.0f;
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
@@ -223,8 +299,8 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, b
         if (dmMath::Abs(packet->m_Axis[i] - prev_packet->m_Axis[i]) > max_delta)
         {
             max_delta = dmMath::Abs(packet->m_Axis[i] - prev_packet->m_Axis[i]);
-            if (axis != 0x0)
-                *axis = true;
+            if (gamepad_type != 0x0)
+                *gamepad_type = dmInputDDF::GAMEPAD_TYPE_AXIS;
             if (index != 0x0)
                 *index = i;
             if (value != 0x0)
@@ -233,12 +309,25 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, b
                 *delta = packet->m_Axis[i] - prev_packet->m_Axis[i];
         }
     }
+    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_HAT_COUNT; ++i)
+    {
+        if (prev_packet->m_Hat[i] != packet->m_Hat[i]) {
+            if (gamepad_type != 0x0)
+                *gamepad_type = dmInputDDF::GAMEPAD_TYPE_HAT;
+            if (index != 0x0)
+                *index = i;
+            if (value != 0x0)
+                *value = packet->m_Hat[i];
+            if (delta != 0x0)
+                *delta = 1.0f;
+        }
+    }
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++i)
     {
         if (dmHID::GetGamepadButton(packet, i))
         {
-            if (axis != 0x0)
-                *axis = false;
+            if (gamepad_type != 0x0)
+                *gamepad_type = dmInputDDF::GAMEPAD_TYPE_BUTTON;
             if (index != 0x0)
                 *index = i;
             if (value != 0x0)
@@ -257,15 +346,24 @@ void DumpDriver(FILE* out, Driver* driver)
     fprintf(out, "    dead_zone: %.3f\n", driver->m_DeadZone);
     for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
+        // Ignore connected/disconnected triggers.
+        if (IsIgnoredTrigger(dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Value) || driver->m_Triggers[i].m_Skip) {
+            continue;
+        }
+
         fprintf(out, "    map { input: %s type: %s index: %d ",
                 dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name,
                 dmInputDDF_GamepadType_DESCRIPTOR.m_EnumValues[driver->m_Triggers[i].m_Type].m_Name,
                 driver->m_Triggers[i].m_Index);
+        if (driver->m_Triggers[i].m_Type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+            fprintf(out, "hat_mask: %d ", driver->m_Triggers[i].m_HatMask);
+        }
         for (uint32_t j = 0; j < dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT; ++j)
         {
             if (driver->m_Triggers[i].m_Modifiers[j])
                 fprintf(out, "mod { mod: %s } ", dmInputDDF_GamepadModifier_DESCRIPTOR.m_EnumValues[j].m_Name);
         }
+
         fprintf(out, "}\n");
     }
     fprintf(out, "}\n");

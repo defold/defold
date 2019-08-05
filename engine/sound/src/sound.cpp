@@ -1200,6 +1200,7 @@ namespace dmSound
 
         if (active_instance_count == 0)
         {
+            #if defined(ANDROID)
             if (sound->m_IsDeviceStarted)
             {
                 // DEF-3512 Wait with stopping the device until all our queued buffers have played, if any queued buffers are
@@ -1212,6 +1213,7 @@ namespace dmSound
                     sound->m_IsDeviceStarted = false;
                 }
             }
+            #endif
             return RESULT_NOTHING_TO_PLAY;
         }
         // DEF-3130 Don't start the device unless something is being played

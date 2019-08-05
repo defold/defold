@@ -334,8 +334,6 @@ Export-Package: com.amazonaws,
  org.joda.time.field,
  org.joda.time.format,
  org.joda.time.tz,
-<<<<<<< HEAD
-=======
  org.jsoup,
  org.jsoup.helper,
  org.jsoup.internal,
@@ -343,7 +341,6 @@ Export-Package: com.amazonaws,
  org.jsoup.parser,
  org.jsoup.safety,
  org.jsoup.select,
->>>>>>> def3923
  org.yaml.snakeyaml,
  org.yaml.snakeyaml.composer,
  org.yaml.snakeyaml.constructor,
@@ -364,6 +361,3 @@ Export-Package: com.amazonaws,
  org.yaml.snakeyaml.tokens,
  org.yaml.snakeyaml.util
 Import-Package: org.osgi.framework;version="1.5.0"
-Require-Bundle: javax.activation;bundle-version="1.1.0",
- javax.mail;bundle-version="1.4.0",
- org.glassfish.grizzly;bundle-version="2.1.2"

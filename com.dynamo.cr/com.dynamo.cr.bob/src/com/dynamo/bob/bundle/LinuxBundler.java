@@ -73,7 +73,7 @@ public class LinuxBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
 
         BundleHelper.throwIfCanceled(canceled);
 

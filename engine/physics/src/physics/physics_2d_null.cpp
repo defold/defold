@@ -238,4 +238,14 @@ namespace dmPhysics
     {
     }
 
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vectormath::Aos::Vector3& force, float inv_dt)
+    {
+        return true;
+    }
+
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
+    {
+        return true;
+    }
+
 }

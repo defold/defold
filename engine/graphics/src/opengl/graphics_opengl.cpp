@@ -508,7 +508,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
         }
 
-
+        glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)

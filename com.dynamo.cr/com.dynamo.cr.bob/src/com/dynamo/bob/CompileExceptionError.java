@@ -20,6 +20,12 @@ public class CompileExceptionError extends Exception {
         this.lineNumber = lineNumber;
     }
 
+    public CompileExceptionError(IResource resource, int lineNumber, Exception e) {
+        super(e.getMessage());
+        this.resource = resource;
+        this.lineNumber = lineNumber;
+    }
+
     public CompileExceptionError(String message, Throwable e) {
         super(message, e);
         this.resource = null;

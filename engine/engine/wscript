@@ -83,6 +83,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
+    conf.env['STATICLIB_GRAPHICS_VULKAN'] = 'graphics_vulkan'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_RENDER'] = 'render'
     conf.env['STATICLIB_GAMESYS'] = 'gamesys'

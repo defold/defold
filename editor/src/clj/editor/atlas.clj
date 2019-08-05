@@ -2,41 +2,42 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.image :as image]
-            [editor.image-util :as image-util]
-            [editor.geom :as geom]
-            [editor.core :as core]
             [editor.colors :as colors]
+            [editor.core :as core]
+            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.handler :as handler]
+            [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
+            [editor.image :as image]
+            [editor.image-util :as image-util]
             [editor.math :as math]
+            [editor.outline :as outline]
+            [editor.pipeline :as pipeline]
+            [editor.pipeline.tex-gen :as tex-gen]
+            [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
-            [editor.types :as types]
-            [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
-            [editor.pipeline :as pipeline]
-            [editor.pipeline.texture-set-gen :as texture-set-gen]
-            [editor.pipeline.tex-gen :as tex-gen]
             [editor.scene-picking :as scene-picking]
             [editor.texture-set :as texture-set]
-            [editor.outline :as outline]
+            [editor.types :as types]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass]
-            [editor.graph-util :as gu]
-            [schema.core :as s])
+            [editor.workspace :as workspace]
+            [schema.core :as s]
+            [util.digestable :as digestable])
   (:import [com.dynamo.atlas.proto AtlasProto$Atlas]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.tile.proto Tile$Playback]
+           [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
-           [com.jogamp.opengl GL GL2]
            [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -532,19 +533,26 @@
   (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output layout-rects     g/Any               (g/fnk [texture-set-data] (:rects texture-set-data)))
 
-  (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resources]
-                                              (let [flat-image-resources (filterv some? (flatten image-resources))
-                                                    shas                 (map #(resource-io/with-error-translation % _node-id nil
-                                                                                 (resource/resource->sha1-hex %))
-                                                                              flat-image-resources)
-                                                    errors               (filter g/error? shas)]
-                                                (if (seq errors)
-                                                  (g/error-aggregate errors)
-                                                  {:f    generate-packed-image
-                                                   :sha1 (str/join shas)
-                                                   :args {:_node-id                   _node-id
-                                                          :image-resources            flat-image-resources
-                                                          :texture-set-data-generator texture-set-data-generator}}))))
+  (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin texture-set-data-generator]
+                                         (let [flat-image-resources (filterv some? (flatten image-resources))
+                                               image-sha1s (map (fn [resource]
+                                                                  (resource-io/with-error-translation resource _node-id nil
+                                                                    (resource/resource->path-inclusive-sha1-hex resource)))
+                                                                flat-image-resources)
+                                               errors (filter g/error? image-sha1s)]
+                                           (if (seq errors)
+                                             (g/error-aggregate errors)
+                                             (let [packed-image-sha1 (digestable/sha1-hash
+                                                                       {:extrude-borders extrude-borders
+                                                                        :image-sha1s image-sha1s
+                                                                        :inner-padding inner-padding
+                                                                        :margin margin
+                                                                        :type :packed-atlas-image})]
+                                               {:f generate-packed-image
+                                                :sha1 packed-image-sha1
+                                                :args {:_node-id _node-id
+                                                       :image-resources flat-image-resources
+                                                       :texture-set-data-generator texture-set-data-generator}})))))
 
   (output packed-image     BufferedImage       :cached (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 
