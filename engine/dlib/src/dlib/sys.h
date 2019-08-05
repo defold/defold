@@ -175,6 +175,12 @@ namespace dmSys
     Result MoveFile(const char* dst_filename, const char* src_filename);
 
     /**
+     * Get the path where the application bundle (exe) is located
+     * @return
+     */
+    Result GetApplicationBundlePath(char* path, uint32_t path_len);
+
+    /**
      * Get and create platform specific application support directory.
      * Example paths:
      * OSX: ~/Library/Application Support/APPLICATION_NAME

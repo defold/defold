@@ -241,6 +241,20 @@ union SaveLoadBuffer
         return 1;
     }
 
+
+    int Sys_GetApplicationBundlePath(lua_State* L)
+    {
+        char bundle_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
+        dmSys::Result r = dmSys::GetApplicationBundlePath(bundle_path, sizeof(bundle_path));
+        if (r != dmSys::RESULT_OK)
+        {
+            luaL_error(L, "Unable to locate application bundle path: (%d)", r);
+        }
+        lua_pushstring(L, bundle_path);
+
+        return 1;
+    }
+
     /*# get config value
      * Get config value from the game.project configuration file.
      *
