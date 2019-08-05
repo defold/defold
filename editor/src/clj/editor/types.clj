@@ -169,7 +169,8 @@
 
 (defprotocol Pass
   (selection?       [this])
-  (model-transform? [this]))
+  (model-transform? [this])
+  (depth-clipping? [this]))
 
 (defprotocol Area
   (dimensions [this])

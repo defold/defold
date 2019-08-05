@@ -199,6 +199,9 @@
   (let [view (if (types/model-transform? pass)
                (c/camera-view-matrix camera)
                geom/Identity4d)
+        camera (if (types/depth-clipping? pass)
+                 camera
+                 (c/camera-without-depth-clipping camera))
         proj (if (types/model-transform? pass)
                (c/camera-projection-matrix camera)
                (c/region-orthographic-projection-matrix viewport -1.0 1.0)) ; used for background & tile map overlay so no need to use camera settings

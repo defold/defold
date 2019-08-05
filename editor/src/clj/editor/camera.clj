@@ -23,6 +23,12 @@
   (let [^Vector4d p (:focus-point camera)]
     (Point3d. (.x p) (.y p) (.z p))))
 
+(s/defn camera-without-depth-clipping :- Camera
+  [camera :- Camera]
+  (assoc camera
+    :z-near Double/MIN_NORMAL
+    :z-far Double/MAX_VALUE))
+
 (s/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
   (let [pos (Vector3d. (types/position camera))
