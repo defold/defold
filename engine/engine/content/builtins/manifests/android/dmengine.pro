@@ -305,7 +305,6 @@
 -keep public class com.google.android.gms.common.GoogleApiAvailability
 -keep public class com.google.android.gms.tasks.OnCompleteListener
 -keep public class com.google.android.gms.tasks.Task
--keep public class com.google.android.gms.gcm.GoogleCloudMessaging
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
 -dontwarn com.google.protobuf.**
