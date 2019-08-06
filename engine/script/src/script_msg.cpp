@@ -445,7 +445,7 @@ namespace dmScript
      * [icon:attention] There is a 2 kilobyte limit to the message parameter table size.
      *
      * @name msg.post
-     * @param receiver [type:string|url|hash|nil] The receiver must be a string in URL-format, a URL object, a hashed string or `nil`.
+     * @param receiver [type:string|url|hash] The receiver must be a string in URL-format, a URL object or a hashed string.
      * @param message_id [type:string|hash] The id must be a string or a hashed string.
      * @param [message] [type:table] a lua table with message parameters to send.
      * @examples
@@ -466,6 +466,10 @@ namespace dmScript
     int Msg_Post(lua_State* L)
     {
         int top = lua_gettop(L);
+        if (lua_isnil(L, 1))
+        {
+            return luaL_error(L, "The receiver shouldn't be `nil`");
+        }
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

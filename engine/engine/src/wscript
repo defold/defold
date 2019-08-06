@@ -85,7 +85,7 @@ def build(bld):
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
-    extra_packages = 'com.google.android.gms:com.google.android.gms.common'
+    extra_packages = 'com.google.firebase:com.google.android.gms:com.google.android.gms.common:com.android.support'
 
     android_jar_paths = [
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),

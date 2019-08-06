@@ -18,8 +18,8 @@ ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14' # Android 4.0
-ANDROID_TARGET_API_LEVEL='23'
-ANDROID_MIN_API_LEVEL='9'
+ANDROID_TARGET_API_LEVEL='28' # Android 9.0
+ANDROID_MIN_API_LEVEL='16' # Android 4.1
 ANDROID_GCC_VERSION='4.8'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
@@ -791,6 +791,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:label="%(app_name)s"
         android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
+
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
 
         <!-- For Local Notifications -->
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >

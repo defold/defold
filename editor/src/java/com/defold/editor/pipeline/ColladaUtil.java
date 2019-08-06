@@ -148,7 +148,7 @@ public class ColladaUtil {
 
     public static boolean load(InputStream is, Rig.MeshSet.Builder meshSetBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshSetBuilder);
+        loadMesh(collada, meshSetBuilder, true);
         loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
         loadAnimations(collada, animationSetBuilder, "", new ArrayList<String>());
         return true;
@@ -496,9 +496,9 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshSetBuilder);
+        loadMesh(collada, meshSetBuilder, optimize);
     }
 
     private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
@@ -513,7 +513,7 @@ public class ColladaUtil {
         return null;
     }
 
-    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
                 return;
@@ -709,7 +709,7 @@ public class ColladaUtil {
             ci.position = position_indices_list.get(i);
             ci.texcoord0 = texcoord_indices_list.get(i);
             ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
-            int index = shared_vertex_indices.indexOf(ci);
+            int index = optimize ? shared_vertex_indices.indexOf(ci) : -1;
             if(index == -1) {
                 // create new vertex as this is not equal to any existing in generated list
                 mesh_index_list.add(shared_vertex_indices.size());

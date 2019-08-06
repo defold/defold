@@ -21,6 +21,7 @@
   :editor.gl/gl-push-matrix :only-indent
   :editor.gl/with-gl-bindings :only-indent
   :editor.handler/defhandler :only-indent
+  :editor.resource-io/with-error-translation :only-indent
   :editor.resource-node/register-ddf-resource-type :only-indent
   :editor.ui/event-handler :only-indent
   :editor.ui/invalidation-listener :only-indent
