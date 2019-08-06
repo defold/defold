@@ -10,7 +10,7 @@ local threat_min_dist = 100
 local threat_min_sq_dist = threat_min_dist * threat_min_dist
 
 function init(self)
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.velocity = vmath.vector3()
 	self.target_timer = 0
 	self.max_threat = 0
