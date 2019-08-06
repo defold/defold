@@ -792,6 +792,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
+
         <!-- For Local Notifications -->
         <receiver android:name="com.defold.push.LocalNotificationReceiver" >
         </receiver>
