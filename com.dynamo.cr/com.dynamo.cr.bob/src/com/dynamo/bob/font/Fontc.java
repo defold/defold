@@ -61,7 +61,6 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.font.BMFont.BMFontFormatException;

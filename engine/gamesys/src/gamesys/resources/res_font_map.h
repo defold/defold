@@ -1,8 +1,6 @@
 #ifndef DM_GAMESYS_RES_FONT_MAP_H
 #define DM_GAMESYS_RES_FONT_MAP_H
 
-#include <stdint.h>
-
 #include <resource/resource.h>
 
 namespace dmGameSystem
