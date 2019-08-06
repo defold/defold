@@ -15,6 +15,8 @@
         android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
 
         <!-- For Google Play Services -->
         <meta-data

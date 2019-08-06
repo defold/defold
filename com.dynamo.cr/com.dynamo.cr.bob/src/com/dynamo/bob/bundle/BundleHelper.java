@@ -171,13 +171,17 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
+    public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         String data = new String(resource.getContent());
         Template template = Mustache.compiler().compile(data);
         StringWriter sw = new StringWriter();
         template.execute(this.propertiesMap, properties, sw);
         sw.flush();
-        FileUtils.write(toFile, sw.toString());
+        return sw.toString();
+    }
+
+    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
+        FileUtils.write(toFile, formatResource(properties, resource));
         return this;
     }
 
@@ -436,8 +440,10 @@ public class BundleHelper {
 
         List<String> extraPackages = new ArrayList<>();
 
+        extraPackages.add("com.google.firebase");
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
+        extraPackages.add("com.android.support");
 
         if (bundleContext != null) {
             List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());

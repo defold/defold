@@ -59,8 +59,8 @@
 }
 
 .cljfx-form-text-field {
-  -fx-border-radius: 2px;
-  -fx-background-radius: 2px;
+  -fx-border-radius: 2px !important;
+  -fx-background-radius: 2px  !important;
 }
 
 .cljfx-form-check-box > .box {
