@@ -5,8 +5,8 @@
             [editor.math :as math]
             [editor.types :as types]
             [schema.core :as s])
-  (:import [editor.types AABB Camera Rect Region]
-           [javax.vecmath Point3d Quat4d Matrix3d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
+  (:import [editor.types AABB Camera Frustum Rect Region]
+           [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -253,10 +253,10 @@
                          0.0 0.0 0.0 1.0])))))
 
 
-(defmacro scale-to-doubleunit [x x-min x-max]
+(defmacro normalize-to-bipolar [x x-min x-max]
   `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))
 
-(defmacro normalize-vector [v]
+(defmacro perspective-divide [v]
   `(do
      (if (= (.w ~v) 0.0) (throw (ArithmeticException.)))
      (Vector4d. (/ (.x ~v) (.w ~v))
@@ -267,8 +267,8 @@
 (s/defn camera-unproject :- Vector4d
   [camera :- Camera viewport :- Region win-x :- s/Num win-y :- s/Num win-z :- s/Num]
   (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
-        in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
-                            (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
+        in       (Vector4d. (normalize-to-bipolar win-x (.left viewport) (.right viewport))
+                            (normalize-to-bipolar win-y (.top viewport) (.bottom viewport))
                             (- (* 2 win-z) 1.0)
                             1.0)
         proj     (camera-projection-matrix camera)
@@ -278,7 +278,7 @@
     (.mul a proj model)
     (.invert a)
     (.transform a in out)
-    (normalize-vector out)))
+    (perspective-divide out)))
 
 (s/defn viewproj-frustum-planes :- [Vector4d]
   [camera :- Camera]
@@ -294,6 +294,47 @@
              (.add    temp persp-vec)
              temp))
          rows scales)))
+
+(defn screen->clip
+  ^Point2d [^Region viewport ^double x ^double y]
+  (Point2d. (normalize-to-bipolar x (.left viewport) (.right viewport))
+            (- (normalize-to-bipolar y (.top viewport) (.bottom viewport)))))
+
+(defn clip->world
+  ^Point3d [^Matrix4d inv-view-proj ^Tuple2d clip ^double clip-z]
+  (let [undivided (Vector4d. (.x clip) (.y clip) clip-z 1.0)
+        _ (.transform inv-view-proj undivided)
+        world (perspective-divide undivided)]
+    (Point3d. (.x world) (.y world) (.z world))))
+
+(s/defn screen-rect-frustum :- Frustum
+  [camera :- Camera viewport :- Region rect :- Rect]
+  (let [inv-view-proj (doto (camera-projection-matrix camera)
+                        (.mul (camera-view-matrix camera))
+                        (.invert))
+        clip-tl (screen->clip viewport (.x rect) (.y rect))
+        clip-tr (screen->clip viewport (+ (.x rect) (.width rect)) (.y rect))
+        clip-bl (screen->clip viewport (.x rect) (+ (.y rect) (.height rect)))
+        clip-br (screen->clip viewport (+ (.x rect) (.width rect)) (+ (.y rect) (.height rect)))
+        near-tl (clip->world inv-view-proj clip-tl -1.0)
+        near-tr (clip->world inv-view-proj clip-tr -1.0)
+        near-bl (clip->world inv-view-proj clip-bl -1.0)
+        near-br (clip->world inv-view-proj clip-br -1.0)
+        far-tl (clip->world inv-view-proj clip-tl 1.0)
+        far-tr (clip->world inv-view-proj clip-tr 1.0)
+        far-bl (clip->world inv-view-proj clip-bl 1.0)
+        far-br (clip->world inv-view-proj clip-br 1.0)]
+    (types/->Frustum
+      (types/->FrustumCorners
+        near-tl near-bl near-br near-tr
+        far-tl far-bl far-br far-tr)
+      (types/->FrustumPlanes
+        (math/plane4d near-tl near-bl near-br) ; near
+        (math/plane4d far-tl far-tr far-br) ; far
+        (math/plane4d near-tl near-tr far-tr) ; top
+        (math/plane4d near-tr near-br far-br) ; right
+        (math/plane4d near-br near-bl far-bl) ; bottom
+        (math/plane4d near-bl near-tl far-tl))))) ; left
 
 (defn- dolly-orthographic [camera delta]
   (let [dolly-fn (fn [fov]

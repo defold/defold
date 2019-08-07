@@ -89,6 +89,30 @@
   R3Max
   (max-p [this] (.max this)))
 
+(s/defrecord FrustumCorners
+  ;; NOTE: Counter-clockwise winding order.
+  [near-tl :- Point3d
+   near-bl :- Point3d
+   near-br :- Point3d
+   near-tr :- Point3d
+   far-tl :- Point3d
+   far-bl :- Point3d
+   far-br :- Point3d
+   far-tr :- Point3d])
+
+(s/defrecord FrustumPlanes
+  ;; Infinite planes, (x, y, z) outward normal, w distance from origin along normal.
+  [near :- Vector4d
+   far :- Vector4d
+   top :- Vector4d
+   right :- Vector4d
+   bottom :- Vector4d
+   left :- Vector4d])
+
+(s/defrecord Frustum
+  [corners :- FrustumCorners
+   planes :- FrustumPlanes])
+
 (defmethod print-method AABB
   [^AABB v ^java.io.Writer w]
   (.write w (str "<AABB \"min: " (.min v) ", max: " (.max v) "\">")))

@@ -3,8 +3,8 @@
             [editor.types :as types]
             [editor.math :as math])
   (:import [com.defold.util Geometry]
-           [editor.types Rect AABB]
-           [javax.vecmath Point2d Point3d Point4d Vector4d Vector3d Quat4d Matrix3d Matrix4d]
+           [editor.types AABB Frustum Rect]
+           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Quat4d Vector3d Vector4d]
            [com.defold.editor.pipeline TextureSetGenerator$UVTransform]))
 
 (set! *warn-on-reflection* true)
@@ -357,15 +357,54 @@
       (types/->AABB (Point3d. min-p') (Point3d. max-p')))))
 
 (defn aabb->corners [^AABB aabb]
-  (let [mn ^Point3d (.min aabb)
-        mx ^Point3d (.max aabb)
-        xs [(.x mn) (.x mx)]
-        ys [(.y mn) (.y mx)]
-        zs [(.z mn) (.z mx)]]
-    (for [x [0 1]
-          y [0 1]
-          z [0 1]]
-      (Point3d. (xs x) (ys y) (zs z)))))
+  (let [^Point3d min (.min aabb)
+        ^Point3d max (.max aabb)
+        min-x (.x min)
+        min-y (.y min)
+        min-z (.z min)
+        max-x (.x max)
+        max-y (.y max)
+        max-z (.z max)]
+    [(Point3d. min-x min-y min-z)
+     (Point3d. max-x min-y min-z)
+     (Point3d. min-x max-y min-z)
+     (Point3d. max-x max-y min-z)
+     (Point3d. min-x min-y max-z)
+     (Point3d. max-x min-y max-z)
+     (Point3d. min-x max-y max-z)
+     (Point3d. max-x max-y max-z)]))
+
+(defn aabb->planes [^AABB aabb]
+  (let [^Point3d min (.min aabb)
+        ^Point3d max (.max aabb)]
+    [(Vector4d. -1.0 0.0 0.0 (- (.x min)))
+     (Vector4d. 1.0 0.0 0.0 (- (.x max)))
+     (Vector4d. 0.0 -1.0 0.0 (- (.y min)))
+     (Vector4d. 0.0 1.0 0.0 (- (.y max)))
+     (Vector4d. 0.0 0.0 -1.0 (- (.z min)))
+     (Vector4d. 0.0 0.0 1.0 (- (.z max)))]))
+
+(defn aabb-in-frustum? [^AABB aabb ^Frustum frustum]
+  (and
+    ;; The box is certain to be outside if all eight corners of the box are on
+    ;; the outside of a frustum plane.
+    (let [frustum-planes (vals (.planes frustum))
+          box-corners (aabb->corners aabb)]
+      (not-any? (fn [frustum-plane]
+                  (every? (fn [box-corner]
+                            (pos? (math/dot-v4-point frustum-plane box-corner)))
+                          box-corners))
+                frustum-planes))
+
+    ;; The box is also certain to be outside if all eight corners of the
+    ;; frustum are on the outside of a box plane. Otherwise consider it inside.
+    (let [box-planes (aabb->planes aabb)
+          frustum-corners (vals (.corners frustum))]
+      (not-any? (fn [box-plane]
+                  (every? (fn [frustum-corner]
+                            (pos? (math/dot-v4-point box-plane frustum-corner)))
+                          frustum-corners))
+                box-planes))))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays

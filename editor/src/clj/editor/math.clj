@@ -1,8 +1,7 @@
 (ns editor.math
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
-            Tuple3d Tuple4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -181,6 +180,36 @@
   (Vector3d. (* (.-x v1) (.-x v2))
              (* (.-y v1) (.-y v2))
              (* (.-z v1) (.-z v2))))
+
+(defn dot
+  "Flexible dot product that works with any three-element tuples."
+  ^double [^Tuple3d a ^Tuple3d b]
+  (+ (* (.x a) (.x b))
+     (* (.y a) (.y b))
+     (* (.z a) (.z b))))
+
+(defn dot-v4-point
+  "Dot product between a four-element vector and a point."
+  ^double [^Tuple4d v ^Tuple3d p]
+  (+ (* (.x v) (.x p))
+     (* (.y v) (.y p))
+     (* (.z v) (.z p))
+     (.w v)))
+
+(defn plane4d
+  "Construct an infinite plane from three points in space. The plane normal will
+  point towards the observer when the points are supplied in counter-clockwise
+  order. Returns a 4d vector where the x, y, z coordinates are the plane normal
+  and w is the distance from the origin in the opposite direction of the normal."
+  ^Vector4d [^Tuple3d a ^Tuple3d b ^Tuple3d c]
+  (let [ab (doto (Vector3d.) (.sub b a))
+        ac (doto (Vector3d.) (.sub c a))
+        n (doto (Vector3d.) (.cross ab ac))
+        len (.length n)]
+    (when (zero? len)
+      (throw (ArithmeticException. "A plane cannot be found since all three points are on a line.")))
+    (.scale n (/ 1.0 len))
+    (Vector4d. (.x n) (.y n) (.z n) (- (dot n a)))))
 
 (defn translation
   ^Vector3d [^Matrix4d m]

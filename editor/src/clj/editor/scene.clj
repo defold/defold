@@ -463,26 +463,15 @@
         (map (juxt identity (partial pass-render-args viewport camera)))
         pass/all-passes))
 
-(g/defnk produce-renderables-screen-aabb+picking-node-id [scene-render-data ^Region viewport camera]
+(g/defnk produce-renderables-aabb+picking-node-id [scene-render-data]
   (let [renderables-by-pass (:renderables scene-render-data)]
     (into []
-          (comp
-            cat
-            (keep (fn [renderable]
-                    (when-some [aabb (:aabb renderable)]
-                      (when-not (geom/null-aabb? aabb)
-                        (let [picking-node-id (:picking-node-id renderable)
-                              projected-aabb ^AABB (transduce (map (partial c/camera-project camera viewport))
-                                                              (completing geom/aabb-incorporate)
-                                                              geom/null-aabb
-                                                              (geom/aabb->corners aabb))
-                              aabb-min ^Point3d (.min projected-aabb)
-                              aabb-max ^Point3d (.max projected-aabb)
-                              aabb-rect (types/rect (.x aabb-min)
-                                                    (.y aabb-min)
-                                                    (- (.x aabb-max) (.x aabb-min))
-                                                    (- (.y aabb-max) (.y aabb-min)))]
-                          [aabb-rect picking-node-id]))))))
+          (comp cat
+                (keep (fn [renderable]
+                        (when-some [aabb (:aabb renderable)]
+                          (when-not (geom/null-aabb? aabb)
+                            (let [picking-node-id (:picking-node-id renderable)]
+                              [aabb picking-node-id]))))))
           [(get renderables-by-pass pass/selection)
            (get renderables-by-pass pass/opaque-selection)])))
 
@@ -533,7 +522,7 @@
   (output scene-aabb AABB :cached (g/fnk [scene]
                                     (or (:default-aabb scene)
                                         (calculate-scene-aabb geom/null-aabb geom/Identity4d scene))))
-  (output renderables-screen-aabb+picking-node-id g/Any :cached produce-renderables-screen-aabb+picking-node-id)
+  (output renderables-aabb+picking-node-id g/Any :cached produce-renderables-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
                                                     (comp (keep :updatable)
@@ -636,15 +625,16 @@
   (assert (= (count buf) (* picking-drawable-size picking-drawable-size)) "picking buf of unexpected size")
   (map (partial aget buf) picking-buf-spiral-indices))
 
-(g/defnk produce-selection [scene-render-data renderables-screen-aabb+picking-node-id ^GLAutoDrawable picking-drawable ^Region viewport pass->render-args ^Rect picking-rect]
+(g/defnk produce-selection [scene-render-data renderables-aabb+picking-node-id ^GLAutoDrawable picking-drawable camera ^Region viewport pass->render-args ^Rect picking-rect]
   (when (some? picking-rect)
     (cond
       (box-selection? picking-rect)
-      (let [view-picking-rect (picking-rect->clamped-view-rect viewport picking-rect)]
-        (keep (fn [[aabb-rect picking-node-id]]
-                (when (geom/intersect? aabb-rect view-picking-rect)
+      (let [clamped-view-rect (picking-rect->clamped-view-rect viewport picking-rect)
+            frustum (c/screen-rect-frustum camera viewport clamped-view-rect)]
+        (keep (fn [[aabb picking-node-id]]
+                (when (geom/aabb-in-frustum? aabb frustum)
                   picking-node-id))
-              renderables-screen-aabb+picking-node-id))
+              renderables-aabb+picking-node-id))
 
       (not (geom/rect-empty? picking-rect))
       (gl/with-drawable-as-current picking-drawable
