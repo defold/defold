@@ -441,13 +441,21 @@ namespace dmConnectionPool
 
     Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
     {
+        uint64_t dial_started = dmTime::GetTime();
         Result r = DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 1, 0);
         if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES)
         {
             return r;
         }
-        r = DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 0, 1);
-        return r;
+        if (timeout > 0)
+        {
+            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            if (timeout <= 0)
+            {
+                return RESULT_TIMEDOUT;
+            }
+        }
+        return DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 0, 1);
     }
 
     void Return(HPool pool, HConnection connection)
