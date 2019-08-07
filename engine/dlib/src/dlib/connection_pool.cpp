@@ -375,7 +375,7 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    Result DoDial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res, bool ipv4, bool ipv6)
     {
         if (!pool->m_AllowNewConnections) {
             return RESULT_SHUT_DOWN;
@@ -386,11 +386,11 @@ namespace dmConnectionPool
 
         if (dns_channel)
         {
-            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel) == dmDNS::RESULT_OK;
+            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, ipv4, ipv6) == dmDNS::RESULT_OK;
         }
         else
         {
-            gethost_did_succeed = dmSocket::GetHostByName(host, &address) == dmSocket::RESULT_OK;
+            gethost_did_succeed = dmSocket::GetHostByName(host, &address, ipv4, ipv6) == dmSocket::RESULT_OK;
         }
 
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
@@ -436,6 +436,17 @@ namespace dmConnectionPool
             }
         }
 
+        return r;
+    }
+
+    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    {
+        Result r = DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 1, 0);
+        if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES)
+        {
+            return r;
+        }
+        r = DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 0, 1);
         return r;
     }
 
