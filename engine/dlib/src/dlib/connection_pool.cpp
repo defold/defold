@@ -452,7 +452,7 @@ namespace dmConnectionPool
             timeout = timeout - (int)(dmTime::GetTime() - dial_started);
             if (timeout <= 0)
             {
-                return RESULT_TIMEDOUT;
+                return RESULT_SOCKET_ERROR;
             }
         }
         return DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 0, 1);
