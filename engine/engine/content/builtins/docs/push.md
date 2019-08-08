@@ -58,13 +58,14 @@ release of Defold will no longer be part of the core functionality.
 If you previously were using the `push` module, click the button below to add the
 library to your project.
 
-<a id="add_dependency" href="defold://add-dependency?url=https://github.com/defold/extension-push/archive/master.zip" onclick="showCheckmark(event)">Add Library</a> <span id="checkmark">&#10004;</span>
+<a id="add_dependency" href="defold://add-dependency?url=https://github.com/defold/extension-push/archive/master.zip,https://github.com/defold/extension-firebase-core/archive/master.zip" onclick="showCheckmark(event)">Add Library</a> <span id="checkmark">&#10004;</span>
 
 
 ### Adding Manually
-You can also get the library manually by adding the following URL to your [game.project](defold://open?path=/game.project) dependencies:
+You can also get the library manually by adding the following URLs to your [game.project](defold://open?path=/game.project) dependencies:
 ```
 https://github.com/defold/extension-push/archive/master.zip
+https://github.com/defold/extension-firebase-core/archive/master.zip
 ```
 
 It has the same API and functionality as before.
