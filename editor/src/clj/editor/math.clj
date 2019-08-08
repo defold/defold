@@ -196,7 +196,7 @@
      (* (.z v) (.z p))
      (.w v)))
 
-(defn plane4d
+(defn plane-from-points
   "Construct an infinite plane from three points in space. The plane normal will
   point towards the observer when the points are supplied in counter-clockwise
   order. Returns a 4d vector where the x, y, z coordinates are the plane normal
@@ -210,6 +210,8 @@
       (throw (ArithmeticException. "A plane cannot be found since all three points are on a line.")))
     (.scale n (/ 1.0 len))
     (Vector4d. (.x n) (.y n) (.z n) (- (dot n a)))))
+
+(def behind-plane? (comp neg? dot-v4-point))
 
 (defn translation
   ^Vector3d [^Matrix4d m]

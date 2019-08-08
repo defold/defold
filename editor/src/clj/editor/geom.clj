@@ -384,27 +384,13 @@
      (Vector4d. 0.0 0.0 -1.0 (- (.z min)))
      (Vector4d. 0.0 0.0 1.0 (- (.z max)))]))
 
-(defn aabb-in-frustum? [^AABB aabb ^Frustum frustum]
-  (and
-    ;; The box is certain to be outside if all eight corners of the box are on
-    ;; the outside of a frustum plane.
-    (let [frustum-planes (vals (.planes frustum))
-          box-corners (aabb->corners aabb)]
-      (not-any? (fn [frustum-plane]
-                  (every? (fn [box-corner]
-                            (pos? (math/dot-v4-point frustum-plane box-corner)))
-                          box-corners))
-                frustum-planes))
-
-    ;; The box is also certain to be outside if all eight corners of the
-    ;; frustum are on the outside of a box plane. Otherwise consider it inside.
-    (let [box-planes (aabb->planes aabb)
-          frustum-corners (vals (.corners frustum))]
-      (not-any? (fn [box-plane]
-                  (every? (fn [frustum-corner]
-                            (pos? (math/dot-v4-point box-plane frustum-corner)))
-                          frustum-corners))
-                box-planes))))
+(defn aabb-fully-inside-frustum? [^AABB aabb ^Frustum frustum]
+  (let [frustum-planes (vals (.planes frustum))
+        box-corners (aabb->corners aabb)]
+    (every? (fn [frustum-plane]
+              (every? (partial math/behind-plane? frustum-plane)
+                      box-corners))
+            frustum-planes)))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays

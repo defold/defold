@@ -632,7 +632,7 @@
       (let [clamped-view-rect (picking-rect->clamped-view-rect viewport picking-rect)
             frustum (c/screen-rect-frustum camera viewport clamped-view-rect)]
         (keep (fn [[aabb picking-node-id]]
-                (when (geom/aabb-in-frustum? aabb frustum)
+                (when (geom/aabb-fully-inside-frustum? aabb frustum)
                   picking-node-id))
               renderables-aabb+picking-node-id))
 

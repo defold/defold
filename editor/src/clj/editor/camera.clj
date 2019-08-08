@@ -329,12 +329,12 @@
         near-tl near-bl near-br near-tr
         far-tl far-bl far-br far-tr)
       (types/->FrustumPlanes
-        (math/plane4d near-tl near-bl near-br) ; near
-        (math/plane4d far-tl far-tr far-br) ; far
-        (math/plane4d near-tl near-tr far-tr) ; top
-        (math/plane4d near-tr near-br far-br) ; right
-        (math/plane4d near-br near-bl far-bl) ; bottom
-        (math/plane4d near-bl near-tl far-tl))))) ; left
+        (math/plane-from-points near-tl near-bl near-br) ; near
+        (math/plane-from-points far-tl far-tr far-br) ; far
+        (math/plane-from-points near-tl near-tr far-tr) ; top
+        (math/plane-from-points near-tr near-br far-br) ; right
+        (math/plane-from-points near-br near-bl far-bl) ; bottom
+        (math/plane-from-points near-bl near-tl far-tl))))) ; left
 
 (defn- dolly-orthographic [camera delta]
   (let [dolly-fn (fn [fov]
