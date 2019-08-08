@@ -484,7 +484,7 @@ namespace dmSys
 
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-        char* applicationPath = dmSysGetApplicationPath();
+        const char* applicationPath = dmSysGetApplicationPath();
 
         if (dmStrlCpy(path_out, applicationPath, path_len) >= path_len)
         {
