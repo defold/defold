@@ -65,6 +65,7 @@ extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
 extern "C" bool dmSysOpenURL(const char* url);
+extern "C" const char* dmSysGetApplicationPath();
 
 #endif
 
