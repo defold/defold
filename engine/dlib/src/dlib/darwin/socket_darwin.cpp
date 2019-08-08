@@ -45,7 +45,7 @@ namespace dmSocket
                 continue;
 
             int family = ifa->ifa_addr->sa_family;
-            if (!(family == AF_LINK || family == AF_INET)) {
+            if (!(family == AF_LINK || family == AF_INET || family == AF_INET6)) {
                 continue;
             }
 
