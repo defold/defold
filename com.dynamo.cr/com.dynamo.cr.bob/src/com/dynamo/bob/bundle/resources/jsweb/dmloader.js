@@ -271,7 +271,7 @@ var Progress = {
 
     addProgress : function (canvas) {
         /* Insert default progress bar below canvas */
-        canvas.insertAdjacentHTML('afterend', '<div id="' + Progress.progress_id + '" class="canvas-app-progress"><div id="' + Progress.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;">0%</div></div>');
+        canvas.insertAdjacentHTML('afterend', '<div id="' + Progress.progress_id + '" class="canvas-app-progress"><div id="' + Progress.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;"></div></div>');
         Progress.bar = document.getElementById(Progress.bar_id);
         Progress.progress = document.getElementById(Progress.progress_id);
     },
