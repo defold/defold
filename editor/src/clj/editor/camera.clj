@@ -18,6 +18,11 @@
   (math/rotate (types/rotation camera)
                (Vector3d. 0.0 0.0 -1.0)))
 
+(s/defn camera-right-vector :- Vector3d
+  [camera :- Camera]
+  (math/rotate (types/rotation camera)
+               (Vector3d. 1.0 0.0 0.0)))
+
 (s/defn camera-focus-point :- Point3d
   [camera :- Camera]
   (let [^Vector4d p (:focus-point camera)]
@@ -197,7 +202,7 @@
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
-  [camera :- Camera viewport :- Region point :- Point3d]
+  [camera :- Camera viewport :- Region point :- Tuple3d]
   (let [proj  (camera-projection-matrix camera)
         model (camera-view-matrix camera)
         in    (Vector4d. (.x point) (.y point) (.z point) 1.0)
