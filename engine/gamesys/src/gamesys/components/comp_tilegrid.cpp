@@ -141,9 +141,12 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompTileGridDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         TileGridWorld* world = (TileGridWorld*) params.m_World;
-        dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
-        free(world->m_VertexBufferData);
+        if (world->m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
+            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+            free(world->m_VertexBufferData);
+        }
         delete world;
         return dmGameObject::CREATE_RESULT_OK;
     }
