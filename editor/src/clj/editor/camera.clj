@@ -458,23 +458,23 @@
         filter-fn)))
 
 (defn find-perspective-frame-distance
-  ^double [corners corner->coord ^double full-fov-deg]
-  (let [^double half-fov-rad (math/deg->rad (* full-fov-deg 0.5))
+  ^double [points point->coord ^double fov-deg]
+  (let [^double half-fov-rad (math/deg->rad (* fov-deg 0.5))
         comp-half-fov-rad (- ^double math/half-pi half-fov-rad)
         tan-comp-half-fov-rad (Math/tan comp-half-fov-rad)]
-    (reduce (fn [^double max-distance ^Point3d corner]
+    (reduce (fn [^double max-distance ^Point3d point]
               (max max-distance
-                   (+ (.z corner)
+                   (+ (.z point)
                       (* tan-comp-half-fov-rad
-                         (Math/abs ^double (corner->coord corner))))))
+                         (Math/abs ^double (point->coord point))))))
             Double/NEGATIVE_INFINITY
-            corners)))
+            points)))
 
 (s/defn camera-perspective-frame-aabb :- Camera
   [camera :- Camera ^AABB aabb :- AABB]
   (assert (= :perspective (:type camera)))
-  (let [^double full-fov-x-deg (:fov-x camera)
-        ^double full-fov-y-deg (:fov-y camera)
+  (let [^double fov-x-deg (:fov-x camera)
+        ^double fov-y-deg (:fov-y camera)
         filter-fn (or (:filter-fn camera) identity)
         new-camera (camera-set-center camera aabb)
         view-matrix (camera-view-matrix new-camera)
@@ -482,11 +482,11 @@
                         (.transform view-matrix corner)
                         corner)
                       (geom/aabb->corners aabb))
-        distance (max (find-perspective-frame-distance corners #(.x ^Point3d %) full-fov-x-deg)
-                      (find-perspective-frame-distance corners #(.y ^Point3d %) full-fov-y-deg))
+        distance (max (find-perspective-frame-distance corners #(.x ^Point3d %) fov-x-deg)
+                      (find-perspective-frame-distance corners #(.y ^Point3d %) fov-y-deg))
         cam-forward (camera-forward-vector new-camera)]
     (-> new-camera
-        (update :position #(math/offset-scaled % cam-forward (- distance)))
+        (update :position math/offset-scaled cam-forward (- distance))
         filter-fn)))
 
 (s/defn camera-frame-aabb :- Camera
@@ -518,32 +518,37 @@
       filter-fn)))
 
 (s/defn camera-orthographic->perspective :- Camera
-  [camera :- Camera ^double fov-y]
-  ;; Fov is specified as degrees between the forward vector and the frustum edge.
+  [camera :- Camera ^double fov-y-deg]
+  ;; Orthographic fov is specified as distance between the frustum edges.
+  ;; Perspective fov is specified as degrees between the frustum edges.
   (assert (= :orthographic (:type camera)))
   (let [^double fov-x-distance (:fov-x camera)
         ^double fov-y-distance (:fov-y camera)
-        ^double fov-y-rad (math/deg->rad fov-y)
+        ^double half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
         aspect (/ fov-x-distance fov-y-distance)
-        focus-distance (/ fov-y-distance (Math/tan fov-y-rad))
+        focus-distance (/ fov-y-distance 2.0 (Math/tan half-fov-y-rad))
         focus-pos (camera-focus-point camera)
         cam-forward (camera-forward-vector camera)
         cam-pos (math/offset-scaled focus-pos cam-forward (- focus-distance))]
     (assoc camera
       :type :perspective
       :position cam-pos
-      :fov-x (* fov-y aspect)
-      :fov-y fov-y)))
+      :fov-x (* fov-y-deg aspect)
+      :fov-y fov-y-deg)))
 
 (s/defn camera-perspective->orthographic :- Camera
   [camera :- Camera]
+  ;; Orthographic fov is specified as distance between the frustum edges.
+  ;; Perspective fov is specified as degrees between the frustum edges.
   (assert (= :perspective (:type camera)))
   (let [focus-pos (camera-focus-point camera)
         focus-distance (.length (math/subtract-vector focus-pos (:position camera)))
-        ^double fov-x-rad (math/deg->rad (:fov-x camera))
-        ^double fov-y-rad (math/deg->rad (:fov-y camera))
-        fov-x-distance (* focus-distance (Math/tan fov-x-rad))
-        fov-y-distance (* focus-distance (Math/tan fov-y-rad))
+        ^double fov-x-deg (:fov-x camera)
+        ^double fov-y-deg (:fov-y camera)
+        ^double half-fov-x-rad (math/deg->rad (* fov-x-deg 0.5))
+        ^double half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
+        fov-x-distance (* focus-distance 2.0 (Math/tan half-fov-x-rad))
+        fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
         cam-forward (camera-forward-vector camera)
         cam-pos (math/offset-scaled focus-pos cam-forward (- 5000))]
     (assoc camera

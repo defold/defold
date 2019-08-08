@@ -234,51 +234,43 @@
 
 (defrecord DoubleRange [^double min ^double max])
 
-(defn- no-overlap? [^DoubleRange a ^DoubleRange b]
-  (or (< (.max a) (.min b))
-      (< (.max b) (.min a))))
+(defn- ranges-overlap? [^DoubleRange a ^DoubleRange b]
+  (and (< (.min b) (.max a))
+       (< (.min a) (.max b))))
 
-(defn- project-to-axis
-  ^DoubleRange [^Vector3d normal points]
+(defn- project-points-on-axis
+  ^DoubleRange [points normalized-axis]
   (loop [points points
          minimum Double/POSITIVE_INFINITY
          maximum Double/NEGATIVE_INFINITY]
     (if-some [point (first points)]
-      (let [dot-product (math/dot point normal)]
+      (let [dot-product (math/dot point normalized-axis)]
         (recur (next points)
                (min minimum dot-product)
                (max maximum dot-product)))
       (->DoubleRange minimum maximum))))
 
-(defn- no-overlap-when-projected-along-normal? [a-points b-points normal]
-  (let [a-range (project-to-axis normal a-points)
-        b-range (project-to-axis normal b-points)]
-    (no-overlap? a-range b-range)))
+(defn- overlap-when-projected-on-axis? [a-points b-points normalized-axis]
+  (ranges-overlap? (project-points-on-axis a-points normalized-axis)
+                   (project-points-on-axis b-points normalized-axis)))
 
 (defn sat-intersection?
   "Returns true if two convex geometries intersect based on the Separating Axis
   Theorem. Both objects must implement the SATIntersection protocol."
   [a b]
-  (let [a-points (types/points a)
-        b-points (types/points b)]
-    (cond
-      (some #(no-overlap-when-projected-along-normal? a-points b-points %)
-            (types/unique-face-normals a))
-      false
-
-      (some #(no-overlap-when-projected-along-normal? a-points b-points %)
-            (types/unique-face-normals b))
-      false
-
-      (some #(no-overlap-when-projected-along-normal? a-points b-points %)
-            (for [a-edge-normal (types/unique-edge-normals a)
-                  b-edge-normal (types/unique-edge-normals b)]
-              (doto (Vector3d.)
-                (.cross a-edge-normal b-edge-normal))))
-      false
-
-      :else
-      true)))
+  (let [overlap-when-projected-on-axis?
+        (partial overlap-when-projected-on-axis?
+                 (types/points a)
+                 (types/points b))]
+    (and
+      (every? overlap-when-projected-on-axis?
+              (types/unique-face-normals a))
+      (every? overlap-when-projected-on-axis?
+              (types/unique-face-normals b))
+      (every? overlap-when-projected-on-axis?
+              (for [a-edge-normal (types/unique-edge-normals a)
+                    b-edge-normal (types/unique-edge-normals b)]
+                (math/cross a-edge-normal b-edge-normal))))))
 
 (def ^AABB null-aabb (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
                                    (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
@@ -409,16 +401,6 @@
 (defn aabb->corners [^AABB aabb]
   (types/points aabb))
 
-(defn aabb->planes [^AABB aabb]
-  (let [^Point3d min (.min aabb)
-        ^Point3d max (.max aabb)]
-    [(Vector4d. -1.0 0.0 0.0 (- (.x min)))
-     (Vector4d. 1.0 0.0 0.0 (- (.x max)))
-     (Vector4d. 0.0 -1.0 0.0 (- (.y min)))
-     (Vector4d. 0.0 1.0 0.0 (- (.y max)))
-     (Vector4d. 0.0 0.0 -1.0 (- (.z min)))
-     (Vector4d. 0.0 0.0 1.0 (- (.z max)))]))
-
 (defn aabb-frustum-test-coarse [^AABB aabb ^Frustum frustum]
   (let [frustum-planes (vals (.planes frustum))
         box-corners (aabb->corners aabb)]
@@ -438,9 +420,6 @@
     :fully-inside-frustum true
     :fully-outside-frustum false
     :partially-outside-frustum (sat-intersection? aabb frustum)))
-
-(defn aabb-fully-inside-frustum? [^AABB aabb ^Frustum frustum]
-  (= :fully-inside-frustum (aabb-frustum-test-coarse aabb frustum)))
 
 (s/defn corners->frustum :- Frustum
   [near-tl :- Point3d

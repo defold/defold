@@ -181,6 +181,11 @@
              (* (.-y v1) (.-y v2))
              (* (.-z v1) (.-z v2))))
 
+(defn cross
+  ^Vector3d [^Vector3d u ^Vector3d v]
+  (doto (Vector3d.)
+    (.cross u v)))
+
 (defn dot
   "Flexible dot product that works with any three-element tuples."
   ^double [^Tuple3d a ^Tuple3d b]
@@ -196,22 +201,15 @@
      (* (.z v) (.z p))
      (.w v)))
 
-(defn dot-v4-vector
-  "Dot product between a four-element vector and a vector."
-  ^double [^Tuple4d u ^Tuple3d v]
-  (+ (* (.x u) (.x v))
-     (* (.y u) (.y v))
-     (* (.z u) (.z v))))
-
 (defn plane-from-points
   "Construct an infinite plane from three points in space. The plane normal will
   point towards the observer when the points are supplied in counter-clockwise
   order. Returns a 4d vector where the x, y, z coordinates are the plane normal
   and w is the distance from the origin in the opposite direction of the normal."
   ^Vector4d [^Tuple3d a ^Tuple3d b ^Tuple3d c]
-  (let [ab (doto (Vector3d.) (.sub b a))
-        ac (doto (Vector3d.) (.sub c a))
-        n (doto (Vector3d.) (.cross ab ac))
+  (let [ab (subtract-vector b a)
+        ac (subtract-vector c a)
+        n (cross ab ac)
         len (.length n)]
     (when (zero? len)
       (throw (ArithmeticException. "A plane cannot be found since all three points are on a line.")))
@@ -219,8 +217,6 @@
     (Vector4d. (.x n) (.y n) (.z n) (- (dot n a)))))
 
 (def in-front-of-plane? (comp pos? dot-v4-point))
-
-(def behind-plane? (comp neg? dot-v4-point))
 
 (defn plane-normal
   ^Vector3d [^Vector4d plane]

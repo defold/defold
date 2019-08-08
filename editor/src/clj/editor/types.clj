@@ -132,7 +132,8 @@
    far-tr :- Point3d])
 
 (s/defrecord FrustumPlanes
-  ;; Infinite planes, (x, y, z) outward normal, w distance from origin along normal.
+  ;; Infinite planes, (x, y, z) outward normal,
+  ;; w negative distance from origin along normal.
   [near :- Vector4d
    far :- Vector4d
    top :- Vector4d
