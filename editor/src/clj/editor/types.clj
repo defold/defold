@@ -2,10 +2,8 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
-           [com.dynamo.tile.proto Tile$Playback]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
-           [javafx.scene Parent]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -45,6 +43,11 @@
   (^String           local-path        [this]         "Returns a string representation of the path and extension.")
   (^String           local-name        [this]         "Returns the last segment of the path"))
 
+(defprotocol SATIntersection
+  (points [this] "Returns a seq of unique points in the geometry in Point3d form.")
+  (unique-edge-normals [this] "Returns a seq of unique non-parallel edge directions in the geometry in Vector3d form.")
+  (unique-face-normals [this] "Returns a seq of unique non-parallel face normals in the geometry in Vector3d form."))
+
 ;;; ----------------------------------------
 ;;; Functions to create basic value types
 ;;; ----------------------------------------
@@ -83,11 +86,39 @@
   (width [this] width)
   (height [this] height))
 
-(s/defrecord AABB [min max]
+(def ^:private aabb-unique-axes
+  [(Vector3d. 1.0 0.0 0.0)
+   (Vector3d. 0.0 1.0 0.0)
+   (Vector3d. 0.0 0.0 1.0)])
+
+(s/defrecord AABB
+  [min :- Point3d
+   max :- Point3d]
+
   R3Min
   (min-p [this] (.min this))
+
   R3Max
-  (max-p [this] (.max this)))
+  (max-p [this] (.max this))
+
+  SATIntersection
+  (points [_this]
+    (let [min-x (.x min)
+          min-y (.y min)
+          min-z (.z min)
+          max-x (.x max)
+          max-y (.y max)
+          max-z (.z max)]
+      [(Point3d. min-x min-y min-z)
+       (Point3d. max-x min-y min-z)
+       (Point3d. min-x max-y min-z)
+       (Point3d. max-x max-y min-z)
+       (Point3d. min-x min-y max-z)
+       (Point3d. max-x min-y max-z)
+       (Point3d. min-x max-y max-z)
+       (Point3d. max-x max-y max-z)]))
+  (unique-edge-normals [_this] aabb-unique-axes)
+  (unique-face-normals [_this] aabb-unique-axes))
 
 (s/defrecord FrustumCorners
   ;; NOTE: Counter-clockwise winding order.
@@ -111,7 +142,14 @@
 
 (s/defrecord Frustum
   [corners :- FrustumCorners
-   planes :- FrustumPlanes])
+   planes :- FrustumPlanes
+   unique-edge-normals :- [Vector3d]
+   unique-face-normals :- [Vector3d]]
+
+  SATIntersection
+  (points [this] (vals corners))
+  (unique-edge-normals [this] unique-edge-normals)
+  (unique-face-normals [this] unique-face-normals))
 
 (defmethod print-method AABB
   [^AABB v ^java.io.Writer w]

@@ -329,17 +329,7 @@
         far-tr (clip->world inv-view-proj clip-tr 1.0)
         far-bl (clip->world inv-view-proj clip-bl 1.0)
         far-br (clip->world inv-view-proj clip-br 1.0)]
-    (types/->Frustum
-      (types/->FrustumCorners
-        near-tl near-bl near-br near-tr
-        far-tl far-bl far-br far-tr)
-      (types/->FrustumPlanes
-        (math/plane-from-points near-tl near-bl near-br) ; near
-        (math/plane-from-points far-tl far-tr far-br) ; far
-        (math/plane-from-points near-tl near-tr far-tr) ; top
-        (math/plane-from-points near-tr near-br far-br) ; right
-        (math/plane-from-points near-br near-bl far-bl) ; bottom
-        (math/plane-from-points near-bl near-tl far-tl))))) ; left
+    (geom/corners->frustum near-tl near-tr near-bl near-br far-tl far-tr far-bl far-br)))
 
 (defn- dolly-orthographic [camera delta]
   (let [dolly-fn (fn [fov]

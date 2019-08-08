@@ -196,6 +196,13 @@
      (* (.z v) (.z p))
      (.w v)))
 
+(defn dot-v4-vector
+  "Dot product between a four-element vector and a vector."
+  ^double [^Tuple4d u ^Tuple3d v]
+  (+ (* (.x u) (.x v))
+     (* (.y u) (.y v))
+     (* (.z u) (.z v))))
+
 (defn plane-from-points
   "Construct an infinite plane from three points in space. The plane normal will
   point towards the observer when the points are supplied in counter-clockwise
@@ -211,7 +218,19 @@
     (.scale n (/ 1.0 len))
     (Vector4d. (.x n) (.y n) (.z n) (- (dot n a)))))
 
+(def in-front-of-plane? (comp pos? dot-v4-point))
+
 (def behind-plane? (comp neg? dot-v4-point))
+
+(defn plane-normal
+  ^Vector3d [^Vector4d plane]
+  (Vector3d. (.x plane) (.y plane) (.z plane)))
+
+(defn edge-normal
+  ^Vector3d [^Tuple3d from ^Tuple3d to]
+  (doto (Vector3d.)
+    (.sub to from)
+    (.normalize)))
 
 (defn translation
   ^Vector3d [^Matrix4d m]
