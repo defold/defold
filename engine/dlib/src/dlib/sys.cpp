@@ -50,7 +50,7 @@
 extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 #endif
 
-#ifdef __LINUX__
+#ifdef __linux__
 #include <unistd.h>
 #include <sys/auxv.h>
 #include <libgen.h>
