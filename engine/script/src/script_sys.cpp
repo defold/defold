@@ -63,7 +63,7 @@ union SaveLoadBuffer
      * This size reflects the output file size which must not exceed this limit.
      * Additionally, the total number of rows that any one table may contain is limited to 65536
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
-     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however 
+     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
      *
      * @name sys.save
@@ -715,8 +715,22 @@ union SaveLoadBuffer
             }
             lua_rawset(L, -3);
 
-            lua_pushliteral(L, "mac");
+            lua_pushliteral(L, "family");
+            if (ifa->m_Address.m_Family == dmSocket::DOMAIN_IPV4)
+            {
+                lua_pushstring(L, "ipv4");
+            }
+            else if (ifa->m_Address.m_Family == dmSocket::DOMAIN_IPV6)
+            {
+                lua_pushstring(L, "ipv6");
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+            lua_rawset(L, -3);
 
+            lua_pushliteral(L, "mac");
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
                 char tmp[64];
@@ -908,7 +922,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Exit::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Exit::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -954,7 +968,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -979,7 +993,7 @@ union SaveLoadBuffer
     * @examples
     *
     * Setting the swap intervall to swap every v-blank
-    *  
+    *
     * ```lua
     * sys.set_vsync_swap_interval(1)
     * ```
@@ -993,7 +1007,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -1010,9 +1024,9 @@ union SaveLoadBuffer
     * @name sys.set_update_frequency
     * @param frequency target frequency. 60 for 60 fps
     * @examples
-    * 
+    *
     * Setting the update frequency to 60 frames per second
-    *  
+    *
     * ```lua
     * sys.set_update_frequency(60)
     * ```
@@ -1026,7 +1040,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
