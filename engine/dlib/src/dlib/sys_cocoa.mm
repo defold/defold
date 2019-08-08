@@ -30,7 +30,7 @@ namespace dmSys
         }
     }
 
-    Result GetApplicationBundlePath(char* bundle_path_out, uint32_t path_len)
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
     	assert(path_len > 0);
     	NSBundle* mainBundle = [NSBundle mainBundle];
@@ -39,9 +39,9 @@ namespace dmSys
     		return RESULT_FAULT;
     	}
     	const char *bundle_path = [[mainBundle bundlePath] UTF8String];
-    	if (dmStrlCpy(bundle_path_out, bundle_path, path_len) >= path_len)
+    	if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
     	{
-    		bundle_path_out[0] = 0;
+    		path_out[0] = 0;
     		return RESULT_INVAL;
     	}
     	return RESULT_OK;

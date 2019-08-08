@@ -55,7 +55,7 @@ var LibraryDmSys = {
             return buffer;
         },
 
-        dmSysGetApplicationBundlePath: function() {
+        dmSysGetApplicationPath: function() {
             var path = location.href.substring(0, location.href.lastIndexOf("/"));
             var buffer = _malloc(lengthBytes);
             Module.stringToUTF8(path, buffer, path.length + 1);
