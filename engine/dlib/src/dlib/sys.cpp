@@ -304,9 +304,9 @@ namespace dmSys
             do
             {
                 i -= 1;
-                if (path[i] == '\\')
+                if (bundle_path_out[i] == '\\')
                 {
-                    path[i] = 0;
+                    bundle_path_out[i] = 0;
                     break;
                 }
             }
