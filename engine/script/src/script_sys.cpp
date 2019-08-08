@@ -716,11 +716,11 @@ union SaveLoadBuffer
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "family");
-            if (ifa->m_Address.m_Family == dmSocket::DOMAIN_IPV4)
+            if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
                 lua_pushstring(L, "ipv4");
             }
-            else if (ifa->m_Address.m_Family == dmSocket::DOMAIN_IPV6)
+            else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
             {
                 lua_pushstring(L, "ipv6");
             }
