@@ -307,6 +307,9 @@ namespace dmSys
         assert(path_len >= MAX_PATH);
         size_t ret = GetModuleFileNameA(GetModuleHandle(NULL), path_out, path_len);
         if (ret > 0 && ret < path_len) {
+            // path_out contains path+filename
+            // search for last path separator and end the string there,
+            // effectively removing the filename and keeping the path
             size_t i = strlen(path_out);
             do
             {
@@ -321,8 +324,8 @@ namespace dmSys
         }
         else
         {
-            path_out[0] = '.';
-            path_out[1] = '\n';
+            path_out[0] = 0;
+            return RESULT_INVAL;
         }
         return RESULT_OK;
     }
@@ -390,6 +393,7 @@ namespace dmSys
             const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
 
             if (dmStrlCpy(path_out, filesDir, path_len) >= path_len) {
+                path_out[0] = 0;
                 res = RESULT_INVAL;
             }
             env->ReleaseStringUTFChars(path_obj, filesDir);
