@@ -959,6 +959,21 @@
                  (g/node-value :camera-type)
                  (= (:camera-type user-data)))))
 
+;; Used in the scene view tool bar.
+(handler/defhandler :toggle-perspective-camera :workbench
+  (active? [app-view evaluation-context]
+           (active-scene-view app-view evaluation-context))
+  (run [app-view]
+       (when-some [view (active-scene-view app-view)]
+         (set-camera-type! view
+                           (case (g/node-value view :camera-type)
+                             :orthographic :perspective
+                             :perspective :orthographic))))
+  (state [app-view]
+         (some-> (active-scene-view app-view)
+                 (g/node-value :camera-type)
+                 (= :perspective))))
+
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
   (g/set-property! app-view :manip-space manip-space))
