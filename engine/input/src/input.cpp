@@ -31,7 +31,6 @@ namespace dmInput
         }
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
-        context->m_GamepadMaps.SetCapacity(8, 0);
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
@@ -345,7 +344,7 @@ namespace dmInput
         {
             return;
         }
-        context->m_GamepadMaps.SetCapacity(8, count);
+        context->m_GamepadMaps.SetCapacity(dmMath::Max(1, count/3), count);
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
