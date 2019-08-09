@@ -176,7 +176,9 @@ namespace dmSys
 
     /**
      * Get the path where the application (exe) is located
-     * @return
+     * @param path path buffer
+     * @path path_len path buffer length
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Other error results are also possible.
      */
     Result GetApplicationPath(char* path, uint32_t path_len);
 
