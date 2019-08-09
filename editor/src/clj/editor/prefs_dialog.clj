@@ -50,7 +50,7 @@
           (get options-map value))
         (fromString [s]
           (inv-options-map s))))
-    (.addAll (.getItems control) ^java.util.Collection (map first options) )
+    (.addAll (.getItems control) ^java.util.Collection (map first options))
     (.select (.getSelectionModel control) (prefs/get-prefs prefs (:key desc) (:default desc)))
 
     (ui/observe (.valueProperty control) (fn [observable old-val new-val]
@@ -83,11 +83,6 @@
             :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
                     {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}]}
-           {:name  "Scene"
-            :prefs [{:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}
-                    {:label "Grid" :type :choicebox :key "scene-grid-type" :default :auto :options [[:auto "Auto"] [:manual "Manual"]]}
-                    {:label "Grid Size" :type :long :key "scene-grid-size" :default 100}
-                    {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}]}
            {:name  "Code"
             :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
                     {:label "Open File" :type :string :key "code-open-file" :default "{file}"}

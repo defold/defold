@@ -31,7 +31,7 @@ namespace dmInput
         }
         Context* context = new Context();
         context->m_GamepadIndices.SetCapacity(16);
-        context->m_GamepadMaps.SetCapacity(8, 16);
+        context->m_GamepadMaps.SetCapacity(8, 64);
         context->m_HidContext = params.m_HidContext;
         context->m_RepeatDelay = params.m_RepeatDelay;
         context->m_RepeatInterval = params.m_RepeatInterval;
@@ -354,6 +354,10 @@ namespace dmInput
                         GamepadInput& input = config.m_Inputs[entry.m_Input];
                         input.m_Index = (uint16_t)entry.m_Index;
                         input.m_Type = entry.m_Type;
+                        if (entry.m_Type == dmInputDDF::GAMEPAD_TYPE_HAT)
+                        {
+                            input.m_HatMask = entry.m_HatMask;
+                        }
                         for (uint32_t k = 0; k < entry.m_Mod.m_Count; ++k)
                         {
                             switch (entry.m_Mod[k].m_Mod)
@@ -371,6 +375,9 @@ namespace dmInput
                                 break;
                             }
                         }
+                    }
+                    if (context->m_GamepadMaps.Full()) {
+                        context->m_GamepadMaps.SetCapacity(8, context->m_GamepadMaps.Capacity() * 2);
                     }
                     context->m_GamepadMaps.Put(device_id, config);
                 }
@@ -890,6 +897,15 @@ namespace dmInput
             break;
         case dmInputDDF::GAMEPAD_TYPE_BUTTON:
             v = dmHID::GetGamepadButton(packet, input.m_Index) ? 1.0f : 0.0f;
+            break;
+        case dmInputDDF::GAMEPAD_TYPE_HAT:
+            {
+                uint8_t t = 0;
+                bool s = dmHID::GetGamepadHat(packet, input.m_Index, t);
+                if (s && (t & input.m_HatMask)) {
+                    v = 1.0f;
+                }
+            }
             break;
         }
         return v;

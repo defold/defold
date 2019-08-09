@@ -1,16 +1,13 @@
 (ns editor.sound
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [util.digest :as digest]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
-            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [java.io IOException]
@@ -69,7 +66,8 @@
 
 (g/defnk produce-form-data
   [_node-id sound looping group gain]
-  {:form-ops {:user-data {:node-id _node-id}
+  {:navigation false
+   :form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
    :sections [{:title "Sound"
@@ -166,7 +164,7 @@
       :ddf-type Sound$SoundDesc
       :load-fn load-sound
       :icon sound-icon
-      :view-types [:form-view :text]
+      :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}

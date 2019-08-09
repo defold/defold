@@ -2890,7 +2890,10 @@ namespace dmGui
     /*# gets the node size mode
      * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
-     * size mode alters the node size based on the node's content.
+     * size mode alters the node size based on the node's content. Automatic size
+     * mode works for Box nodes and Pie nodes which will both adjust their size
+     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * any size mode setting.
      *
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
@@ -2909,7 +2912,10 @@ namespace dmGui
     /*# sets node size mode
      * Sets the size mode of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
-     * size mode alters the node size based on the node's content.
+     * size mode alters the node size based on the node's content. Automatic size
+     * mode works for Box nodes and Pie nodes which will both adjust their size
+     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * any size mode setting.
      *
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for

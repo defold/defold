@@ -664,6 +664,13 @@
    :default false,
    :path ["android" "debuggable"]}
   {:type :resource,
+   :filter "pro",
+   :preserve-extension true,
+   :help "custom ProGuard file to help strip redundant Java classes from the final .apk",
+   :label "ProGuard config",
+   :default "",
+   :path ["android" "proguard"]}
+  {:type :resource,
    :filter "icns",
    :preserve-extension true,
    :help "bundle icon file (.icns)",
@@ -684,24 +691,24 @@
    :preserve-extension true,
    :help "executable icon file (.ico)",
    :path ["windows" "app_icon"]}
-  {:type :string,
-   :help
-   "In-app purchase provider to use. Supported options are 'Gameroom' or empty string",
-   :default "",
-   :path ["windows" "iap_provider"]
-   :options [["" "None"] ["Gameroom" "Gameroom"]]}
   {:type :boolean,
-   :help "set to true if you wish to adjust the application heap memory size",
+   :help "This setting is deprecated. Set to true if you wish to adjust the application heap memory size",
    :default false,
+   :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
    :path ["html5" "set_custom_heap_size"]}
   {:type :integer,
-   :help "the size, in bytes, of the application's heap",
+   :help "This setting is deprecated. The size, in bytes, of the application's heap",
    :default 0,
+   :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
    :path ["html5" "custom_heap_size"]}
-  {:type :boolean,
-   :help "add html dev tool to application",
-   :default false,
-   :path ["html5" "include_dev_tool"]}
+  {:type :integer,
+   :help "The size, in megabytes, of the application's heap",
+   :default 256,
+   :path ["html5" "heap_size"]}
   {:type :resource,
    :filter "html",
    :preserve-extension true,
@@ -712,7 +719,8 @@
   {:type :resource,
    :filter "css",
    :preserve-extension true,
-   :help "css detail for html shell",
+   :help "css will be inlined into index.html template",
+   :default "/builtins/manifests/web/light_theme.css",
    :label "Custom .css"
    :path ["html5" "cssfile"]}
   {:type :resource,
@@ -733,6 +741,19 @@
    :help "comma separated list of engine arguments",
    :default "",
    :path ["html5" "engine_arguments"]}
+   {:type :boolean,
+   :help "set to true if you want to have the fullscreen button",
+   :default true
+   :path ["html5" "show_fullscreen_button"]}
+  {:type :boolean,
+   :help "set to true if you want to have the 'Made with Defold' link",
+   :default true
+   :path ["html5" "show_made_with_defold"]}
+  {:type :string,
+   :help "scale mode for canvas, by default 'Downscale Fit'",
+   :default "downscale_fit",
+   :path ["html5" "scale_mode"]
+   :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale" ]]}
   {:type :string,
    :help "the application id as issued by Facebook",
    :default "",
@@ -759,33 +780,37 @@
 
  :categories
  {"sound" {:help "Sound related settings"},
-  "html5" {:help "HTML5 related settings"},
-  "resource"
-  {:help "Resource loading and management related settings"},
+  "html5" {:help "HTML5 related settings"
+           :title "HTML5"},
+  "resource" {:help "Resource loading and management related settings"},
   "factory" {:help "GameObject factory related settings"},
   "graphics" {:help "Graphics related settings"},
   "bootstrap" {:help "Initial settings for the engine"},
   "label" {:help "Label related settings"},
   "collection" {:help "Collection related settings"},
   "project" {:help "General project settings"},
-  "collection_proxy" {:help "Collection proxy related settings"},
+  "collectionfactory" {:title "Collection Factory"}
+  "collection_proxy" {:help "Collection proxy related settings"}
   "tracking" {:help "Application tracking settings"},
   "physics" {:help "Physics settings"},
-  "osx" {:help "Mac OSX related settings"},
+  "osx" {:help "Mac OSX related settings"
+         :title "OSX"},
   "network" {:help "Network related settings"},
   "script" {:help "Script system settings"},
-  "gui" {:help "GUI related settings"},
+  "gui" {:help "GUI related settings"
+         :title "GUI"},
   "sprite" {:help "Sprite related settings"},
   "facebook" {:help "Facebook related settings"},
   "windows" {:help "Windows related settings"},
   "input" {:help "Input related settings"},
-  "library"
-  {:help
-   "Settings for when this project is used as a library by another project"},
+  "library" {:help "Settings for when this project is used as a library by another project"},
   "display" {:help "Resolution and other display related settings"},
-  "ios" {:help "iOS related settings"},
-  "iap" {:help "In App Purchase related settings"},
-  "particle_fx" {:help "Particle FX related settings"},
+  "ios" {:help "iOS related settings"
+         :title "iOS"},
+  "iap" {:help "In App Purchase related settings"
+         :title "IAP"},
+  "particle_fx" {:help "Particle FX related settings"
+                 :title "Particle FX"},
   "android" {:help "Android related settings"},
   "liveupdate" {:help "Liveupdate settings"},
   "native_extension" {:help "Settings for native extensions"},

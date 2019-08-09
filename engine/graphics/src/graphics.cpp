@@ -88,8 +88,16 @@ namespace dmGraphics
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
             if(shader->m_Language == language)
             {
-                data_len = shader->m_Source.m_Count;
-                return shader->m_Source.m_Data;
+                if (shader->m_Source.m_Data && shader->m_Source.m_Count > 0)
+                {
+                    data_len = shader->m_Source.m_Count;
+                    return shader->m_Source.m_Data;
+                }
+                else
+                {
+                    data_len = shader->m_Binary.m_Count;
+                    return shader->m_Binary.m_Data;
+                }
             }
         }
         data_len = 0;

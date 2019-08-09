@@ -213,6 +213,7 @@
 (defn- setup-variables-view!
   [^TreeView debugger-variables]
   (doto debugger-variables
+    (ui/customize-tree-view! {:double-click-expand? true})
     (.setShowRoot false)
     (ui/cell-factory! (fn [{:keys [display-name display-value]}]
                         {:graphic (doto (HBox.)
@@ -473,25 +474,38 @@
 
 (def ^:private mobdebug-port 8172)
 
+(defn- show-connect-failed-dialog! [target-address ^Exception exception]
+  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
+                 "Check that the game is running and is reachable over the network.\n")]
+    (log/error :msg msg :exception exception)
+    (dialogs/make-info-dialog
+      {:title "Attach Debugger Failed"
+       :icon :icon/triangle-error
+       :header msg
+       :content (.getMessage exception)})))
+
 (defn start-debugger!
   [debug-view project target-address]
-  (mobdebug/connect! target-address mobdebug-port
-                     (fn [debug-session]
-                       (ui/run-now
-                         (g/update-property! debug-view :debug-session
-                                             (fn [old new]
-                                               (when old (mobdebug/close! old))
-                                               new)
-                                             debug-session)
-                         (update-breakpoints! debug-session (g/node-value project :breakpoints))
-                         (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                         (state-changed! debug-view true)))
-                     (fn [_debug-session]
-                       (ui/run-now
-                         (g/set-property! debug-view
-                                          :debug-session nil
-                                          :suspension-state nil)
-                         (state-changed! debug-view false)))))
+  (try
+    (mobdebug/connect! target-address mobdebug-port
+                       (fn [debug-session]
+                         (ui/run-now
+                           (g/update-property! debug-view :debug-session
+                                               (fn [old new]
+                                                 (when old (mobdebug/close! old))
+                                                 new)
+                                               debug-session)
+                           (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                           (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
+                           (state-changed! debug-view true)))
+                       (fn [_debug-session]
+                         (ui/run-now
+                           (g/set-property! debug-view
+                                            :debug-session nil
+                                            :suspension-state nil)
+                           (state-changed! debug-view false))))
+    (catch Exception exception
+      (show-connect-failed-dialog! target-address exception))))
 
 (defn current-session
   ([debug-view]
@@ -541,15 +555,8 @@
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
-                                                "Check that the game is running and is reachable over the network.\n")]
-                                   (log/error :msg msg :exception exception)
-                                   (dialogs/make-info-dialog
-                                     {:title "Attach Debugger Failed"
-                                      :icon :icon/triangle-error
-                                      :header msg
-                                      :content (.getMessage exception)})
-                                   false)))]
+                                 (show-connect-failed-dialog! target-address exception)
+                                 false))]
       (when attach-successful?
         (start-debugger! debug-view project target-address)))))
 

@@ -30,6 +30,8 @@ namespace dmHID
     const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
     /// Maximum number of gamepad buttons supported
     const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
+    /// Maximum number of gamepad hats supported
+    const static uint32_t MAX_GAMEPAD_HAT_COUNT = 4;
 
     /// Maximum number of simultaneous touches supported
     // An iPad supports a maximum of 11 simultaneous touches
@@ -238,6 +240,7 @@ namespace dmHID
     {
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
+        uint8_t m_Hat[MAX_GAMEPAD_HAT_COUNT];
         bool m_GamepadDisconnected;
         bool m_GamepadConnected;
     };
@@ -594,6 +597,15 @@ namespace dmHID
      * @return If the button was pressed or not
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
+
+    /**
+     * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
+     * @param packet Gamepad packet
+     * @param hat The requested hat index
+     * @param hat_value Reference to where the hat value should be written
+     * @return If the hat has data or not
+     */
+    bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t& hat_value);
 
     /**
      * Sets the state of a gamepad button.

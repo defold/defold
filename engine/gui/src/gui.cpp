@@ -1553,8 +1553,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 // we potentially get dangling lua refs in the script system
                 if (anim->m_Cancelled && anim->m_AnimationComplete)
                 {
-                    assert(!anim->m_AnimationCompleteCalled);
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    if (!anim->m_AnimationCompleteCalled)
+                    {
+                        anim->m_AnimationCompleteCalled = 1;
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
                 }
 
                 animations->EraseSwap(i);

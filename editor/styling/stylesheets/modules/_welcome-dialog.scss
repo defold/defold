@@ -406,4 +406,18 @@
   .df-header {
     -fx-max-width: Infinity;
   }
+
+  .remove-button {
+    -fx-min-width: 22px;
+    -fx-max-width: 22px;
+    -fx-max-height: 22px;
+    -fx-min-height: 22px;
+    -fx-border-width: 0;
+    -fx-background-radius: 11px;
+    visibility: hidden;
+    -fx-opacity: 0.75;
+  }
+  & .project-entry:hover .remove-button {
+    visibility: visible;
+  }
 }

@@ -1,11 +1,6 @@
 (ns editor.properties-view
-  (:require [clojure.set :as set]
-            [clojure.string :as string]
-            [camel-snake-kebab :as camel]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.protobuf :as protobuf]
-            [editor.core :as core]
-            [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
@@ -18,26 +13,12 @@
             [editor.field-expression :as field-expression]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
-  (:import [com.defold.editor Start]
-           [com.dynamo.proto DdfExtensions]
-           [com.google.protobuf ProtocolMessageEnum]
-           [javafx.application Platform]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.fxml FXMLLoader]
-           [javafx.geometry Insets Pos Point2D]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
+  (:import [javafx.geometry Insets Point2D]
+           [javafx.scene Node Parent]
+           [javafx.scene.control Control Button CheckBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority ColumnConstraints Region]
+           [javafx.scene.layout Pane AnchorPane GridPane HBox VBox Priority ColumnConstraints Region]
            [javafx.scene.paint Color]
-           [javafx.util Callback StringConverter]
-           [java.util.prefs Preferences]
-           [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [com.google.protobuf ProtocolMessageEnum]
            [editor.properties CurveSpread Curve]))
 
 (set! *warn-on-reflection* true)
@@ -60,9 +41,9 @@
 
 (defn- update-text-fn
   ([^TextInputControl text format-fn values message read-only?]
-    (update-text-fn text format-fn identity values message read-only?))
+   (update-text-fn text format-fn identity values message read-only?))
   ([^TextInputControl text format-fn get-fn values message read-only?]
-    (update-multi-text-fn [text] format-fn [get-fn] values message read-only?)))
+   (update-multi-text-fn [text] format-fn [get-fn] values message read-only?)))
 
 (defn edit-type->type [edit-type]
   (or (some-> edit-type :type g/value-type-dispatch-value)
@@ -233,7 +214,7 @@
 
 (defn- make-curve-toggler ^ToggleButton [property-fn]
   (let [^ToggleButton toggle-button (doto (ToggleButton. nil (jfx/get-image-view "icons/32/Icons_X_03_Bezier.png" 12.0))
-                                    (ui/add-styles! ["embedded-properties-button"]))]
+                                      (ui/add-styles! ["embedded-properties-button"]))]
     (doto toggle-button
       (ui/on-action! (fn [_]
                        (let [selected (.isSelected toggle-button)
@@ -306,7 +287,8 @@
                          (ui/disable! combo-box read-only?)))
         listen-fn (fn [_old-val new-val]
                     (when-not *programmatic-setting*
-                      (properties/set-values! (property-fn) (repeat new-val))))]
+                      (properties/set-values! (property-fn) (repeat new-val))
+                      (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)))]
     (fuzzy-combo-box/observe! combo-box listen-fn)
     [combo-box update-ui-fn]))
 
@@ -526,7 +508,7 @@
     (GridPane/setConstraints label-box 0 row)
     (GridPane/setConstraints control 1 row)
 
-    (.add (.getChildren grid) label-box )
+    (.add (.getChildren grid) label-box)
     (.add (.getChildren grid) control)
 
     (GridPane/setFillWidth label-box true)

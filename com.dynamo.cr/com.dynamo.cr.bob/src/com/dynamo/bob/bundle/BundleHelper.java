@@ -76,7 +76,7 @@ public class BundleHelper {
         }
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix, String variant) throws IOException {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix, String variant) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
 
         this.project = project;
@@ -86,7 +86,11 @@ public class BundleHelper {
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
-        this.propertiesMap = createPropertiesMap(project.getProjectProperties());
+        try {
+            this.propertiesMap = createPropertiesMap(project.getProjectProperties());
+        } catch (IOException e) {
+            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        }
 
         this.variant = variant;
     }
@@ -167,13 +171,17 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
+    public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         String data = new String(resource.getContent());
         Template template = Mustache.compiler().compile(data);
         StringWriter sw = new StringWriter();
         template.execute(this.propertiesMap, properties, sw);
         sw.flush();
-        FileUtils.write(toFile, sw.toString());
+        return sw.toString();
+    }
+
+    public BundleHelper format(Map<String, Object> properties, IResource resource, File toFile) throws IOException {
+        FileUtils.write(toFile, formatResource(properties, resource));
         return this;
     }
 
@@ -182,6 +190,9 @@ public class BundleHelper {
     private List<File> formatAll(List<IResource> sources, File toDir, Map<String, Object> properties) throws IOException {
         List<File> out = new ArrayList<File>();
         for (IResource source : sources) {
+            if (!source.exists()) {
+                throw new IOException(String.format("Resource %s does not exist.", source));
+            }
             // converts a relative path to something we can easily see if we get a merge failure: a/b/c.xml -> a_b_c.xml
             String name = source.getPath().replaceAll("[^a-zA-Z0-9_]", "_");
             File target = new File(toDir, name);
@@ -202,7 +213,7 @@ public class BundleHelper {
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             name = BundleHelper.MANIFEST_NAME_HTML5;
         } else {
-            throw new CompileExceptionError(null, -1, "Unsupported ManifestMergeTool platform: " + platform.toString());
+            throw new CompileExceptionError(mainManifest, -1, "Unsupported ManifestMergeTool platform: " + platform.toString());
         }
 
         // First, list all manifests
@@ -233,14 +244,14 @@ public class BundleHelper {
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             manifestPlatform = ManifestMergeTool.Platform.HTML5;
         } else {
-            throw new CompileExceptionError(null, -1, "Merging manifests for platform unsupported: " + platform.toString());
+            throw new CompileExceptionError(mainManifest, -1, "Merging manifests for platform unsupported: " + platform.toString());
         }
 
         // Now merge these manifests in order (the main manifest is first)
         try {
             ManifestMergeTool.merge(manifestPlatform, resolvedMainManifest, outManifest, resolvedManifests);
         } catch (RuntimeException e) {
-            throw new CompileExceptionError(null, -1, "Failed merging manifests: " + e.toString());
+            throw new CompileExceptionError(mainManifest, -1, "Failed merging manifests: " + e.toString());
         }
         FileUtils.deleteDirectory(manifestDir);
     }
@@ -379,11 +390,15 @@ public class BundleHelper {
         }
     }
 
-    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError, IOException {
+    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError {
 
         // Get all Android specific resources needed to create R.java files
-        BundleHelper.createAndroidResourceFolders(resDir);
-        copyAndroidIcons(resDir);
+        try {
+            BundleHelper.createAndroidResourceFolders(resDir);
+            copyAndroidIcons(resDir);
+        } catch (Exception e) {
+            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        }
 
         // We store the extensions' resources in a separate folder, because they otherwise failed on the Android naming convention.
         // I.e. resDir contains asset directories, extensionsDir contains package directories that contain asset directiores
@@ -391,7 +406,7 @@ public class BundleHelper {
         extensionsDir.mkdir();
 
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeAndroidResources(extensionsDir, resources);
+        ExtenderUtil.storeResources(extensionsDir, resources);
 
         Map<String, Object> bundleContext = null;
         {
@@ -426,20 +441,19 @@ public class BundleHelper {
 
         List<String> extraPackages = new ArrayList<>();
 
-        if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aapt-extra-packages", new ArrayList<String>()));
-        }
+        extraPackages.add("com.google.firebase");
         extraPackages.add("com.google.android.gms");
         extraPackages.add("com.google.android.gms.common");
+        extraPackages.add("com.android.support");
 
         if (bundleContext != null) {
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
-
             List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
             List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
 
             extraPackages = excludeItems(extraPackages, excludePackages);
             resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
+
+            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
         }
 
         return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);
@@ -466,15 +480,18 @@ public class BundleHelper {
         return resizedImage;
     }
 
-    private void genIcon(BufferedImage fallbackImage, File outputDir, String propertyName, String outName, int size) throws IOException
+    private void genIcon(BufferedImage fallbackImage, File outputDir, String propertyCategory, String propertyName, String outName, int size) throws IOException
     {
         File outFile = new File(outputDir, outName);
 
         // If the property was found just copy icon file to output folder.
         if (propertyName.length() > 0) {
-            String resource = projectProperties.getStringValue("ios", propertyName);
+            String resource = projectProperties.getStringValue(propertyCategory, propertyName);
             if (resource != null && resource.length() > 0) {
                 IResource inResource = project.getResource(resource);
+                if (!inResource.exists()) {
+                    throw new IOException(String.format("%s does not exist.", resource));
+                }
                 FileUtils.writeByteArrayToFile(outFile, inResource.getContent());
                 return;
             }
@@ -498,6 +515,9 @@ public class BundleHelper {
 
         if (largestIcon != null) {
             IResource largestIconRes = project.getResource(largestIcon);
+            if (!largestIconRes.exists()) {
+                throw new IOException("Could not find resource: " + largestIcon);
+            }
             FileUtils.writeByteArrayToFile(largestIconFile, largestIconRes.getContent());
         } else {
             URL defaultIconURL = getClass().getResource("resources/ios/default_icon.png");
@@ -514,15 +534,15 @@ public class BundleHelper {
         BufferedImage largestIconImage = getFallbackIconImage("ios", iconPropNames);
 
         // Copy game.project specified icons
-        genIcon(largestIconImage, appDir,   "app_icon_57x57",       "Icon.png",  57);
-        genIcon(largestIconImage, appDir, "app_icon_114x114",    "Icon@2x.png", 114);
-        genIcon(largestIconImage, appDir,   "app_icon_72x72",    "Icon-72.png",  72);
-        genIcon(largestIconImage, appDir, "app_icon_144x144", "Icon-72@2x.png", 144);
-        genIcon(largestIconImage, appDir,   "app_icon_76x76",    "Icon-76.png",  76);
-        genIcon(largestIconImage, appDir, "app_icon_152x152", "Icon-76@2x.png", 152);
-        genIcon(largestIconImage, appDir, "app_icon_120x120", "Icon-60@2x.png", 120);
-        genIcon(largestIconImage, appDir, "app_icon_180x180", "Icon-60@3x.png", 180);
-        genIcon(largestIconImage, appDir, "app_icon_167x167",   "Icon-167.png", 167);
+        genIcon(largestIconImage, appDir, "ios",   "app_icon_57x57",       "Icon.png",  57);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_114x114",    "Icon@2x.png", 114);
+        genIcon(largestIconImage, appDir, "ios",   "app_icon_72x72",    "Icon-72.png",  72);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_144x144", "Icon-72@2x.png", 144);
+        genIcon(largestIconImage, appDir, "ios",   "app_icon_76x76",    "Icon-76.png",  76);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_152x152", "Icon-76@2x.png", 152);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_120x120", "Icon-60@2x.png", 120);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_180x180", "Icon-60@3x.png", 180);
+        genIcon(largestIconImage, appDir, "ios", "app_icon_167x167",   "Icon-167.png", 167);
     }
 
     public void copyAndroidIcons(File resDir) throws IOException
@@ -532,13 +552,13 @@ public class BundleHelper {
         BufferedImage largestIconImage = getFallbackIconImage("android", iconPropNames);
 
         // copy old 32x32 icon first, the correct size is actually 36x36
-        genIcon(largestIconImage, resDir,   "app_icon_32x32",    "drawable-ldpi/icon.png",  36);
-        genIcon(largestIconImage, resDir,   "app_icon_36x36",    "drawable-ldpi/icon.png",  36);
-        genIcon(largestIconImage, resDir,   "app_icon_48x48",    "drawable-mdpi/icon.png",  48);
-        genIcon(largestIconImage, resDir,   "app_icon_72x72",    "drawable-hdpi/icon.png",  72);
-        genIcon(largestIconImage, resDir,   "app_icon_96x96",   "drawable-xhdpi/icon.png",  96);
-        genIcon(largestIconImage, resDir, "app_icon_144x144",  "drawable-xxhdpi/icon.png", 144);
-        genIcon(largestIconImage, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png", 192);
+        genIcon(largestIconImage, resDir, "android",   "app_icon_32x32",    "drawable-ldpi/icon.png",  36);
+        genIcon(largestIconImage, resDir, "android",   "app_icon_36x36",    "drawable-ldpi/icon.png",  36);
+        genIcon(largestIconImage, resDir, "android",   "app_icon_48x48",    "drawable-mdpi/icon.png",  48);
+        genIcon(largestIconImage, resDir, "android",   "app_icon_72x72",    "drawable-hdpi/icon.png",  72);
+        genIcon(largestIconImage, resDir, "android",   "app_icon_96x96",   "drawable-xhdpi/icon.png",  96);
+        genIcon(largestIconImage, resDir, "android", "app_icon_144x144",  "drawable-xxhdpi/icon.png", 144);
+        genIcon(largestIconImage, resDir, "android", "app_icon_192x192", "drawable-xxxhdpi/icon.png", 192);
     }
 
     private boolean copyIcon(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName)
@@ -794,7 +814,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex, File proguardMapping) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -889,6 +909,21 @@ public class BundleHelper {
             }
         }
 
+        if (proguardMapping != null)
+        {
+            String name = "mapping.txt";
+            try {
+                Path source = zip.getPath(name);
+                if (Files.isReadable(source)) {
+                    try (FileOutputStream out = new FileOutputStream(proguardMapping)) {
+                        Files.copy(source, out);
+                    }
+                }
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("Failed to copy %s to %s", name, proguardMapping.getAbsolutePath()), e.getCause());
+            }
+        }
+
         for (int i = 0; i < srcNames.size(); i++) {
             String srcName = srcNames.get(i);
             File outputEngine = outputEngines.get(i);
@@ -903,5 +938,4 @@ public class BundleHelper {
             }
         }
     }
-
 }

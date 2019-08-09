@@ -1,13 +1,14 @@
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
-            [editor.fxui :as fxui]
             [editor.fuzzy-text :as fuzzy-text]
+            [editor.fxui :as fxui]
             [editor.github :as github]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
@@ -21,16 +22,18 @@
             [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
-           [java.util List Collection]
            [java.nio.file Path Paths]
+           [java.util Collection List]
            [javafx.application Platform]
+           [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ListView TextField]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout HBox VBox]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -655,39 +658,56 @@
 
 (declare sanitize-folder-name)
 
-(defn make-new-folder-dialog [base-dir {:keys [validate]}]
-  (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
-        stage (ui/make-dialog-stage (ui/main-stage))
-        scene (Scene. root)
-        controls (ui/collect-controls root ["name" "ok" "cancel" "path"])
-        return (atom nil)
-        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize-folder-name not-empty)))
-        close (fn [] (reset-return!) (.close stage))
-        validate (or validate (constantly nil))
-        do-validation (fn []
-                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
-                              validation-msg (some-> sanitized validate)]
-                          (if (or (nil? sanitized) validation-msg)
-                            (do (ui/text! (:path controls) (or validation-msg ""))
-                                (ui/enable! (:ok controls) false))
-                            (do (ui/text! (:path controls) sanitized)
-                                (ui/enable! (:ok controls) true)))))]
-    (ui/title! stage "New Folder")
+(defn- new-folder-dialog
+  [{:keys [name validate] :as props}]
+  (let [sanitized-name ^String (sanitize-folder-name name)
+        path-empty (zero? (.length sanitized-name))
+        error-msg (validate sanitized-name)
+        invalid (boolean (seq error-msg))]
+    {:fx/type dialog-stage
+     :showing (fxui/dialog-showing? props)
+     :on-close-request {:event-type :cancel}
+     :title "New Folder"
+     :size :small
+     :header {:fx/type fxui/label
+              :variant :header
+              :text "Enter New Folder Name"}
+     :content {:fx/type fxui/two-col-input-grid-pane
+               :style-class "dialog-content-padding"
+               :children [{:fx/type fxui/label
+                           :text "Name"}
+                          {:fx/type fxui/text-field
+                           :text ""
+                           :variant (if invalid :error :default)
+                           :on-text-changed {:event-type :set-folder-name}}
+                          {:fx/type fxui/label
+                           :text "Preview"}
+                          {:fx/type fxui/text-field
+                           :editable false
+                           :text (or error-msg sanitized-name)}]}
+     :footer {:fx/type dialog-buttons
+              :children [{:fx/type fxui/button
+                          :text "Cancel"
+                          :cancel-button true
+                          :on-action {:event-type :cancel}}
+                         {:fx/type fxui/button
+                          :disable (or invalid path-empty)
+                          :text "Create Folder"
+                          :variant :primary
+                          :default-button true
+                          :on-action {:event-type :confirm}}]}}))
 
-    (ui/on-action! (:ok controls) (fn [_] (close)))
-    (.setDefaultButton ^Button (:ok controls) true)
-    (ui/on-action! (:cancel controls) (fn [_] (.close stage)))
-    (.setCancelButton ^Button (:cancel controls) true)
-
-    (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
-
-    (.setScene stage scene)
-
-    (do-validation)
-
-    (ui/show-and-wait! stage)
-
-    @return))
+(defn make-new-folder-dialog
+  [^String base-dir {:keys [validate]}]
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:name ""
+                    :validate (or validate (constantly nil))}
+    :event-handler (fn [state {:keys [fx/event event-type]}]
+                     (case event-type
+                       :set-folder-name (assoc state :name event)
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result (sanitize-folder-name (:name state)))))
+    :description {:fx/type new-folder-dialog}))
 
 (defn- target-ip-dialog [{:keys [msg ^String ip] :as props}]
   (let [ip-valid (pos? (.length ip))]
@@ -735,7 +755,8 @@
       string/trim
       (string/replace #"[/\\]" "") ; strip path separators
       (string/replace #"[\"']" "") ; strip quotes
-      (string/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
+      (string/replace #"^\.+" "") ; prevent hiding files (.dotfile)
+      (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
 
 (defn sanitize-file-name [extension name]
   (-> name
@@ -747,6 +768,14 @@
 
 (defn sanitize-folder-name [name]
   (sanitize-common name))
+
+(defn sanitize-path [path]
+  (string/join \/
+               (into []
+                     (comp
+                       (remove empty?)
+                       (map sanitize-folder-name))
+                     (string/split path #"[\\\/]"))))
 
 (defn- rename-dialog [{:keys [initial-name name title label validate sanitize] :as props}]
   (let [sanitized (some-> (not-empty name) sanitize)
@@ -816,38 +845,97 @@
              (.relativize path)
              (.toString))))))
 
-(defn make-new-file-dialog [^File base-dir ^File location type ext]
-  (let [root ^Parent (ui/load-fxml "new-file-dialog.fxml")
-        stage (ui/make-dialog-stage (ui/main-stage))
-        scene (Scene. root)
-        controls (ui/collect-controls root ["name" "location" "browse" "path" "ok" "cancel"])
-        return (atom nil)
-        close (fn [perform?]
-                (when perform?
-                  (reset! return (File. base-dir (ui/text (:path controls)))))
-                (.close stage))
-        set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
-    (ui/title! stage (str "New " type))
-    (set-location location)
+(defn- new-file-dialog
+  [{:keys [^File base-dir ^File location type ext name] :as props}]
+  (let [sanitized-name (sanitize-file-name ext name)
+        empty (empty? sanitized-name)
+        relative-path (FilenameUtils/separatorsToUnix (relativize base-dir location))
+        location-exists (.exists location)
+        valid-input (and (not empty) location-exists)]
+    {:fx/type dialog-stage
+     :showing (fxui/dialog-showing? props)
+     :on-close-request {:event-type :cancel}
+     :title (str "New " type)
+     :size :small
+     :header {:fx/type fxui/label
+              :variant :header
+              :text (str "Enter " type " File Name")}
+     :content {:fx/type fxui/two-col-input-grid-pane
+               :style-class "dialog-content-padding"
+               :children [{:fx/type fxui/label
+                           :text "Name"}
+                          {:fx/type fxui/text-field
+                           :text ""
+                           :variant (if empty :error :default)
+                           :on-text-changed {:event-type :set-file-name}}
+                          {:fx/type fxui/label
+                           :text "Location"}
+                          {:fx/type :h-box
+                           :spacing 4
+                           :children [{:fx/type fxui/text-field
+                                       :h-box/hgrow :always
+                                       :variant (if location-exists :default :error)
+                                       :on-text-changed {:event-type :set-location}
+                                       :text relative-path}
+                                      {:fx/type fxui/button
+                                       :variant :icon
+                                       :on-action {:event-type :pick-location}
+                                       :text "…"}]}
+                          {:fx/type fxui/label
+                           :text "Preview"}
+                          {:fx/type fxui/text-field
+                           :editable false
+                           :text (if valid-input
+                                   (str relative-path \/ sanitized-name)
+                                   "")}]}
+     :footer {:fx/type dialog-buttons
+              :children [{:fx/type fxui/button
+                          :text "Cancel"
+                          :cancel-button true
+                          :on-action {:event-type :cancel}}
+                         {:fx/type fxui/button
+                          :disable (not valid-input)
+                          :text (str "Create " type)
+                          :variant :primary
+                          :default-button true
+                          :on-action {:event-type :confirm}}]}}))
 
-    (.bind (.textProperty ^TextField (:path controls))
-      (.concat (.concat (.textProperty ^TextField (:location controls)) "/") (.concat (.textProperty ^TextField (:name controls)) (str "." ext))))
-
-    (ui/on-action! (:browse controls) (fn [_] (let [location (-> (doto (DirectoryChooser.)
-                                                                   (.setInitialDirectory (File. (str base-dir "/" (ui/text (:location controls)))))
-                                                                   (.setTitle "Set Path"))
-                                                               (.showDialog nil))]
-                                                (when location
-                                                  (set-location location)))))
-    (ui/on-action! (:ok controls) (fn [_] (close true)))
-    (.setDefaultButton ^Button (:ok controls) true)
-    (ui/on-action! (:cancel controls) (fn [_] (close false)))
-    (.setCancelButton ^Button (:cancel controls) true)
-
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-
-    @return))
+(defn make-new-file-dialog
+  [^File base-dir ^File location type ext]
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:name ""
+                    :base-dir base-dir
+                    :location location
+                    :type type
+                    :ext ext}
+    :event-handler (fn [state {:keys [fx/event event-type]}]
+                     (case event-type
+                       :set-file-name (assoc state :name event)
+                       :set-location (assoc state :location (io/file base-dir (sanitize-path event)))
+                       :pick-location (assoc state :location
+                                             (let [window (.getWindow (.getScene ^Node (.getSource ^Event event)))
+                                                   previous-location (:location state)
+                                                   initial-dir (if (.exists ^File previous-location)
+                                                                 previous-location
+                                                                 base-dir)
+                                                   path (-> (doto (DirectoryChooser.)
+                                                              (.setInitialDirectory initial-dir)
+                                                              (.setTitle "Set Path"))
+                                                            (.showDialog window))]
+                                               (if path
+                                                 (io/file base-dir (relativize base-dir path))
+                                                 previous-location)))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result
+                                       (-> (io/file (:location state) (sanitize-file-name ext (:name state)))
+                                           ;; Canonical path turns Windows path
+                                           ;; into the correct case. We need
+                                           ;; this to be able to match internal
+                                           ;; resource maps, which are case
+                                           ;; sensitive unlike the NTFS file
+                                           ;; system.
+                                           (.getCanonicalFile)))))
+    :description {:fx/type new-file-dialog}))
 
 (handler/defhandler ::rename-conflicting-files :dialog
   (run [^Stage stage]
@@ -878,3 +966,47 @@
                                       (format "The destination has %d entries with conflicting names." conflict-count))))
     (ui/show-and-wait! stage)
     (ui/user-data stage ::file-conflict-resolution-strategy)))
+
+(def ext-with-selection-props
+  (fx/make-ext-with-props
+    {:selection fxui/text-input-selection-prop}))
+
+(defn make-target-log-dialog [log-atom clear! restart!]
+  (let [renderer-ref (volatile! nil)
+        renderer (fx/create-renderer
+                   :error-handler error-reporting/report-exception!
+                   :opts {:fx.opt/map-event-handler
+                          #(case (:event-type %)
+                             :clear (clear!)
+                             :restart (restart!)
+                             :cancel (fx/unmount-renderer log-atom @renderer-ref))}
+                   :middleware
+                   (fx/wrap-map-desc
+                     (fn [log]
+                       {:fx/type dialog-stage
+                        :title "Target Discovery Log"
+                        :modality :none
+                        :showing true
+                        :size :large
+                        :header {:fx/type fxui/label
+                                 :variant :header
+                                 :text "Target discovery log"}
+                        :content (let [str (string/join "\n" log)]
+                                   {:fx/type ext-with-selection-props
+                                    :props {:selection [(count str) (count str)]}
+                                    :desc {:fx/type info-dialog-text-area
+                                           :pref-row-count 20
+                                           :text str}})
+                        :footer {:fx/type dialog-buttons
+                                 :children [{:fx/type fxui/button
+                                             :text "Close"
+                                             :cancel-button true
+                                             :on-action {:event-type :cancel}}
+                                            {:fx/type fxui/button
+                                             :text "Clear Log"
+                                             :on-action {:event-type :clear}}
+                                            {:fx/type fxui/button
+                                             :text "Restart Discovery"
+                                             :on-action {:event-type :restart}}]}})))]
+    (vreset! renderer-ref renderer)
+    (fx/mount-renderer log-atom renderer)))

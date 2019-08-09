@@ -802,6 +802,10 @@ var LibraryGLFW = {
     }
   },
 
+  glfwGetJoystickHats: function(joy, buttons, numhats) {
+    return 0;
+  },
+
   glfwGetJoystickDeviceId: function(joy, device_id) {
     if (GLFW.joys[joy]) {
       setValue(device_id, GLFW.joys[joy].id, '*');

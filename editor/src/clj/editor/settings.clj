@@ -79,13 +79,16 @@
     (assoc :type :choicebox)
 
     (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "http://url.to/library"})
+    (assoc :type :list :element {:type :url :default "https://url.to/library"})
 
     (= :comma-separated-list (:type setting))
     (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))
 
 (defn- make-form-section [category-name category-info settings]
-  {:title (or (:title category-info) category-name)
+  {:title (or (:title category-info)
+              (->> (string/split category-name #"(_|\s+)")
+                   (mapv string/capitalize)
+                   (string/join " ")))
    :help (:help category-info)
    :fields (mapv make-form-field settings)})
 
@@ -98,7 +101,13 @@
     {:form-ops form-ops :sections sections :values values :meta-settings meta-settings}))
 
 (defn get-setting-error [setting-value meta-setting label]
-  (when (and (not= nil setting-value) (:deprecated meta-setting))
+  (cond
+    (and (some? setting-value)
+         (= :resource (:type meta-setting))
+         (not (resource/exists? setting-value)))
+    (g/->error nil label :fatal nil (:help meta-setting))
+
+    (and (some? setting-value) (:deprecated meta-setting))
     (if (not= setting-value (:default meta-setting))
       (g/->error nil label (:severity-override meta-setting) nil (:help meta-setting))
       (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))))
