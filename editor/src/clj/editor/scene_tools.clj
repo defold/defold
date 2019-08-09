@@ -5,33 +5,15 @@
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.gl.pass :as pass]
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region Rect]
-           [java.awt Font]
-           [java.awt.image BufferedImage]
-           [javafx.application Platform]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.geometry BoundingBox]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Tab]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane Pane]
-           [java.lang Runnable Math]
-           [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d AxisAngle4d]))
+  (:import [java.lang Runnable Math]
+           [com.jogamp.opengl GL GL2]
+           [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -82,13 +64,11 @@
 
 ; Rendering
 
-(defn- scale-factor [camera viewport]
-  (let [inv-view (doto (Matrix4d. (c/camera-view-matrix camera)) (.invert))
-        x-axis   (Vector4d.)
-        _        (.getColumn inv-view 0 x-axis)
-        cp1      (c/camera-project camera viewport (Point3d.))
-        cp2      (c/camera-project camera viewport (Point3d. (.x x-axis) (.y x-axis) (.z x-axis)))]
-    (/ 1.0 (Math/abs (- (.x cp1) (.x cp2))))))
+(defn- scale-factor [camera viewport ^Tuple3d reference-point]
+  (let [offset-point (doto (Point3d.) (.add reference-point (c/camera-right-vector camera)))
+        screen-point-a (c/camera-project camera viewport reference-point)
+        screen-point-b (c/camera-project camera viewport offset-point)]
+    (/ 1.0 (Math/abs (- (.x screen-point-a) (.x screen-point-b))))))
 
 (defn- manip->screen? [manip]
   (case manip
@@ -385,11 +365,11 @@
   (get-in transform-tools [active-tool :manip-spaces]))
 
 (defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
-  (let [world-position (math/translation (:world-transform reference-renderable))
+  (let [world-translation ^Vector3d (:world-translation reference-renderable)
         world-rotation ^Matrix3d (case manip-space
                                    :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
                                    :world geom/Identity3d)]
-    (Matrix4d. world-rotation world-position scale-factor)))
+    (Matrix4d. world-rotation world-translation scale-factor)))
 
 (g/defnk produce-renderables [_node-id active-tool manip-space camera viewport selected-renderables active-manip hot-manip start-action]
   (if (not (contains? transform-tools active-tool))
@@ -401,8 +381,9 @@
         {}
         (let [tool-active (not (nil? start-action))
               reference-renderable (last selected-renderables)
-              scale (scale-factor camera viewport)
+              world-translation (:world-translation reference-renderable)
               world-rotation (:world-rotation reference-renderable)
+              scale (scale-factor camera viewport world-translation)
               world-transform (manip-world-transform reference-renderable manip-space scale)
               rotation-fn #(manip->rotation %)
               color-fn #(manip->color % active-manip hot-manip tool-active)
@@ -432,12 +413,13 @@
     (:move-x :move-y :move-z :scale-x :scale-y :scale-z) math/project-lines
     (:move-xy :move-xz :move-yz :move-screen :scale-xy :scale-xz :scale-yz) math/line-plane-intersection
     (:rot-x :rot-y :rot-z :rot-screen)
-    (let [scale (scale-factor camera viewport)
-          radius (* scale
-                    (case manip
-                      (:rot-x :rot-y :rot-z) axis-rotation-radius
-                      :rot-screen screen-rotation-radius))]
-      (fn [pos dir manip-pos manip-dir] (math/project-line-circle pos dir manip-pos manip-dir radius)))
+    (fn [pos dir manip-pos manip-dir]
+      (let [scale (scale-factor camera viewport manip-pos)
+            radius (* scale
+                      (case manip
+                        (:rot-x :rot-y :rot-z) axis-rotation-radius
+                        :rot-screen screen-rotation-radius))]
+        (math/project-line-circle pos dir manip-pos manip-dir radius)))
     :scale-uniform identity))
 
 (defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values]
