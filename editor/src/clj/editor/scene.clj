@@ -477,12 +477,14 @@
 
 (defn- calculate-scene-aabb
   ^AABB [^AABB union-aabb ^Matrix4d parent-world-transform scene]
-  (let [local-transform ^Matrix4d (:transform scene geom/Identity4d)
-        world-transform (doto (Matrix4d. parent-world-transform)
-                          (.mul local-transform))
+  (let [local-transform ^Matrix4d (:transform scene)
+        world-transform (if (nil? local-transform)
+                          parent-world-transform
+                          (doto (Matrix4d. parent-world-transform)
+                            (.mul local-transform)))
         local-aabb (:aabb scene)
         union-aabb (if (or (nil? local-aabb)
-                           (geom/empty-aabb? local-aabb))
+                           (geom/null-aabb? local-aabb))
                      union-aabb
                      (-> local-aabb
                          (geom/aabb-transform world-transform)

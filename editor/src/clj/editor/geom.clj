@@ -235,8 +235,8 @@
 (defrecord DoubleRange [^double min ^double max])
 
 (defn- ranges-overlap? [^DoubleRange a ^DoubleRange b]
-  (and (< (.min b) (.max a))
-       (< (.min a) (.max b))))
+  (and (<= (.min b) (.max a))
+       (<= (.min a) (.max b))))
 
 (defn- project-points-on-axis
   ^DoubleRange [points normalized-axis]
@@ -438,17 +438,22 @@
         left (math/plane-from-points near-bl near-tl far-tl)
         corners (types/->FrustumCorners near-tl near-bl near-br near-tr far-tl far-bl far-br far-tr)
         planes (types/->FrustumPlanes near far top right bottom left)
-        unique-edge-normals [(math/edge-normal near-tl near-tr)
-                             (math/edge-normal near-bl near-tl)
-                             (math/edge-normal near-tl far-tl)
-                             (math/edge-normal near-tr far-tr)
-                             (math/edge-normal near-bl far-bl)
-                             (math/edge-normal near-br far-br)]
-        unique-face-normals [(math/plane-normal near)
-                             (math/plane-normal top)
-                             (math/plane-normal right)
-                             (math/plane-normal bottom)
-                             (math/plane-normal left)]]
+        orthographic? (> math/epsilon-sq
+                         (Math/abs (- (.distanceSquared near-tl near-tr)
+                                      (.distanceSquared far-tl far-tr))))
+        unique-face-normals (cond-> [(math/plane-normal near)
+                                     (math/plane-normal top)
+                                     (math/plane-normal right)]
+                                    (not orthographic?) (into [(math/plane-normal bottom)
+                                                               (math/plane-normal left)]))
+        unique-edge-normals (if orthographic?
+                              unique-face-normals
+                              [(math/edge-normal near-tl near-tr)
+                               (math/edge-normal near-bl near-tl)
+                               (math/edge-normal near-tl far-tl)
+                               (math/edge-normal near-tr far-tr)
+                               (math/edge-normal near-bl far-bl)
+                               (math/edge-normal near-br far-br)])]
     (types/->Frustum corners planes unique-edge-normals unique-face-normals)))
 
 ; -------------------------------------
