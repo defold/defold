@@ -82,11 +82,6 @@ public class DefoldActivity extends NativeActivity {
         }
     }
 
-    private static boolean activityVisible;
-    public static boolean isActivityVisible() {
-        return activityVisible;
-    }
-
     public boolean isAppInstalled(String appPackageName) {
         PackageManager packageManager = this.getPackageManager();
         try {
@@ -239,18 +234,6 @@ public class DefoldActivity extends NativeActivity {
                 }
             }
         }).start();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        activityVisible = false;
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        activityVisible = true;
     }
 
     @Override
