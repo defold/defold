@@ -21,7 +21,7 @@ upload/androidnative/src/main.cpp:17:1: error: 'ubar' does not name a type
  ^
 
 # jar conflicts
-2019-03-28 08:28:35.088  WARN 1 --- [qtp524241174-13] .m.m.a.ExceptionHandlerExceptionResolver : Resolved [com.defold.extender.ExtenderException: java.io.IOException: Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;
+Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;
 Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;
 
 # android linker
