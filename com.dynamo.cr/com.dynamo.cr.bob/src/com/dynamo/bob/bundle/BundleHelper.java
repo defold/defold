@@ -437,7 +437,6 @@ public class BundleHelper {
         resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
         resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
         resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
-        resourceDirectories.add(Bob.getPath("res/com.google.firebase.firebase-messaging-17.3.4"));
 
         List<String> extraPackages = new ArrayList<>();
 
@@ -651,6 +650,9 @@ public class BundleHelper {
     // This regexp catches linker errors where specified libraries are missing
     private static Pattern missingLibraryLinkerCLANGRe = Pattern.compile("^ld: library not found for -l(.+)\n[\\s\\S]*");
 
+    // This regexp catches conflicts between jar files
+    private static Pattern jarConflictIssue = Pattern.compile("Uncaught translation error:*.+");
+
     private static List<String> excludeMessages = new ArrayList<String>() {{
         add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
     }};
@@ -775,13 +777,30 @@ public class BundleHelper {
         }
     }
 
+    private static void parseJarConflicts(String[] lines, List<ResourceInfo> issues) {
+        final Pattern compilerPattern = jarConflictIssue;
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
+            Matcher m = compilerPattern.matcher(line);
+
+            if (m.matches()) {
+                BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo("error", null, "", m.group(0));
+                issues.add(info);
+            }
+        }
+    }
+
     public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
         String[] lines = log.split("\\r?\\n");
 
         List<ResourceInfo> allIssues = new ArrayList<ResourceInfo>();
         if (platform.contains("osx") || platform.contains("ios") || platform.contains("web")) {
             parseLogClang(lines, allIssues);
-        } else if (platform.contains("android") || platform.contains("linux")) {
+        } else if (platform.contains("android")) {
+            parseJarConflicts(lines, allIssues);
+            parseLogGCC(lines, allIssues);
+        } else if (platform.contains("linux")) {
             parseLogGCC(lines, allIssues);
         } else if (platform.contains("win32")) {
             parseLogWin32(lines, allIssues);

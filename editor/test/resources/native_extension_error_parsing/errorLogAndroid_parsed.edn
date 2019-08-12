@@ -18,6 +18,12 @@
   :column 1,
   :message "'ubar' does not name a type\n ubar g_foo = 0;\n ^"}
  {:type :error,
+  :file "/androidnative/ext.manifest",
+  :message "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"}
+ {:type :error,
+  :file "/androidnative/ext.manifest",
+  :message "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"}
+ {:type :error,
   :file "/androidnative/src/main.cpp",
   :line 147,
   :column nil,

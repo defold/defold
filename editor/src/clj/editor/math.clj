@@ -1,8 +1,7 @@
 (ns editor.math
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
-            Tuple3d Tuple4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -131,13 +130,17 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
+(defn offset-scaled
+  ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
+  (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
+    (.scaleAdd scale-factor offset original)))
+
 (defn rotate
   ^Vector3d [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
-
 
 (defn transform
   ^Vector3d [^Matrix4d mat ^Vector3d v]
@@ -167,11 +170,63 @@
   (doto (Vector3d. v1)
     (.add v2)))
 
+(defn subtract-vector
+  ^Vector3d [^Tuple3d v1 ^Tuple3d v2]
+  (doto (Vector3d. v1)
+    (.sub v2)))
+
 (defn multiply-vector
   ^Vector3d [^Vector3d v1 ^Vector3d v2]
   (Vector3d. (* (.-x v1) (.-x v2))
              (* (.-y v1) (.-y v2))
              (* (.-z v1) (.-z v2))))
+
+(defn cross
+  ^Vector3d [^Vector3d u ^Vector3d v]
+  (doto (Vector3d.)
+    (.cross u v)))
+
+(defn dot
+  "Flexible dot product that works with any three-element tuples."
+  ^double [^Tuple3d a ^Tuple3d b]
+  (+ (* (.x a) (.x b))
+     (* (.y a) (.y b))
+     (* (.z a) (.z b))))
+
+(defn dot-v4-point
+  "Dot product between a four-element vector and a point."
+  ^double [^Tuple4d v ^Tuple3d p]
+  (+ (* (.x v) (.x p))
+     (* (.y v) (.y p))
+     (* (.z v) (.z p))
+     (.w v)))
+
+(defn plane-from-points
+  "Construct an infinite plane from three points in space. The plane normal will
+  point towards the observer when the points are supplied in counter-clockwise
+  order. Returns a 4d vector where the x, y, z coordinates are the plane normal
+  and w is the distance from the origin in the opposite direction of the normal."
+  ^Vector4d [^Tuple3d a ^Tuple3d b ^Tuple3d c]
+  (let [ab (subtract-vector b a)
+        ac (subtract-vector c a)
+        n (cross ab ac)
+        len (.length n)]
+    (when (zero? len)
+      (throw (ArithmeticException. "A plane cannot be found since all three points are on a line.")))
+    (.scale n (/ 1.0 len))
+    (Vector4d. (.x n) (.y n) (.z n) (- (dot n a)))))
+
+(def in-front-of-plane? (comp pos? dot-v4-point))
+
+(defn plane-normal
+  ^Vector3d [^Vector4d plane]
+  (Vector3d. (.x plane) (.y plane) (.z plane)))
+
+(defn edge-normal
+  ^Vector3d [^Tuple3d from ^Tuple3d to]
+  (doto (Vector3d.)
+    (.sub to from)
+    (.normalize)))
 
 (defn translation
   ^Vector3d [^Matrix4d m]
@@ -345,4 +400,4 @@
      :normal normal
      :view-proj view-proj
      :world-view world-view
-     :world-view-proj (doto (Matrix4d. view-proj) (.mul world))}))
+     :world-view-proj world-view-proj}))

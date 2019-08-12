@@ -1,10 +1,11 @@
 (ns editor.geom
   (:require [schema.core :as s]
             [editor.types :as types]
-            [editor.math :as math])
+            [editor.math :as math]
+            [internal.util :as util])
   (:import [com.defold.util Geometry]
-           [editor.types Rect AABB]
-           [javax.vecmath Point2d Point3d Point4d Vector4d Vector3d Quat4d Matrix3d Matrix4d]
+           [editor.types AABB Frustum Rect]
+           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Quat4d Vector3d Vector4d]
            [com.defold.editor.pipeline TextureSetGenerator$UVTransform]))
 
 (set! *warn-on-reflection* true)
@@ -230,6 +231,47 @@
 ; -------------------------------------
 ; 3D geometry
 ; -------------------------------------
+
+(defrecord DoubleRange [^double min ^double max])
+
+(defn- ranges-overlap? [^DoubleRange a ^DoubleRange b]
+  (and (<= (.min b) (.max a))
+       (<= (.min a) (.max b))))
+
+(defn- project-points-on-axis
+  ^DoubleRange [points normalized-axis]
+  (loop [points points
+         minimum Double/POSITIVE_INFINITY
+         maximum Double/NEGATIVE_INFINITY]
+    (if-some [point (first points)]
+      (let [dot-product (math/dot point normalized-axis)]
+        (recur (next points)
+               (min minimum dot-product)
+               (max maximum dot-product)))
+      (->DoubleRange minimum maximum))))
+
+(defn- overlap-when-projected-on-axis? [a-points b-points normalized-axis]
+  (ranges-overlap? (project-points-on-axis a-points normalized-axis)
+                   (project-points-on-axis b-points normalized-axis)))
+
+(defn sat-intersection?
+  "Returns true if two convex geometries intersect based on the Separating Axis
+  Theorem. Both objects must implement the SATIntersection protocol."
+  [a b]
+  (let [overlap-when-projected-on-axis?
+        (partial overlap-when-projected-on-axis?
+                 (types/points a)
+                 (types/points b))]
+    (and
+      (every? overlap-when-projected-on-axis?
+              (types/unique-face-normals a))
+      (every? overlap-when-projected-on-axis?
+              (types/unique-face-normals b))
+      (every? overlap-when-projected-on-axis?
+              (for [a-edge-normal (types/unique-edge-normals a)
+                    b-edge-normal (types/unique-edge-normals b)]
+                (math/cross a-edge-normal b-edge-normal))))))
+
 (def ^AABB null-aabb (types/->AABB (Point3d. Integer/MAX_VALUE Integer/MAX_VALUE Integer/MAX_VALUE)
                                    (Point3d. Integer/MIN_VALUE Integer/MIN_VALUE Integer/MIN_VALUE)))
 
@@ -357,15 +399,62 @@
       (types/->AABB (Point3d. min-p') (Point3d. max-p')))))
 
 (defn aabb->corners [^AABB aabb]
-  (let [mn ^Point3d (.min aabb)
-        mx ^Point3d (.max aabb)
-        xs [(.x mn) (.x mx)]
-        ys [(.y mn) (.y mx)]
-        zs [(.z mn) (.z mx)]]
-    (for [x [0 1]
-          y [0 1]
-          z [0 1]]
-      (Point3d. (xs x) (ys y) (zs z)))))
+  (types/points aabb))
+
+(defn aabb-frustum-test-coarse [^AABB aabb ^Frustum frustum]
+  (let [frustum-planes (vals (.planes frustum))
+        box-corners (aabb->corners aabb)]
+    (reduce (fn [coarse-test-result frustum-plane]
+              (let [num-box-corners-in-front-of-frustum-plane
+                    (util/count-where #(math/in-front-of-plane? frustum-plane %)
+                                      box-corners)]
+                (case num-box-corners-in-front-of-frustum-plane
+                  8 (reduced :fully-outside-frustum)
+                  0 coarse-test-result
+                  :partially-outside-frustum)))
+            :fully-inside-frustum
+            frustum-planes)))
+
+(defn aabb-inside-frustum? [^AABB aabb ^Frustum frustum]
+  (case (aabb-frustum-test-coarse aabb frustum)
+    :fully-inside-frustum true
+    :fully-outside-frustum false
+    :partially-outside-frustum (sat-intersection? aabb frustum)))
+
+(s/defn corners->frustum :- Frustum
+  [near-tl :- Point3d
+   near-tr :- Point3d
+   near-bl :- Point3d
+   near-br :- Point3d
+   far-tl :- Point3d
+   far-tr :- Point3d
+   far-bl :- Point3d
+   far-br :- Point3d]
+  (let [near (math/plane-from-points near-tl near-bl near-br)
+        far (math/plane-from-points far-tl far-tr far-br)
+        top (math/plane-from-points near-tl near-tr far-tr)
+        right (math/plane-from-points near-tr near-br far-br)
+        bottom (math/plane-from-points near-br near-bl far-bl)
+        left (math/plane-from-points near-bl near-tl far-tl)
+        corners (types/->FrustumCorners near-tl near-bl near-br near-tr far-tl far-bl far-br far-tr)
+        planes (types/->FrustumPlanes near far top right bottom left)
+        orthographic? (> math/epsilon-sq
+                         (Math/abs (- (.distanceSquared near-tl near-tr)
+                                      (.distanceSquared far-tl far-tr))))
+        unique-face-normals (cond-> [(math/plane-normal near)
+                                     (math/plane-normal top)
+                                     (math/plane-normal right)]
+                                    (not orthographic?) (into [(math/plane-normal bottom)
+                                                               (math/plane-normal left)]))
+        unique-edge-normals (if orthographic?
+                              unique-face-normals
+                              [(math/edge-normal near-tl near-tr)
+                               (math/edge-normal near-bl near-tl)
+                               (math/edge-normal near-tl far-tl)
+                               (math/edge-normal near-tr far-tr)
+                               (math/edge-normal near-bl far-bl)
+                               (math/edge-normal near-br far-br)])]
+    (types/->Frustum corners planes unique-edge-normals unique-face-normals)))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays

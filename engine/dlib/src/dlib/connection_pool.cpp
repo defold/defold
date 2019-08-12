@@ -375,7 +375,7 @@ namespace dmConnectionPool
         return r;
     }
 
-    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    Result DoDial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res, bool ipv4, bool ipv6)
     {
         if (!pool->m_AllowNewConnections) {
             return RESULT_SHUT_DOWN;
@@ -384,13 +384,19 @@ namespace dmConnectionPool
         dmSocket::Address address;
         bool gethost_did_succeed;
 
+        // This function would previously not specify ipv4 and/or ipv6 when calling GetHostByName.
+        // GetHostByName would then assume both ipv4 and ipv6 and always prefer and return an ipv4
+        // address.
+        // Connecting to the returned address would fail when on an ipv6 network.
+        // This is why when calling DoDial we now have the ability to specify ipv4 and/or ipv6 so
+        // that the caller can try to connect first to ipv4 and then to ipv6 if ipv4 failed.
         if (dns_channel)
         {
-            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel) == dmDNS::RESULT_OK;
+            gethost_did_succeed = dmDNS::GetHostByName(host, &address, dns_channel, ipv4, ipv6) == dmDNS::RESULT_OK;
         }
         else
         {
-            gethost_did_succeed = dmSocket::GetHostByName(host, &address) == dmSocket::RESULT_OK;
+            gethost_did_succeed = dmSocket::GetHostByName(host, &address, ipv4, ipv6) == dmSocket::RESULT_OK;
         }
 
         dmhash_t conn_id = CalculateConnectionID(address, port, ssl);
@@ -437,6 +443,27 @@ namespace dmConnectionPool
         }
 
         return r;
+    }
+
+    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res)
+    {
+        // try connecting to the host using ipv4 first
+        uint64_t dial_started = dmTime::GetTime();
+        Result r = DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 1, 0);
+        if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES)
+        {
+            return r;
+        }
+        // ipv4 connection failed - reduce timeout (if needed) and try using ipv6 instead
+        if (timeout > 0)
+        {
+            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            if (timeout <= 0)
+            {
+                return RESULT_SOCKET_ERROR;
+            }
+        }
+        return DoDial(pool, host, port, dns_channel, ssl, timeout, connection, sock_res, 0, 1);
     }
 
     void Return(HPool pool, HConnection connection)
