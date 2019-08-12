@@ -252,6 +252,8 @@ static int GetTextMetrics(lua_State* L)
  * @param url [type:string|hash|url] the label to get the text from
  * @return metrics [type:string] the label text
  *
+ * @examples
+ *
  * ```lua
  * function init(self)
  *     local text = label.get_text("#label")
