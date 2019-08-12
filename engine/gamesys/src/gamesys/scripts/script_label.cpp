@@ -138,6 +138,9 @@ namespace dmGameSystem
  *
  * Sets the text of a label component
  *
+ * [icon:attention] This method uses the message passing that means the value will be set after `dispatch messages` step.
+ * More information is available in the <a href="/manuals/application-lifecycle">Application Lifecycle manual</a>.
+ *
  * @name label.set_text
  * @param url [type:string|hash|url] the label that should have a constant set
  * @param text [type:string] the text
@@ -196,6 +199,8 @@ static int SetText(lua_State* L)
  * - height
  * - max_ascent
  * - max_descent
+ *
+ * @examples
  *
  * ```lua
  * function init(self)
