@@ -222,7 +222,7 @@ union SaveLoadBuffer
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
+            return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
         const char* filename = luaL_checkstring(L, 2);
@@ -237,6 +237,34 @@ union SaveLoadBuffer
         dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
+
+        return 1;
+    }
+
+
+    /*# gets the application path
+     * The path from which the application is run.
+     *
+     * @name sys.get_application_path
+     * @return path [type:string] path to application executable
+     * @examples
+     *
+     * Find a path where we can store data (the example path is on the macOS platform):
+     *
+     * ```lua
+     * local application_path = sys.get_application_path()
+     * print(application_path) --> /Applications/my_game.app
+     * ```
+     */
+    int Sys_GetApplicationPath(lua_State* L)
+    {
+        char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
+        dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
+        if (r != dmSys::RESULT_OK)
+        {
+            return luaL_error(L, "Unable to locate application path: (%d)", r);
+        }
+        lua_pushstring(L, application_path);
 
         return 1;
     }
@@ -1058,6 +1086,7 @@ union SaveLoadBuffer
         {"get_sys_info", Sys_GetSysInfo},
         {"get_engine_info", Sys_GetEngineInfo},
         {"get_application_info", Sys_GetApplicationInfo},
+        {"get_application_path", Sys_GetApplicationPath},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
