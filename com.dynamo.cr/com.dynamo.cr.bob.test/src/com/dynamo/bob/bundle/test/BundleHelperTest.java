@@ -119,6 +119,9 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
 
+            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
+            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
+
             assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
 
             // Clang errors

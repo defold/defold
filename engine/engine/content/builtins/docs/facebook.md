@@ -50,7 +50,7 @@ relevant for a select few of users. This also means that the extensions will be
 available in full source code, enabling external developers to review and
 contribute to them.
 
-Moving the `facebook` module part of this goal, and with the 1.2.Xxx
+Moving the `facebook` module part of this goal, and with the 1.2.155
 release of Defold will no longer be part of the core functionality.
 
 
