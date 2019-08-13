@@ -51,6 +51,7 @@ var LibraryGLFW = {
     prevNonFSWidth: 0,
     prevNonFSHeight: 0,
     isFullscreen: false,
+    dpi: 1,
 
 /*******************************************************************************
  * DOM EVENT CALLBACKS
@@ -382,8 +383,10 @@ var LibraryGLFW = {
       var height;
       GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
       if (GLFW.isFullscreen) {
-        GLFW.prevNonFSWidth = GLFW.prevWidth;
-        GLFW.prevNonFSHeight = GLFW.prevHeight;
+        // size multiplied in glfwSwapBuffers() function.
+        // if we don't divide here size will be x2 every time when we exit fullscreen
+        GLFW.prevNonFSWidth = GLFW.prevWidth / GLFW.dpi;
+        GLFW.prevNonFSHeight = GLFW.prevHeight / GLFW.dpi;
         width = window.innerWidth;
         height = window.innerHeight;
       } else {
@@ -399,6 +402,9 @@ var LibraryGLFW = {
     },
 
     requestFullScreen: function() {
+      if (!Module["canvas"]) {
+        return;
+      }
       document.addEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
       document.addEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
       document.addEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
@@ -560,6 +566,7 @@ var LibraryGLFW = {
     GLFW.params[0x00050001] = 0; // GLFW_PRESENT
     GLFW.params[0x00050002] = 1; // GLFW_AXES
     GLFW.params[0x00050003] = 2; // GLFW_BUTTONS
+    GLFW.params[0x00020019] = 0; // GLFW_WINDOW_HIGH_DPI
 
     GLFW.keys = new Array();
 
@@ -613,6 +620,13 @@ var LibraryGLFW = {
 
   glfwOpenWindowHint: function(target, hint) {
     GLFW.params[target] = hint;
+    // if display._high_dpi flag is on in game.project 
+    // we get information about the current pixel ratio from browser 
+    if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
+      if (hint != 0) {
+        GLFW.dpi = window.devicePixelRatio || 1;
+      }
+    }
   },
 
   glfwCloseWindow__deps: ['$Browser'],
@@ -652,13 +666,17 @@ var LibraryGLFW = {
     var height = Module['canvas'].height;
 
     if (GLFW.isFullscreen) {
-      width = window.innerWidth;
-      height = window.innerHeight;
+      // We don't want to call _glfwSetWindowSize every frame, 
+      // that's why for the fullscreen mode we take into account dpi separately
+      width = window.innerWidth * GLFW.dpi;
+      height = window.innerHeight * GLFW.dpi;
     }
 
-    if (GLFW.prevWidth != width ||
-        GLFW.prevHeight != height) {
-
+    if (GLFW.prevWidth != width || GLFW.prevHeight != height) {
+      if (!GLFW.isFullscreen) {
+        width = width * GLFW.dpi;
+        height = height * GLFW.dpi;
+      }
       GLFW.prevWidth = width;
       GLFW.prevHeight = height;
       _glfwSetWindowSize(width, height);
