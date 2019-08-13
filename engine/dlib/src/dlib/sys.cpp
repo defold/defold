@@ -577,20 +577,6 @@ namespace dmSys
         return RESULT_OK;
     }
 
-#elif defined(__AVM2__)
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        // TODO: Hack
-        dmStrlCpy(path, ".", path_len);
-        return RESULT_OK;
-    }
-
-    Result OpenURL(const char* url)
-    {
-        // TODO:
-        return RESULT_UNKNOWN;
-    }
-
 #endif
 
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
@@ -741,7 +727,7 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__EMSCRIPTEN__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));

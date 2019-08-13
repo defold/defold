@@ -49,7 +49,6 @@ NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
@@ -410,10 +409,6 @@ class Configuration(object):
             for path in target_package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
-
-        # Is as3-web a supported platform? doesn't say so in --platform?
-        print("Installing flash packages")
-        self._extract_packages('as3-web', PACKAGES_FLASH)
 
         print("Installing python eggs")
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
