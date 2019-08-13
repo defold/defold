@@ -20,6 +20,8 @@
   :editor.git-test/with-git :only-indent
   :editor.gl/gl-push-matrix :only-indent
   :editor.gl/with-gl-bindings :only-indent
+  :editor.gl.shader/defshader :only-indent
+  :editor.gl.vertex2/defvertex :only-indent
   :editor.handler/defhandler :only-indent
   :editor.resource-io/with-error-translation :only-indent
   :editor.resource-node/register-ddf-resource-type :only-indent
