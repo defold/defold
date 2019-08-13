@@ -38,6 +38,12 @@ namespace dmGameSystem
         uint8_t :6;
     };
 
+    struct TileGridLayer
+    {
+        uint8_t m_IsVisible:1;
+        uint8_t :7;
+    };
+
     struct TileGridComponent
     {
         struct Flags
@@ -63,6 +69,7 @@ namespace dmGameSystem
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;
         dmArray<TileGridRegion>     m_Regions;
+        dmArray<TileGridLayer>      m_Layers;
         uint32_t                    m_MixedHash;
         CompRenderConstants         m_RenderConstants;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
@@ -179,6 +186,12 @@ namespace dmGameSystem
         return cell;
     }
 
+    void SetLayerVisible(TileGridComponent* component, uint32_t layer_index, bool visible)
+    {
+        TileGridLayer* layer = &component->m_Layers[layer_index];
+        layer->m_IsVisible = visible;
+    }
+
     static void SetRegionDirty(TileGridComponent* component, int32_t cell_x, int32_t cell_y)
     {
         uint32_t region_x = cell_x / TILEGRID_REGION_SIZE;
@@ -254,20 +267,19 @@ namespace dmGameSystem
         uint32_t visible_tiles = 0;
         for (uint32_t j = 0; j < n_layers; ++j)
         {
-            dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[j];
+            TileGridLayer* layer = &component->m_Layers[j];
+            if (!layer->m_IsVisible)
+                continue;
 
-            if (layer_ddf->m_IsVisible)
+            for (int32_t y = min_y; y < max_y; ++y)
             {
-                for (int32_t y = min_y; y < max_y; ++y)
+                for (int32_t x = min_x; x < max_x; ++x)
                 {
-                    for (int32_t x = min_x; x < max_x; ++x)
+                    uint32_t cell = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
+                    uint16_t tile = component->m_Cells[cell];
+                    if (tile != 0xffff)
                     {
-                        uint32_t cell = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
-                        uint16_t tile = component->m_Cells[cell];
-                        if (tile != 0xffff)
-                        {
-                            ++visible_tiles;
-                        }
+                        ++visible_tiles;
                     }
                 }
             }
@@ -288,42 +300,49 @@ namespace dmGameSystem
         return occupied;
     }
 
-    static uint32_t CreateTileGrid(TileGridComponent* tile_grid)
+    static uint32_t CreateTileGrid(TileGridComponent* component)
     {
-        TileGridResource* resource = tile_grid->m_Resource;
+        TileGridResource* resource = component->m_Resource;
         dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
         uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
         uint32_t cell_count = resource->m_ColumnCount * resource->m_RowCount * n_layers;
-        if (tile_grid->m_Cells != 0x0)
+        if (component->m_Cells != 0x0)
         {
-            delete [] tile_grid->m_Cells;
+            delete [] component->m_Cells;
         }
-        tile_grid->m_Cells = new uint16_t[cell_count];
-        memset(tile_grid->m_Cells, 0xff, cell_count * sizeof(uint16_t));
-        if (tile_grid->m_CellFlags != 0x0)
+        component->m_Cells = new uint16_t[cell_count];
+        memset(component->m_Cells, 0xff, cell_count * sizeof(uint16_t));
+        if (component->m_CellFlags != 0x0)
         {
-            delete [] tile_grid->m_CellFlags;
+            delete [] component->m_CellFlags;
         }
-        tile_grid->m_CellFlags = new TileGridComponent::Flags[cell_count];
-        memset(tile_grid->m_CellFlags, 0, cell_count * sizeof(TileGridComponent::Flags));
+        component->m_CellFlags = new TileGridComponent::Flags[cell_count];
+        memset(component->m_CellFlags, 0, cell_count * sizeof(TileGridComponent::Flags));
         int32_t min_x = resource->m_MinCellX;
         int32_t min_y = resource->m_MinCellY;
         uint32_t column_count = resource->m_ColumnCount;
         uint32_t row_count = resource->m_RowCount;
+
+        component->m_Layers.SetCapacity(n_layers);
+        component->m_Layers.SetSize(n_layers);
+
         for (uint32_t i = 0; i < n_layers; ++i)
         {
             dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[i];
+
+            component->m_Layers[i].m_IsVisible = layer_ddf->m_IsVisible;
+
             uint32_t n_cells = layer_ddf->m_Cell.m_Count;
             for (uint32_t j = 0; j < n_cells; ++j)
             {
                 dmGameSystemDDF::TileCell* cell = &layer_ddf->m_Cell[j];
                 uint32_t cell_index = CalculateCellIndex(i, cell->m_X - min_x, cell->m_Y - min_y, column_count, row_count);
-                tile_grid->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
+                component->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
             }
         }
 
-        CreateRegions(tile_grid, resource);
-        UpdateRegions(tile_grid);
+        CreateRegions(component, resource);
+        UpdateRegions(component);
         return n_layers;
     }
 
@@ -669,10 +688,11 @@ namespace dmGameSystem
             uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
             for (uint32_t l = 0; l < n_layers; ++l)
             {
-                dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[l];
-                if (!layer_ddf->m_IsVisible)
+                TileGridLayer* layer = &component->m_Layers[l];
+                if (!layer->m_IsVisible)
                     continue;
 
+                dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[l];
                 for (uint32_t y = 0, region_index = 0; y < component->m_RegionsY; ++y) {
                     for (uint32_t x = 0; x < component->m_RegionsX; ++x, ++region_index) {
 
