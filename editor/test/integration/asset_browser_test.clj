@@ -117,7 +117,7 @@
         (are [target-resource src-files expected]
             (let [alerted (atom false)
                   message (atom "")]
-              (binding [dialogs/make-alert-dialog (fn [text] (reset! alerted true) (reset! message text))]
+              (with-redefs [dialogs/make-info-dialog (fn [text] (reset! alerted true) (reset! message text))]
                 (asset-browser/paste! workspace target-resource src-files (constantly nil))
                 (= expected (not (or @alerted (string/includes? message "reserved"))))))
 
@@ -183,8 +183,8 @@
           [writable-file-resource read-only-dir-resource] false
           [writable-file-resource writable-dir-resource] true
           [fixed-file-resource] false
-          [fs-builtins-resource] true ; this should never appear in the asset browser, but if we decide it should - it will be deletable
-          )))))
+          [fs-builtins-resource] true))))) ; this should never appear in the asset browser, but if we decide it should - it will be deletable
+
 
 (deftest new-folder
   (test-util/with-loaded-project
@@ -203,8 +203,8 @@
           [writable-dir] true
           [read-only-dir] false
           [writable-dir read-only-dir] false
-          [fs-builtins-resource] true ; this should never appear in the asset browser, but if we decide it should - it will be possible to create dirs in it
-          ))
+          [fs-builtins-resource] true)) ; this should never appear in the asset browser, but if we decide it should - it will be possible to create dirs in it
+
       (testing "validate-new-folder-name"
         (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-folder-name parent-path new-name)))
           "" "my-folder" true

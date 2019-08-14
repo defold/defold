@@ -342,13 +342,28 @@ int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)
 void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
 {
     // Padding in the SetConstant-struct forces us to copy the components by hand
-    for (uint32_t i = 0; i < constants->m_ConstantCount; ++i)
+    uint32_t size = constants->m_ConstantCount;
+    for (uint32_t i = 0; i < size; ++i)
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
         dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(c.m_NameHash));
         dmHashUpdateBuffer32(state, &c.m_Value, sizeof(c.m_Value));
         constants->m_PrevRenderConstants[i] = c.m_Value;
     }
+}
+
+int AreRenderConstantsUpdated(CompRenderConstants* constants)
+{
+    uint32_t size = constants->m_ConstantCount;
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        // TODO: Do a faster check for equality!
+        if (lengthSqr(constants->m_RenderConstants[i].m_Value - constants->m_PrevRenderConstants[i]) > 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 }

@@ -109,7 +109,7 @@ namespace dmSocket
     }
 
     Address AddressFromIPString(const char* address) {
-        return RESULT_OPNOTSUPP;
+        return Address();
     }
 
     char* AddressToIPString(Address address) {

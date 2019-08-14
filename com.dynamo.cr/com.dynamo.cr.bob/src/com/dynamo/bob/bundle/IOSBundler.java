@@ -1,5 +1,6 @@
 package com.dynamo.bob.bundle;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -34,13 +36,16 @@ import com.dynamo.bob.util.Exec.Result;
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
-    private void copyIcon(BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
+    private void copyImage(Project project, BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
             throws IOException {
         String resource = projectProperties.getStringValue("ios", name);
         if (resource != null && resource.length() > 0) {
-            File inFile = new File(projectRoot, resource);
+            IResource inResource = project.getResource(resource);
+            if (!inResource.exists()) {
+                throw new IOException(String.format("%s does not exist.", resource));
+            }
             File outFile = new File(appDir, outName);
-            FileUtils.copyFile(inFile, outFile);
+            FileUtils.writeByteArrayToFile(outFile, inResource.getContent());
         }
     }
 
@@ -107,57 +112,80 @@ public class IOSBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir)
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
-        // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+        BundleHelper.throwIfCanceled(canceled);
 
-        boolean debug = project.hasOption("debug");
+        String tmpPlatform = project.option("platform", null);
+        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("x86_64-ios");
 
-        File exeArmv7 = null;
-        File exeArm64 = null;
+        Map<String, IResource> bundleResources = null;
+        if (simulatorBinary) {
+            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.X86_64Ios);
+        } else {
+            // Collect bundle/package resources to be included in .App directory
+            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.Arm64Darwin);
+        }
+
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
+
+        List<Platform> architectures = new ArrayList<Platform>();
+        String[] architecturesStrings = project.option("architectures", "").split(",");
+        for (int i = 0; i < architecturesStrings.length; i++) {
+            architectures.add(Platform.get(architecturesStrings[i]));
+        }
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        // armv7 exe
-        {
-            Platform targetPlatform = Platform.Armv7Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArmv7 = defaultExe;
-            if (extenderExe.exists()) {
-                logger.log(Level.INFO, "Using extender exe for Armv7");
-                exeArmv7 = extenderExe;
+        // Loop over all architectures needed for bundling
+        // Pickup each binary, either vanilla or from a extender build.
+        List<File> binaries = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            if (bins == null) {
+                bins = Bob.getDefaultDmengineFiles(architecture, variant);
+            } else {
+                logger.log(Level.INFO, "Using extender binary for " + architecture.getPair());
             }
+
+            File binary = bins.get(0);
+            logger.log(Level.INFO, architecture.getPair() + " exe: " + getFileDescription(binary));
+            binaries.add(binary);
+
+            BundleHelper.throwIfCanceled(canceled);
         }
 
-        // arm64 exe
-        {
-            Platform targetPlatform = Platform.Arm64Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArm64 = defaultExe;
-            if (extenderExe.exists()) {
-                logger.log(Level.INFO, "Using extender exe for Arm64");
-                exeArm64 = extenderExe;
-            }
-        }
-
-        logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
-        logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
-
+        BundleHelper.throwIfCanceled(canceled);
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
         logger.log(Level.INFO, "Bundling to " + appDir.getPath());
 
-        String provisioningProfile = project.option("mobileprovisioning", "");
-        String identity = project.option("identity", "");
+        String provisioningProfile = project.option("mobileprovisioning", null);
+        String identity = project.option("identity", null);
+        Boolean shouldSign = provisioningProfile != null && identity != null;
+
+        // Verify that the user supplied both of the needed arguments if the application should be signed.
+        if (shouldSign) {
+            if (provisioningProfile == null) {
+                throw new IOException("Cannot sign application without a provisioning profile, missing --mobileprovisioning argument.");
+            } else if (identity == null) {
+                throw new IOException("Cannot sign application without a signing identity, missing --identity argument.");
+            }
+        }
+
+        if (shouldSign) {
+            logger.log(Level.INFO, "Code signing enabled.");
+        } else {
+            logger.log(Level.INFO, "Code signing disabled.");
+        }
 
         String projectRoot = project.getRootDirectory();
 
@@ -166,6 +194,7 @@ public class IOSBundler implements IBundler {
 
         final boolean useArchive = true;
 
+        BundleHelper.throwIfCanceled(canceled);
         if (useArchive) {
             // Copy archive and game.projectc
             for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
@@ -177,77 +206,57 @@ public class IOSBundler implements IBundler {
             new File(buildDir, "game.arcd").delete();
         }
 
-        // Copy icons
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_57x57", "Icon.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_114x114", "Icon@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_72x72", "Icon-72.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_144x144", "Icon-72@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_76x76", "Icon-76.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_152x152", "Icon-76@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_120x120", "Icon-60@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_180x180", "Icon-60@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_167x167", "Icon-167.png");
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy launch images
-        // iphone 3, 4, 5 portrait
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
+        try
+        {
+            // iphone 3, 4, 5 portrait
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
 
-        // ipad portrait+landscape
-        // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
+            // ipad portrait+landscape
+            // backward compatibility with old game.project files with the incorrect launch image sizes
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
 
-        // iPhone 6, 7 and 8 (portrait+landscape)
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+            // iPhone 6, 7 and 8 (portrait+landscape)
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
 
-        // iPhone 6 plus portrait+landscape
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+            // iPhone 6 plus portrait+landscape
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
 
-        // iPad retina portrait+landscape
-        // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
+            // iPad retina portrait+landscape
+            // backward compatibility with old game.project files with the incorrect launch image sizes
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
-        // iPad pro (12")
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+            // iPad pro (10.5")
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
 
-        // iPhone X (portrait+landscape)
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+            // iPad pro (12.9")
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+
+            // iPhone X (portrait+landscape)
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+        } catch (Exception e) {
+            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        }
 
         List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();
 
-        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        if (facebookAppId != null) {
-            urlSchemes.add("fb" + facebookAppId);
-
-            applicationQueriesSchemes.add("fbapi");
-            applicationQueriesSchemes.add("fbapi20130214");
-            applicationQueriesSchemes.add("fbapi20130410");
-            applicationQueriesSchemes.add("fbapi20130702");
-            applicationQueriesSchemes.add("fbapi20131010");
-            applicationQueriesSchemes.add("fbapi20131219");
-            applicationQueriesSchemes.add("fbapi20140410");
-            applicationQueriesSchemes.add("fbapi20140116");
-            applicationQueriesSchemes.add("fbapi20150313");
-            applicationQueriesSchemes.add("fbapi20150629");
-            applicationQueriesSchemes.add("fbauth");
-            applicationQueriesSchemes.add("fbauth2");
-            applicationQueriesSchemes.add("fb-messenger-api20140430");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150128");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150218");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150305");
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
         if (bundleId != null) {
@@ -255,13 +264,16 @@ public class IOSBundler implements IBundler {
         }
 
         Map<String, Object> properties = new HashMap<String, Object>();
+        properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
 
+        BundleHelper.throwIfCanceled(canceled);
+
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
+            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
             } else {
@@ -275,26 +287,51 @@ public class IOSBundler implements IBundler {
         }
         properties.put("orientation-support", orientationSupport);
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
-        helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app", variant);
+        try {
+            helper.copyIosIcons();
 
+            File manifestFile = new File(appDir, "Info.plist");
+            IResource sourceManifestFile = helper.getResource("ios", "infoplist");
+            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+        } catch (IOException e) {
+            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        }
+
+
+        BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy Provisioning Profile
-        File provisioningProfileFile = new File(provisioningProfile);
-        if (!provisioningProfileFile.exists()) {
-            throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+        if (shouldSign) {
+            File provisioningProfileFile = new File(provisioningProfile);
+            if (!provisioningProfileFile.exists()) {
+                throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+            }
+            FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
         }
-        FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
 
+        BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
         File tmpFile = File.createTempFile("dmengine", "");
         tmpFile.deleteOnExit();
         String exe = tmpFile.getPath();
 
-        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Run lipo on supplied architecture binaries.
+        List<String> lipoArgList = new ArrayList<String>();
+        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
+        lipoArgList.add("-create");
+        for (File bin : binaries) {
+            lipoArgList.add(bin.getAbsolutePath());
+        }
+        lipoArgList.add("-output");
+        lipoArgList.add(exe);
+
+        Result lipoResult = Exec.execResult( lipoArgList.toArray(new String[0]) );
         if (lipoResult.ret == 0) {
             logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
         }
@@ -302,8 +339,9 @@ public class IOSBundler implements IBundler {
             logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Strip executable
-        if( !debug )
+        if( strip_executable )
         {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
             if (stripResult.ret == 0) {
@@ -314,14 +352,19 @@ public class IOSBundler implements IBundler {
             }
         }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy Executable
-        File destExecutable = new File(appDir, title);
+        File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
-        // Sign
-        if (identity != null && provisioningProfile != null) {
+        // Sign (only if identity and provisioning profile set)
+        // iOS simulator can install non signed apps
+        if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
+            // Copy Provisioning Profile
+            FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
             textProvisionFile.deleteOnExit();
 
@@ -331,19 +374,48 @@ public class IOSBundler implements IBundler {
             }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
+            String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
 
+            BundleHelper.throwIfCanceled(canceled);
             try {
+                XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                 XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
+
                 decodedProvision.load(textProvisionFile);
                 XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
                 entitlements.append(decodedProvision.configurationAt("Entitlements"));
+
+                if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
+                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                    if (customEntitlementsResource.exists()) {
+                        InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                        customEntitlements.load(is);
+
+                        Iterator<String> keys = customEntitlements.getKeys();
+                        while (keys.hasNext()) {
+                            String key = keys.next();
+
+                            if (entitlements.getProperty(key) == null) {
+                                logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
+                                throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
+                            }
+                            entitlements.clearProperty(key);
+                        }
+                        entitlements.append(customEntitlements);
+                    }
+                }
+
                 entitlementOut.deleteOnExit();
                 entitlements.save(entitlementOut);
             } catch (ConfigurationException e) {
                 logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
                 throw new RuntimeException(e);
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
+                throw new RuntimeException(e);
             }
 
+            BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity,
                     "--entitlements", entitlementOut.getAbsolutePath(),
@@ -351,32 +423,40 @@ public class IOSBundler implements IBundler {
             processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
             processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
 
+            BundleHelper.throwIfCanceled(canceled);
             Process process = processBuilder.start();
             logProcess(process);
-
-            // Package zip file
-            File tmpZipDir = createTempDirectory();
-            tmpZipDir.deleteOnExit();
-
-            // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
-            // to import the resulting zip files.
-            File payloadDir = new File(tmpZipDir, "Payload");
-            payloadDir.mkdir();
-
-            processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
-            process = processBuilder.start();
-            logProcess(process);
-
-            File zipFile = new File(bundleDir, title + ".ipa");
-            File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
-            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
-            processBuilder.directory(tmpZipDir);
-
-            process = processBuilder.start();
-            logProcess(process);
-
-            Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
         }
+
+        // Package into IPA zip
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Package zip file
+        File tmpZipDir = createTempDirectory();
+        tmpZipDir.deleteOnExit();
+
+        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+        // to import the resulting zip files.
+        File payloadDir = new File(tmpZipDir, "Payload");
+        payloadDir.mkdir();
+
+        BundleHelper.throwIfCanceled(canceled);
+        ProcessBuilder processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
+        Process process = processBuilder.start();
+        logProcess(process);
+
+        BundleHelper.throwIfCanceled(canceled);
+        File zipFile = new File(bundleDir, title + ".ipa");
+        File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
+        processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+        processBuilder.directory(tmpZipDir);
+
+        BundleHelper.throwIfCanceled(canceled);
+        process = processBuilder.start();
+        logProcess(process);
+
+        BundleHelper.throwIfCanceled(canceled);
+        Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
     }
 }

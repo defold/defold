@@ -1,16 +1,18 @@
 (ns editor.code.script
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code-completion :as code-completion]
+            [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.lua :as lua]
-            [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
+            [editor.luajit :as luajit]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -18,8 +20,8 @@
             [editor.workspace :as workspace]
             [editor.validation :as validation]
             [schema.core :as s])
-  (:import (com.dynamo.lua.proto Lua$LuaModule)
-           (com.google.protobuf ByteString)))
+  (:import [com.dynamo.lua.proto Lua$LuaModule]
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -33,6 +35,7 @@
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
+   :line-comment "--"
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -239,8 +242,10 @@
                        (g/disconnect-sources basis self :resource)
                        (g/disconnect-sources basis self :resource-build-targets)
                        (when (resource/resource? new-value)
-                         (project/connect-resource-node project new-value self [[:resource :resource]
-                                                                                [:build-targets :resource-build-targets]])))))))
+                         (:tx-data (project/connect-resource-node
+                                     evaluation-context project new-value self
+                                     [[:resource :resource]
+                                      [:build-targets :resource-build-targets]]))))))))
 
   (input resource resource/Resource)
   (input resource-build-targets g/Any)
@@ -373,22 +378,28 @@
   (data/splice-lines lines (map (juxt identity (partial cursor-range->whitespace-lines lines))
                                 (go-property-declaration-cursor-ranges lines))))
 
-(defn- script->bytecode [lines proj-path]
+(defn- script->bytecode [lines proj-path arch]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path)
+    (luajit/bytecode (data/lines-reader lines) proj-path arch)
     (catch Exception e
-      (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error nil :modified-lines :fatal e (.getMessage e)
-                   {:filename filename
-                    :line     line
-                    :message  message})))))
+      (let [{:keys [filename line message]} (ex-data e)
+            cursor-range (some-> line data/line-number->CursorRange)]
+        (g/map->error
+          {:_label :modified-lines
+           :message (.getMessage e)
+           :severity :fatal
+           :user-data (cond-> {:filename filename
+                               :message message}
+
+                              (some? cursor-range)
+                              (assoc :cursor-range cursor-range))})))))
 
 (defn- build-script [resource dep-resources user-data]
   ;; We always compile the full source code in order to find syntax errors.
   ;; We then strip out go.property() declarations and compile again if needed.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path)]
+        bytecode-or-error (script->bytecode lines proj-path :32-bit)]
     (g/precluding-errors
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
@@ -396,13 +407,16 @@
             cleaned-lines (strip-go-property-declarations lines)
             bytecode (if (identical? lines cleaned-lines)
                        bytecode-or-error
-                       (script->bytecode cleaned-lines proj-path))]
+                       (script->bytecode cleaned-lines proj-path :32-bit))
+            bytecode-64 (script->bytecode cleaned-lines proj-path :64-bit)]
         (assert (not (g/error? bytecode)))
+        (assert (not (g/error? bytecode-64)))
         {:resource resource
          :content (protobuf/map->bytes Lua$LuaModule
                                        {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader lines)))
                                                  :filename (resource/proj-path (:resource resource))
-                                                 :bytecode (ByteString/copyFrom ^bytes bytecode)}
+                                                 :bytecode (ByteString/copyFrom ^bytes bytecode)
+                                                 :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
                                         :modules modules
                                         :resources (mapv lua/lua-module->build-path modules)
                                         :properties (properties/go-props->decls go-props true)
@@ -429,21 +443,22 @@
       ;; NOTE: The user-data must not contain any overridden data. If it does,
       ;; the build targets won't be fused and the script will be recompiled
       ;; for every instance of the script component.
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-script
-        :user-data {:lines lines :go-props go-props :modules modules :proj-path (resource/proj-path resource)}
-        :deps (into go-prop-dep-build-targets module-build-targets)}])))
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-script
+          :user-data {:lines lines :go-props go-props :modules modules :proj-path (resource/proj-path resource)}
+          :deps (into go-prop-dep-build-targets module-build-targets)})])))
 
-(g/defnk produce-completions [completion-info module-completion-infos]
-  (code-completion/combine-completions completion-info module-completion-infos))
+(g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
+  (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
 
 (g/defnk produce-breakpoints [resource regions]
   (into []
         (comp (filter data/breakpoint-region?)
               (map (fn [region]
                      {:resource resource
-                      :line (data/breakpoint-row region)})))
+                      :row (data/breakpoint-row region)})))
         regions))
 
 (g/defnode ScriptNode
@@ -451,6 +466,7 @@
 
   (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+  (input script-intelligence-completions si/ScriptCompletions)
   (input script-property-name+node-ids NameNodeIDPair :array)
   (input script-property-entries ScriptPropertyEntries :array)
 
@@ -480,15 +496,16 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project self)]
+                         project (project/get-project basis self)]
                      (concat
                        (g/disconnect-sources basis self :module-build-targets)
                        (g/disconnect-sources basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
-                           (project/connect-resource-node project path self
-                                                          [[:build-targets :module-build-targets]
-                                                           [:completion-info :module-completion-infos]]))))))))
+                           (:tx-data (project/connect-resource-node
+                                       evaluation-context project path self
+                                       [[:build-targets :module-build-targets]
+                                        [:completion-info :module-completion-infos]])))))))))
 
   (property script-properties g/Any
             (default [])
@@ -501,7 +518,9 @@
                        (g/disconnect-sources basis self :original-resource-property-build-targets)
                        (for [{:keys [type value]} new-value
                              :when (and (= :script-property-type-resource type) (some? value))]
-                         (project/connect-resource-node project value self [[:build-targets :original-resource-property-build-targets]])))))))
+                         (:tx-data (project/connect-resource-node
+                                     evaluation-context project value self
+                                     [[:build-targets :original-resource-property-build-targets]]))))))))
 
   ;; Breakpoints output only consumed by project (array input of all code files)
   ;; and already cached there. Changing breakpoints and pulling project breakpoints
@@ -516,7 +535,15 @@
   (output script-property-entries ScriptPropertyEntries (g/fnk [script-property-entries] (reduce into {} script-property-entries)))
   (output script-property-node-ids-by-name NameNodeIDMap (g/fnk [script-property-name+node-ids] (into {} script-property-name+node-ids))))
 
+(defn- additional-load-fn
+  [project self resource]
+  (let [script-intelligence (project/script-intelligence project)]
+    (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))
+
 (defn register-resource-types [workspace]
   (for [def script-defs
-        :let [args (assoc def :node-type ScriptNode :eager-loading? true)]]
+        :let [args (assoc def
+                     :node-type ScriptNode
+                     :eager-loading? true
+                     :additional-load-fn additional-load-fn)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

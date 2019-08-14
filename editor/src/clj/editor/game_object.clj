@@ -1,23 +1,26 @@
 (ns editor.game-object
   (:require [clojure.set :as set]
             [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.graph-util :as gu]
+            [editor.build-target :as bt]
+            [editor.code.script :as script]
+            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.defold-project :as project]
+            [editor.outline :as outline]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
-            [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline]
+            [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
@@ -45,6 +48,11 @@
    :rotation rotation
    :data (or (:content save-data) "")})
 
+(defn- build-raw-sound [resource dep-resources user-data]
+  (let [pb (:pb user-data)
+        pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
+    {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
+
 (defn- wrap-if-raw-sound [target _node-id]
   (let [resource (:resource (:resource target))
         source-path (resource/proj-path resource)
@@ -53,23 +61,25 @@
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
-            target    {:node-id  _node-id
-                       :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                       :build-fn (fn [resource dep-resources user-data]
-                                   (let [pb (:pb user-data)
-                                         pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
-                                     {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
-                       :deps     [target]}]
+            target    (bt/with-content-hash
+                        {:node-id _node-id
+                         :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
+                         :build-fn build-raw-sound
+                         :deps [target]})]
         target)
       target)))
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
-    (let [rt (resource/resource-type resource)]
+    (let [rt (resource/resource-type resource)
+          label (or (:label rt) (:ext rt) "unknown")
+          icon (or (:icon rt) unknown-icon)]
       {:node-id (:node-id err)
-       :label (or (:label rt) (:ext rt) "unknown")
-       :icon (or (:icon rt) unknown-icon)})
+       :node-outline-key label
+       :label label
+       :icon icon})
     {:node-id -1
+     :node-outline-key ""
      :icon ""
      :label ""}))
 
@@ -160,6 +170,7 @@
                         (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (-> {:node-id _node-id
+             :node-outline-key id
              :label id
              :icon (or (not-empty (:icon source-outline)) unknown-icon)
              :outline-overridden? overridden?
@@ -168,18 +179,27 @@
             (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                (let [transform (if-let [local-transform (:transform scene)]
-                                                  (doto (Matrix4d. ^Matrix4d transform)
-                                                    (.mul ^Matrix4d local-transform))
-                                                  transform)
-                                      updatable (some-> (:updatable scene)
-                                                  (assoc :node-id _node-id))]
-                                  (cond-> scene
-                                    true (scene/claim-scene _node-id)
-                                    true (assoc :transform transform
-                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
-                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
+                                (if (some? scene)
+                                  (let [transform (if-let [local-transform (:transform scene)]
+                                                    (doto (Matrix4d. ^Matrix4d transform)
+                                                      (.mul ^Matrix4d local-transform))
+                                                    transform)
+                                        updatable (some-> (:updatable scene)
+                                                          (assoc :node-id _node-id))]
+                                    ;; label has scale and thus transform, others have identity transform
+                                    (cond-> (assoc (scene/claim-scene scene _node-id id)
+                                                   :transform transform)
+                                            updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))
+                                  ;; This handles the case of no scene
+                                  ;; from actual component - typically
+                                  ;; bad data. Covered by for instance
+                                  ;; unknown_components.go in the test
+                                  ;; project.
+                                  {:node-id _node-id
+                                   :transform transform
+                                   :aabb geom/empty-bounding-box
+                                   :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource :abstract)
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets resource-property-build-targets build-resource ddf-message transform]
                                         (when-some [source-build-target (first source-build-targets)]
@@ -197,7 +217,7 @@
                                                                                    :instance-msg (if (seq go-props)
                                                                                                    (assoc ddf-message :properties go-props)
                                                                                                    ddf-message)})]
-                                                [build-target]))))))
+                                                [(bt/with-content-hash build-target)]))))))
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output _properties g/Properties :cached produce-component-properties))
 
@@ -266,26 +286,26 @@
                        (if override?
                          (let [project (project/get-project self)
                                workspace (project/workspace project)]
-                           (project/connect-resource-node project new-resource self []
-                                                          (fn [comp-node]
-                                                            (let [override (g/override (:basis evaluation-context) comp-node {:traverse? (constantly true)})
-                                                                  id-mapping (:id-mapping override)
-                                                                  or-comp-node (get id-mapping comp-node)
-                                                                  comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
-                                                              (concat
-                                                                (:tx-data override)
-                                                                (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                  (for [[from to] [[:_node-id :source-id]
-                                                                                   [:resource :source-resource]
-                                                                                   [:node-outline :source-outline]
-                                                                                   [:_properties :source-properties]
-                                                                                   [:scene :scene]
-                                                                                   [:build-targets :source-build-targets]
-                                                                                   [:resource-property-build-targets :resource-property-build-targets]]
-                                                                        :when (contains? outputs from)]
-                                                                    (g/connect or-comp-node from self to)))
-                                                                (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))
-                         (project/resource-setter self (:resource old-value) (:resource new-value)
+                           (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                             (concat
+                               connect-tx-data
+                               (g/override comp-node {:traverse? (constantly true)}
+                                           (fn [evaluation-context id-mapping]
+                                             (let [or-comp-node (get id-mapping comp-node)
+                                                   comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
+                                               (concat
+                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                                   (for [[from to] [[:_node-id :source-id]
+                                                                    [:resource :source-resource]
+                                                                    [:node-outline :source-outline]
+                                                                    [:_properties :source-properties]
+                                                                    [:scene :scene]
+                                                                    [:build-targets :source-build-targets]
+                                                                    [:resource-property-build-targets :resource-property-build-targets]]
+                                                         :when (contains? outputs from)]
+                                                     (g/connect or-comp-node from self to)))
+                                                 (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))))
+                         (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
                                                   [:user-properties :user-properties]
@@ -338,18 +358,19 @@
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
       (let [instance-data (map :instance-data (flatten dep-build-targets))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-game-object
-          :user-data {:proto-msg proto-msg :instance-data instance-data}
-          :deps (into (vec (flatten dep-build-targets))
-                      (comp (mapcat :property-deps)
-                            (util/distinct-by (comp resource/proj-path :resource)))
-                      instance-data)}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-game-object
+            :user-data {:proto-msg proto-msg :instance-data instance-data}
+            :deps (into (vec (flatten dep-build-targets))
+                        (comp (mapcat :property-deps)
+                              (util/distinct-by (comp resource/proj-path :resource)))
+                        instance-data)})])))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+   :aabb geom/null-aabb
    :children child-scenes})
 
 (defn- attach-component [self-id comp-id ddf-input resolve-id?]
@@ -384,6 +405,7 @@
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
+   :node-outline-key "Game Object"
    :label "Game Object"
    :icon game-object-icon
    :children (outline/natural-sort child-outlines)
@@ -465,25 +487,24 @@
 
 (defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project type data)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]]
-      (g/connect comp-node :_node-id self :nodes)
-      (if select-fn
-        (select-fn [comp-node])
-        [])
-      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :embedded-resource-id]
-                                                                                        [:resource :source-resource]
-                                                                                        [:_properties :source-properties]
-                                                                                        [:node-outline :source-outline]
-                                                                                        [:save-data :save-data]
-                                                                                        [:scene :scene]
-                                                                                        [:build-targets :source-build-targets]]
-                                                                             self [[:_node-id :nodes]]})]
-        (concat
-          tx-data
-          (if (empty? tx-data)
-            []
-            (attach-embedded-component self comp-node)))))))
+        resource (project/make-embedded-resource project type data)
+        node-type (project/resource-node-type resource)]
+    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]
+                         resource-node [node-type :resource resource]]
+                  (g/connect resource-node :_node-id self :nodes)
+                  (g/connect comp-node :_node-id self :nodes)
+                  (project/load-node project resource-node node-type resource)
+                  (project/connect-if-output node-type resource-node comp-node
+                                             [[:_node-id :embedded-resource-id]
+                                              [:resource :source-resource]
+                                              [:_properties :source-properties]
+                                              [:node-outline :source-outline]
+                                              [:undecorated-save-data :save-data]
+                                              [:scene :scene]
+                                              [:build-targets :source-build-targets]])
+                  (attach-embedded-component self comp-node)
+                  (when select-fn
+                    (select-fn [comp-node])))))
 
 (defn add-embedded-component-handler [user-data select-fn]
   (let [self (:_node-id user-data)

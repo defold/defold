@@ -99,6 +99,9 @@
 (defn is-mac-os? []
   (= (os) :darwin))
 
+(defn is-linux? []
+  (= (os) :linux))
+
 (defn positions [pred coll]
   (keep-indexed (fn [idx x]
                   (when (pred x)

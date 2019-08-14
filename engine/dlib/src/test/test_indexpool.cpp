@@ -1,6 +1,7 @@
-
 #include <stdint.h>
-#include <gtest/gtest.h>
+#include <memory.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "dlib/index_pool.h"
 
 
@@ -160,6 +161,6 @@ TEST(dmIndexPool32, IterateRemaining)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

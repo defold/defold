@@ -1,31 +1,15 @@
 (ns editor.protobuf-types
-  (:require [editor.protobuf :as protobuf]
-            [editor.protobuf-forms :as protobuf-forms]
-            [dynamo.graph :as g]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.resource :as resource]
+            [editor.protobuf :as protobuf]
+            [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
-            [editor.math :as math]
-            [editor.gl.pass :as pass])
-  (:import [com.dynamo.input.proto Input$InputBinding]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.gamesystem.proto GameSystem$LightDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.gamesystem.proto GameSystem$LightDesc]
-           [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$ConvexShape]
-           [com.dynamo.input.proto Input$GamepadMaps]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d]))
+           [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]
+           [com.dynamo.physics.proto Physics$ConvexShape]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,7 +17,7 @@
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
                :label "Input Binding"
-               :view-types [:form-view :text]}
+               :view-types [:cljfx-form-view :text]}
               {:ext "light"
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"
@@ -44,7 +28,7 @@
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
-               :view-types [:form-view :text]}
+               :view-types [:cljfx-form-view :text]}
               {:ext "convexshape"
                :label "Convex Shape"
                ; TODO - missing icon
@@ -52,37 +36,20 @@
                :pb-class Physics$ConvexShape}
               {:ext "texture_profiles"
                :label "Texture Profiles"
-               :view-types [:form-view :text]
+               :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
-               :pb-class Graphics$TextureProfiles
-               }])
+               :pb-class Graphics$TextureProfiles}])
 
 (defn- build-pb [resource dep-resources user-data]
-  (let [def (:def user-data)
-        pb  (:pb user-data)
-        pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
-        pb  (reduce (fn [pb [label resource]]
-                      (if (vector? label)
-                        (assoc-in pb label resource)
-                        (assoc pb label resource)))
-                    pb (map (fn [[label res]]
-                              [label (resource/proj-path (get dep-resources res))])
-                            (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes (:pb-class user-data) pb)}))
+  {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
 
-(g/defnk produce-build-targets [_node-id resource pb def dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb (first field))))) [field])) (:resource-fields def))
-        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb label) (get pb label)))]) resource-fields)]
-    [{:node-id _node-id
+(g/defnk produce-build-targets [_node-id resource pb def]
+  [(bt/with-content-hash
+     {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb
       :user-data {:pb pb
-                  :pb-class (:pb-class def)
-                  :def def
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+                  :pb-class (:pb-class def)}})])
 
 (g/defnk produce-form-data [_node-id pb def]
   (protobuf-forms/produce-form-data _node-id pb def))
@@ -94,27 +61,13 @@
   (property def g/Any (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
-
-  (input dep-build-targets g/Any :array)
-
   (output save-value g/Any (gu/passthrough pb))
-  (output build-targets g/Any :cached produce-build-targets)
-  (output scene g/Any (g/constantly {})))
-
-(defn- connect-build-targets [project self resource path]
-  (let [resource (workspace/resolve-resource resource path)]
-    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
+  (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-pb [def project self resource pb]
   (concat
     (g/set-property self :pb pb)
-    (g/set-property self :def def)
-    (for [res (:resource-fields def)]
-      (if (vector? res)
-        (for [v (get pb (first res))]
-          (let [path (if (second res) (get v (second res)) v)]
-            (connect-build-targets project self resource path)))
-        (connect-build-targets project self resource (get pb res))))))
+    (g/set-property self :def def)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

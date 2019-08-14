@@ -66,8 +66,6 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-        # For Facebook SDK...
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
@@ -76,10 +74,8 @@ namespace dmEngineVersion
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
-    elif operating_sys == 'web' and architecture == 'js':
+    elif 'web' in operating_sys:
         pass
-
-    conf.env['LIB_GTEST'] = 'gtest'
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_DDF'] = 'ddf'
@@ -87,6 +83,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
+    conf.env['STATICLIB_GRAPHICS_VULKAN'] = 'graphics_vulkan'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_RENDER'] = 'render'
     conf.env['STATICLIB_GAMESYS'] = 'gamesys'
@@ -105,18 +102,14 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
-    conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
-    conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
-    conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
-    conf.env['LIB_SQLLITE'] = 'sqlite3'
+    conf.env['STATICLIB_UNWIND'] = 'unwind'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
-    conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
     conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
+    conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'
@@ -159,18 +152,21 @@ def build(bld):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if build_util.get_target_os() == 'web' and build_util.get_target_architecture() == 'js':
+    if build_util.get_target_os() == 'web':
         srcPath = os.path.join('build', 'default', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
             if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/js-web', filePath)
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.symbols')
             if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/js-web', filePath)
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.wasm')
+            if (os.path.exists(filePath)):
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
 
 def shutdown():
     # unit tests disabled on win32 for now
     if sys.platform != "win32":
-        waf_dynamo.run_gtests(valgrind = True)
+        waf_dynamo.run_tests(valgrind = True)

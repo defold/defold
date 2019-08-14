@@ -58,7 +58,7 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
           scene (g/node-value node-id :scene)]
-      (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
+      (is (= 0.25 (get-in scene [:children 2 :children 1 :renderable :user-data :color 3]))))))
 
 (deftest gui-scene-material
   (test-util/with-loaded-project
@@ -218,7 +218,7 @@
      (is (some? (g/node-value text-node :text-data))))))
 
 (defn- render-order [view]
-  (let [renderables (g/node-value view :renderables)]
+  (let [renderables (g/node-value view :all-renderables)]
     (->> (get renderables pass/transparent)
       (map :node-id)
       (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
@@ -338,11 +338,16 @@
     (select-keys [:node-id :children :renderable])
     (update :children (fn [c] (mapv #(strip-scene %) c)))
     (update-in [:renderable :user-data] select-keys [:color])
-    (update :renderable select-keys [:user-data])))
+    (update :renderable select-keys [:user-data :tags])))
 
 (defn- scene-by-nid [root-id node-id]
   (let [scene (g/node-value root-id :scene)
-        scenes (into {} (map (fn [s] [(:node-id s) s]) (tree-seq (constantly true) :children (strip-scene scene))))]
+        scenes (into {}
+                     (comp
+                       ;; we're not interested in the outline subscenes for gui nodes
+                       (remove (fn [scene] (contains? (get-in scene [:renderable :tags]) :outline)))
+                       (map (fn [s] [(:node-id s) s])))
+                     (tree-seq (constantly true) :children (strip-scene scene)))]
     (scenes node-id)))
 
 (deftest gui-template-alpha
@@ -390,9 +395,6 @@
     (let [node-id (test-util/resource-node project "/gui/scene.gui")]
       (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
 
-(defn- max-x [scene]
-  (.getX ^Point3d (:max (:aabb scene))))
-
 (defn- add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
@@ -415,9 +417,7 @@
       (let [new-box (gui-node node-id "box")]
         (is (and new-box (not= box new-box))))
       (let [new-dims (g/node-value node-id :scene-dims)]
-        (is (and new-dims (not= dims new-dims))))
-      (let [new-scene (g/node-value node-id :scene)]
-        (is (not= (max-x scene) (max-x new-scene)))))))
+        (is (and new-dims (not= dims new-dims)))))))
 
 (deftest gui-layout-add
   (test-util/with-loaded-project

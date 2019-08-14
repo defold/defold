@@ -1,0 +1,145 @@
+diff --git a/include/libunwind-common.h b/include/libunwind-common.h
+index f4cbc88..6d4c80e 100644
+--- a/include/libunwind-common.h
++++ b/include/libunwind-common.h
+@@ -27,9 +27,14 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
+ #include <sys/types.h>
+ /* End of ANDROID update. */
+ 
++#ifdef _U
++#define _TMP_U _U
++#undef _U
++#endif
++
+ #define UNW_VERSION_MAJOR	1
+ #define UNW_VERSION_MINOR	1
+-#define UNW_VERSION_EXTRA	
++#define UNW_VERSION_EXTRA
+ 
+ #define UNW_VERSION_CODE(maj,min)	(((maj) << 16) | (min))
+ #define UNW_VERSION	UNW_VERSION_CODE(UNW_VERSION_MAJOR, UNW_VERSION_MINOR)
+@@ -53,6 +58,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
+ # endif
+ #endif /* !UNW_LOCAL_ONLY */
+ 
++#ifdef _TMP_U
++#define _U _TMP_U
++#undef _TMP_U
++#endif
++
+ /* Error codes.  The unwind routines return the *negated* values of
+    these error codes on error and a non-negative value on success.  */
+ typedef enum
+diff --git a/src/arm/dl-iterate-phdr.c b/src/arm/dl-iterate-phdr.c
+new file mode 100644
+index 0000000..d8752f6
+--- /dev/null
++++ b/src/arm/dl-iterate-phdr.c
+@@ -0,0 +1,61 @@
++#include <stdbool.h>
++#include <dlfcn.h>
++#include <fcntl.h>
++#include <elf.h>
++
++#include "../dl-iterate-phdr.h"
++
++#include "os-linux.h"
++#include "libunwind_i.h"
++
++#ifndef IS_ELF
++#define IS_ELF(ehdr) ((ehdr).e_ident[EI_MAG0] == ELFMAG0 && \
++                      (ehdr).e_ident[EI_MAG1] == ELFMAG1 && \
++                      (ehdr).e_ident[EI_MAG2] == ELFMAG2 && \
++                      (ehdr).e_ident[EI_MAG3] == ELFMAG3)
++#endif
++
++#if defined(__arm__) && __ANDROID_API__ < 21
++
++// Function types: callback and function itself.
++typedef int (*dl_iterate_phdr_callback) (struct dl_phdr_info *info, size_t size, void *data);
++typedef int (*dl_iterate_phdr_signature)(dl_iterate_phdr_callback callback, void *data);
++
++int dl_iterate_phdr(int (*callback)(struct dl_phdr_info*, size_t, void*), void *data)
++{
++    dl_iterate_phdr_signature dl_iterate_phdr_address = (dl_iterate_phdr_signature) dlsym(RTLD_NEXT, "dl_iterate_phdr");
++    if (dl_iterate_phdr_address) {
++        return dl_iterate_phdr_address(callback, data);
++    }
++
++    int rc = 0;
++    struct map_iterator mi;
++    unsigned long start, end, offset, flags;
++
++    if (maps_init (&mi, getpid()) < 0)
++        return -1;
++
++    while (maps_next (&mi, &start, &end, &offset, &flags))
++    {
++        Elf_W(Ehdr) *ehdr = (Elf_W(Ehdr) *) start;
++        const unsigned long prot_rx = PROT_READ | PROT_EXEC;
++
++        if (mi.path[0] != '\0' && (flags & prot_rx) == prot_rx && IS_ELF (*ehdr))
++        {
++            Elf_W(Phdr) *phdr = (Elf_W(Phdr) *) (start + ehdr->e_phoff);
++            struct dl_phdr_info info;
++
++            info.dlpi_addr = start;
++            info.dlpi_name = mi.path;
++            info.dlpi_phdr = phdr;
++            info.dlpi_phnum = ehdr->e_phnum;
++            rc = callback (&info, sizeof (info), data);
++        }
++    }
++
++    maps_close (&mi);
++
++    return rc;
++}
++
++#endif
+diff --git a/src/dl-iterate-phdr.h b/src/dl-iterate-phdr.h
+new file mode 100644
+index 0000000..4a44bd6
+--- /dev/null
++++ b/src/dl-iterate-phdr.h
+@@ -0,0 +1,10 @@
++#ifndef dl_iterate_phdr_h
++#define dl_iterate_phdr_h
++
++#include <link.h>
++
++#if defined(__ANDROID__) && __ANDROID_API__ < 21
++int dl_iterate_phdr(int (*__callback)(struct dl_phdr_info* info, size_t size, void* data), void* data);
++#endif /* __ANDROID_API__ >= 21 */
++
++#endif
+diff --git a/src/elfxx.c b/src/elfxx.c
+index a050038..1a50a6c 100644
+--- a/src/elfxx.c
++++ b/src/elfxx.c
+@@ -35,6 +35,13 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
+ #include <XzCrc64.h>
+ #endif /* HAVE_LZMA */
+ 
++#ifndef MIN
++#define MIN(a,b) \
++   ({ __typeof__ (a) _a = (a); \
++       __typeof__ (b) _b = (b); \
++     _a < _b ? _a : _b; })
++#endif
++
+ // --------------------------------------------------------------------------
+ // Functions to read elf data from memory.
+ // --------------------------------------------------------------------------
+diff --git a/src/os-linux.h b/src/os-linux.h
+index 70e007c..13adda7 100644
+--- a/src/os-linux.h
++++ b/src/os-linux.h
+@@ -28,6 +28,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
+ #define os_linux_h
+ 
+ #include <sys/mman.h>
++#include <assert.h>
+ 
+ struct map_iterator
+   {

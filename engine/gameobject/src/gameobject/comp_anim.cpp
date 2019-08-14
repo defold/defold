@@ -1,12 +1,12 @@
 
 #include "comp_anim.h"
 
+#include <dlib/index_pool.h>
 #include <dlib/profile.h>
 
 #include <script/script.h>
 
 #include "gameobject_script.h"
-#include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
 extern "C"
@@ -144,7 +144,7 @@ namespace dmGameObject
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         DM_PROFILE(Animation, "Update");
-        
+
         /*
          * The update is divided into three passes.
          *
@@ -365,15 +365,15 @@ namespace dmGameObject
         return result;
     }
 
-    static AnimWorld* GetWorld(HCollection collection)
+    static AnimWorld* GetWorld(HCollection hcollection)
     {
         dmResource::ResourceType resource_type;
-        dmResource::Result result = dmResource::GetTypeFromExtension(collection->m_Factory, "animc", &resource_type);
+        dmResource::Result result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(hcollection), "animc", &resource_type);
         assert(result == dmResource::RESULT_OK);
         uint32_t component_index;
-        ComponentType* type = FindComponentType(collection->m_Register, resource_type, &component_index);
+        ComponentType* type = FindComponentType(dmGameObject::GetRegister(hcollection), resource_type, &component_index);
         assert(type != 0x0);
-        return (AnimWorld*)collection->m_ComponentWorlds[component_index];
+        return (AnimWorld*)dmGameObject::GetWorld(hcollection, component_index);
     }
 
     static bool PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
@@ -555,6 +555,9 @@ namespace dmGameObject
             if (!PlayCompositeAnimation(world, instance, component_id, property_id, playback,
                     duration, delay, easing, animation_stopped, userdata1, userdata2))
                 return PROPERTY_RESULT_BUFFER_OVERFLOW;
+
+            // Clear the release_callback for element animation to make sure we only call it once in the composite animation
+            easing.release_callback = 0x0;
             float* v = prop_desc.m_Variant.m_V4;
             for (uint32_t i = 0; i < element_count; ++i)
             {
@@ -630,6 +633,10 @@ namespace dmGameObject
                         anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
                                 anim->m_Userdata1, anim->m_Userdata2);
                         RemoveAnimationCallback(world, anim);
+                    }
+                    if (anim->m_Easing.release_callback != 0x0)
+                    {
+                        anim->m_Easing.release_callback(&anim->m_Easing);
                     }
                     world->m_AnimMapIndexPool.Push(index);
                     index = anim->m_Next;

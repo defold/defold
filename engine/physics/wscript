@@ -24,8 +24,8 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_BULLET'] = ['BulletDynamics', 'BulletCollision', 'LinearMath']
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="PHYSICS"')
@@ -36,4 +36,4 @@ def build(bld):
 import Build, Options
 import os, subprocess
 def shutdown():
-    waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

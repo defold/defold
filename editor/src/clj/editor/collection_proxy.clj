@@ -3,6 +3,7 @@
    [clojure.string :as s]
    [plumbing.core :as pc]
    [dynamo.graph :as g]
+   [editor.build-target :as bt]
    [editor.defold-project :as project]
    [editor.graph-util :as gu]
    [editor.outline :as outline]
@@ -31,6 +32,7 @@
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
+   :navigation false
    :sections [{:title "Collection Proxy"
                :fields [{:path [:collection]
                          :label "Collection"
@@ -57,12 +59,13 @@
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:collection collection]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-collection-proxy
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-collection-proxy
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-collection-proxy [project self resource collection-proxy]
   (concat
@@ -77,8 +80,8 @@
 
   (property collection resource/Resource
             (value (gu/passthrough collection-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collection-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id collection-resource]
@@ -93,6 +96,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key "Collection Proxy"
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 
@@ -112,7 +116,7 @@
                                     :ddf-type GameSystem$CollectionProxyDesc
                                     :load-fn load-collection-proxy
                                     :icon collection-proxy-icon
-                                    :view-types [:form-view :text]
+                                    :view-types [:cljfx-form-view :text]
                                     :view-opts {}
                                     :tags #{:component}
                                     :tag-opts {:component {:transform-properties #{}}}

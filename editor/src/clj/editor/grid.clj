@@ -1,15 +1,16 @@
 (ns editor.grid
   (:require [dynamo.graph :as g]
+            [editor.camera :as c]
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
-            [editor.types :as types]
-            [editor.camera :as c]
-            [editor.validation :as validation]
-            [editor.gl.pass :as pass])
-  (:import [editor.types AABB Camera]
-           [com.jogamp.opengl GL GL2]
-           [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]))
+            [editor.gl.pass :as pass]
+            [editor.scene-cache :as scene-cache]
+            [editor.types :as types])
+  (:import com.jogamp.opengl.GL2
+           [editor.types AABB Camera]
+           [java.nio ByteBuffer ByteOrder DoubleBuffer]
+           [javax.vecmath Matrix3d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -19,28 +20,34 @@
 (def y-axis-color colors/scene-grid-y-axis)
 (def z-axis-color colors/scene-grid-z-axis)
 
+(defn- make-grid-vertex-buffer [_1 _2]
+  (-> (ByteBuffer/allocateDirect (* 3 8))
+    (.order (ByteOrder/nativeOrder))
+    (.asDoubleBuffer)))
+
+(scene-cache/register-object-cache! ::grid-vertex make-grid-vertex-buffer identity identity)
+
 (defn render-grid-axis
-  [^GL2 gl ^doubles vx uidx start stop size vidx min max]
+  [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]
   (doseq [u (range start stop size)]
-      (aset vx uidx ^double u)
-      (aset vx vidx ^double min)
-      (gl/gl-vertex-3dv gl vx 0)
-      (aset vx vidx ^double max)
-      (gl/gl-vertex-3dv gl vx 0)))
+      (.put vx uidx ^double u)
+      (.put vx vidx ^double min)
+      (gl/gl-vertex-3dv gl vx)
+      (.put vx vidx ^double max)
+      (gl/gl-vertex-3dv gl vx)))
 
 (defn render-grid
   [gl fixed-axis size aabb]
-  ;; draw across
   (let [min-values (geom/as-array (types/min-p aabb))
-        max-values  (geom/as-array (types/max-p aabb))
-        u-axis      (mod (inc fixed-axis) 3)
-        u-min       (nth min-values u-axis)
-        u-max       (nth max-values u-axis)
-        v-axis      (mod (inc u-axis) 3)
-        v-min       (nth min-values v-axis)
-        v-max       (nth max-values v-axis)
-        vertex      (double-array 3)]
-    (aset vertex fixed-axis 0.0)
+        max-values (geom/as-array (types/max-p aabb))
+        u-axis (mod (inc fixed-axis) 3)
+        u-min (nth min-values u-axis)
+        u-max (nth max-values u-axis)
+        v-axis (mod (inc u-axis) 3)
+        v-min (nth min-values v-axis)
+        v-max (nth max-values v-axis)
+        vertex ^DoubleBuffer (scene-cache/request-object! ::grid-vertex :grid-vertex {} nil)]
+    (.put vertex fixed-axis 0.0)
     (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
     (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
 
@@ -84,9 +91,16 @@
 
 (g/defnk grid-renderable
   [camera grids]
-  {pass/transparent
+  {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
    [{:world-transform geom/Identity4d
-     :render-fn       render-scaled-grids
+     :tags #{:grid}
+     :render-fn render-scaled-grids
+     :user-render-data {:camera camera
+                        :grids grids}}]
+   pass/transparent ; Grid lines potentially intersecting scene geometry.
+   [{:world-transform geom/Identity4d
+     :tags #{:grid}
+     :render-fn render-scaled-grids
      :user-render-data {:camera camera
                         :grids grids}}]})
 
@@ -119,7 +133,7 @@
 
 (defn frustum-projection-aabb
   [planes]
-  (-> (geom/null-aabb)
+  (-> geom/null-aabb
     (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2)))
     (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3)))
     (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2)))
@@ -169,3 +183,4 @@
             (default 0))
   (output grids      g/Any :cached update-grids)
   (output renderable pass/RenderData :cached grid-renderable))
+

@@ -1,11 +1,10 @@
 (ns internal.util
   "Helpful utility functions for graph"
   (:require [camel-snake-kebab :refer [->Camel_Snake_Case_String]]
-            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [potemkin.namespaces :as namespaces]
-            [schema.core :as s]))
+            [schema.core :as s])
+  (:import [clojure.lang IEditableCollection]))
 
 (set! *warn-on-reflection* true)
 
@@ -57,6 +56,61 @@
                            (cons f (step (rest s) (conj seen key)))))))
                     xs seen)))]
      (step coll #{}))))
+
+(defn group-into
+  "Like core.group-by, but you can specify the associative container to group
+  into, as well as the empty collection to use for the groups. If the optional
+  value-fn is supplied, it will be used to transform each element before adding
+  them to the groups."
+  ([groups-container empty-group key-fn coll]
+   (group-into groups-container empty-group key-fn nil coll))
+  ([groups-container empty-group key-fn value-fn coll]
+   (assert (associative? groups-container))
+   (assert (coll? empty-group))
+   (let [group-transient? (instance? IEditableCollection empty-group)
+         group-prepare (if group-transient? transient identity)
+         group-conj (if group-transient? conj! conj)
+         group-finish (if-not group-transient?
+                        identity
+                        (fn [transient-group]
+                          (with-meta (persistent! transient-group)
+                                     (meta empty-group))))
+         groups-container-transient? (instance? IEditableCollection groups-container)
+         groups-container-prepare (if groups-container-transient? transient identity)
+         groups-container-assoc (if groups-container-transient? assoc! assoc)
+         groups-container-finish (cond
+                                   (and groups-container-transient? group-transient?)
+                                   (fn [transient-groups-container]
+                                     (with-meta (persistent!
+                                                  (reduce-kv (fn [transient-groups-container key value]
+                                                               (assoc! transient-groups-container key (group-finish value)))
+                                                             (transient (empty groups-container))
+                                                             (persistent! transient-groups-container)))
+                                                (meta groups-container)))
+
+                                   groups-container-transient?
+                                   (fn [transient-groups-container]
+                                     (with-meta (persistent! transient-groups-container)
+                                                (meta groups-container)))
+
+                                   group-transient?
+                                   (fn [groups-container]
+                                     (reduce-kv (fn [groups-container key value]
+                                                  (assoc groups-container key (group-finish value)))
+                                                (empty groups-container)
+                                                groups-container))
+
+                                   :else
+                                   identity)]
+     (groups-container-finish
+       (reduce (fn [groups-container elem]
+                 (let [key (key-fn elem)
+                       value (if value-fn (value-fn elem) elem)
+                       group (or (get groups-container key)
+                                 (group-prepare empty-group))]
+                   (groups-container-assoc groups-container key (group-conj group value))))
+               (groups-container-prepare groups-container)
+               coll)))))
 
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
@@ -235,6 +289,23 @@
       (and (= (first coll) (first subcoll))
            (recur (next coll) (next subcoll))))))
 
+(defn count-where
+  "Count the number of elements in coll where pred returns true. If max-counted
+  is specified, will stop and return max-counted once the specified number of
+  elements have passed the predicate."
+  (^long [pred coll]
+   (count-where Long/MAX_VALUE pred coll))
+  (^long [^long max-counted pred coll]
+   (assert (not (neg? max-counted)))
+   (reduce (fn [^long num-counted elem]
+             (if (= max-counted num-counted)
+               (reduced max-counted)
+               (if (pred elem)
+                 (inc num-counted)
+                 num-counted)))
+           0
+           coll)))
+
 (defn first-where
   "Returns the first element in coll where pred returns true, or nil if there was
   no matching element. If coll is a map, key-value pairs are passed to pred."
@@ -270,3 +341,31 @@
   (into []
         (mapcat (juxt identity (partial get m)))
         (sort (keys m))))
+
+(declare select-keys-deep)
+
+(defn- select-keys-deep-value-helper [kept-keys value]
+  (cond
+    (map? value)
+    (select-keys-deep value kept-keys)
+
+    (coll? value)
+    (into (empty value)
+          (map (partial select-keys-deep-value-helper kept-keys))
+          value)
+
+    :else
+    value))
+
+(defn select-keys-deep
+  "Like select-keys, but applies the filter recursively to nested data structures."
+  [m kept-keys]
+  (assert (or (nil? m) (map? m)))
+  (with-meta (into (if (or (nil? m) (record? m))
+                     {}
+                     (empty m))
+                   (keep (fn [key]
+                           (when-some [[_ value] (find m key)]
+                             [key (select-keys-deep-value-helper kept-keys value)])))
+                   kept-keys)
+             (meta m)))

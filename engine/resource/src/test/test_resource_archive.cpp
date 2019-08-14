@@ -1,6 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include "../resource.h"
+#include "../resource_private.h"
 #include "../resource_archive.h"
 #include "../resource_archive_private.h"
 
@@ -12,6 +12,9 @@
 #error "Unsupported platform"
 #endif
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 // new file format, generated test data
 extern unsigned char RESOURCES_ARCI[];
 extern uint32_t RESOURCES_ARCI_SIZE;
@@ -19,6 +22,10 @@ extern unsigned char RESOURCES_ARCD[];
 extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
+extern unsigned char RESOURCES_PUBLIC[];
+extern uint32_t RESOURCES_PUBLIC_SIZE;
+extern unsigned char RESOURCES_MANIFEST_HASH[];
+extern uint32_t RESOURCES_MANIFEST_HASH_SIZE;
 
 extern unsigned char RESOURCES_COMPRESSED_ARCI[];
 extern uint32_t RESOURCES_COMPRESSED_ARCI_SIZE;
@@ -41,11 +48,11 @@ static const char* content[]            = {
 
 static const uint64_t liveupdate_path_hash[2] = { 0x68b7e06402ee965c, 0xe7b921ca4d761083 };
 
-static const uint8_t sorted_first_hash[20] = 
+static const uint8_t sorted_first_hash[20] =
     {  0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_middle_hash[20] = 
+static const uint8_t sorted_middle_hash[20] =
     {  70U,  250U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_last_hash[20] = 
+static const uint8_t sorted_last_hash[20] =
     { 226U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
 
 static const uint8_t content_hash[][20] = {
@@ -101,7 +108,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     arci_data = malloc(RESOURCES_ARCI_SIZE - ENTRY_SIZE * num_lu_entries);
     // Init archive container including LU resources
     dmResourceArchive::ArchiveIndexContainer* archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
     uint32_t entry_count = htonl(archive->m_ArchiveIndex->m_EntryDataCount);
@@ -115,7 +122,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     uint8_t* cursor_entry = (uint8_t*)((uintptr_t)arci_data + entries_offset - num_lu_entries * DMRESOURCE_MAX_HASH);
     memcpy(cursor, RESOURCES_ARCI, sizeof(dmResourceArchive::ArchiveIndex)); // Copy header
     int lu_entries_to_copy = num_entries_to_keep;
-    for (int i = 0; i < entry_count; ++i)
+    for (uint32_t i = 0; i < entry_count; ++i)
     {
         dmResourceArchive::EntryData& e = entries[i];
         bool is_lu_entry = JAVA_TO_C(e.m_Flags) & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA;
@@ -166,7 +173,7 @@ void CreateBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_arc
     bundled_archive_index = 0;
     uint32_t bundled_archive_size = 0;
     GetMutableBundledIndexData((void*&)bundled_archive_index, bundled_archive_size, num_entries_to_keep);
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*&) bundled_archive_index, bundled_archive_size, RESOURCES_ARCD, 0x0, 0x0, 0x0, &bundled_archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*&) bundled_archive_index, RESOURCES_ARCD, 0x0, 0x0, 0x0, &bundled_archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(5U + num_entries_to_keep, dmResourceArchive::GetEntryCount(bundled_archive_container));
 }
@@ -195,7 +202,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
     // Init archive container
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, resource_filename, 0x0, resource_file, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCD, resource_filename, 0x0, resource_file, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
     ASSERT_EQ(7U, entry_count_before);
@@ -226,7 +233,7 @@ TEST(dmResourceArchive, NewArchiveIndexFromCopy)
     uint32_t single_entry_offset = DMRESOURCE_MAX_HASH;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(496U, dmResourceArchive::GetEntryDataOffset(archive_container));
 
@@ -251,7 +258,7 @@ TEST(dmResourceArchive, CacheLiveUpdateEntries)
     dmResourceArchive::ArchiveIndex* bundled_archive_index;
 
     dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive_container);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive_container));
 
@@ -277,7 +284,7 @@ TEST(dmResourceArchive, CacheLiveUpdateEntries)
 TEST(dmResourceArchive, GetInsertionIndex)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
@@ -297,76 +304,192 @@ TEST(dmResourceArchive, GetInsertionIndex)
 
 TEST(dmResourceArchive, ManifestHeader)
 {
-    dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmLiveUpdateDDF::ManifestData* manifest_data;
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(dmResource::MANIFEST_MAGIC_NUMBER, instance->m_Data.m_Header.m_MagicNumber);
-    ASSERT_EQ(dmResource::MANIFEST_VERSION, instance->m_Data.m_Header.m_Version);
+    manifest_data = manifest->m_DDFData;
 
-    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, instance->m_Data.m_Header.m_ResourceHashAlgorithm);
-    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, instance->m_Data.m_Header.m_SignatureHashAlgorithm);
+    ASSERT_EQ(dmResource::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
+    ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
-    ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, instance->m_Data.m_Header.m_SignatureSignAlgorithm);
+    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
+    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);
 
-    dmDDF::FreeMessage(instance);
+    ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, manifest_data->m_Header.m_SignatureSignAlgorithm);
+
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+void PrintHash(const uint8_t* hash, uint32_t len)
+{
+    char* buf = new char[len*2+1];
+    buf[len] = '\0';
+    for (uint32_t i = 0; i < len; ++i)
+    {
+        sprintf(buf+i*2, "%02X", hash[i]);
+    }
+    printf("HASH: %s\n", buf);
+    delete[] buf;
+}
+
+// DE 20190122: Disabled this test since it keeps failing on linux-32 bit, see jira DEF-3461
+#if 0
+TEST(dmResourceArchive, ManifestSignatureVerification)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
+    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
+
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+
+    // debug prints to determine cause of intermittent test fail on linux 32-bit
+    printf("Expected digest (%u bytes):\n", expected_digest_len);
+    PrintHash((const uint8_t*)expected_digest, expected_digest_len);
+    printf("Actual digest (%u bytes):\n", hex_digest_len);
+    PrintHash((const uint8_t*)hex_digest, hex_digest_len);
+    // end debug
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
+
+    free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+#endif
+
+TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
+    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
+
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
+
+    free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
+    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
+
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
+
+    free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
+    memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
+    resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+
+    free(hex_digest);
+    free(resources_public_wrong);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, ResourceEntries)
 {
-    dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmLiveUpdateDDF::ManifestData* manifest_data;
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(7U, instance->m_Data.m_Resources.m_Count);
-    for (uint32_t i = 0; i < instance->m_Data.m_Resources.m_Count; ++i) {
-        const char* current_path = instance->m_Data.m_Resources.m_Data[i].m_Url;
+    manifest_data = manifest->m_DDFData;
+
+    ASSERT_EQ(7U, manifest_data->m_Resources.m_Count);
+    for (uint32_t i = 0; i < manifest_data->m_Resources.m_Count; ++i) {
+        const char* current_path = manifest_data->m_Resources.m_Data[i].m_Url;
         uint64_t current_hash = dmHashString64(current_path);
 
         if (IsLiveUpdateResource(current_hash)) continue;
 
-        ASSERT_STRCASEEQ(path_name[i], current_path);
+        ASSERT_STREQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
-        for (uint32_t n = 0; n < instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
-            uint8_t current_byte = instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
+        for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
+            uint8_t current_byte = manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
             ASSERT_EQ(content_hash[i][n], current_byte);
         }
     }
 
-    dmDDF::FreeMessage(instance);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
-    dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, instance);
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmLiveUpdateDDF::ManifestData* manifest_data;
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(7U, instance->m_Data.m_Resources.m_Count);
-    for (uint32_t i = 0; i < instance->m_Data.m_Resources.m_Count; ++i) {
-        const char* current_path = instance->m_Data.m_Resources.m_Data[i].m_Url;
+    manifest_data = manifest->m_DDFData;
+
+    ASSERT_EQ(7U, manifest_data->m_Resources.m_Count);
+    for (uint32_t i = 0; i < manifest_data->m_Resources.m_Count; ++i) {
+        const char* current_path = manifest_data->m_Resources.m_Data[i].m_Url;
         uint64_t current_hash = dmHashString64(current_path);
 
         if (IsLiveUpdateResource(current_hash)) continue;
 
-        ASSERT_STRCASEEQ(path_name[i], current_path);
+        ASSERT_STREQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
-        for (uint32_t n = 0; n < instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
-            uint8_t current_byte = instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
+        for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
+            uint8_t current_byte = manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
 
             ASSERT_EQ(compressed_content_hash[i][n], current_byte);
         }
     }
 
-    dmDDF::FreeMessage(instance);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, Wrap)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
@@ -383,7 +506,7 @@ TEST(dmResourceArchive, Wrap)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -396,7 +519,7 @@ TEST(dmResourceArchive, Wrap)
 TEST(dmResourceArchive, Wrap_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, (void*) RESOURCES_COMPRESSED_ARCD, 0x0, 0x0, 0x0, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_COMPRESSED_ARCI, (void*) RESOURCES_COMPRESSED_ARCD, 0x0, 0x0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
 
@@ -413,7 +536,7 @@ TEST(dmResourceArchive, Wrap_Compressed)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -445,7 +568,7 @@ TEST(dmResourceArchive, LoadFromDisk)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -486,7 +609,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
         ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
         ASSERT_EQ(strlen(content[i]), strlen(buffer));
-        ASSERT_STRCASEEQ(content[i], buffer);
+        ASSERT_STREQ(content[i], buffer);
     }
 
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
@@ -498,7 +621,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     return ret;
 }

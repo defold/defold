@@ -14,17 +14,10 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    bool PlatformAcquireAudioFocus() {
-        return true;
-    }
-
-    bool PlatformReleaseAudioFocus()
+    bool PlatformIsMusicPlaying(bool is_device_started, bool has_window_focus)
     {
-        return true;
-    }
-
-    bool PlatformIsMusicPlaying()
-    {
+        (void)is_device_started;
+        (void)has_window_focus;
         return false;
     }
 

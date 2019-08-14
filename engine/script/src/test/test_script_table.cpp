@@ -3,7 +3,8 @@
 #include <dlib/log.h>
 #include <dlib/align.h>
 #include <dlib/math.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 
@@ -25,18 +26,19 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-static bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1); // lua error
-        return false;
-    }
-    return true;
-}
+// See test TSTRING_GenerateData below
+// static bool RunFile(lua_State* L, const char* filename)
+// {
+//     char path[64];
+//     DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+//     if (luaL_dofile(L, path) != 0)
+//     {
+//         dmLogError("%s", lua_tolstring(L, -1, 0));
+//         lua_pop(L, 1); // lua error
+//         return false;
+//     }
+//     return true;
+// }
 
 static bool RunString(lua_State* L, const char* script)
 {
@@ -51,7 +53,7 @@ static bool RunString(lua_State* L, const char* script)
 
 class LuaTableTest* g_LuaTableTest = 0;
 
-class LuaTableTest : public ::testing::Test
+class LuaTableTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -325,7 +327,7 @@ static int LuaCheckTable(lua_State* L) {
 #define abs_index(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : \
 			 lua_gettop(L) + (i) + 1)
 
-static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
+static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, bool do_log)
 {
   index = abs_index(L, index);
 
@@ -336,7 +338,8 @@ static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int
   lua_pushnumber(L, buffer_size);
   int result = lua_pcall(L, 3, 0, 0);
   if (result != 0) {
-    printf("error %s\n", lua_tostring(L, oldtop + 1));
+    if (do_log)
+        printf("error %s\n", lua_tostring(L, oldtop + 1));
     lua_pop(L, 1);
   }
   assert(lua_gettop(L) == oldtop);
@@ -378,7 +381,7 @@ TEST_F(LuaTableTest, Table01)
     lua_pushinteger(L, 456);
     lua_setfield(L, -2, "b");
 
-    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1);
+    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1, true);
 
     ASSERT_NE(result, 0);
 
@@ -421,7 +424,7 @@ TEST_F(LuaTableTest, Table02)
     lua_pushstring(L, "kalle");
     lua_setfield(L, -2, "foo2");
 
-    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1);
+    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1, true);
 
     ASSERT_NE(result, 0);
 
@@ -578,11 +581,15 @@ TEST_F(LuaTableTest, Vector3)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsVector3(L, -1));
-    Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
+    Vectormath::Aos::Vector3* v1 = dmScript::ToVector3(L, -1);
+    ASSERT_EQ(1, v1->getX());
+    ASSERT_EQ(2, v1->getY());
+    ASSERT_EQ(3, v1->getZ());
+
+    Vectormath::Aos::Vector3* v2 = dmScript::CheckVector3(L, -1);
+    ASSERT_EQ(1, v2->getX());
+    ASSERT_EQ(2, v2->getY());
+    ASSERT_EQ(3, v2->getZ());
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -602,12 +609,17 @@ TEST_F(LuaTableTest, Vector4)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsVector4(L, -1));
-    Vectormath::Aos::Vector4* v = dmScript::CheckVector4(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
-    ASSERT_EQ(4, v->getW());
+    Vectormath::Aos::Vector4* v1 = dmScript::ToVector4(L, -1);
+    ASSERT_EQ(1, v1->getX());
+    ASSERT_EQ(2, v1->getY());
+    ASSERT_EQ(3, v1->getZ());
+    ASSERT_EQ(4, v1->getW());
+
+    Vectormath::Aos::Vector4* v2 = dmScript::CheckVector4(L, -1);
+    ASSERT_EQ(1, v2->getX());
+    ASSERT_EQ(2, v2->getY());
+    ASSERT_EQ(3, v2->getZ());
+    ASSERT_EQ(4, v2->getW());
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -627,12 +639,17 @@ TEST_F(LuaTableTest, Quat)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsQuat(L, -1));
-    Vectormath::Aos::Quat* v = dmScript::CheckQuat(L, -1);
-    ASSERT_EQ(1, v->getX());
-    ASSERT_EQ(2, v->getY());
-    ASSERT_EQ(3, v->getZ());
-    ASSERT_EQ(4, v->getW());
+    Vectormath::Aos::Quat* v1 = dmScript::ToQuat(L, -1);
+    ASSERT_EQ(1, v1->getX());
+    ASSERT_EQ(2, v1->getY());
+    ASSERT_EQ(3, v1->getZ());
+    ASSERT_EQ(4, v1->getW());
+
+    Vectormath::Aos::Quat* v2 = dmScript::CheckQuat(L, -1);
+    ASSERT_EQ(1, v2->getX());
+    ASSERT_EQ(2, v2->getY());
+    ASSERT_EQ(3, v2->getZ());
+    ASSERT_EQ(4, v2->getW());
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -656,11 +673,15 @@ TEST_F(LuaTableTest, Matrix4)
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
-    ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
-    Vectormath::Aos::Matrix4* v = dmScript::CheckMatrix4(L, -1);
+    Vectormath::Aos::Matrix4* m1 = dmScript::ToMatrix4(L, -1);
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
-            ASSERT_EQ(i * 4 + j, v->getElem(i, j));
+            ASSERT_EQ(i * 4 + j, m1->getElem(i, j));
+
+    Vectormath::Aos::Matrix4* m2 = dmScript::CheckMatrix4(L, -1);
+    for (uint32_t i = 0; i < 4; ++i)
+        for (uint32_t j = 0; j < 4; ++j)
+            ASSERT_EQ(i * 4 + j, m2->getElem(i, j));
     lua_pop(L, 1);
 
     lua_pop(L, 1);
@@ -779,6 +800,61 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pop(L, 1);
 }
 
+int static ParseTruncatedTable(lua_State* L)
+{
+    size_t buffer_len = 0;
+    const char* buffer = lua_tolstring(L, -2, &buffer_len);
+    int buffer_size = luaL_checknumber(L, -1);
+    dmScript::PushTable(L, buffer, buffer_size);
+    return 0;
+}
+
+TEST_F(LuaTableTest, CorruptedTables)
+{
+    int top = lua_gettop(L);
+
+    // Create table
+    lua_newtable(L);
+
+    lua_pushnumber(L, 1);
+    lua_pushnumber(L, 2);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key1");
+    lua_pushnumber(L, 3);
+    lua_settable(L, -3);
+
+    lua_pushnumber(L, 2);
+    lua_pushnumber(L, 4);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 5);
+    lua_settable(L, -3);
+
+    // Make sure we write to the buffer so that Valgrind doesn't complain
+    // at the lua_pushlstring below.
+    memset(m_Buf, 0, sizeof(m_Buf));
+
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    for (uint32_t i = buffer_used-1; i > 0; --i)
+    {
+        lua_pushcfunction(L, ParseTruncatedTable);
+        lua_pushlstring(L, m_Buf, sizeof(m_Buf));
+        lua_pushnumber(L, i);
+        int res = lua_pcall(L, 2, 0, 0x0);
+        ASSERT_EQ(LUA_ERRRUN, res);
+
+        printf("Err: %s\n", lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 static void RandomString(char* s, int max_len)
 {
     int n = rand() % max_len + 1;
@@ -847,17 +923,31 @@ TEST_F(LuaTableTest, Stress)
             buf[8 + buf_size + 2] = 0xF0;
             buf[8 + buf_size + 3] = 0x0D;
 
-    	    int result = PCallCheckTable(L, buf, buf_size, -1);
+    	    int result = PCallCheckTable(L, buf, buf_size, -1, false);
 
     	    if (result == 0) {
     	      dmScript::PushTable(L, buf, buf_size);
     	      lua_pop(L, 1);
     	    }
 
-            ASSERT_EQ((uint8_t)0xBA, (uint8_t)buf[8 + buf_size + 0]);
-            ASSERT_EQ((uint8_t)0xAD, (uint8_t)buf[8 + buf_size + 1]);
-            ASSERT_EQ((uint8_t)0xF0, (uint8_t)buf[8 + buf_size + 2]);
-            ASSERT_EQ((uint8_t)0x0D, (uint8_t)buf[8 + buf_size + 3]);
+            uint8_t a = (uint8_t)0xBA;
+            uint8_t b = (uint8_t)0xAD;
+            uint8_t c = (uint8_t)0xF0;
+            uint8_t d = (uint8_t)0x0D;
+            uint8_t ra = (uint8_t)buf[8 + buf_size + 0];
+            uint8_t rb = (uint8_t)buf[8 + buf_size + 1];
+            uint8_t rc = (uint8_t)buf[8 + buf_size + 2];
+            uint8_t rd = (uint8_t)buf[8 + buf_size + 3];
+
+            if (a != ra || b != rb || c != rc || d != rd)
+            {
+                PCallCheckTable(L, buf, buf_size, -1, true);
+            }
+
+            ASSERT_EQ(a, ra);
+            ASSERT_EQ(b, rb);
+            ASSERT_EQ(c, rc);
+            ASSERT_EQ(d, rd);
 
             lua_pop(L, 1);
             delete[] buf;
@@ -867,7 +957,7 @@ TEST_F(LuaTableTest, Stress)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     return ret;
 }

@@ -1,8 +1,10 @@
 (ns editor.model
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
-            [editor.gl.texture :as texture]
+            [editor.geom :as geom]
+            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.material :as material]
@@ -16,8 +18,7 @@
             [util.digest :as digest])
   (:import [com.dynamo.model.proto ModelProto$Model ModelProto$ModelDesc]
            [editor.gl.shader ShaderLifecycle]
-           [editor.types AABB]
-           [java.awt.image BufferedImage]))
+           [editor.types AABB]))
 
 (set! *warn-on-reflection* true)
 
@@ -82,12 +83,13 @@
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:rig-scene :material])
                             (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-pb
-          :user-data {:pb pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-pb
+            :user-data {:pb pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
   (into {} (map (fn [unit-index sampler {tex-fn :f tex-args :args}]
@@ -99,12 +101,24 @@
                 samplers
                 gpu-texture-generators)))
 
-(g/defnk produce-scene [scene shader gpu-textures]
-  (update scene :renderable (fn [r]
-                              (cond-> r
-                                shader (assoc-in [:user-data :shader] shader)
-                                true (assoc-in [:user-data :textures] gpu-textures)
-                                true (update :batch-key (fn [old-key] [old-key shader gpu-textures]))))))
+(g/defnk produce-scene [_node-id scene shader gpu-textures vertex-space]
+  (if (some? scene)
+    (update scene :renderable
+            (fn [r]
+              (cond-> r
+                      shader (assoc-in [:user-data :shader] shader)
+                      true (assoc-in [:user-data :textures] gpu-textures)
+                      true (assoc-in [:user-data :vertex-space] vertex-space)
+                      true (update :batch-key
+                                   (fn [old-key]
+                                     ;; We can only batch-render models that use
+                                     ;; :vertex-space-world. In :vertex-space-local
+                                     ;; we must supply individual transforms for
+                                     ;; each model instance in the shader uniforms.
+                                     (when (= :vertex-space-world vertex-space)
+                                       [old-key shader gpu-textures]))))))
+    {:aabb geom/empty-bounding-box
+     :renderable {:passes [pass/selection]}}))
 
 (defn- vset [v i value]
   (let [c (count v)
@@ -117,8 +131,8 @@
   (property name g/Str (dynamic visible (g/constantly false)))
   (property mesh resource/Resource
             (value (gu/passthrough mesh-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :mesh-resource]
                                             [:aabb :aabb]
                                             [:mesh-set-build-target :mesh-set-build-target]
@@ -129,37 +143,38 @@
                                               :ext "dae"})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
-                                            [:shader :shader])))
+                                            [:shader :shader]
+                                            [:vertex-space :vertex-space])))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (let [project (project/get-project self)
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]
                      (concat
                        (for [r old-value]
                          (if r
-                           (project/disconnect-resource-node project r self connections)
+                           (project/disconnect-resource-node evaluation-context project r self connections)
                            (g/disconnect project :nil-resource self :texture-resources)))
                        (for [r new-value]
                          (if r
-                           (project/connect-resource-node project r self connections)
+                           (:tx-data (project/connect-resource-node evaluation-context project r self connections))
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :skeleton-resource]
                                             [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton]
@@ -168,8 +183,8 @@
                                               :ext "dae"})))
   (property animations resource/Resource
             (value (gu/passthrough animations-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :animations-resource]
                                             [:animation-set :animation-set]
                                             [:animation-set-build-target :animation-set-build-target])))
@@ -197,6 +212,7 @@
   (input dep-build-targets g/Any :array)
   (input scene g/Any)
   (input shader ShaderLifecycle)
+  (input vertex-space g/Keyword)
 
   (output animation-ids g/Any :cached (g/fnk [animation-set] (mapv :id (:animations animation-set))))
   (output pb-msg g/Any :cached produce-pb-msg)

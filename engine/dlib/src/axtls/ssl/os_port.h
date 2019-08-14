@@ -103,7 +103,6 @@ extern "C" {
 #define strdup(A)               _strdup(A)
 #define chroot(A)               _chdir(A)
 #define chdir(A)                _chdir(A)
-#define alloca(A)               _alloca(A)
 #ifndef lseek
 #define lseek(A,B,C)            _lseek(A,B,C)
 #endif
@@ -160,7 +159,9 @@ EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 	#else
 		#error "Unsupported platform"
 	#endif
-	#define be64toh(x) ((((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32))
+	#if !defined(be64toh)
+		#define be64toh(x) ((((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32))
+	#endif
 #else
 	#define be64toh(x) (x)
 #endif

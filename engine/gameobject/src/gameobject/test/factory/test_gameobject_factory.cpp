@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <stdint.h>
 
@@ -10,7 +11,7 @@
 
 using namespace Vectormath::Aos;
 
-class FactoryTest : public ::testing::Test
+class FactoryTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -147,13 +148,13 @@ TEST_F(FactoryTest, FactoryScaleAlongZ)
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
 
-    m_Collection->m_ScaleAlongZ = 1;
+    m_Collection->m_Collection->m_ScaleAlongZ = 1;
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::ConstructInstanceId(index);
-    m_Collection->m_ScaleAlongZ = 0;
+    m_Collection->m_Collection->m_ScaleAlongZ = 0;
     instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
 }
@@ -183,6 +184,9 @@ TEST_F(FactoryTest, FactoryProperties)
     lua_rawset(L, -3);
     lua_pushliteral(L, "quat");
     dmScript::PushQuat(L, Quat(18, 19, 20, 21));
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "bool");
+    lua_pushboolean(L, 1);
     lua_rawset(L, -3);
     char buffer[256];
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
@@ -243,8 +247,8 @@ TEST_F(FactoryTest, FactoryCreateCallback)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

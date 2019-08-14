@@ -1,9 +1,0 @@
-/.gwt/.gwt-log
-/war/WEB-INF/deploy
-/war/WEB-INF/classes
-/war/WEB-INF/lib/*.jar
-/war/WEB-INF/appengine-generated
-/war/defold/
-/war/site/
-/war/images/
-/gwt-unitCache/*

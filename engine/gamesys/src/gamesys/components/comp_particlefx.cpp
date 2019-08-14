@@ -300,7 +300,7 @@ namespace dmGameSystem
             if (c.m_AddedToUpdate)
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
-                for (int j = 0; j < emitter_count; ++j)
+                for (uint32_t j = 0; j < emitter_count; ++j)
                 {
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
@@ -412,7 +412,7 @@ namespace dmGameSystem
             }
             if (found_count == 0)
             {
-                dmLogWarning("Particle FX to set constant for could not be found.");
+                dmLogWarning("Particle FX to set constant for could not be found. You need to start playing it before setting constants.");
             }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash)

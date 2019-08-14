@@ -12,6 +12,8 @@ namespace dmGameObject
     dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params);
 
     dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params);
+
+    dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params);
 }
 
 #endif // DM_GAMEOBJECT_RES_COLLECTION_H

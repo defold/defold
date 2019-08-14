@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<cronentries>
-  <cron>
-    <url>/search-index</url>
-    <description>Update the search-index every 4 hours</description>
-    <schedule>every 4 hours</schedule>
-  </cron>
-</cronentries>

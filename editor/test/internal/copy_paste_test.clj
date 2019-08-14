@@ -121,7 +121,7 @@
       (is (= [:create-node :create-node :create-node :create-node
               :connect     :connect     :connect     :connect]  (map :type paste-tx-data)))
       (is (= 4 (count new-nodes-added)))
-      (is (= (g/node-value new-root :produces-value) "A string A string")))))
+      (is (= (g/node-value (g/node-id new-root) :produces-value) "A string A string")))))
 
 (deftest short-circuit
   (ts/with-clean-system
@@ -234,7 +234,7 @@
       (is (= 3 (count (:nodes paste-data))))
       (is (= [:create-node :create-node :connect :connect]  (map :type paste-tx-data)))
       (is (g/connected? (g/now) original-stopper :produces-value new-leaf :consumes-value))
-      (is (= "the one and only" (g/node-value new-root :produces-value))))))
+      (is (= "the one and only" (g/node-value (g/node-id new-root) :produces-value))))))
 
 (defrecord StructuredValue [a b c])
 
@@ -314,7 +314,7 @@
                                                              (g/connect component :component-id game-object :component-id-pairs)
                                                              (g/connect game-object :base-url component :base-url)
                                                              (g/connect game-object :id-counts component :id-counts)))
-          [or-game-object] (g/tx-nodes-added (g/transact (:tx-data (g/override game-object))))]
+          [or-game-object] (g/tx-nodes-added (g/transact (g/override game-object)))]
 
       ;; Override a property.
       (g/set-property! or-game-object :test-property "override-value")

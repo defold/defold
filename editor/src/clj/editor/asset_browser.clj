@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
@@ -12,7 +13,7 @@
             [editor.resource-watch :as resource-watch]
             [editor.workspace :as workspace]
             [editor.dialogs :as dialogs]
-            [editor.util :as util]
+            [editor.disk-availability :as disk-availability]
             [editor.app-view :as app-view])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
@@ -82,19 +83,21 @@
                  {:label "Open As"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}
+                 {:label :separator}
                  {:label "Copy Project Path"
                   :command :copy-project-path}
                  {:label "Copy Full Path"
                   :command :copy-full-path}
+                 {:label "Copy Require Path"
+                  :command :copy-require-path}
+                 {:label :separator}
+                 {:label "Show in Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
                   :command :dependencies}
-                 {:label "Hot Reload"
-                  :command :hot-reload}
                  {:label :separator}
                  {:label "New"
                   :command :new-file
@@ -194,8 +197,13 @@
        (when scroll?
          (ui/scroll-to-item! tree-view tree-item))))))
 
+(defn delete? [resources]
+  (and (disk-availability/available?)
+       (seq resources)
+       (every? deletable-resource? resources)))
+
 (handler/defhandler :cut :asset-browser
-  (enabled? [selection] (and (seq selection) (every? deletable-resource? selection)))
+  (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))
@@ -272,7 +280,8 @@
   destination, moves to the same path the file already resides in, and
   moves to reserved directories."
   [tgt-resource src-files]
-  (and (not (resource/read-only? tgt-resource))
+  (and (disk-availability/available?)
+       (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. fs/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
                             src-files)
@@ -289,6 +298,7 @@
 
 (defn paste? [files-on-clipboard? target-resources]
   (and files-on-clipboard?
+       (disk-availability/available?)
        (= 1 (count target-resources))
        (not (resource/read-only? (first target-resources)))))
 
@@ -301,8 +311,12 @@
         prospect-pairs (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) src-files)
         project-path (workspace/project-path workspace)]
     (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
-      (dialogs/make-alert-dialog (str "Cannot paste because the following target directories are reserved:\n"
-                                      (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal))))
+      (dialogs/make-info-dialog
+        {:title "Cannot Paste"
+         :icon :icon/triangle-error
+         :header "There are reserved target directories"
+         :content (str "Following target directories are reserved:\n"
+                       (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal)))})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
         (doseq [[^File src-file ^File tgt-file] pairs]
           (fs/copy! src-file tgt-file {:target :merge}))
@@ -348,7 +362,8 @@
             (workspace/resource-sync! workspace (moved-files src-file dest-file src-files))))))))
 
 (defn rename? [resources]
-  (and (= 1 (count resources))
+  (and (disk-availability/available?)
+       (= 1 (count resources))
        (not (resource/read-only? (first resources)))
        (not (fixed-resource-paths (resource/resource->proj-path (first resources))))))
 
@@ -379,18 +394,42 @@
       (when-let [sane-new-name (some-> new-name not-empty)]
         (rename resource sane-new-name)))))
 
-(defn delete? [resources]
-  (and (seq resources)
-       (every? deletable-resource? resources)
-       (every? #(not (fixed-resource-paths (resource/resource->proj-path %))) resources)))
-
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider]
-    (let [names (apply str (interpose ", " (map resource/resource-name selection)))
-          next (-> (handler/succeeding-selection selection-provider)
+    (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))]
-      (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
+      (when (if (= 1 (count selection))
+              (dialogs/make-confirmation-dialog
+                {:title "Delete File?"
+                 :icon :icon/circle-question
+                 :header (format "Are you sure you want to delete %s?"
+                                 (resource/resource-name (first selection)))
+                 :buttons [{:text "Cancel"
+                            :cancel-button true
+                            :default-button true
+                            :result false}
+                           {:text "Delete"
+                            :variant :danger
+                            :result true}]})
+              (dialogs/make-confirmation-dialog
+                {:title "Delete Files?"
+                 :icon :icon/circle-question
+                 :header "Are you sure you want to delete these files?"
+                 :content {:fx/type fxui/label
+                           :style-class "dialog-content-padding"
+                           :text (format "You are about to delete: \n%s"
+                                         (->> selection
+                                              (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                         (resource/resource-name %)))
+                                              (string/join "\n")))}
+                 :buttons [{:text "Cancel"
+                            :cancel-button true
+                            :default-button true
+                            :result false}
+                           {:text "Delete"
+                            :variant :danger
+                            :result true}]}))
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
 
@@ -403,6 +442,7 @@
                                                                                 (= (count selection) 1)
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
+  (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project]
        (let [project-path (workspace/project-path workspace)
              base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
@@ -439,7 +479,8 @@
       (format "The name %s is reserved" new-name))))
 
 (defn new-folder? [resources]
-  (and (= (count resources) 1)
+  (and (disk-availability/available?)
+       (= (count resources) 1)
        (not (resource/read-only? (first resources)))
        (not= nil (resource/abs-path (first resources)))))
 
@@ -452,8 +493,7 @@
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
           options {:validate (partial validate-new-folder-name parent-path)}]
       (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
-        (let [project-path (workspace/project-path workspace)
-              ^File folder (resolve-sub-folder base-folder new-folder-name)]
+        (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
           (do (fs/create-directories! folder)
               (workspace/resource-sync! workspace)
               (select-resource! asset-browser (workspace/file-resource workspace folder))))))))
@@ -468,8 +508,9 @@
   (enabled? [active-resource selection]
             (when-let [r (selected-or-active-resource selection active-resource)]
               (resource/exists? r)))
-  (run [active-resource asset-browser selection]
+  (run [active-resource asset-browser selection main-stage]
     (when-let [r (selected-or-active-resource selection active-resource)]
+      (app-view/show-asset-browser! (.getScene ^Stage main-stage))
       (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- item->path [^TreeItem item]
@@ -678,7 +719,10 @@
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
+      (ui/customize-tree-view! {:double-click-expand? true})
       (ui/bind-double-click! :open)
+      (ui/bind-key-commands! {"Enter" :open
+                              "F2" :rename})
       (.setOnDragDetected detected-handler)
       (ui/cell-factory! (fn [resource]
                           (if (nil? resource)

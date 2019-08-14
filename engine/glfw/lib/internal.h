@@ -49,6 +49,7 @@
 
 // Internal key and button state/action definitions
 #define GLFW_STICK 2
+#define GLFW_CLICKED 3
 
 
 //========================================================================
@@ -82,6 +83,7 @@ typedef struct {
     int         glDebug;
     int         glProfile;
     int         highDPI;
+    int         clientAPI;
 } _GLFWhints;
 
 
@@ -109,6 +111,7 @@ typedef struct {
     int         glDebug;
     int         glProfile;
     int         highDPI;
+    int         clientAPI;
 } _GLFWwndconfig;
 
 
@@ -184,6 +187,7 @@ void * _glfwPlatformGetProcAddress( const char *procname );
 int _glfwPlatformGetJoystickParam( int joy, int param );
 int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes );
 int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats );
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id );
 
 // Threads
@@ -210,6 +214,7 @@ void _glfwPlatformSleep( double time );
 // Window management
 int  _glfwPlatformOpenWindow( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
 void _glfwPlatformCloseWindow( void );
+int  _glfwPlatformGetWindowRefreshRate( void );
 int  _glfwPlatformGetDefaultFramebuffer( void );
 void _glfwPlatformSetWindowTitle( const char *title );
 void _glfwPlatformSetWindowSize( int width, int height );

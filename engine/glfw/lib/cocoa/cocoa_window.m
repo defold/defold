@@ -253,6 +253,13 @@ static const unsigned int MAC_TO_GLFW_KEYCODE_MAPPING[128] =
     /* 7f */ -1,
 };
 
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    CVTime time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod((CVDisplayLinkRef)_glfwWin.displayLink);
+    float refresh_rate = (float)time.timeScale / (float)time.timeValue;
+    return (refresh_rate + 0.5f);
+}
+
 //========================================================================
 // Converts a Mac OS X keycode to a GLFW keycode
 //========================================================================
@@ -901,6 +908,12 @@ void _glfwPlatformRefreshWindowParams( void )
         contentRectBacking.size.height > contentRectFrame.size.height) {
         _glfwWin.highDPI = 1;
     }
+
+    NSRect contentRect =
+        [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];
+    contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
+    _glfwWin.width = contentRect.size.width;
+    _glfwWin.height = contentRect.size.height;
 }
 
 //========================================================================

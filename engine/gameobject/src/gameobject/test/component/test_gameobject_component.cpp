@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <map>
 
@@ -12,7 +13,7 @@
 
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 
-class ComponentTest : public ::testing::Test
+class ComponentTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -499,21 +500,21 @@ TEST_F(ComponentTest, FinalCallsFinal)
     }
 
     // 11 objects in total
-    ASSERT_EQ(11u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ(11u, collection->m_Collection->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
     dmGameObject::Delete(collection, go_a, false);
     dmGameObject::PostUpdate(collection);
 
     // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10
-    ASSERT_EQ(1u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1u, collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 10, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     // One more pass needed to delete the last object in the chain
     dmGameObject::PostUpdate(collection);
 
     // All done
-    ASSERT_EQ(0u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ(0u, collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::DeleteCollection(collection);
@@ -522,8 +523,8 @@ TEST_F(ComponentTest, FinalCallsFinal)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

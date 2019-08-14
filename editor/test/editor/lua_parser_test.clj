@@ -3,7 +3,7 @@
             [clojure.test :refer :all]
             [clojure.java.io :as io]
             [clojure.string :as string]
-            [editor.lua-parser :as lua-parser]
+            [editor.lua-parser :as lp]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support])
@@ -11,9 +11,9 @@
 
 (defn- lua-info
   ([code]
-   (lua-info nil (constantly true) code))
+   (lp/lua-info nil (constantly true) code))
   ([workspace valid-resource-kind? code]
-   (lua-parser/lua-info workspace valid-resource-kind? code)))
+   (lp/lua-info workspace valid-resource-kind? code)))
 
 (deftest test-variables
   (testing "global variable with assignment"
@@ -247,6 +247,12 @@
     "local function\nfunction foo(a,"
     "local function\nfunction foo(a,b"
     "local function\nfunction foo(a,b)"))
+
+(deftest test-broken-table-def
+  ;; "=" missing after MY_LIST creates an antlr error node wrapping the namelist
+  (let [code "local MY_LIST { [1] = \"hello\", [2] = \"world\" }"
+        result (lua-info code)]
+    (is (= #{} (:local-vars result)))))
 
 (def ^:private valid-resource-kind? #{"atlas" "font" "material" "texture" "tile_source"})
 

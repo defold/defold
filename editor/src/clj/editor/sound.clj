@@ -1,15 +1,13 @@
 (ns editor.sound
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [util.digest :as digest]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
-            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [java.io IOException]
@@ -38,10 +36,11 @@
 
 (g/defnk produce-source-build-targets [_node-id resource]
   (try
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-sound-source
-      :user-data {:content-hash (resource/resource->sha1-hex resource)}}]
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-sound-source
+        :user-data {:content-hash (resource/resource->sha1-hex resource)}})]
     (catch IOException e
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
@@ -55,6 +54,7 @@
 (g/defnk produce-outline-data
   [_node-id]
   {:node-id _node-id
+   :node-outline-key "Sound"
    :label "Sound"
    :icon sound-icon})
 
@@ -66,7 +66,8 @@
 
 (g/defnk produce-form-data
   [_node-id sound looping group gain]
-  {:form-ops {:user-data {:node-id _node-id}
+  {:navigation false
+   :form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
    :sections [{:title "Sound"
@@ -79,7 +80,7 @@
                          :type :boolean}
                         {:path [:group]
                          :label "Group"
-                         :type :number}
+                         :type :string}
                         {:path [:gain]
                          :label "Gain"
                          :type :number}]}]
@@ -112,12 +113,13 @@
             dep-resources (map (fn [[label resource]]
                                  [label (get deps-by-resource resource)])
                                [[:sound sound]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-sound
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-sound
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-sound [project self resource sound]
   (g/set-property self
@@ -134,8 +136,8 @@
 
   (property sound resource/Resource
             (value (gu/passthrough sound-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id sound]
@@ -162,7 +164,7 @@
       :ddf-type Sound$SoundDesc
       :load-fn load-sound
       :icon sound-icon
-      :view-types [:form-view :text]
+      :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}

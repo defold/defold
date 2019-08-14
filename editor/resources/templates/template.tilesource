@@ -11,3 +11,4 @@ animations {
   start_tile: 1
   end_tile: 1
 }
+extrude_borders: 2

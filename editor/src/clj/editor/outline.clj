@@ -1,13 +1,12 @@
 (ns editor.outline
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [schema.core :as s]
             [editor.resource :as resource]
             [editor.util :as util]
-            [editor.workspace :as workspace]
-            [service.log :as log])
-  (:import [editor.resource FileResource ZipResource]))
+            [schema.core :as s]
+            [service.log :as log]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,6 +46,7 @@
     nil))
 
 (g/deftype OutlineData {:node-id                              s/Int
+                        :node-outline-key                     (s/maybe s/Str)
                         :label                                s/Str
                         :icon                                 s/Str
                         (s/optional-key :link)                (s/maybe (s/pred resource/openable-resource?))
@@ -55,6 +55,7 @@
                         (s/optional-key :outline-error?)      s/Bool
                         (s/optional-key :outline-overridden?) s/Bool
                         (s/optional-key :outline-reference?)  s/Bool
+                        (s/optional-key :outline-show-link?)  s/Bool
                         s/Keyword                             s/Any})
 
 (g/defnode OutlineNode
@@ -325,3 +326,32 @@
 
 (defn natural-sort [items]
   (->> items (sort-by :label util/natural-order) vec))
+
+(defn gen-node-outline-keys [prefixes]
+  (loop [prefixes prefixes
+         counts-by-prefix {}
+         node-outline-keys []]
+    (if-some [prefix (first prefixes)]
+      (let [^long count (get counts-by-prefix prefix 0)]
+        (assert (string? (not-empty prefix)))
+        (recur (next prefixes)
+               (assoc counts-by-prefix prefix (inc count))
+               (conj node-outline-keys (str prefix count))))
+      node-outline-keys)))
+
+(defn taken-node-outline-keys [parent-outline-node]
+  (into #{}
+        (keep :node-outline-key)
+        (:children (g/node-value parent-outline-node :node-outline))))
+
+(defn next-node-outline-key [template-node-outline-key taken-node-outline-keys]
+  ;; Contrary to resolve-id, we want to return the next id following the highest
+  ;; existing id. We don't want added nodes to reuse freed slots.
+  (let [prefix (trim-digits template-node-outline-key)
+        next-index (inc (transduce (comp (filter #(string/starts-with? % prefix))
+                                         (map #(subs % (count prefix)))
+                                         (map #(Long/parseUnsignedLong %)))
+                                   max
+                                   -1
+                                   taken-node-outline-keys))]
+    (str prefix next-index)))

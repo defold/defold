@@ -33,7 +33,7 @@ def apply_barchive_after(self):
             builder.inputs.extend(task.outputs)
 
     builder.outputs = []
-    for extension in ['dmanifest', 'arci', 'arcd']:
+    for extension in ['dmanifest', 'arci', 'arcd', 'public', 'manifest_hash']:
         current_filepath = '%s.%s' % (self.resource_name, extension)
         current_output = self.path.find_or_declare(current_filepath)
         builder.outputs.append(current_output)
@@ -46,5 +46,6 @@ def apply_barchive_after(self):
 
     builder.env.append_value('ARCHIVEBUILDER_ROOT', [arg_root])
     builder.env.append_value('ARCHIVEBUILDER_OUTPUT', [arg_output])
+    builder.env.append_value('ARCHIVEBUILDER_FLAGS', ['-m'])
     if self.use_compression:
         builder.env.append_value('ARCHIVEBUILDER_FLAGS', ['-c'])

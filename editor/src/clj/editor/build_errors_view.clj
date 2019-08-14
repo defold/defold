@@ -1,5 +1,9 @@
 (ns editor.build-errors-view
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.code.data :refer [CursorRange->line-number]]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -7,7 +11,10 @@
   (:import [clojure.lang MapEntry PersistentQueue]
            [java.util Collection]
            [javafx.collections ObservableList]
-           [javafx.scene.control TabPane TreeItem TreeView]))
+           [javafx.scene.control TreeItem TreeView]
+           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.layout HBox]
+           [javafx.scene.text Text]))
 
 (set! *warn-on-reflection* true)
 
@@ -53,8 +60,8 @@
       (pair node-id depth))
     (pair node-id depth)))
 
-(defn- error-line [error]
-  (-> error :value ex-data :line))
+(defn- error-cursor-range [error]
+  (some-> error :user-data :cursor-range))
 
 (defn- missing-resource-node? [evaluation-context node-id]
   (and (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
@@ -62,7 +69,8 @@
        (some? (g/node-value node-id :_output-jammers evaluation-context))))
 
 (defn- error-item [evaluation-context root-cause]
-  (let [message (:message (first root-cause))
+  (let [{:keys [message severity]} (first root-cause)
+        cursor-range (error-cursor-range (first root-cause))
         errors (drop-while (comp (fn [node-id]
                                    (or (nil? node-id)
                                        (missing-resource-node? evaluation-context node-id)))
@@ -74,12 +82,14 @@
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
         outline-node-id (error-outline-node-id basis errors origin-override-depth origin-override-id)
         parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
-        line (error-line error)]
+        cursor-range (or cursor-range (error-cursor-range error))]
     (cond-> {:parent parent
              :node-id outline-node-id
              :message (:message error)
-             :severity (:severity error)}
-            line (assoc :line line))))
+             :severity (:severity error severity)}
+
+            (some? cursor-range)
+            (assoc :cursor-range cursor-range))))
 
 (defn- push-causes [queue error path]
   (let [new-path (conj path error)]
@@ -107,16 +117,28 @@
                     (distinct))
               (root-causes-helper (queue (pair error-value (list)))))))
 
+(defn severity->int [severity]
+  (case severity
+    :info 2
+    :warning 1
+    :fatal 0
+    0))
+
+(defn error-pair->sort-value [[parent errors]]
+  [(reduce min 1000 (map (comp severity->int :severity) errors))
+   (resource/resource->proj-path (:resource parent))])
+
 (defn- error-items [root-error]
   (->> (root-causes root-error)
+       (sort-by :cursor-range)
        (group-by :parent)
-       (sort-by (comp resource/resource->proj-path :resource key))
+       (sort-by error-pair->sort-value)
        (mapv (fn [[resource errors]]
                (if resource
                  {:type :resource
                   :value resource
                   :children errors}
-                 {:type :default
+                 {:type :unknown-parent
                   :children errors})))))
 
 (defn build-resource-tree [root-error]
@@ -133,12 +155,18 @@
      :icon (workspace/resource-icon resource)
      :style (resource/style-classes resource)}))
 
+(defmethod make-tree-cell :unknown-parent
+  [tree-item]
+  {:text "Unknown source"
+   :icon "icons/32/Icons_29-AT-Unknown.png"
+   :style #{"severity-info"}})
+
 (defmethod make-tree-cell :default
   [error-item]
-  (let [line (:line error-item)
+  (let [cursor-range (:cursor-range error-item)
         message (cond->> (:message error-item)
-                  line
-                  (str "Line " line ": "))
+                         (some? cursor-range)
+                         (str "Line " (CursorRange->line-number cursor-range) ": "))
         icon (case (:severity error-item)
                :info "icons/32/Icons_E_00_info.png"
                :warning "icons/32/Icons_E_01_warning.png"
@@ -146,9 +174,10 @@
         style (case (:severity error-item)
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
-                #{"severity-error"})]
-    {:text message
-     :icon icon
+                #{"severity-error"})
+        image (jfx/get-image-view icon 16)
+        text (Text. message)]
+    {:graphic (HBox. (ui/node-array [image text]))
      :style style}))
 
 (defn- find-outline-node [resource-node-id error-node-id]
@@ -176,13 +205,52 @@
               opts (if-some [line (:line error-item)] {:line line} {})]
           [resource outline-node-id opts])))))
 
+(defn- error-line-for-clipboard [error-item]
+  (let [message (:message error-item)
+        line (when-some [cursor-range (:cursor-range error-item)]
+               (str "Line " (CursorRange->line-number cursor-range) ": "))]
+    (str line message)))
+
+(defn- error-text-for-clipboard [selection]
+  (let [children    (:children selection)
+        resource    (or (get-in selection [:value :resource])
+                        (get-in selection [:parent :resource]))
+        next-line   (str \newline \tab)
+        proj-path   (if-let [res-path (not-empty (resource/resource->proj-path resource))]
+                      (str res-path next-line)
+                      "")
+        error-lines (if (not-empty children)
+                      (string/join next-line (map error-line-for-clipboard children))
+                      (error-line-for-clipboard selection))]
+    (str proj-path error-lines)))
+
+(handler/defhandler :copy :build-errors-view
+  (active? [selection] (not-empty selection))
+  (enabled? [selection] (not-empty selection))
+  (run [build-errors-view]
+    (let [clipboard (Clipboard/getSystemClipboard)
+          content    (ClipboardContent.)
+          selection  (first (ui/selection build-errors-view))
+          error-text (error-text-for-clipboard selection)]
+      (.putString content error-text)
+      (.setContent clipboard content))))
+
+(ui/extend-menu ::build-errors-menu nil
+                [{:label "Copy"
+                  :command :copy}])
+
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
+    (ui/customize-tree-view! {:double-click-expand? false})
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
                      (when-some [[resource selected-node-id opts] (some-> errors-tree ui/selection first error-item-open-info)]
-                       (open-resource-fn resource [selected-node-id] opts))))))
+                       (open-resource-fn resource [selected-node-id] opts))))
+    (ui/register-context-menu ::build-errors-menu)
+    (ui/context! :build-errors-view
+                 {:build-errors-view errors-tree}
+                 (ui/->selection-provider errors-tree))))
 
 (declare tree-item)
 
@@ -212,10 +280,7 @@
     (when-let [first-error (->> (ui/tree-item-seq (.getRoot errors-tree))
                                 (filter (fn [^TreeItem item] (.isLeaf item)))
                                 first)]
-      (.select (.getSelectionModel errors-tree) first-error))
-    ;; Select tab-pane
-    (let [^TabPane tab-pane (.getParent (.getParent (.getParent errors-tree)))]
-      (ui/select-tab! tab-pane "build-errors-tab"))))
+      (.select (.getSelectionModel errors-tree) first-error))))
 
 (defn clear-build-errors [^TreeView errors-tree]
   (.setRoot errors-tree nil))

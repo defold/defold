@@ -1,6 +1,7 @@
 (ns editor.animation-set
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
@@ -70,29 +71,22 @@
      :content (protobuf/map->bytes Rig$AnimationSet animation-set-with-hash-ids)}))
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
-  {:node-id _node-id
-   :resource (workspace/make-build-resource resource)
-   :build-fn build-animation-set
-   :user-data {:animation-set animation-set}})
+  (bt/with-content-hash
+    {:node-id _node-id
+     :resource (workspace/make-build-resource resource)
+     :build-fn build-animation-set
+     :user-data {:animation-set animation-set}}))
 
 (def ^:private form-sections
-  {
+  {:navigation false
    :sections
-   [
-    {
-     :title "Animation Set"
-     :fields
-     [
-      {
-       :path [:animations]
-       :type :list
-       :label "Animations"
-       :element {:type :resource :filter #{"animationset" "dae"} :default nil}
-       }
-      ]
-     }
-    ]
-   })
+   [{:title "Animation Set"
+     :fields [{:path [:animations]
+               :type :list
+               :label "Animations"
+               :element {:type :resource
+                         :filter #{"animationset" "dae"}
+                         :default nil}}]}]})
 
 (defn- set-form-op [{:keys [node-id]} path value]
   (assert (= path [:animations]))
@@ -113,18 +107,18 @@
 
   (property animations resource/ResourceVec
             (value (gu/passthrough animation-resources))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (let [project (project/get-project self)
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :animation-resources]
                                       [:animation-set :animation-sets]]]
                      (concat
                        (for [old-resource old-value]
                          (if old-resource
-                           (project/disconnect-resource-node project old-resource self connections)
+                           (project/disconnect-resource-node evaluation-context project old-resource self connections)
                            (g/disconnect project :nil-resource self :animation-resources)))
                        (for [new-resource new-value]
                          (if new-resource
-                           (project/connect-resource-node project new-resource self connections)
+                           (:tx-data (project/connect-resource-node evaluation-context project new-resource self connections))
                            (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 
@@ -149,4 +143,4 @@
     :load-fn load-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :view-types [:form-view]))
+    :view-types [:cljfx-form-view]))

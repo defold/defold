@@ -8,5 +8,5 @@ option java_outer_classname = "Resource";
 
 message Reload
 {
-    required string resource = 1;
+    repeated string resources = 1;
 }

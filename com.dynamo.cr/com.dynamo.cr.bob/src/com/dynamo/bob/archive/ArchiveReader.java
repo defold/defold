@@ -9,6 +9,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 
@@ -95,7 +96,8 @@ public class ArchiveReader {
             archiveIndexFile.read(e.hash, 0, hashLength);
 
             if (this.manifestFile != null) {
-	            for (ResourceEntry resource : this.manifestFile.getData().getResourcesList()) {
+                ManifestData manifestData = ManifestData.parseFrom(this.manifestFile.getData());
+                for (ResourceEntry resource : manifestData.getResourcesList()) {
 	            	if (matchHash(e.hash, resource.getHash().getData().toByteArray(), this.hashLength)) {
 	            		e.fileName = resource.getUrl();
 	            		e.relName = resource.getUrl();

@@ -53,16 +53,16 @@
                        (<= (.. u min z) (.. u max z))))))
 
 (deftest aabb-union-null []
-  (let [aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 10 10 10))
-        null (geom/null-aabb)]
-    (is (= aabb (geom/aabb-union aabb null)))
-    (is (= aabb (geom/aabb-union null aabb)))
+  (let [aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 10 10 10))]
+    (is (= aabb (geom/aabb-union aabb geom/null-aabb)))
+    (is (= aabb (geom/aabb-union geom/null-aabb aabb)))
     (is (= aabb (geom/aabb-union aabb aabb)))
-    (is (= null (geom/aabb-union null null)))))
+    (is (= geom/null-aabb (geom/aabb-union geom/null-aabb geom/null-aabb)))
+    (is (geom/null-aabb? (geom/aabb-union geom/null-aabb geom/null-aabb)))))
 
 (defspec aabb-incorporates-points
   (prop/for-all [pointlist (gen/vector gen-point)]
-                (let [aabb (reduce geom/aabb-incorporate (geom/null-aabb) pointlist)]
+                (let [aabb (reduce geom/aabb-incorporate geom/null-aabb pointlist)]
                   (every? #(geom/aabb-contains? aabb %) pointlist))))
 
 (defmacro reduce-field
@@ -71,7 +71,7 @@
 
 (defspec aabb-incorporates-minimally
   (prop/for-all [pointlist (gen/such-that #(< 0 (count %)) (gen/vector gen-point))]
-                (let [aabb (reduce geom/aabb-incorporate (geom/null-aabb) pointlist)
+                (let [aabb (reduce geom/aabb-incorporate geom/null-aabb pointlist)
                       max-v (Point3d. (reduce-field max .x pointlist)
                                        (reduce-field max .y pointlist)
                                        (reduce-field max .z pointlist))

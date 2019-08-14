@@ -89,17 +89,21 @@ namespace dmMemProfile
 // Not available on WIN32 or Android - yet.
 #if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
 
+#ifdef __linux__
 static void *null_calloc(size_t /*count*/, size_t /*size*/)
 {
     return 0;
 }
+#endif
 
 static void *(*mallocp)(size_t size) = 0;
 static void *(*callocp)(size_t count, size_t size) = 0;
 static void *(*reallocp)(void*, size_t size) = 0;
 static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
-static void *(*memalignp)(size_t, size_t) = 0;
 static void (*freep)(void *) = 0;
+#ifndef __MACH__
+static void *(*memalignp)(size_t, size_t) = 0;
+#endif
 
 static void Log(int file, const char* str)
 {

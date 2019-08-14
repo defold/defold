@@ -1,9 +1,0 @@
-def configure(conf):
-    pass
-
-def build(bld):
-    bullet_dynamics = bld.new_task_gen(features = 'cxx cstaticlib',
-                                       includes = '. ..',
-                                       target = 'BulletDynamics',
-                                       uselib = 'BULLET')
-    bullet_dynamics.find_sources_in_dirs(['Character', 'ConstraintSolver', 'Dynamics', 'Vehicle'])

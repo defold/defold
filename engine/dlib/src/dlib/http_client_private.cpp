@@ -73,7 +73,7 @@ namespace dmHttpClientPrivate
             if (!colon)
                 return PARSE_RESULT_SYNTAX_ERROR;
 
-            char* value = colon + 2;
+            char* value = colon + 1;
             while (*value == ' ') {
                 value++;
             }

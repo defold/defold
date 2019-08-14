@@ -46,6 +46,8 @@ namespace dmDeviceOpenAL
 
     dmSound::Result DeviceOpenALOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
+        assert(params);
+        assert(device);
         ALCdevice* al_device;
         ALCcontext* al_context;
 
@@ -85,14 +87,22 @@ namespace dmDeviceOpenAL
 
         *device = openal;
 
+        alcMakeContextCurrent(NULL);
+
         return dmSound::RESULT_OK;
     }
 
     void DeviceOpenALClose(dmSound::HDevice device)
     {
+        if (!device)
+        {
+            return;
+        }
+
         OpenALDevice* openal = (OpenALDevice*) device;
 
-        bool printed = false;
+        alcMakeContextCurrent(openal->m_Context);
+        
         int iter = 0;
         while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
         {
@@ -137,7 +147,14 @@ namespace dmDeviceOpenAL
 
     dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
     {
+        assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
+        ALCcontext* current_context = alcGetCurrentContext();
+        CheckAndPrintError();
+        if (current_context != openal->m_Context)
+        {
+            return dmSound::RESULT_INIT_ERROR;
+        }
         ALuint buffer = openal->m_Buffers[0];
         openal->m_Buffers.EraseSwap(0);
         alBufferData(buffer, AL_FORMAT_STEREO16, samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
@@ -158,6 +175,7 @@ namespace dmDeviceOpenAL
 
     uint32_t DeviceOpenALFreeBufferSlots(dmSound::HDevice device)
     {
+        assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
         int processed;
         alGetSourcei(openal->m_Source, AL_BUFFERS_PROCESSED, &processed);
@@ -176,12 +194,15 @@ namespace dmDeviceOpenAL
 
     void DeviceOpenALDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
     {
+        assert(device);
+        assert(info);
         OpenALDevice* openal = (OpenALDevice*) device;
         info->m_MixRate = openal->m_MixRate;
     }
 
-    void DeviceOpenALRestart(dmSound::HDevice device)
+    void DeviceOpenALStart(dmSound::HDevice device)
     {
+        assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
         if (!alcMakeContextCurrent(openal->m_Context)) {
             dmLogError("Failed to restart OpenAL device, could not enable context!");
@@ -190,12 +211,12 @@ namespace dmDeviceOpenAL
 
     void DeviceOpenALStop(dmSound::HDevice device)
     {
-        OpenALDevice* openal = (OpenALDevice*) device;
+        assert(device);
         if (!alcMakeContextCurrent(NULL)) {
             dmLogError("Failed to stop OpenAL device, could not disable context!");
         }
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALRestart, DeviceOpenALStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
 }
 

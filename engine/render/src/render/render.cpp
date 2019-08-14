@@ -67,13 +67,13 @@ namespace dmRender
     RenderContextParams::RenderContextParams()
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
-    , m_VertexProgramData(0x0)
-    , m_FragmentProgramData(0x0)
+    , m_VertexShaderDesc(0x0)
+    , m_FragmentShaderDesc(0x0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
-    , m_VertexProgramDataSize(0)
-    , m_FragmentProgramDataSize(0)
+    , m_VertexShaderDescSize(0)
+    , m_FragmentShaderDescSize(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
@@ -112,9 +112,9 @@ namespace dmRender
         context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
 
         context->m_DebugRenderer.m_RenderContext = 0;
-        if (params.m_VertexProgramData != 0 && params.m_VertexProgramDataSize != 0 &&
-            params.m_FragmentProgramData != 0 && params.m_FragmentProgramDataSize != 0) {
-            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
+        if (params.m_VertexShaderDesc != 0 && params.m_VertexShaderDescSize != 0 &&
+            params.m_FragmentShaderDesc != 0 && params.m_FragmentShaderDescSize != 0) {
+            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
         }
 
         memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
@@ -200,7 +200,7 @@ namespace dmRender
     void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end)
     {
         // Insert the used up indices into the sort buffer.
-        assert(end - begin <= render_context->m_RenderListSortIndices.Remaining());
+        assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
 
         // Transform pointers back to indices.
         RenderListEntry *base = render_context->m_RenderList.Begin();

@@ -32,6 +32,7 @@
 
 #include <limits.h>
 #include <assert.h>
+#include <libgen.h> // Defold Extension for WM_CLASS property
 
 
 /* Define GLX 1.4 FSAA tokens if not already defined */
@@ -725,25 +726,28 @@ static void initGLXExtensions( void )
         }
     }
 
-    if( _glfwPlatformExtensionSupported( "GLX_SGIX_fbconfig" ) )
-    {
-        _glfwWin.GetFBConfigAttribSGIX = (PFNGLXGETFBCONFIGATTRIBSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXGetFBConfigAttribSGIX" );
-        _glfwWin.ChooseFBConfigSGIX = (PFNGLXCHOOSEFBCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXChooseFBConfigSGIX" );
-        _glfwWin.CreateContextWithConfigSGIX = (PFNGLXCREATECONTEXTWITHCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXCreateContextWithConfigSGIX" );
-        _glfwWin.GetVisualFromFBConfigSGIX = (PFNGLXGETVISUALFROMFBCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXGetVisualFromFBConfigSGIX" );
-
-        if( _glfwWin.GetFBConfigAttribSGIX &&
-            _glfwWin.ChooseFBConfigSGIX &&
-            _glfwWin.CreateContextWithConfigSGIX &&
-            _glfwWin.GetVisualFromFBConfigSGIX )
-        {
-            _glfwWin.has_GLX_SGIX_fbconfig = GL_TRUE;
-        }
-    }
+    // DEF-3489 When comparing the behavior to GLFW 3, that version doesn't use SGIX
+    // and it seems our version returned different fbconfigs, which eventually won't work
+    // when calling glXMakeCurrent
+    // if( _glfwPlatformExtensionSupported( "GLX_SGIX_fbconfig" ) )
+    // {
+    //     _glfwWin.GetFBConfigAttribSGIX = (PFNGLXGETFBCONFIGATTRIBSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXGetFBConfigAttribSGIX" );
+    //     _glfwWin.ChooseFBConfigSGIX = (PFNGLXCHOOSEFBCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXChooseFBConfigSGIX" );
+    //     _glfwWin.CreateContextWithConfigSGIX = (PFNGLXCREATECONTEXTWITHCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXCreateContextWithConfigSGIX" );
+    //     _glfwWin.GetVisualFromFBConfigSGIX = (PFNGLXGETVISUALFROMFBCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXGetVisualFromFBConfigSGIX" );
+    //
+    //     if( _glfwWin.GetFBConfigAttribSGIX &&
+    //         _glfwWin.ChooseFBConfigSGIX &&
+    //         _glfwWin.CreateContextWithConfigSGIX &&
+    //         _glfwWin.GetVisualFromFBConfigSGIX )
+    //     {
+    //         _glfwWin.has_GLX_SGIX_fbconfig = GL_TRUE;
+    //     }
+    // }
 
     if( _glfwPlatformExtensionSupported( "GLX_ARB_multisample" ) )
     {
@@ -922,7 +926,31 @@ static GLboolean createWindow( int width, int height,
         XFree( hints );
     }
 
-    _glfwPlatformSetWindowTitle( "GLFW Window" );
+    //========================================================================
+    // Defold extension: Set WM_CLASS property
+    //========================================================================
+    {
+        char exe_path_buffer[1024];
+        memset(exe_path_buffer, 0, sizeof(exe_path_buffer));
+        XClassHint* hints = XAllocClassHint();
+
+        if (readlink("/proc/self/exe", exe_path_buffer, sizeof(exe_path_buffer)-1) >= 0)
+        {
+            char* exe_name   = basename(exe_path_buffer);
+            hints->res_name  = exe_name;
+            hints->res_class = exe_name;
+        }
+        else
+        {
+            hints->res_name  = (char*) "dmengine";
+            hints->res_class = (char*) "dmengine";
+        }
+
+        XSetClassHint(_glfwLibrary.display, _glfwWin.window, hints);
+        XFree(hints);
+    }
+
+    _glfwPlatformSetWindowTitle( "" );
 
     // Make sure the window is mapped before proceeding
     XMapWindow( _glfwLibrary.display, _glfwWin.window );
@@ -1382,7 +1410,10 @@ static GLboolean processSingleEvent( void )
     return GL_FALSE;
 }
 
-
+int _glfwPlatformGetWindowRefreshRate()
+{
+    return _glfwWin.refreshRate;
+}
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -1412,6 +1443,7 @@ int _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.Saver.changed    = GL_FALSE;
     _glfwWin.refreshRate      = wndconfig->refreshRate;
     _glfwWin.windowNoResize   = wndconfig->windowNoResize;
+    _glfwWin.clientAPI        = wndconfig->clientAPI;
 
     _glfwWin.wmDeleteWindow    = None;
     _glfwWin.wmPing            = None;
@@ -1427,34 +1459,43 @@ int _glfwPlatformOpenWindow( int width, int height,
     // Create the invisible cursor for hidden cursor mode
     _glfwWin.cursor = createNULLCursor( _glfwLibrary.display, _glfwWin.root );
 
-    initGLXExtensions();
-
-    // Choose the best available fbconfig
+    if (wndconfig->clientAPI != GLFW_NO_API)
     {
-        unsigned int fbcount;
-        _GLFWfbconfig *fbconfigs;
-        const _GLFWfbconfig *result;
+        initGLXExtensions();
 
-        fbconfigs = getFBConfigs( &fbcount );
-        if( !fbconfigs )
+        // Choose the best available fbconfig
         {
-            return GL_FALSE;
-        }
+            unsigned int fbcount;
+            _GLFWfbconfig *fbconfigs;
+            const _GLFWfbconfig *result;
 
-        result = _glfwChooseFBConfig( fbconfig, fbconfigs, fbcount );
-        if( !result )
-        {
+            fbconfigs = getFBConfigs( &fbcount );
+            if( !fbconfigs )
+            {
+                return GL_FALSE;
+            }
+
+            result = _glfwChooseFBConfig( fbconfig, fbconfigs, fbcount );
+            if( !result )
+            {
+                free( fbconfigs );
+                return GL_FALSE;
+            }
+
+            closest = *result;
             free( fbconfigs );
-            return GL_FALSE;
         }
 
-        closest = *result;
-        free( fbconfigs );
+        if( !createContext( wndconfig, (GLXFBConfigID) closest.platformID ) )
+        {
+            return GL_FALSE;
+        }
     }
-
-    if( !createContext( wndconfig, (GLXFBConfigID) closest.platformID ) )
+    else
     {
-        return GL_FALSE;
+        _glfwWin.visual = (XVisualInfo*) malloc(sizeof(XVisualInfo));
+        _glfwWin.visual->visual = DefaultVisual(_glfwLibrary.display, _glfwWin.screen);
+        _glfwWin.visual->depth = DefaultDepth(_glfwLibrary.display, _glfwWin.screen);
     }
 
     if( !createWindow( width, height, wndconfig ) )
@@ -1499,8 +1540,11 @@ int _glfwPlatformOpenWindow( int width, int height,
         _glfwInput.MousePosY = windowY;
     }
 
-    // Connect the context to the window
-    glXMakeCurrent( _glfwLibrary.display, _glfwWin.window, _glfwWin.context );
+    if (wndconfig->clientAPI != GLFW_NO_API)
+    {
+        // Connect the context to the window
+        glXMakeCurrent( _glfwLibrary.display, _glfwWin.window, _glfwWin.context );
+    }
 
     return GL_TRUE;
 }
@@ -1677,8 +1721,11 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    // Update display-buffer
-    glXSwapBuffers( _glfwLibrary.display, _glfwWin.window );
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        // Update display-buffer
+        glXSwapBuffers( _glfwLibrary.display, _glfwWin.window );
+    }
 }
 
 
@@ -1701,6 +1748,11 @@ void _glfwPlatformSwapInterval( int interval )
 
 void _glfwPlatformRefreshWindowParams( void )
 {
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        return;
+    }
+
     int dummy;
     GLXFBConfig *fbconfig;
 #if defined( _GLFW_HAS_XRANDR )
@@ -1958,6 +2010,10 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        return 0;
+    }
     if(_glfwWin.aux_context == NULL)
     {
         fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
@@ -1976,11 +2032,14 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
-    glXMakeCurrent( _glfwLibrary.display, None, NULL );
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        glXMakeCurrent( _glfwLibrary.display, None, NULL );
+    }
 }
 
 
 GLFWAPI void glfwAccelerometerEnable()
 {
-    
+
 }

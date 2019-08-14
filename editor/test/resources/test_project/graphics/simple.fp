@@ -5,7 +5,7 @@ struct pixel_in
     float2 texcoord : TEXCOORD1;
 };
 
-void main(pixel_in IN, uniform sampler2D texture : TEXUNIT0,
+void main(pixel_in IN, uniform sampler2D texture_sampler : TEXUNIT0,
           out float4 color     : COLOR,
           uniform float4 diffuse_color : C0,
           uniform float4 emissive_color : C1,
@@ -13,7 +13,7 @@ void main(pixel_in IN, uniform sampler2D texture : TEXUNIT0,
 {
     float4 normal = float4(IN.normal.x, IN.normal.y, IN.normal.z, 0);
     float light = dot(IN.normal, float3(1, 1, 1));
-    float4 tex = tex2D(texture, IN.texcoord.xy) * light;
+    float4 tex = tex2D(texture_sampler, IN.texcoord.xy) * light;
     color = (tex + diffuse_color);
 
 #if 0

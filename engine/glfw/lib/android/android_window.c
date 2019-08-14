@@ -57,6 +57,12 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeBackspace(JNIE
     _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
 }
 
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_FakeEnter(JNIEnv* env, jobject obj)
+{
+    g_SpecialKeyActive = 10;
+    _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
+}
+
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNative(JNIEnv* env, jobject obj, jint unicode)
 {
     struct Command cmd;
@@ -86,13 +92,78 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
     (*env)->ReleaseStringUTFChars(env, text, text_chrs);
 }
 
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    // Source: http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
+    if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
+    {
+        return 0;
+    }
+
+    float refresh_rate = 0.0f;
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+         return 0;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+    jclass native_window_manager_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/WindowManager");
+    jclass native_display_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/Display");
+
+    if (native_window_manager_class)
+    {
+        jmethodID get_window_manager = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getWindowManager", "()Landroid/view/WindowManager;");
+        jmethodID get_default_display = (*lJNIEnv)->GetMethodID(lJNIEnv, native_window_manager_class, "getDefaultDisplay", "()Landroid/view/Display;");
+        jmethodID get_refresh_rate = (*lJNIEnv)->GetMethodID(lJNIEnv, native_display_class, "getRefreshRate", "()F");
+        if (get_refresh_rate)
+        {
+            jobject window_manager = (*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_window_manager);
+
+            if (window_manager)
+            {
+                jobject display = (*lJNIEnv)->CallObjectMethod(lJNIEnv, window_manager, get_default_display);
+
+                if (display)
+                {
+                    refresh_rate = (*lJNIEnv)->CallFloatMethod(lJNIEnv, display, get_refresh_rate);
+                }
+            }
+        }
+    }
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+
+    return (int)(refresh_rate + 0.5f);
+}
+
 int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWwndconfig* wndconfig__,
                              const _GLFWfbconfig* fbconfig__ )
 {
+    _glfwWin.clientAPI = wndconfig__->clientAPI;
+
     LOGV("_glfwPlatformOpenWindow");
     RestoreWin(&_glfwWin);
-    create_gl_surface(&_glfwWin);
+
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        final_gl(&_glfwWin);
+    }
+    else
+    {
+        create_gl_surface(&_glfwWin);
+    }
+
     return GL_TRUE;
 }
 
@@ -104,7 +175,7 @@ void _glfwPlatformCloseWindow( void )
 {
     LOGV("_glfwPlatformCloseWindow");
 
-    if (_glfwWin.opened) {
+    if (_glfwWin.opened && _glfwWin.clientAPI != GLFW_NO_API) {
         destroy_gl_surface(&_glfwWin);
         _glfwWin.opened = 0;
     }
@@ -230,13 +301,16 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
-    // eglSwapInterval is not supported on all devices, so clear the error here
-    // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
-    // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
-    eglSwapInterval(_glfwWin.display, interval);
-    EGLint error = eglGetError();
-    assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
-    (void)error;
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        // eglSwapInterval is not supported on all devices, so clear the error here
+        // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
+        // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
+        eglSwapInterval(_glfwWin.display, interval);
+        EGLint error = eglGetError();
+        assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
+        (void)error;
+    }
 }
 
 //========================================================================
@@ -453,13 +527,17 @@ GLFWAPI jobject glfwGetAndroidActivity()
     return g_AndroidApp->activity->clazz;
 }
 
+GLFWAPI struct android_app* glfwGetAndroidApp(void)
+{
+    return g_AndroidApp;
+}
 
 //========================================================================
 // Query auxillary context
 //========================================================================
 int _glfwPlatformQueryAuxContext()
 {
-    return query_gl_aux_context(&_glfwWin);
+    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : query_gl_aux_context(&_glfwWin);
 }
 
 //========================================================================
@@ -467,7 +545,7 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
-    return acquire_gl_aux_context(&_glfwWin);
+    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : acquire_gl_aux_context(&_glfwWin);
 }
 
 //========================================================================
@@ -475,8 +553,50 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
-    unacquire_gl_aux_context(&_glfwWin);
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        unacquire_gl_aux_context(&_glfwWin);
+    }
 }
 
 
+#define MAX_ACTIVITY_LISTENERS (32)
+static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
+static int g_ListenersCount = 0;
+
+GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun listener)
+{
+    if (g_ListenersCount >= MAX_ACTIVITY_LISTENERS) {
+        LOGW("Max activity listeners reached (%d)", MAX_ACTIVITY_LISTENERS);
+    } else {
+        g_Listeners[g_ListenersCount++] = listener;
+    }
+}
+
+GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun listener)
+{
+    int i;
+    for (i = 0; i < g_ListenersCount; ++i)
+    {
+        if (g_Listeners[i] == listener)
+        {
+            g_Listeners[i] = g_Listeners[g_ListenersCount - 1];
+            g_ListenersCount--;
+            return;
+        }
+    }
+    LOGW("activity listener not found");
+}
+
+JNIEXPORT void
+Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
+    JNIEnv *env, jobject thiz, jobject activity, jint requestCode,
+    jint resultCode, jobject data) {
+
+    int i;
+    for (i = 0; i < g_ListenersCount; ++i)
+    {
+        g_Listeners[i](env, activity, requestCode, resultCode, data);
+    }
+}
 

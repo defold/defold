@@ -21,6 +21,7 @@ import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -128,10 +129,6 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        if (filepath.startsWith("/builtins")) {
-            return false;
-        }
-
         if (this.manifestBuilder != null) {
             List<ArrayList<String>> totalParentCollectionProxies = this.manifestBuilder.getParentCollectionProxies(filepath);
             for (List<String> parentCollectionProxies : totalParentCollectionProxies) {
@@ -173,12 +170,13 @@ public class ArchiveBuilder {
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
-            byte flags = (byte) entry.flags;
+            byte archiveEntryFlags = (byte) entry.flags;
+            int resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    flags = (byte)(flags | ArchiveEntry.FLAG_COMPRESSED);
+                    archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
                 } else {
@@ -189,14 +187,13 @@ public class ArchiveBuilder {
             // Encrypt data
             String extension = FilenameUtils.getExtension(entry.fileName);
             if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
-                flags = (byte) (flags | ArchiveEntry.FLAG_ENCRYPTED);
+                archiveEntryFlags = (byte) (archiveEntryFlags | ArchiveEntry.FLAG_ENCRYPTED);
                 entry.flags = (entry.flags | ArchiveEntry.FLAG_ENCRYPTED);
                 buffer = this.encryptResourceData(buffer);
             }
 
             // Add entry to manifest
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.relName);
-            manifestBuilder.addResourceEntry(normalisedPath, buffer);
 
             // Calculate hash digest values for resource
             String hexDigest = null;
@@ -211,13 +208,16 @@ public class ArchiveBuilder {
 
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
-                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, flags, entry.size);
+                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
+                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);
                 entry.resourceOffset = (int) archiveData.getFilePointer();
                 archiveData.write(buffer, 0, buffer.length);
             }
+
+            manifestBuilder.addResourceEntry(normalisedPath, buffer, resourceEntryFlags);
         }
 
         // Write sorted hashes to index file
@@ -297,16 +297,20 @@ public class ArchiveBuilder {
         File filepathManifest       = new File(args[1] + ".dmanifest");
         File filepathPublicKey      = new File(args[1] + ".public");
         File filepathPrivateKey     = new File(args[1] + ".private");
+        File filepathManifestHash   = new File(args[1] + ".manifest_hash");
 
         if (!dirpathRoot.isDirectory()) {
             printUsageAndTerminate("root does not exist: " + dirpathRoot.getAbsolutePath());
         }
 
         boolean doCompress = false;
+        boolean doOutputManifestHashFile = false;
         List<File> inputs = new ArrayList<File>();
         for (int i = 2; i < args.length; ++i) {
             if (args[i].equals("-c")) {
                 doCompress = true;
+            } else if (args[i].equals("-m")) {
+                doOutputManifestHashFile = true;
             } else {
                 File currentInput = new File(args[i]);
                 if (!currentInput.isFile()) {
@@ -322,11 +326,12 @@ public class ArchiveBuilder {
         }
 
         // Create manifest and archive
-        ManifestBuilder manifestBuilder = new ManifestBuilder();
+
+        ManifestBuilder manifestBuilder = new ManifestBuilder(doOutputManifestHashFile);
         manifestBuilder.setProjectIdentifier("<anonymous project>");
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
         System.out.println("Generating private key: " + filepathPrivateKey.getCanonicalPath());
@@ -337,17 +342,21 @@ public class ArchiveBuilder {
 
         ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
-        System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
+        int archivedEntries = 0;
+        int excludedEntries = 0;
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
             if (currentInput.getName().startsWith("liveupdate.")){
+                excludedEntries++;
                 archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
             } else {
+                archivedEntries++;
                 archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
             }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);
         }
+        System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
 
         manifestBuilder.setDependencies(rootNode);
 
@@ -369,6 +378,16 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
             outputStreamManifest.write(manifestFile);
+
+            if (doOutputManifestHashFile) {
+                if (filepathManifestHash.exists()) {
+                    filepathManifestHash.delete();
+                    filepathManifestHash.createNewFile();
+                }
+                FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
+                manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
+                manifestHashOutoutStream.close();
+            }
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {

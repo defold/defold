@@ -22,6 +22,6 @@ go.property("unknown_type", "hello")
 'go.property("no_prop", 123)'
 "go.property('no_prop', 123)"
 
-function update(self) 
+function update(self)
 
 end

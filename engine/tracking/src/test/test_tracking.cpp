@@ -1,7 +1,9 @@
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <dlib/dns.h>
 #include <script/script.h>
 
 #include "../tracking.h"
@@ -51,7 +53,7 @@ extern uint32_t TEST_TRACKING_LUA_SIZE;
         @Install event shall only be generated when starting with a fresh start
 */
 
-class dmTrackingTest : public ::testing::Test
+class dmTrackingTest : public jc_test_base_class
 {
     public:
         virtual void SetUp()
@@ -752,7 +754,7 @@ TEST_F(dmTrackingTest, TestManySessions)
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
 }
 
-class dmTrackingNoHookTest : public ::testing::Test
+class dmTrackingNoHookTest : public jc_test_base_class
 {
     public:
         virtual void SetUp()
@@ -788,11 +790,12 @@ TEST_F(dmTrackingNoHookTest, Test)
     }
 }
 
-class dmTrackingNoHookLocalhost : public ::testing::Test
+class dmTrackingNoHookLocalhost : public jc_test_base_class
 {
     public:
         virtual void SetUp()
         {
+            dmDNS::Initialize();
             const char *config = "[tracking]\nurl=http://localhost:9999/\napp_id=APPID\n";
             dmConfigFile::Result r = dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_Config);
             ASSERT_EQ(dmConfigFile::RESULT_OK, r);
@@ -804,6 +807,7 @@ class dmTrackingNoHookLocalhost : public ::testing::Test
 
         virtual void TearDown()
         {
+            dmDNS::Finalize();
             dmTracking::Finalize(m_Tracking);
             dmTracking::Delete(m_Tracking);
             dmConfigFile::Delete(m_Config);
@@ -832,6 +836,6 @@ TEST_F(dmTrackingNoHookLocalhost, Test)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

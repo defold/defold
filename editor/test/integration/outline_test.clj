@@ -475,8 +475,8 @@
                 [1 :node-outline 0 :source-outline]
                 [1 :proto-msg 0 :proto-msg]
                 [1 :resource 0 :source-resource]
-                [1 :save-data 0 :source-save-data]
-                [1 :scene 0 :scene]]
+                [1 :scene 0 :scene]
+                [1 :undecorated-save-data 0 :source-save-data]]
                (sort arcs)))))))
 
 (deftest drag-drop-between-referenced-collections
@@ -902,3 +902,20 @@
 
     (is (= ["sprite3" "sprite4" "sprite5"]
            (outline/resolve-ids ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
+
+(deftest gen-node-outline-keys-test
+  (is (= [] (outline/gen-node-outline-keys nil)))
+  (is (= ["a0"] (outline/gen-node-outline-keys ["a"])))
+  (is (= ["a0" "a1"] (outline/gen-node-outline-keys ["a" "a"])))
+  (is (= ["a0" "b0" "a1"] (outline/gen-node-outline-keys ["a" "b" "a"])))
+  (is (= ["a0" "b0" "c0" "b1" "a1" "b2"] (outline/gen-node-outline-keys ["a" "b" "c" "b" "a" "b"]))))
+
+(deftest next-node-outline-key-test
+  (is (= "a0" (outline/next-node-outline-key "a" #{})))
+  (is (= "a0" (outline/next-node-outline-key "a1" #{})))
+  (is (= "b0" (outline/next-node-outline-key "b11" #{})))
+  (is (= "a1" (outline/next-node-outline-key "a" #{"a0"})))
+  (is (= "a2" (outline/next-node-outline-key "a" #{"a1"})))
+  (is (= "a2" (outline/next-node-outline-key "a123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
+  (is (= "b4" (outline/next-node-outline-key "b123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
+  (is (= "b4" (outline/next-node-outline-key "b123" #{"a1" "b3"}))))

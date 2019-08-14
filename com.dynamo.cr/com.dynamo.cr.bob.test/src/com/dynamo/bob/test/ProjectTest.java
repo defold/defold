@@ -82,7 +82,7 @@ public class ProjectTest {
 
     @Before
     public void setUp() throws Exception {
-
+        // See TestLibrariesRule.java for the creation of these zip files
         libraryUrls = new ArrayList<URL>();
         libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
         libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
@@ -161,6 +161,43 @@ public class ProjectTest {
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
+    }
+
+
+    @Test
+    public void testFindResourcePaths() throws Exception {
+        libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
+        project.resolveLibUrls(new NullProgress());
+        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
+
+        List<String> results = new ArrayList<String>();
+        project.findResourcePaths(".", results);
+
+        assertFalse(results.isEmpty());
+        assertEquals(5, results.size());
+    }
+
+    @Test
+    public void testFindResourceDirs() throws Exception {
+        libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
+        project.resolveLibUrls(new NullProgress());
+        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
+
+        List<String> results = new ArrayList<String>();
+        project.findResourceDirs("", results);
+
+        assertTrue(results.contains("test_lib1"));
+        assertTrue(results.contains("test_lib2"));
+        assertTrue(results.contains("test_lib3"));
+        assertTrue(results.contains("test_lib5"));
+
+        results = new ArrayList<String>();
+        project.findResourceDirs("test_lib1/", results);
+        assertEquals(2, results.size());
+        assertTrue(results.contains("testdir1"));
+        assertTrue(results.contains("testdir2"));
     }
 
     private class FileHandler extends ResourceHandler {

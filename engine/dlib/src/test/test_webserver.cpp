@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -10,8 +9,10 @@
 #include "../dlib/dstrings.h"
 #include "../dlib/web_server.h"
 #include "../dlib/hash.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
-class dmWebServerTest: public ::testing::Test
+class dmWebServerTest: public jc_test_base_class
 {
 public:
     dmWebServer::HServer m_Server;
@@ -116,6 +117,8 @@ void RunPythonThread(void*)
 #endif
 }
 
+#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+
 TEST_F(dmWebServerTest, TestServer)
 {
     dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
@@ -131,11 +134,13 @@ TEST_F(dmWebServerTest, TestServer)
     ASSERT_EQ(0, g_PythonTestResult);
 }
 
+#endif
+
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     return ret;
 }

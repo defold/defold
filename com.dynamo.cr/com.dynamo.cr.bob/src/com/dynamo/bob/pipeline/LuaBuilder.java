@@ -7,6 +7,8 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -43,6 +45,8 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
+    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -71,12 +75,13 @@ public abstract class LuaBuilder extends Builder<Void> {
         return string.getBytes();
     }
 
-    public byte[] constructBytecode(IResource resource, String path, byte[] byteString) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(Task<Void> task, String luajitExe, byte[] byteString) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
         try {
+            Bob.initLua(); // unpack the lua resources
 
             File outputFile = File.createTempFile("script", ".raw");
             File inputFile = File.createTempFile("script", ".lua");
@@ -100,12 +105,12 @@ public abstract class LuaBuilder extends Builder<Void> {
             // If a script error occurs in runtime we want Lua to report the end of the filepath
             // associated with the chunk, since this is where the filename is visible.
             //
-            String chunkName = path;
+            String chunkName = task.input(0).getPath();
             if (chunkName.length() >= 59) {
                 chunkName = chunkName.substring(chunkName.length() - 59);
             }
             chunkName = "=" + chunkName;
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), luajitExe), "-bgf", chunkName, inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
             env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
@@ -133,7 +138,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                         if (lineBegin > 0) {
                             int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
                             if (lineEnd > 0) {
-                                throw new CompileExceptionError(resource,
+                                throw new CompileExceptionError(task.input(0),
                                         Integer.parseInt(cmdOutput.substring(
                                                 lineBegin + 1, lineEnd)),
                                         cmdOutput.substring(lineEnd + 2));
@@ -141,9 +146,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                         }
                     }
                     // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever jualit said.
+                    // spit out whatever luajit said.
                     inputFile.delete();
-                    throw new CompileExceptionError(resource, 1, cmdOutput);
+                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
             } catch (InterruptedException e) {
                 Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
@@ -187,14 +192,32 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.addAllPropertyResources(propertyResources);
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         byte[] scriptBytesStripped = constructStrippedLuaCode(task.input(0).getContent());
-        srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
-        srcBuilder.setFilename(task.input(0).getPath());
 
+        /*
         // For now it will always return, or throw an exception. This leaves the possibility of
         // disabling bytecode generation.
-        byte[] bytecode = constructBytecode(task.input(0), task.input(0).getPath(), scriptBytesStripped);
+        byte[] bytecode = constructBytecode(task, task.input(0).getPath(), scriptBytesStripped);
         if (bytecode != null)
             srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+        */
+
+        srcBuilder.setFilename(task.input(0).getPath());
+
+        // Mostly used for our CI when we wish to run using ASAN (which doesn't like setjmp)
+        boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
+
+        if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
+            srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
+        } else {
+            byte[] bytecode = constructBytecode(task, "luajit-32", scriptBytesStripped);
+            if (bytecode != null) {
+                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+            }
+            byte[] bytecode64 = constructBytecode(task, "luajit-64", scriptBytesStripped);
+            if (bytecode64 != null) {
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
+        }
 
         builder.setSource(srcBuilder);
 

@@ -2,29 +2,33 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.set :as set]
+            [clojure.string :as string]
+            [clojure.tools.reader.edn :as edn]
             [dynamo.graph :as g]
-            [editor.resource :as resource]
+            [editor.fs :as fs]
+            [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
-            [editor.library :as library]
-            [editor.graph-util :as gu]
             [editor.url :as url]
             [service.log :as log])
-  (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+  (:import [java.io File PushbackReader]
            [java.net URI]
-           [java.util.zip ZipEntry ZipInputStream]
-           [org.apache.commons.io FilenameUtils]
-           [editor.resource FileResource]))
+           [editor.resource FileResource]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
 (def build-dir "/build/default/")
 
-(defn project-path ^File [workspace]
-  (io/as-file (g/node-value workspace :root)))
+(defn project-path
+  (^File [workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (project-path workspace evaluation-context)))
+  (^File [workspace evaluation-context]
+   (io/as-file (g/node-value workspace :root evaluation-context))))
 
 (defn build-path [workspace]
   (io/file (project-path workspace) "build/default/"))
@@ -154,21 +158,33 @@ ordinary paths."
         :folder
         "icons/32/Icons_01-Folder-closed.png"))))
 
-(defn file-resource [workspace path-or-file]
-  (let [root (g/node-value workspace :root)
-        f (if (instance? File path-or-file)
-            path-or-file
-            (File. (str root path-or-file)))]
-    (resource/make-file-resource workspace root f [])))
+(defn file-resource
+  ([workspace path-or-file]
+   (g/with-auto-evaluation-context evaluation-context
+     (file-resource workspace path-or-file evaluation-context)))
+  ([workspace path-or-file evaluation-context]
+   (let [root (g/node-value workspace :root evaluation-context)
+         f (if (instance? File path-or-file)
+             path-or-file
+             (File. (str root path-or-file)))]
+     (resource/make-file-resource workspace root f []))))
 
-(defn find-resource [workspace proj-path]
-  (get (g/node-value workspace :resource-map) proj-path))
+(defn find-resource
+  ([workspace proj-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (find-resource workspace proj-path evaluation-context)))
+  ([workspace proj-path evaluation-context]
+   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
 
-(defn resolve-workspace-resource [workspace path]
-  (when (and path (not-empty path))
-    (or
-      (find-resource workspace path)
-      (file-resource workspace path))))
+(defn resolve-workspace-resource
+  ([workspace path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-workspace-resource workspace path evaluation-context)))
+  ([workspace path evaluation-context]
+   (when (and path (not-empty path))
+     (or
+       (find-resource workspace path evaluation-context)
+       (file-resource workspace path evaluation-context)))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
@@ -209,10 +225,6 @@ ordinary paths."
           (comp (remove :file)
                 (map :uri))
           (library/current-library-state project-directory dependencies))))
-
-(defn update-snapshot-status!
-  [workspace resources]
-  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
@@ -292,11 +304,18 @@ ordinary paths."
                     (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
          (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
-         (let [listeners @(g/node-value workspace :resource-listeners)
-               parent-progress (atom (progress/make "" (count listeners)))]
-           (doseq [listener listeners]
-             (resource/handle-changes listener changes-with-moved
-                                      (progress/nest-render-progress render-progress! @parent-progress))))))
+         (try
+           (let [listeners @(g/node-value workspace :resource-listeners)
+                 total-progress-size (transduce (map first) + 0 listeners)]
+             (loop [listeners listeners
+                    parent-progress (progress/make "" total-progress-size)]
+               (when-some [[progress-span listener] (first listeners)]
+                 (resource/handle-changes listener changes-with-moved
+                                          (progress/nest-render-progress render-progress! parent-progress progress-span))
+                 (recur (next listeners)
+                        (progress/advance parent-progress progress-span)))))
+           (finally
+             (render-progress! progress/done)))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-uris render-fn]
@@ -308,8 +327,8 @@ ordinary paths."
   (set-project-dependencies! workspace library-uris)
   (library/install-validated-libraries! (project-path workspace) lib-states))
 
-(defn add-resource-listener! [workspace listener]
-  (swap! (g/node-value workspace :resource-listeners) conj listener))
+(defn add-resource-listener! [workspace progress-span listener]
+  (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
 
 (g/deftype UriVec [URI])
@@ -346,15 +365,54 @@ ordinary paths."
 (defn etags [workspace]
   (g/user-data workspace ::etags))
 
-(defn etag [workspace path]
-  (get (etags workspace) path))
+(defn etag [workspace proj-path]
+  (get (etags workspace) proj-path))
 
 (defn etags! [workspace etags]
   (g/user-data! workspace ::etags etags))
 
-(defn reset-cache! [workspace]
-  (g/user-data! workspace ::artifact-map nil)
-  (g/user-data! workspace ::etags nil))
+(defn- artifact-map-file
+  ^File [workspace]
+  (io/file (build-path workspace) ".artifact-map"))
+
+(defn- try-read-artifact-map [^File file]
+  (when (.exists file)
+    (try
+      (with-open [reader (PushbackReader. (io/reader file))]
+        (edn/read reader))
+      (catch Exception error
+        (log/warn :msg "Failed to read artifact map. Build cache invalidated." :exception error)
+        nil))))
+
+(defn artifact-map->etags [artifact-map]
+  (when (seq artifact-map)
+    (into {}
+          (map (juxt key (comp :etag val)))
+          artifact-map)))
+
+(defn load-build-cache! [workspace]
+  (let [file (artifact-map-file workspace)
+        artifact-map (try-read-artifact-map file)
+        etags (artifact-map->etags artifact-map)]
+    (artifact-map! workspace artifact-map)
+    (etags! workspace etags)
+    nil))
+
+(defn save-build-cache! [workspace]
+  (let [file (artifact-map-file workspace)
+        artifact-map (artifact-map workspace)]
+    (if (empty? artifact-map)
+      (fs/delete-file! file)
+      (let [saved-artifact-map (into (sorted-map) artifact-map)]
+        (fs/create-file! file (pr-str saved-artifact-map))))
+    nil))
+
+(defn clear-build-cache! [workspace]
+  (let [file (artifact-map-file workspace)]
+    (artifact-map! workspace nil)
+    (etags! workspace nil)
+    (fs/delete-file! file)
+    nil))
 
 (defn make-workspace [graph project-path build-settings]
   (g/make-node! graph Workspace

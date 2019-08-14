@@ -80,6 +80,9 @@ namespace dmScript
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
 
+    static uint32_t SCRIPT_BUFFER_TYPE_HASH = 0;
+    static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
+
     typedef void (*FStreamSetter)(void* data, int index, lua_Number v);
     typedef lua_Number (*FStreamGetter)(void* data, int index);
 
@@ -98,30 +101,9 @@ namespace dmScript
         int                 m_BufferRef;// Holds a reference to the Lua object
     };
 
-    static bool IsBufferType(lua_State *L, int index, const char* type_name)
-    {
-        int top = lua_gettop(L);
-        void *p = lua_touserdata(L, index);
-        bool result = false;
-        if (p != 0x0)
-        {  /* value is a userdata? */
-            if (lua_getmetatable(L, index))
-            {  /* does it have a metatable? */
-                lua_getfield(L, LUA_REGISTRYINDEX, type_name);  /* get correct metatable */
-                if (lua_rawequal(L, -1, -2))
-                {  /* does it have the correct mt? */
-                    result = true;
-                }
-                lua_pop(L, 2);  /* remove both metatables */
-            }
-        }
-        assert(top == lua_gettop(L));
-        return result;
-    }
-
     bool IsBuffer(lua_State *L, int index)
     {
-        return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFER);
+        return dmScript::GetUserType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
     }
 
     void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
@@ -138,8 +120,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
-            if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
+            if( buffer && dmBuffer::IsBufferValid(buffer->m_Buffer))
+            {
                 return buffer;
             }
         }
@@ -150,7 +133,7 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
             if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
                 return buffer;
             }
@@ -162,7 +145,7 @@ namespace dmScript
 
     static bool IsStream(lua_State *L, int index)
     {
-        return IsBufferType(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
+        return dmScript::GetUserType(L, index) == SCRIPT_BUFFERSTREAM_TYPE_HASH;
     }
 
     template<typename T>
@@ -266,8 +249,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
-            if( dmBuffer::IsBufferValid( stream->m_Buffer ) ) {
+            BufferStream* stream = (BufferStream*)dmScript::ToUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH);
+            if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
+            {
                 return stream;
             }
         }
@@ -278,8 +262,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)luaL_checkudata(L, index, SCRIPT_TYPE_NAME_BUFFERSTREAM);
-            if( dmBuffer::IsBufferValid( stream->m_Buffer ) ) {
+            BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
+            if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
+            {
                 return stream;
             }
             luaL_error(L, "The buffer handle is invalid");
@@ -308,7 +293,7 @@ namespace dmScript
             if( lua_type(L, -2) != LUA_TSTRING )
             {
         		lua_pop(L, 3);
-                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
+                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));
             }
 
             const char* key = lua_tostring(L, -2);
@@ -401,7 +386,7 @@ namespace dmScript
         dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)alloca(num_decl * sizeof(dmBuffer::StreamDeclaration));
         if( !decl )
         {
-            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);	
+            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);
         }
 
         uint32_t count = 0;
@@ -506,42 +491,6 @@ namespace dmScript
     #undef DM_COPY_STREAM
     }
 
-    template<typename T>
-    static void CopyStreamToMemInternalT(T* dst, const T* src, uint32_t count, uint32_t components, uint32_t stride)
-    {
-        for(uint32_t i = 0; i < count; ++i)
-        {
-            for(uint32_t c = 0; c < components; ++c)
-            {
-                dst[c] = src[c];
-            }
-            src += stride;
-            dst += components;
-        }
-    }
-
-    static bool CopyStreamToMemInternal(uint32_t type, void* dst, const void* data, uint32_t count, uint32_t components, uint32_t stride)
-    {
-        #define DM_COPY_STREAMMEM(_T_) CopyStreamToMemInternalT<_T_>((_T_*) dst, (_T_*) data, count, components, stride)
-            switch(type)
-            {
-            case dmBuffer::VALUE_TYPE_UINT8:      DM_COPY_STREAMMEM(uint8_t); break;
-            case dmBuffer::VALUE_TYPE_UINT16:     DM_COPY_STREAMMEM(uint16_t); break;
-            case dmBuffer::VALUE_TYPE_UINT32:     DM_COPY_STREAMMEM(uint32_t); break;
-            case dmBuffer::VALUE_TYPE_UINT64:     DM_COPY_STREAMMEM(uint64_t); break;
-            case dmBuffer::VALUE_TYPE_INT8:       DM_COPY_STREAMMEM(int8_t); break;
-            case dmBuffer::VALUE_TYPE_INT16:      DM_COPY_STREAMMEM(int16_t); break;
-            case dmBuffer::VALUE_TYPE_INT32:      DM_COPY_STREAMMEM(int32_t); break;
-            case dmBuffer::VALUE_TYPE_INT64:      DM_COPY_STREAMMEM(int64_t); break;
-            case dmBuffer::VALUE_TYPE_FLOAT32:    DM_COPY_STREAMMEM(float); break;
-            default:
-                return false;
-            }
-            return true;
-    #undef DM_COPY_STREAMMEM
-    }
-
-
     /*# copies data from one stream to another
      *
      * Copy a specified amount of data from one stream to another.
@@ -598,11 +547,11 @@ namespace dmScript
                                         dststream->m_TypeCount, dmBuffer::GetValueTypeString(dststream->m_Type), srcstream->m_TypeCount, dmBuffer::GetValueTypeString(srcstream->m_Type) );
             }
 
-            if( (dstoffset + count) > dststream->m_Count * dststream->m_TypeCount )
+            if( (uint32_t)(dstoffset + count) > dststream->m_Count * dststream->m_TypeCount )
             {
                 return DM_LUA_ERROR("Trying to write too many values: Stream length: %d, Offset: %d, Values to copy: %d", dststream->m_Count, dstoffset, count);
             }
-            if( (srcoffset + count) > srcstream->m_Count * srcstream->m_TypeCount )
+            if( (uint32_t)(srcoffset + count) > srcstream->m_Count * srcstream->m_TypeCount )
             {
                 return DM_LUA_ERROR("Trying to read too many values: Stream length: %d, Offset: %d, Values to copy: %d", srcstream->m_Count, srcoffset, count);
             }
@@ -664,11 +613,11 @@ namespace dmScript
         uint32_t srccount;
         dmBuffer::GetCount(dstbuffer, &dstcount);
         dmBuffer::GetCount(srcbuffer, &srccount);
-        if( (dstoffset + count) > dstcount )
+        if( (dstoffset + count) > (int)dstcount )
         {
             return DM_LUA_ERROR("Trying to write too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
         }
-        if( (srcoffset + count) > srccount )
+        if( (srcoffset + count) > (int)srccount )
         {
             return DM_LUA_ERROR("Trying to read too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
         }
@@ -829,7 +778,7 @@ namespace dmScript
         lua_pushnumber(L, count);
         return 1;
     }
-    
+
     static const luaL_reg Buffer_methods[] =
     {
         {0,0}
@@ -845,7 +794,7 @@ namespace dmScript
 
     //////////////////////////////////////////////////////////////////
     // STREAM
-    
+
     static int Stream_gc(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -885,7 +834,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
         int index = luaL_checkinteger(L, 2) - 1;
-        if (index < 0 || index >= stream->m_Count * stream->m_TypeCount)
+        if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
             {
@@ -906,7 +855,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         BufferStream* stream = CheckStream(L, 1);
         int index = luaL_checkinteger(L, 2) - 1;
-        if (index < 0 || index >= stream->m_Count * stream->m_TypeCount)
+        if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
             {
@@ -951,6 +900,7 @@ namespace dmScript
         const char* m_Name;
         const luaL_reg* m_Methods;
         const luaL_reg* m_Metatable;
+        uint32_t* m_TypeHash;
     };
 
     void InitializeBuffer(lua_State* L)
@@ -960,26 +910,13 @@ namespace dmScript
         const uint32_t type_count = 2;
         BufferTypeStruct types[type_count] =
         {
-            {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta},
-            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta},
+            {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta, &SCRIPT_BUFFER_TYPE_HASH},
+            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta, &SCRIPT_BUFFERSTREAM_TYPE_HASH},
         };
-
+ 
         for (uint32_t i = 0; i < type_count; ++i)
         {
-            // create methods table, add it to the globals
-            luaL_register(L, types[i].m_Name, types[i].m_Methods);
-            int methods_index = lua_gettop(L);
-            // create metatable for the type, add it to the Lua registry
-            luaL_newmetatable(L, types[i].m_Name);
-            int metatable = lua_gettop(L);
-            // fill metatable
-            luaL_register(L, 0, types[i].m_Metatable);
-
-            lua_pushliteral(L, "__metatable");
-            lua_pushvalue(L, methods_index);// dup methods table
-            lua_settable(L, metatable);
-
-            lua_pop(L, 2);
+            *types[i].m_TypeHash = dmScript::RegisterUserType(L, types[i].m_Name, types[i].m_Methods, types[i].m_Metatable);
         }
         luaL_register(L, SCRIPT_LIB_NAME, Module_methods);
 

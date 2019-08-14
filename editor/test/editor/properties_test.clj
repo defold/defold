@@ -111,7 +111,7 @@
                      (g/transact
                        (g/make-nodes world [user-node [UserProps :user-properties {:properties {:int {:edit-type {:type g/Int} :value 1}}
                                                                                    :display-order [:int]}]]
-                                     (:tx-data (g/override user-node)))))
+                                     (g/override user-node))))
                    property (fn [n] (-> [n] (coalesce-nodes) (first) (second)))]
                (is (not (properties/overridden? (property linked-node))))
                (is (every? #(= 1 %) (properties/values (property linked-node))))
@@ -239,8 +239,8 @@
 (deftest dynamic-clear-fn
   (with-clean-system
     (let [override-node (last (tx-nodes (g/make-nodes world
-                                                        [original-node [DynamicClearFn :a :original-value]]
-                                                        (:tx-data (g/override original-node {})))))
+                                          [original-node [DynamicClearFn :a :original-value]]
+                                          (g/override original-node {}))))
           _ (g/set-property! override-node :a :override-value)
           p (:a (coalesce-nodes [override-node]))]
       (is (= [] @(g/node-value override-node :cleared)))

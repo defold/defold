@@ -76,6 +76,14 @@ int _glfwPlatformInit( void )
 
     atexit( glfw_atexit );
 
+    _glfwLibrary.OpenGLFramework =
+        CFBundleGetBundleWithIdentifier( CFSTR( "com.apple.opengles" ) );
+    if( _glfwLibrary.OpenGLFramework == NULL )
+    {
+        fprintf( stderr, "glfwInit failing because you aren't linked to OpenGL\n" );
+        return GL_FALSE;
+    }
+
     initThreads();
 
     _glfwPlatformSetTime( 0.0 );

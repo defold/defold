@@ -1,11 +1,13 @@
 #include <stdint.h>
+#include <stdlib.h> // posix_memalign
 #ifdef __linux__
 #include <malloc.h>
 #endif
 #if defined(__EMSCRIPTEN__)
 #include <libc/malloc.h>
 #endif
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/memprofile.h"
 #include "../dlib/profile.h"
 
@@ -14,6 +16,8 @@ bool g_MemprofileActive = false;
 extern void dmMemProfileInternalData();
 
 void* g_dont_optimize = 0;
+
+#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
 
 TEST(dmMemProfile, TestMalloc)
 {
@@ -305,6 +309,8 @@ TEST(dmMemProfile, TestTrace1)
 }
 #endif
 
+#endif // SANITIZE ADDRESS/MEMORY
+
 int main(int argc, char **argv)
 {
     // Memprofile is active if a dummy argument is passed
@@ -314,8 +320,8 @@ int main(int argc, char **argv)
     dmMemProfile::Initialize();
     dmProfile::Initialize(128, 1024 * 1024, 16);
 
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     return ret;

@@ -167,8 +167,8 @@ public class GameObjectBuilder extends Builder<Void> {
         {".light", ".lightc"},
         {".label", ".labelc"},
         {".sprite", ".spritec"},
-        {".tilegrid", ".tilegridc"},
-        {".tilemap", ".tilegridc"},
+        {".tilegrid", ".tilemapc"},
+        {".tilemap", ".tilemapc"},
         {".spinemodel", ".spinemodelc"},
     };
 

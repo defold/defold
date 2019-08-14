@@ -1,5 +1,5 @@
 (ns editor.form
-  (:require [dynamo.graph :as g]))
+  (:require [editor.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -20,7 +20,8 @@
    :integer 0
    :number 0.0
    :vec4 [0.0 0.0 0.0 0.0]
-   :2panel []})
+   :2panel [],
+   :list []})
 
 (defn has-default? [field-info]
   (or (contains? field-info :default)
@@ -62,3 +63,11 @@
         panel-form-defaults (form-defaults (:panel-form panel-field-info))]
     (when (and panel-key-defaults panel-form-defaults)
       (merge panel-key-defaults panel-form-defaults))))
+
+(defn update-section-setting [section path f]
+  (if-let [index (first (util/positions #(= path (:path %)) (get section :fields)))]
+    (update-in section [:fields index] f)
+    section))
+
+(defn update-form-setting [form-data path f]
+  (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))

@@ -69,7 +69,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -177,7 +177,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -285,7 +285,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -393,7 +393,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -501,7 +501,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -609,7 +609,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -717,7 +717,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -825,7 +825,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -933,7 +933,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1041,7 +1041,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1149,7 +1149,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1257,7 +1257,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1365,7 +1365,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1473,7 +1473,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1581,7 +1581,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1689,7 +1689,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1797,7 +1797,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -1905,7 +1905,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2013,7 +2013,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2121,7 +2121,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2229,7 +2229,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2337,7 +2337,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2445,7 +2445,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2553,7 +2553,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2661,7 +2661,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2769,7 +2769,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2877,7 +2877,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -2985,7 +2985,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3093,7 +3093,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3201,7 +3201,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3309,7 +3309,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3417,7 +3417,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3525,7 +3525,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3633,7 +3633,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3741,7 +3741,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3849,7 +3849,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -3957,7 +3957,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4065,7 +4065,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4173,7 +4173,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4281,7 +4281,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4389,7 +4389,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4497,7 +4497,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4605,7 +4605,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4713,7 +4713,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4821,7 +4821,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -4929,7 +4929,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5037,7 +5037,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5145,7 +5145,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5253,7 +5253,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5361,7 +5361,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5469,7 +5469,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5577,7 +5577,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5685,7 +5685,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5793,7 +5793,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -5901,7 +5901,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6009,7 +6009,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6117,7 +6117,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6225,7 +6225,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6333,7 +6333,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6441,7 +6441,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6549,7 +6549,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6657,7 +6657,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6765,7 +6765,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6873,7 +6873,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -6981,7 +6981,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7089,7 +7089,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7197,7 +7197,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7305,7 +7305,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7413,7 +7413,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7521,7 +7521,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7629,7 +7629,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7737,7 +7737,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7845,7 +7845,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -7953,7 +7953,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8061,7 +8061,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8169,7 +8169,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8277,7 +8277,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8385,7 +8385,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8493,7 +8493,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8601,7 +8601,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8709,7 +8709,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8817,7 +8817,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -8925,7 +8925,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9033,7 +9033,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9141,7 +9141,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9249,7 +9249,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9357,7 +9357,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9465,7 +9465,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9573,7 +9573,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9681,7 +9681,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9789,7 +9789,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -9897,7 +9897,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10005,7 +10005,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10113,7 +10113,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10221,7 +10221,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10329,7 +10329,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10437,7 +10437,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10545,7 +10545,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10653,7 +10653,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})
@@ -10761,7 +10761,7 @@ function init(self)
 		}
 	}
 	self.next_state = self.states.main_menu
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	self.hs_file = sys.get_save_file("arkanoid", "highscores")
 	self.highscores = sys.load(self.hs_file)
 	msg.post("#gui", "set_highscores", {highscores = self.highscores})

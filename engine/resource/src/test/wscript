@@ -50,8 +50,9 @@ def build(bld):
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
                                      includes = '../../../src ../../proto',
-                                     uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                     uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
                                      uselib_local = 'resource',
+                                     web_libs = ['library_sys.js'],
                                      proto_gen_py = True,
                                      target = 'test_resource',
                                      source = 'test_resource.cpp test_resource_ddf.proto test.cont_pb test01.foo_pb test02.foo_pb self_referring.cont_pb root_loop.cont_pb child_loop.cont_pb many_refs.cont_pb',
@@ -61,11 +62,21 @@ def build(bld):
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src ../../proto',
-                                             uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
+                                             uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
                                              source = 'test_resource_archive.cpp',
-                                             embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest')
+                                             embed_source = 'resources.arci resources.arcd resources.dmanifest resources_compressed.arci resources_compressed.arcd resources_compressed.dmanifest resources.public resources.manifest_hash')
 
     test_resource_archive.install_path = None
+
+    test_block_allocator = bld.new_task_gen(features = 'cxx cprogram test',
+                                     includes = '../../../src',
+                                     uselib = 'GTEST DLIB THREAD',
+                                     uselib_local = 'resource',
+                                     target = 'test_block_allocator',
+                                     source = 'test_block_allocator.cpp')
+
+    test_block_allocator.install_path = None
+

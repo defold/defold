@@ -141,7 +141,7 @@
        :exception e})))
 
 (defn- fetch-library-update! [{:keys [tag uri] :as lib-state} resolver render-progress!]
-  (let [progress (progress/make (str uri))]
+  (let [progress (progress/make (str "Fetching " uri))]
     (render-progress! progress)
     ;; tag may not be available ...
     (merge lib-state (fetch-library! resolver uri tag))))

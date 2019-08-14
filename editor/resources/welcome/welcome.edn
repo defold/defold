@@ -22,6 +22,14 @@
                              :duration "Long"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Basic 3D project"
+                             :description "This template contains a basic setup for doing 3D rendering."
+                             :image "3d.svg"
+                             :duration "Short"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/template-basic-3d/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Tutorial"

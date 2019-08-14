@@ -176,24 +176,8 @@ function test_bitop_md5()
     txt = txt..txt..txt..txt
     txt = txt..txt..txt..txt
 
-    local function bench()
-        local n = 80
-        repeat
-            local tm = os.clock()
-            local res
-            for i=1,n do
-                res = md5(txt)
-            end
-            print(res)
-            assert(res == 'cd3a68ca4b9b54dee5ad7d74bfe7cb59')
-            tm = os.clock() - tm
-            print(tm)
-            if tm > 1 then return tm*(1000000000/(n*#txt)) end
-            n = n + n
-        until false
-    end
-
-    io.write(string.format("MD5 %7.1f ns/char\n", bench()))
+    local res = md5(txt)
+    assert(res == 'cd3a68ca4b9b54dee5ad7d74bfe7cb59')
 end
 
 

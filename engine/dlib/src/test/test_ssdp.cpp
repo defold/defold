@@ -1,14 +1,17 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
 #include "../dlib/ssdp.h"
 #include "../dlib/time.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/hash.h"
 #include "../dlib/socket.h"
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 static const char* DEVICE_DESC_STATIC =
     "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
@@ -69,7 +72,7 @@ void WaitPackage()
     dmTime::Sleep(50 * 1000);
 }
 
-class dmSSDPTest: public ::testing::Test
+class dmSSDPTest: public jc_test_base_class
 {
 public:
     std::map<dmhash_t, dmSSDP::HDevice> m_ServerDevices;
@@ -206,7 +209,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
     r = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
-    ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTRED, r);
+    ASSERT_EQ(dmSSDP::RESULT_ALREADY_REGISTERED, r);
 
     r = dmSSDP::DeregisterDevice(ssdp, "my_root_device");
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
@@ -218,7 +221,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 
     r = dmSSDP::DeregisterDevice(ssdp, "my_root_device");
-    ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTRED, r);
+    ASSERT_EQ(dmSSDP::RESULT_NOT_REGISTERED, r);
 
     r = dmSSDP::Delete(ssdp);
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
@@ -383,6 +386,7 @@ TEST_F(dmSSDPTest, JavaClient)
     DM_SNPRINTF(command, sizeof(command),
             "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
 
+#if !defined(__EMSCRIPTEN__) // no support for popen
     const char* mode = "r";
     FILE* f = popen(command, mode);
     fd_set set;
@@ -407,6 +411,7 @@ TEST_F(dmSSDPTest, JavaClient)
     }
     int ret = pclose(f);
     ASSERT_EQ(0, ret);
+#endif
 
     r = dmSSDP::DeregisterDevice(server1, "my_root_device1");
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
@@ -427,8 +432,8 @@ int main(int argc, char **argv)
     srand(time(NULL));
     dmLogSetlevel(DM_LOG_SEVERITY_DEBUG);
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     dmSocket::Finalize();
     return ret;
 }

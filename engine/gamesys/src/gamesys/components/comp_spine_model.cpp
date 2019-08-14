@@ -543,20 +543,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            bool rehash = component.m_ReHash;
-            if(!rehash)
-            {
-                uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
-                for (uint32_t const_i = 0; const_i < const_count; ++const_i)
-                {
-                    if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                    {
-                        rehash = true;
-                        break;
-                    }
-                }
-            }
-            if(rehash)
+            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
                 ReHash(&component);
             }

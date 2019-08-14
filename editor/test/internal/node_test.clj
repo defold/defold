@@ -43,10 +43,10 @@
   (input bar g/Int)
   (property baz g/Str (dynamic enabled (g/fnk [bar] (pos? bar)))))
 
-(g/defnk depends-on-self [this] this)
+(g/defnk depends-on-self [_this] _this)
 (g/defnk depends-on-input [an-input] an-input)
 (g/defnk depends-on-property [a-property] a-property)
-(g/defnk depends-on-several [this an-input a-property] [this an-input a-property])
+(g/defnk depends-on-several [_this an-input a-property] [_this an-input a-property])
 
 (g/defnode DependencyTestNode
   (input an-input g/Str)
@@ -65,7 +65,7 @@
              (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
                   :an-input           #{:depends-on-input :depends-on-several}
                   :a-property         #{:depends-on-property :depends-on-several :a-property :_properties :_declared-properties})
-             (is (not (contains? deps :this)))
+             (is (not (contains? deps :_this)))
              (is (not (contains? deps :unused-input))))))
 
 (g/defnode EmptyNode)
@@ -110,7 +110,7 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden (constantly "Raspberry")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden "Raspberry"}))
 
         (is (= "Raspberry" (g/node-value source :overridden)))
 
@@ -118,7 +118,7 @@
 
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:something-else (constantly "Plaid")}))
+        (g/transact (g/set-property source :_output-jammers {:something-else "Plaid"}))
 
         (is (= "a-property" (g/node-value source :overridden))))))
 
@@ -127,7 +127,7 @@
       (let [[source] (tx-nodes (g/make-node world OverrideOutputNode))]
         (is (= "a-property" (g/node-value source :overridden)))
 
-        (g/transact (g/set-property source :_output-jammers {:overridden #(g/error-fatal "jammed")}))
+        (g/transact (g/set-property source :_output-jammers {:overridden (g/error-fatal "jammed")}))
 
         (is (g/error? (g/node-value source :overridden)))
         (is (= "jammed" (:message (g/node-value source :overridden))))))))
@@ -242,7 +242,7 @@
   (input in       g/Keyword)
   (input in-multi g/Keyword :array)
   (property prop  g/Keyword)
-  (output defnk-this       g/Any       (g/fnk [this] this))
+  (output defnk-this       g/Any       (g/fnk [_this] _this))
   (output defnk-prop       g/Keyword   (g/fnk [prop] prop))
   (output defnk-in         g/Keyword   (g/fnk [in] in))
   (output defnk-in-multi   [g/Keyword] (g/fnk [in-multi] in-multi)))
@@ -260,8 +260,7 @@
                                 (g/connect node1 :defnk-prop node2 :in)
                                 (g/connect node0 :defnk-prop node1 :in-multi)
                                 (g/connect node0 :defnk-prop node2 :in-multi)
-                                (g/connect node1 :defnk-prop node2 :in-multi)))
-          graph               (is/basis system)]
+                                (g/connect node1 :defnk-prop node2 :in-multi)))]
       (testing "'special' defnk inputs"
         (is (identical? (g/node-by-id node0) (g/node-value node0 :defnk-this))))
       (testing "defnk inputs from node properties"
@@ -344,8 +343,8 @@
   (input another-input g/Int :array)
   (property property-to-override g/Str (default "override"))
   (property multi-valued-property [g/Str] (default ["extra" "things"]))
-  (output another-output g/Keyword (g/fnk [this] :keyword))
-  (output another-cached-output g/Keyword :cached (g/fnk [this] :keyword)))
+  (output another-output g/Keyword (g/fnk [_this] :keyword))
+  (output another-cached-output g/Keyword :cached (g/fnk [_this] :keyword)))
 
 (deftest inheritance-merges-node-types
   (testing "properties"
@@ -486,33 +485,6 @@
     [:id ["Transform" :rotation :scale] :path ["Foo" :scale] :cake] -> [[:id ["Transform" :rotation]] [["Transform" :scale] :path] [["Foo" :scale] :cake]]
     [:id :path ["Transform" :rotation :position :scale]]            -> [[:id :path ["Transform"]] [["Transform" :rotation :position :scale]]]
     [["Material" :specular :ambient] :position :rotation]           -> [[["Material" :specular :ambient]] [:specular :ambient] [:position :rotation]]))
-
-(g/defnode DonorNode
-  (property a-property g/Int (default 0)))
-
-(g/defnode AdoptorNode
-  (property own-property g/Int (default -1))
-
-  (input submitted-properties g/Properties)
-
-  (output _properties g/Properties
-          (g/fnk [_node-id _declared-properties submitted-properties]
-                 (->> submitted-properties
-                     (g/adopt-properties _node-id)
-                     (g/aggregate-properties _declared-properties)))))
-
-(deftest property-adoption
-  (with-clean-system
-    (let [[donor adoptor] (g/tx-nodes-added
-                           (g/transact
-                            (g/make-nodes world [donor DonorNode adoptor AdoptorNode]
-                                          (g/connect donor :_properties adoptor :submitted-properties))))
-          final-props     (g/node-value adoptor :_properties)]
-      (is (contains? (:properties final-props) :own-property))
-      (is (= adoptor (get-in final-props [:properties :own-property :node-id])))
-
-      (is (contains? (:properties final-props) :a-property))
-      (is (= adoptor (get-in final-props [:properties :a-property :node-id]))))))
 
 (g/defnode CachedBoolean
   (property counter g/Any)

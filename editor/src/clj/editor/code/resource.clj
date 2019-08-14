@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.util :as util]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
@@ -18,7 +19,7 @@
                                     :type s/Keyword
                                     s/Keyword s/Any}))
 
-(g/deftype BreakpointRows (sorted-set s/Num))
+(g/deftype BreakpointRows (s/constrained #{s/Num} sorted?))
 (g/deftype Cursors [TCursor])
 (g/deftype CursorRanges [TCursorRange])
 (g/deftype IndentType (s/enum :tabs :two-spaces :four-spaces))
@@ -27,10 +28,12 @@
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
 
+(def ^:private default-indent-type :tabs)
+
 (defn guess-indent-type [lines]
   ;; TODO: Use default from preferences if indeterminate.
   (or (data/guess-indent-type (take 512 lines) 4)
-      :tabs))
+      default-indent-type))
 
 (defn read-fn [resource]
   (util/split-lines (slurp resource)))
@@ -57,7 +60,7 @@
   [node-id lines]
   (g/user-data! node-id :unmodified-lines lines))
 
-(defn- ensure-unmodified-lines!
+(defn ensure-unmodified-lines!
   "Ensures the unmodified lines of a resource has been loaded, and returns the
   unmodified lines. The first time this is called for a node-id, the unmodified
   lines will be read from disk. Subsequent calls return the unmodified lines
@@ -67,7 +70,9 @@
   (g/user-data-swap! node-id :unmodified-lines
                      (fn [loaded-unmodified-lines]
                        (or loaded-unmodified-lines
-                           (read-fn (g/node-value node-id :resource evaluation-context))))))
+                           (let [resource (g/node-value node-id :resource evaluation-context)]
+                             (resource-io/with-error-translation resource node-id nil
+                               (read-fn resource)))))))
 
 (defn- eager-load [self resource]
   (let [lines (read-fn resource)
@@ -75,12 +80,14 @@
     (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
     (g/set-property self :modified-lines lines :modified-indent-type indent-type)))
 
-(defn- load-fn [eager-loading? connect-breakpoints? project self resource]
+(defn- load-fn [additional-load-fn eager-loading? connect-breakpoints? project self resource]
   (concat
     (when eager-loading?
       (eager-load self resource))
     (when connect-breakpoints?
-      (g/connect self :breakpoints project :breakpoints))))
+      (g/connect self :breakpoints project :breakpoints))
+    (when additional-load-fn
+      (additional-load-fn project self resource))))
 
 (g/defnk produce-breakpoint-rows [regions]
   (into (sorted-set)
@@ -102,8 +109,18 @@
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output completions g/Any (g/constantly {}))
-  (output indent-type IndentType :cached (g/fnk [modified-indent-type resource] (or modified-indent-type (guess-indent-type (read-fn resource)))))
-  (output lines Lines (g/fnk [save-value resource] (or save-value (read-fn resource))))
+  (output indent-type IndentType :cached (g/fnk [_node-id modified-indent-type resource]
+                                           (or modified-indent-type
+                                               (let [lines (resource-io/with-error-translation resource _node-id :indent-type
+                                                             (read-fn resource))]
+                                                 (if (g/error? lines)
+                                                   default-indent-type
+                                                   (guess-indent-type lines))))))
+
+  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value
+                                                                (resource-io/with-error-translation resource _node-id :lines
+                                                                  (read-fn resource)))))
+
   (output save-value Lines (g/fnk [_node-id modified-lines] (or modified-lines (loaded-unmodified-lines _node-id))))
 
   ;; To save memory, save-data is not cached. It is trivial to produce.
@@ -113,19 +130,23 @@
   ;; Instead we use its hash to determine if we've been dirtied.
   ;; This output must still be named source-value since it is
   ;; invalidated when saving.
-  (output source-value g/Any :cached (g/fnk [editable? resource]
+  (output source-value g/Any :cached (g/fnk [_node-id editable? resource]
                                        (when editable?
-                                         (hash (read-fn resource)))))
+                                         (let [lines (resource-io/with-error-translation resource _node-id :source-value
+                                                       (read-fn resource))]
+                                           (if (g/error? lines)
+                                             lines
+                                             (hash lines))))))
 
   ;; We're dirty if the hash of our non-nil save-value differs from the source.
   (output dirty? g/Bool (g/fnk [_node-id editable? resource save-value source-value]
                           (and editable? (some? save-value) (not= source-value (hash save-value))))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label eager-loading?] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
   (let [debuggable? (contains? tags :debuggable)
-        load-fn (partial load-fn eager-loading? debuggable?)
+        load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
         args (-> args
-                 (dissoc :eager-loading?)
+                 (dissoc :additional-load-fn :eager-loading?)
                  (assoc :load-fn load-fn
                         :read-fn read-fn
                         :write-fn write-fn

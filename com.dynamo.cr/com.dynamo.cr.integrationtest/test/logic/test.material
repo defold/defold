@@ -1,3 +1,0 @@
-name: "default"
-vertex_program: "/logic/test.vp"
-fragment_program: "/logic/test.fp"

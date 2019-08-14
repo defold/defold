@@ -9,7 +9,6 @@ def set_options(opt):
 
 def build(bld):
     bld.add_subdirs('test')
-    bld.add_subdirs('examples')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
@@ -19,6 +18,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
@@ -34,7 +34,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/json.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/md5.h')
@@ -85,21 +84,22 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
 
-    if 'js-web' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/lib/js-web/js', 'dlib/js/library_sys.js')
+    if 'web' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
 
-    source_dirs = 'dlib dlib/jsmn zlib lz4 jpgd'.split(' ')
+    source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
     axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-    elif 'darwin' in bld.env.PLATFORM:
+        source_dirs.append('dlib/android')
+    elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:
         source_dirs.append('dlib/win32')
     elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-    elif 'js-web' == bld.env.PLATFORM:
+    elif 'web' in bld.env.PLATFORM:
         source_dirs.append('dlib/js')
 
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
@@ -125,7 +125,10 @@ def build(bld):
         #  (in particular denormal values are treated as zero), so the use of NEON instructions may lead to a loss of precision.
         # In other words - we only want this setting for dedicated neon code.
         webp_source_neon = ['webp/dsp/dec_neon.c', 'webp/dsp/lossless_neon.c', 'webp/dsp/rescaler_neon.c', 'webp/dsp/upsampling_neon.c']
-        neonobjs = bld.new_task_gen(features = 'cc config_neon',
+        android_features = 'cc'
+        if 'armv7-android' in bld.env.PLATFORM:
+            android_features += ' config_neon' # neon is implicit on arm64 android
+        neonobjs = bld.new_task_gen(features = android_features,
                                 includes = 'webp',
                                 #source = webp_source_neon,
                                 target = 'webp_neon_objs' )
@@ -144,36 +147,63 @@ def build(bld):
     dlib.find_sources_in_dirs(source_dirs)
     dlib.source.extend(webp_source_no_neon)
 
+    # Create a separate library, in order to separate it from the ASAN builds
+    dlib_noasan = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan',
+                            includes = '.',
+                            add_objects = local_objs,
+                            target = 'dlib_noasan',
+                            defines= ['VALGRIND'] + extra_defines)
+    dlib_noasan.find_sources_in_dirs(source_dirs)
+    dlib_noasan.source.extend(webp_source_no_neon)
+
     axtls = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',
                             target = 'axtls',
                             defines= ['VALGRIND'] + extra_defines)
     axtls.find_sources_in_dirs(axtls_dirs)
 
-    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
+    # Create a separate library, in order to separate it from the ASAN builds
+    axtls_noasan = bld.new_task_gen(features = 'cxx cstaticlib skip_asan',
+                            includes = '.',
+                            target = 'axtls_noasan',
+                            defines= ['VALGRIND'] + extra_defines)
+    axtls_noasan.find_sources_in_dirs(axtls_dirs)
+
+    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
+        dlib_noasan.source = [x for x in dlib.source if not x.endswith('.mm')]
 
     if bld.env.PLATFORM == 'as3-web':
         dlib.source.remove(os.path.join('dlib', 'socket.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'socket.cpp'))
     else:
         dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
-
+    if 'web' in bld.env['PLATFORM']:
+        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'dns.cpp'))
+    else:
+        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
+        uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
+
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                 includes = '.',
                                 add_objects = local_objs,
-                                uselib_local = 'axtls',
+                                uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                uselib = 'UUID PLATFORM_SOCKET')
+                                uselib = uselib)
+
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
-        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
+        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
             # NOTE: See comment above
             dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
@@ -182,8 +212,13 @@ def build(bld):
         else:
             dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
+        if 'web' in bld.env['PLATFORM']:
+            dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+        else:
+            dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+
     if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cxx cshlib',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
                                 source='dlib/memprofile.cpp',
                                 includes = '.',
                                 target = 'dlib_memprofile',
@@ -217,6 +252,6 @@ def config_neon(conf):
     conf.env.append_unique('CCFLAGS', '-mfpu=neon')
 
 def configure(conf):
-    if 'js-web' in conf.env.PLATFORM or 'as3-web' in conf.env.PLATFORM:
+    if 'web' in conf.env.PLATFORM:
         conf.env.append_unique('CCDEFINES', 'WEBP_FORCE_ALIGNED')
         conf.env.append_unique('CXXDEFINES', 'WEBP_FORCE_ALIGNED')

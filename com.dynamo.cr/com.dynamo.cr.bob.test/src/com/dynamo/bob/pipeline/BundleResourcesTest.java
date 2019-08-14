@@ -9,7 +9,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -71,6 +70,7 @@ public class BundleResourcesTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         addResourceDirectory("/testextension");
+        addResourceDirectory("/testappmanifest");
     }
 
     private void addFile(String file, String source) {
@@ -79,10 +79,6 @@ public class BundleResourcesTest {
 
     private void addFile(String file, byte[] content) {
         this.fileSystem.addFile(file, content);
-    }
-
-    private void addFile(String file, byte[] content, long modifiedTime) {
-        this.fileSystem.addFile(file, content, modifiedTime);
     }
 
     private void addDirectory(String path) {
@@ -145,31 +141,26 @@ public class BundleResourcesTest {
     }
 
     @Test
-    public void testCollectResources() throws Exception {
+    public void testcollectBundleResources() throws Exception {
+        // Make sure we exclude stuff from extension1
+        project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt,/extension1/res/common/subdir/subdirtest.txt");
 
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project, "/restest1/common/", null);
+        project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest1");
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
         assertTrue(resourceMap.containsKey("test.txt"));
 
-        resourceMap = ExtenderUtil.collectResources(project, "/restest2/common/", null);
-        assertEquals(1, resourceMap.size());
-    }
-
-    @Test
-    public void testExclude() throws Exception {
-
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project, "/restest1/common/", Arrays.asList(new String[] { "/restest1/common/collision.txt" }));
-        assertTrue(!resourceMap.containsKey("collision.txt"));
-        assertTrue(resourceMap.containsKey("test.txt"));
-
+        project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest2");
+        resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
+        assertEquals(3, resourceMap.size());
     }
 
     @Test
     public void testExtensionResources() throws Exception {
 
         // Should find bundle resources inside the extension1 folder
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
     }
@@ -179,7 +170,7 @@ public class BundleResourcesTest {
 
         // Add project property for bundle resources
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/does_not_exist/");
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
 
         // Will only contain collision.txt and subdirtest.txt from the extension directory.
         assertEquals(2, resourceMap.size());
@@ -192,7 +183,7 @@ public class BundleResourcesTest {
 
         // Add project property for bundle resources
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest1/");
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt")); // Will throw a CompileExceptionError due to a conflict in output resources
     }
@@ -205,15 +196,27 @@ public class BundleResourcesTest {
 
         // Exclude the conflicting file from bundle_resources
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/restest1/common/collision.txt");
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
 
         // Exclude the conflicting file from extension
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt");
-        resourceMap = ExtenderUtil.collectResources(project);
+        resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
+    }
+
+    @Test
+    public void testNonSlashProjectSetting() throws Exception {
+
+        // Add project property for bundle resources
+        project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt,/extension1/res/common/subdir/subdirtest.txt");
+
+        // Test "old" way of specifying custom resources without leading slash (ie non absolute)
+        project.getProjectProperties().putStringValue("project", "bundle_resources", "restest1/");
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
+        assertEquals(2, resourceMap.size());
     }
 
     @Test
@@ -222,21 +225,16 @@ public class BundleResourcesTest {
         // Add project property for bundle resources
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt,/extension1/res/common/subdir/subdirtest.txt");
 
-        // Test "old" way of specifying custom resources without leading slash (ie non absolute)
-        project.getProjectProperties().putStringValue("project", "bundle_resources", "restest1/");
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
-        assertEquals(0, resourceMap.size());
-
         // Test non existing project path
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/not_valid/");
-        resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         assertEquals(0, resourceMap.size());
     }
 
     @Test
     public void testWriteToDisk() throws Exception {
 
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
         File folder = tmpFolder.newFolder();
 
         ExtenderUtil.writeResourcesToDirectory(resourceMap, folder);
@@ -251,7 +249,7 @@ public class BundleResourcesTest {
     @Test
     public void testWriteToZip() throws Exception {
 
-        Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project);
+        Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Platform.getHostPlatform());
 
         // Write entries to temp zip file
         File tmpZipFile = tmpFolder.newFile();
@@ -277,9 +275,7 @@ public class BundleResourcesTest {
 
         // Test data
         Map<Platform, String[]> expected = new HashMap<Platform, String[]>();
-        expected.put(Platform.X86Darwin, new String[] { "osx.txt", "x86-osx.txt" });
         expected.put(Platform.X86_64Darwin, new String[] { "osx.txt", "x86_64-osx.txt" });
-        expected.put(Platform.X86Linux, new String[] { "linux.txt", "x86-linux.txt" });
         expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
         expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
@@ -297,7 +293,7 @@ public class BundleResourcesTest {
             Platform expectedPlatform = entry.getKey();
             String[] expectedFiles = entry.getValue();
 
-            Map<String, IResource> resourceMap = ExtenderUtil.collectResources(project, expectedPlatform);
+            Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, expectedPlatform);
 
             // +3 size since collision.txt, common.txt subdir/subdirtest.txt always included.
             assertEquals(expectedFiles.length + 3, resourceMap.size());
@@ -313,36 +309,62 @@ public class BundleResourcesTest {
 
     }
 
-    private boolean findInResourceList(List<ExtenderResource> list, String path) {
+    private ExtenderResource findInResourceList(List<ExtenderResource> list, String path) {
 
         for (ExtenderResource resource : list) {
             if (resource.getPath().equals(path)) {
-                return true;
+                return resource;
             }
         }
 
-        return false;
+        return null;
     }
 
     // Extension source collecting
     @Test
     public void testExtensionSources() throws Exception {
 
-        // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        // Should find: _app/app.manifest, ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
+        assertEquals(5, resources.size());
+
+        assertTrue(findInResourceList(resources, "_app/app.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
+
+        Map<String, String> appmanifestOptions = new HashMap<String,String>();
+        appmanifestOptions.put("baseVariant", "release");
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, appmanifestOptions);
         assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
-        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String synthesizedManifest = new String(appManifest.getContent());
+        String expectedManifest = "";
+        expectedManifest += "context:" + System.getProperty("line.separator");
+        expectedManifest += "    baseVariant: release" + System.getProperty("line.separator");
+        assertEquals(synthesizedManifest, expectedManifest);
+    }
 
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin);
-        assertEquals(3, resources.size());
+    @Test
+    public void testAppManifestVariant() throws Exception {
+        Map<String, String> appmanifestOptions = new HashMap<String,String>();
+        appmanifestOptions.put("baseVariant", "debug");
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
+        assertEquals(5, resources.size());
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String patchedManifest = new String(appManifest.getContent());
+        String expectedManifest = "";
+        expectedManifest += "context:" + System.getProperty("line.separator");
+        expectedManifest += "    baseVariant: debug" + System.getProperty("line.separator");
+        assertTrue(patchedManifest.length() > expectedManifest.length());
+        assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }
 
 }

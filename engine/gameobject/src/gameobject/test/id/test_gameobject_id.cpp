@@ -1,10 +1,11 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 #include <resource/resource.h>
 
 #include "../gameobject.h"
 
-class IdTest : public ::testing::Test
+class IdTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -99,8 +100,8 @@ TEST_F(IdTest, TestHierarchies)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

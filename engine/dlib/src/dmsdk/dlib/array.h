@@ -377,13 +377,13 @@ const T& dmArray<T>::Back() const
 template <typename T>
 uint32_t dmArray<T>::Size() const
 {
-    return (uint32_t)(m_End - m_Front);
+    return (uint32_t)(uintptr_t)(m_End - m_Front);
 }
 
 template <typename T>
 uint32_t dmArray<T>::Capacity() const
 {
-    return (uint32_t)(m_Back - m_Front);
+    return (uint32_t)(uintptr_t)(m_Back - m_Front);
 }
 
 template <typename T>
@@ -401,7 +401,7 @@ bool dmArray<T>::Empty() const
 template <typename T>
 uint32_t dmArray<T>::Remaining() const
 {
-    return m_Back - m_End;
+    return (uint32_t)(uintptr_t)(m_Back - m_End);
 }
 
 template <typename T>

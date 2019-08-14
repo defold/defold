@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"
@@ -14,10 +13,14 @@
 #include "../dlib/hash.h"
 #include "../dlib/network_constants.h"
 
-class dmHttpServerTest: public ::testing::Test
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
+class dmHttpServerTest: public jc_test_base_class
 {
 public:
     dmHttpServer::HServer m_Server;
+    dmDNS::HChannel m_DNSChannel;
     std::map<std::string, std::string> m_Headers;
 
     int m_Major, m_Minor;
@@ -52,7 +55,7 @@ public:
             for (int i = 0; i < n; ++i)
             {
                 int c = (n + i*97) % ('z' - 'a');
-                char s[2] = { 'a' + c, '\0' };
+                char s[2] = { 'a' + (char)c, '\0' };
                 buf.append(s, 1);
             }
 
@@ -144,18 +147,21 @@ public:
         params.m_Userdata = this;
         params.m_HttpHeader = dmHttpServerTest::HttpHeader;
         params.m_HttpResponse = dmHttpServerTest::HttpResponse;
-        dmHttpServer::Result r = dmHttpServer::New(&params, 8500, &m_Server);
-        ASSERT_EQ(dmHttpServer::RESULT_OK, r);
+        dmHttpServer::Result result_server = dmHttpServer::New(&params, 8500, &m_Server);
+        dmDNS::Result result_dns = dmDNS::NewChannel(&m_DNSChannel);
+        ASSERT_EQ(dmHttpServer::RESULT_OK, result_server);
+        ASSERT_EQ(dmDNS::RESULT_OK, result_dns);
     }
 
     virtual void TearDown()
     {
         if (m_Server)
             dmHttpServer::Delete(m_Server);
+        dmDNS::DeleteChannel(m_DNSChannel);
     }
 };
 
-class dmHttpServerParserTest: public ::testing::Test
+class dmHttpServerParserTest: public jc_test_base_class
 {
 public:
     std::map<std::string, std::string> m_Headers;
@@ -259,6 +265,8 @@ void RunPythonThread(void*)
 #endif
 }
 
+#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+
 TEST_F(dmHttpServerTest, TestServer)
 {
     dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
@@ -274,6 +282,8 @@ TEST_F(dmHttpServerTest, TestServer)
     ASSERT_EQ(0, g_PythonTestResult);
 }
 
+#endif
+
 TEST_F(dmHttpServerTest, TestServerClient)
 {
     dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this, "test");
@@ -286,6 +296,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
+    client_params.m_DNSChannel = m_DNSChannel;
     dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
 
     dmHttpClient::Result r;
@@ -323,8 +334,10 @@ TEST_F(dmHttpServerTest, TestServerClient)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    dmDNS::Initialize();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
+    dmDNS::Finalize();
     dmSocket::Finalize();
     return ret;
 }

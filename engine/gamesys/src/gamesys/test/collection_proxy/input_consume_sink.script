@@ -1,0 +1,22 @@
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	msg.post("go_consume_yes", "acquire_input_focus")
+	msg.post("go_consume_yes#collectionproxy", "load")
+end
+
+function on_input(self, action_id, action)
+	-- store away this object globally so that we can cross-reference in test module
+	last_input_object = go.get_id()
+
+	-- this should never happen,
+	-- since the proxy script one level above always consumes when action.pressed != 0
+	if action.pressed then
+		assert(false)
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("proxy_loaded") then
+		msg.post(sender, "enable")
+	end
+end

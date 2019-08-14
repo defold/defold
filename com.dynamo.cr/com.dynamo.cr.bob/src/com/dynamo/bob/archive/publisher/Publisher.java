@@ -14,9 +14,22 @@ public abstract class Publisher {
 
     private final PublisherSettings settings;
     private final Map<String, File> entries = new HashMap<String, File>();
+    protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
         this.settings = settings;
+    }
+
+    public String getManifestPublicKey() {
+        return this.settings.getManifestPublicKey();
+    }
+    
+    public String getManifestPrivateKey() {
+        return this.settings.getManifestPrivateKey();
+    }
+
+    public String getSupportedVersions() {
+        return this.settings.getSupportedVersions();
     }
 
     protected final PublisherSettings getPublisherSettings() {
@@ -25,6 +38,14 @@ public abstract class Publisher {
 
     protected final Map<String, File> getEntries() {
         return this.entries;
+    }
+    
+    public String getPlatform() {
+        return this.platform;
+    }
+    
+    public void setPlatform(String platform) {
+        this.platform = platform;
     }
 
     public abstract void Publish() throws CompileExceptionError;

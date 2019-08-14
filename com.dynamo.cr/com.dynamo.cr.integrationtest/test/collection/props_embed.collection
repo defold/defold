@@ -1,5 +1,0 @@
-name: "props"
-embedded_instances {
-    id: "props"
-    data: "components: { id: \"script\" component: \"/script/props.script\" }"
-}

@@ -1,6 +1,7 @@
 (ns editor.render-pb
   (:require
    [dynamo.graph :as g]
+   [editor.build-target :as bt]
    [editor.core :as core]
    [editor.graph-util :as gu]
    [editor.resource :as resource]
@@ -18,15 +19,15 @@
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project self)
+                   (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :material-resource]
                                       [:build-targets :dep-build-targets]]]
                      (concat
                        (if old-value
-                         (project/disconnect-resource-node project old-value self connections)
+                         (project/disconnect-resource-node evaluation-context project old-value self connections)
                          (g/disconnect project :nil-resource self :material-resource))
                        (if new-value
-                         (project/connect-resource-node project new-value self connections)
+                         (:tx-data (project/connect-resource-node evaluation-context project new-value self connections))
                          (g/connect project :nil-resource self :material-resource))))))
            (dynamic visible (g/constantly false)))
 
@@ -49,30 +50,24 @@
 
 
 (def ^:private form-sections
-  {
-   :sections
-   [
-    {
-     :title "Render"
-     :fields
-     [
-      {
-       :path [:script]
-       :type :resource
-       :filter "render_script"
-       :label "Script"
-       }
-      {
-       :path [:named-materials]
-       :type :table
-       :label "Materials"
-       :columns [{:path [:name] :label "Name" :type :string :default "New Material"}
-                 {:path [:material] :label "Material" :type :resource :filter "material" :default nil}]
-       }
-      ]
-     }
-    ]
-   })
+  {:navigation false
+   :sections [{:title "Render"
+               :fields [{:path [:script]
+                         :type :resource
+                         :filter "render_script"
+                         :label "Script"}
+                        {:path [:named-materials]
+                         :type :table
+                         :label "Materials"
+                         :columns [{:path [:name]
+                                    :label "Name"
+                                    :type :string
+                                    :default "New Material"}
+                                   {:path [:material]
+                                    :label "Material"
+                                    :type :resource
+                                    :filter "material"
+                                    :default nil}]}]}]})
 
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
@@ -128,12 +123,13 @@
                                                  [[:materials i :material]
                                                   (when material (deps-by-source material))])
                                                named-materials))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-render
-          :user-data {:pb-msg pb-msg
-                      :built-resources built-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-render
+            :user-data {:pb-msg pb-msg
+                        :built-resources built-resources}
+            :deps dep-build-targets})])))
 
 (g/defnode RenderNode
   (inherits core/Scope)
@@ -142,8 +138,8 @@
   (property script resource/Resource
             (dynamic visible (g/constantly false))
             (value (gu/passthrough script-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :script-resource]
                                             [:build-targets :dep-build-targets]))))
   (input script-resource resource/Resource)
@@ -172,5 +168,5 @@
     :ddf-type Render$RenderPrototypeDesc
     :load-fn load-render
     :icon "icons/32/Icons_30-Render.png"
-    :view-types [:form-view :text]
+    :view-types [:cljfx-form-view :text]
     :label "Render"))

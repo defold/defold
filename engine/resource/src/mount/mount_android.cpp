@@ -79,6 +79,7 @@ namespace dmResource
         {
             AAsset_close(asset);
         }
+        return RESULT_OK;
     }
 
     Result UnmapFile(void*& map, uint32_t size)
@@ -88,6 +89,17 @@ namespace dmResource
             munmap(map, size);
         }
         return RESULT_OK;
+    }
+
+    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size)
+    {
+        out_size = 0;
+        return MapFile(manifest_filename, out_map, out_size);
+    }
+
+    Result UnmountManifest(void *& map, uint32_t size)
+    {
+        return UnmapFile(map, size);
     }
 
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
@@ -157,7 +169,7 @@ namespace dmResource
             }
         }
 
-        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
             UnmapAsset(index_asset);
@@ -182,7 +194,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info)
     {
         MountInfo* info = (MountInfo*) mount_info;
 

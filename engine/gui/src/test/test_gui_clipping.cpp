@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -108,7 +109,7 @@ public:
     }
 };
 
-class dmGuiClippingTest : public ::testing::Test
+class dmGuiClippingTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
@@ -185,7 +186,7 @@ public:
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(), Vector3(), dmGui::NODE_TYPE_BOX);
         dmGui::SetNodeId(m_Scene, node, id);
         if (parent != dmGui::INVALID_HANDLE) {
-            dmGui::SetNodeParent(m_Scene, node, parent);
+            dmGui::SetNodeParent(m_Scene, node, parent, false);
         }
         return node;
     }
@@ -990,7 +991,7 @@ TEST_F(dmGuiClippingTest, TestOverflow) {
         last = AddClipperBox("x", last);
     }
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1015,7 +1016,7 @@ TEST_F(dmGuiClippingTest, TestOverflowInverteds) {
         AddInvClipperBox("x", a);
     }
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1053,7 +1054,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart) {
     (void)h;
     (void)k;
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1091,7 +1092,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart2) {
     (void)h;
     (void)k;
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1129,7 +1130,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
     (void)h;
     (void)k;
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1138,6 +1139,6 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }
