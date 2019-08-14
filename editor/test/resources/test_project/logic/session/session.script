@@ -100,7 +100,7 @@ function init(self)
 			on_input = win_on_input
 		}
 	}
-    msg.post(nil, "acquire_input_focus")
+    msg.post(".", "acquire_input_focus")
     self.score = 0
 	self.next_state = self.states.normal
 end

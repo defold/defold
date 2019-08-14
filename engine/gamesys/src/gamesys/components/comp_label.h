@@ -39,6 +39,8 @@ namespace dmGameSystem
 
     void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics);
 
+    const char* CompLabelGetText(const LabelComponent* component);
+
 
 }
 

@@ -45,7 +45,7 @@ namespace dmSocket
                 continue;
 
             int family = ifa->ifa_addr->sa_family;
-            if (!(family == AF_LINK || family == AF_INET)) {
+            if (!(family == AF_LINK || family == AF_INET || family == AF_INET6)) {
                 continue;
             }
 
@@ -53,25 +53,15 @@ namespace dmSocket
                 continue;
             }
 
-            IfAddr* a = 0;
-            for (uint32_t i = 0; i < *count; ++i) {
-                if (strcmp(ifa->ifa_name, addresses[i].m_Name) == 0) {
-                    a = &addresses[i];
-                    break;
-                }
+            if (*count >= addresses_count) {
+                dmLogWarning("Can't fill all if-addresses. Supplied buffer too small.");
+                break;
             }
 
-            if (!a) {
-                if (*count < addresses_count) {
-                    a = &addresses[*count];
-                    memset(a, 0, sizeof(*a));
-                    dmStrlCpy(a->m_Name, ifa->ifa_name, sizeof(a->m_Name));
-                    *count = *count + 1;
-                } else {
-                    dmLogWarning("Can't fill all if-addresses. Supplied buffer too small.");
-                    return;
-                }
-            }
+            IfAddr* a = &addresses[*count];
+            memset(a, 0, sizeof(*a));
+            dmStrlCpy(a->m_Name, ifa->ifa_name, sizeof(a->m_Name));
+            *count = *count + 1;
 
             a->m_Address.m_family = DOMAIN_MISSING;
 

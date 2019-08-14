@@ -393,6 +393,7 @@ namespace dmGameSystem
      *
      * How to play the "jump" animation followed by the "run" animation:
      *
+     *```lua
      * local function anim_done(self, message_id, message, sender)
      *   if message_id == hash("model_animation_done") then
      *     if message.id == hash("jump") then
@@ -401,6 +402,7 @@ namespace dmGameSystem
      *     end
      *   end
      * end
+     * ```
      *
      * ```lua
      * function init(self)

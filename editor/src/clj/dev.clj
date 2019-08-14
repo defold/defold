@@ -1,5 +1,6 @@
 (ns dev
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
@@ -11,6 +12,8 @@
             [internal.system :as is]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
+           [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
+           [java.lang.reflect Modifier]
            [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
@@ -130,10 +133,15 @@
 
 (def ^:private node-type-key (comp :k g/node-type*))
 
+(defn- class-symbol [^Class class]
+  (-> (.getSimpleName class)
+      (string/replace "[]" "-array") ; For arrays, e.g. "byte[]" -> "byte-array"
+      (symbol)))
+
 (defn- node-value-type-symbol [node-value-type]
-  (symbol (if-some [^Class class (:class (deref node-value-type))]
-            (.getSimpleName class)
-            (name (:k node-value-type)))))
+  (if-some [class (:class (deref node-value-type))]
+    (class-symbol class)
+    (symbol (name (:k node-value-type)))))
 
 (defn- node-label-type-keyword [node-type-def-key node-label-def-flags]
   (cond
@@ -165,6 +173,49 @@
         (comp (mapcat (partial label-infos (deref (g/node-type* node-id))))
               (util/distinct-by first))
         [:input :property :output]))
+
+(defn object-bean-info
+  ^BeanInfo [^Object instance]
+  (Introspector/getBeanInfo (.getClass instance)))
+
+(defn object-props
+  "Returns all the bean properties of the specified Object. The result is a
+  sorted set of vectors that include the property name in keyword format and the
+  value type symbol."
+  [^Object instance]
+  (into (sorted-set)
+        (map (fn [^PropertyDescriptor pd]
+               [(-> pd .getName keyword)
+                (some-> (.getPropertyType pd) class-symbol)]))
+        (.getPropertyDescriptors (object-bean-info instance))))
+
+(def ^:private arrow-symbol (symbol "->"))
+
+(def internal-method-name?
+  (into #{}
+        (map #(.intern ^String %))
+        ["__getClojureFnMappings"
+         "__initClojureFnMappings"
+         "__updateClojureFnMappings"]))
+
+(defn object-methods
+  "Returns all the public methods on the specified Object. The result is a
+  sorted set of vectors that include the method name in keyword format, followed
+  by a vector of argument type symbols, an arrow (->), and the return type."
+  [^Object instance]
+  (into (sorted-set)
+        (keep (fn [^MethodDescriptor md]
+                (let [m (.getMethod md)
+                      mod (.getModifiers m)]
+                  (when (and (Modifier/isPublic mod)
+                             (not (Modifier/isStatic mod)))
+                    (let [name (.getName md)]
+                      (when-not (internal-method-name? name)
+                        [(keyword name)
+                         (mapv class-symbol (.getParameterTypes m))
+                         arrow-symbol
+                         (class-symbol (.getReturnType m))]))))))
+        (.getMethodDescriptors (object-bean-info instance))))
 
 (defn successor-tree
   "Returns a tree of all downstream inputs and outputs affected by a change to

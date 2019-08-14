@@ -78,23 +78,15 @@
      :user-data {:animation-set animation-set}}))
 
 (def ^:private form-sections
-  {
+  {:navigation false
    :sections
-   [
-    {
-     :title "Animation Set"
-     :fields
-     [
-      {
-       :path [:animations]
-       :type :list
-       :label "Animations"
-       :element {:type :resource :filter #{"animationset" "dae"} :default nil}
-       }
-      ]
-     }
-    ]
-   })
+   [{:title "Animation Set"
+     :fields [{:path [:animations]
+               :type :list
+               :label "Animations"
+               :element {:type :resource
+                         :filter #{"animationset" "dae"}
+                         :default nil}}]}]})
 
 (defn- set-form-op [{:keys [node-id]} path value]
   (assert (= path [:animations]))
@@ -151,4 +143,4 @@
     :load-fn load-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :view-types [:form-view]))
+    :view-types [:cljfx-form-view]))

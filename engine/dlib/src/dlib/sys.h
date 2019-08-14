@@ -175,6 +175,14 @@ namespace dmSys
     Result MoveFile(const char* dst_filename, const char* src_filename);
 
     /**
+     * Get the path where the application (exe) is located
+     * @param path path buffer
+     * @path path_len path buffer length
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Other error results are also possible.
+     */
+    Result GetApplicationPath(char* path, uint32_t path_len);
+
+    /**
      * Get and create platform specific application support directory.
      * Example paths:
      * OSX: ~/Library/Application Support/APPLICATION_NAME

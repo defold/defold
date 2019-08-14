@@ -492,6 +492,11 @@ namespace dmGameSystem
         metrics.m_MaxDescent = metrics.m_MaxDescent;
     }
 
+    const char* CompLabelGetText(const LabelComponent* component)
+    {
+        return component->m_Text;
+    }
+
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;

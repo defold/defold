@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
+#import <Foundation/Foundation.h>
 #include "log.h"
 #include "sys.h"
 #include "sys_private.h"
@@ -27,6 +28,23 @@ namespace dmSys
         {
             dmStrlCpy(system_name, "iPhone OS", buffer_size);
         }
+    }
+
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+    	assert(path_len > 0);
+    	NSBundle* mainBundle = [NSBundle mainBundle];
+    	if (mainBundle == NULL)
+    	{
+    		return RESULT_FAULT;
+    	}
+    	const char *bundle_path = [[mainBundle bundlePath] UTF8String];
+    	if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
+    	{
+    		path_out[0] = 0;
+    		return RESULT_INVAL;
+    	}
+    	return RESULT_OK;
     }
 
 #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)

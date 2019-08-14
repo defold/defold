@@ -50,6 +50,12 @@
 extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 #endif
 
+#if defined(__linux__) && !defined(ANDROID)
+#include <unistd.h>
+#include <sys/auxv.h>
+#include <libgen.h>
+#endif
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 
@@ -59,6 +65,7 @@ extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
 extern "C" bool dmSysOpenURL(const char* url);
+extern "C" const char* dmSysGetApplicationPath();
 
 #endif
 
@@ -261,6 +268,8 @@ namespace dmSys
         else
             return r;
     }
+
+    // NOTE: iOS/OSX implementation of GetApplicationPath() in sys_cocoa.mm
 #endif
 
 #elif defined(_WIN32)
@@ -290,6 +299,35 @@ namespace dmSys
         {
             return RESULT_UNKNOWN;
         }
+    }
+
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+        assert(path_len > 0);
+        assert(path_len >= MAX_PATH);
+        size_t ret = GetModuleFileNameA(GetModuleHandle(NULL), path_out, path_len);
+        if (ret > 0 && ret < path_len) {
+            // path_out contains path+filename
+            // search for last path separator and end the string there,
+            // effectively removing the filename and keeping the path
+            size_t i = strlen(path_out);
+            do
+            {
+                i -= 1;
+                if (path_out[i] == '\\')
+                {
+                    path_out[i] = 0;
+                    break;
+                }
+            }
+            while (i >= 0);
+        }
+        else
+        {
+            path_out[0] = 0;
+            return RESULT_INVAL;
+        }
+        return RESULT_OK;
     }
 
     Result OpenURL(const char* url)
@@ -326,6 +364,36 @@ namespace dmSys
             const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
 
             if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
+                res = RESULT_INVAL;
+            }
+            env->ReleaseStringUTFChars(path_obj, filesDir);
+        } else {
+            res = RESULT_UNKNOWN;
+        }
+        activity->vm->DetachCurrentThread();
+        return res;
+    }
+
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_files_dir_method = env->GetMethodID(activity_class, "getFilesDir", "()Ljava/io/File;");
+        jobject files_dir_obj = env->CallObjectMethod(activity->clazz, get_files_dir_method);
+        jclass file_class = env->FindClass("java/io/File");
+        jmethodID getPathMethod = env->GetMethodID(file_class, "getParent", "()Ljava/lang/String;");
+        jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
+
+        Result res = RESULT_OK;
+
+        if (path_obj) {
+            const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
+
+            if (dmStrlCpy(path_out, filesDir, path_len) >= path_len) {
+                path_out[0] = 0;
                 res = RESULT_INVAL;
             }
             env->ReleaseStringUTFChars(path_obj, filesDir);
@@ -418,6 +486,18 @@ namespace dmSys
         }
     }
 
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+        const char* applicationPath = dmSysGetApplicationPath();
+
+        if (dmStrlCpy(path_out, applicationPath, path_len) >= path_len)
+        {
+            path_out[0] = 0;
+            return RESULT_INVAL;
+        }
+        return RESULT_OK;
+    }
+
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -462,6 +542,39 @@ namespace dmSys
         {
             return RESULT_UNKNOWN;
         }
+    }
+
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+        ssize_t ret = readlink("/proc/self/exe", path_out, path_len);
+        if (ret < 0 || ret > path_len)
+        {
+            const char* relative_path = (const char*)getauxval(AT_EXECFN); // Pathname used to execute program
+            if (!relative_path)
+            {
+                path_out[0] = '.';
+                path_out[1] = '\n';
+            }
+            else
+            {
+                char *absolute_path = realpath(relative_path, NULL); // realpath() resolve a pathname
+                if (!absolute_path)
+                {
+                    path_out[0] = '.';
+                    path_out[1] = '\n';
+                }
+                else
+                {
+                    if (dmStrlCpy(path_out, dirname(absolute_path), path_len) >= path_len) // dirname() returns the string up to, but not including, the final '/'
+                    {
+                        path_out[0] = '.';
+                        path_out[1] = '\n';
+                    }
+                    free(absolute_path);
+                }
+            }
+        }
+        return RESULT_OK;
     }
 
 #elif defined(__AVM2__)

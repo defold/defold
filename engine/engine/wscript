@@ -104,7 +104,6 @@ namespace dmEngineVersion
 
     conf.env['STATICLIB_UNWIND'] = 'unwind'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
