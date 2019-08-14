@@ -112,10 +112,10 @@
   (attribute vec4 position)
   (defn void main []
     (setq vec3 point
-          (* point_scale.xyz
-             (+ position.xyz
-                (* position.w
-                   point_offset_by_w.xyz))))
+          (+ (* position.xyz
+                point_scale.xyz)
+             (* position.w
+                point_offset_by_w.xyz)))
     (setq gl_Position
           (* world_view_proj
              (vec4 point 1.0)))))
@@ -470,7 +470,8 @@
   [_node-id transform diameter height color node-outline-key project-physics-type]
   ;; NOTE: Capsules are currently only supported when physics type is 3D.
   (let [radius (* 0.5 diameter)
-        ext-y (+ (* 0.5 height) radius)
+        half-height (* 0.5 height)
+        ext-y (+ half-height radius)
         ext-z (case project-physics-type
                 "2D" 0.0
                 "3D" radius)
@@ -478,7 +479,7 @@
         neg-ext [(- radius) (- ext-y) (- ext-z)]
         aabb (geom/coords->aabb ext neg-ext)
         point-scale (float-array [radius radius ext-z])
-        point-offset-by-w (float-array [0.0 height 0.0])]
+        point-offset-by-w (float-array [0.0 half-height 0.0])]
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
