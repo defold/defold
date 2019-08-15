@@ -25,6 +25,9 @@ MAKEFILE=Makefile
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
 CURL="curl -L -O"
 
+TAR_SKIP_BIN=0
+TAR_INCLUDES=0
+
 function download() {
     mkdir -p ../download
     [ ! -f ../download/$FILE_URL ] && $CURL $BASE_URL/$FILE_URL && mv $FILE_URL ../download
