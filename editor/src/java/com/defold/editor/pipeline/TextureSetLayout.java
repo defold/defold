@@ -149,36 +149,20 @@ public class TextureSetLayout {
      * @return
      */
     public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
-        if (rotate) {
-            // Sort by area first, longest side if rotation is enabled.
-            Collections.sort(rectangles, new Comparator<Rect>() {
-                @Override
-                public int compare(Rect o1, Rect o2) {
-                    float a1 = o1.width * o1.height;
-                    float a2 = o2.width * o2.height;
-                    if (a1 != a2) {
-                        return a1 < a2 ? 1 : -1;
-                    }
-                    int n1 = o1.width > o1.height ? o1.width : o1.height;
-                    int n2 = o2.width > o2.height ? o2.width : o2.height;
-                    return n2 - n1;
+        // Sort by area first, then longest side
+        Collections.sort(rectangles, new Comparator<Rect>() {
+            @Override
+            public int compare(Rect o1, Rect o2) {
+                int a1 = o1.width * o1.height;
+                int a2 = o2.width * o2.height;
+                if (a1 != a2) {
+                    return a2 - a1;
                 }
-            });
-        }
-        else {
-            // Sort by area first, then only by width (largest to smallest) if rotation is disabled.
-            Collections.sort(rectangles, new Comparator<Rect>() {
-                @Override
-                public int compare(Rect o1, Rect o2) {
-                    float a1 = o1.width * o1.height;
-                    float a2 = o2.width * o2.height;
-                    if (a1 != a2) {
-                        return a1 < a2 ? 1 : -1;
-                    }
-                    return o2.width - o1.width;
-                }
-            });
-        }
+                int n1 = o1.width > o1.height ? o1.width : o1.height;
+                int n2 = o2.width > o2.height ? o2.width : o2.height;
+                return n2 - n1;
+            }
+        });
 
         // Calculate total area of rectangles and the max length of a rectangle
         int maxLengthScale = 0;
