@@ -391,6 +391,7 @@ namespace dmHttpClient
                 uint64_t end = dmTime::GetTime();
 
                 int timeout = response->m_Client->m_RequestTimeout;
+                dmLogError("Time spend (end - start): %i\n", (end - start));
                 if (timeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
                     dmLogError("dmSocket::RESULT_WOULDBLOCK %i\n", timeout);
                     return dmSocket::RESULT_WOULDBLOCK;
