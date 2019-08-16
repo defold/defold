@@ -64,7 +64,7 @@ message TextureSet
     repeated uint32 outline_vertex_start    = 14;
     repeated uint32 outline_vertex_count    = 15;
 
-    repeated float convex_hull_points       = 16;
+    repeated float collision_hull_points    = 16;
     repeated string collision_groups        = 17;
 
     // A series of four float pairs of UV coords, representing quad texture coordinates and

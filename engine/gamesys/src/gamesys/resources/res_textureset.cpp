@@ -38,10 +38,10 @@ namespace dmGameSystem
                 hull_descs[i].m_Index = (uint16_t)hull_ddf->m_Index;
                 hull_descs[i].m_Count = (uint16_t)hull_ddf->m_Count;
             }
-            uint32_t n_points = texture_set_ddf->m_ConvexHullPoints.m_Count / 2;
+            uint32_t n_points = texture_set_ddf->m_CollisionHullPoints.m_Count / 2;
             float recip_tile_width = 1.0f / (texture_set_ddf->m_TileWidth - 1);
             float recip_tile_height = 1.0f / (texture_set_ddf->m_TileHeight - 1);
-            float* points = texture_set_ddf->m_ConvexHullPoints.m_Data;
+            float* points = texture_set_ddf->m_CollisionHullPoints.m_Data;
             float* norm_points = new float[n_points * 2];
             for (uint32_t i = 0; i < n_points; ++i)
             {
