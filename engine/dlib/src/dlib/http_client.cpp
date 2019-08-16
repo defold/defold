@@ -340,6 +340,7 @@ namespace dmHttpClient
             }
 
             if (r != length) {
+                dmLogWarning("SendAll: r != length");
                 return SSLToSocket(r);
             }
             return dmSocket::RESULT_OK;
@@ -412,6 +413,7 @@ namespace dmHttpClient
                 memcpy(buffer, buf, to_copy);
                 return dmSocket::RESULT_OK;
             } else {
+                dmLogWarning("Receive: r < 0");
                 return SSLToSocket(r);
             }
         } else {
