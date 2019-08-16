@@ -24,7 +24,6 @@ ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
-ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 IOS_SDK_VERSION="12.1"
@@ -194,9 +193,6 @@ def getAndroidCompilerName(target_arch, api_version):
         return 'aarch64-linux-android%s-clang' % (api_version)
     else:
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
-
-def getAndroidGCCVersion(target_arch):
-    return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
 
 def getAndroidNDKAPIVersion(target_arch):
     return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
@@ -692,7 +688,7 @@ def _strip_executable(bld, platform, target_arch, path):
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
         build_tool = getAndroidBuildtoolName(target_arch)
-        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
+        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, ANDROID_GCC_VERSION, ANDROID_HOST, build_tool)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1627,7 +1623,7 @@ def detect(conf):
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-        bintools    = '%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, tool_name, getAndroidGCCVersion(target_arch), build_platform, arch)
+        bintools    = '%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, tool_name, ANDROID_GCC_VERSION, build_platform, arch)
         llvm        = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
         conf.env['CC'] = '%s/%s' % (llvm, clang_name)
