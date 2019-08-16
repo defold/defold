@@ -1320,6 +1320,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
     /* connection has gone, so die */
     if (read_len <= 0)
     {
+        printf("connection has gone, so die. read_len: %i", read_len);
         ret = SSL_ERROR_CONN_LOST;
         ssl->hs_status = SSL_ERROR_DEAD;  /* make sure it stays dead */
         goto error;
@@ -2202,8 +2203,6 @@ void DISPLAY_STATE(SSL *ssl, int is_send, uint8_t state, int not_ok)
  */
 void DISPLAY_RSA(SSL *ssl, const RSA_CTX *rsa_ctx)
 {
-    if (!IS_SET_SSL_FLAG(SSL_DISPLAY_RSA))
-        return;
 
     RSA_print(rsa_ctx);
     TTY_FLUSH();
@@ -2216,9 +2215,6 @@ void DISPLAY_BYTES(SSL *ssl, const char *format,
         const uint8_t *data, int size, ...)
 {
     va_list(ap);
-
-    if (!IS_SET_SSL_FLAG(SSL_DISPLAY_BYTES))
-        return;
 
     va_start(ap, size);
     print_blob(format, data, size, va_arg(ap, char *));

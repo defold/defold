@@ -392,6 +392,7 @@ namespace dmHttpClient
 
                 int timeout = response->m_Client->m_RequestTimeout;
                 if (timeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
+                    dmLogError("dmSocket::RESULT_WOULDBLOCK");
                     return dmSocket::RESULT_WOULDBLOCK;
                 }
             } while (r == SSL_OK);
