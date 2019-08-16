@@ -1069,16 +1069,6 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
 
 #ifdef WIN32
 
-            printf("WIN ERR: %i", GetLastError());
-
-            wchar_t *s = NULL;
-            FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
-                           NULL, WSAGetLastError(),
-                           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                           (LPWSTR)&s, 0, NULL);
-            fprintf(stderr, "%S\n", s);
-            LocalFree(s);
-
 
             if (GetLastError() != WSAEWOULDBLOCK)
 #else
@@ -1322,6 +1312,15 @@ int basic_read(SSL *ssl, uint8_t **in_data)
     if (read_len < 0)
     {
 #ifdef WIN32
+            printf("WIN ERR: %i", GetLastError());
+
+            wchar_t *s = NULL;
+            FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
+                           NULL, WSAGetLastError(),
+                           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                           (LPWSTR)&s, 0, NULL);
+            fprintf(stderr, "%S\n", s);
+            LocalFree(s);
         if (GetLastError() == WSAEWOULDBLOCK)
 #else
         if (errno == EAGAIN || errno == EWOULDBLOCK)
