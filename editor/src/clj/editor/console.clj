@@ -9,25 +9,30 @@
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [util.thread-util :refer [preset!]])
-  (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
-           (java.util.regex MatchResult)
-           (javafx.beans.property SimpleStringProperty)
-           (javafx.scene Parent Scene)
-           (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Button Tab TabPane TextField)
-           (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout GridPane Pane)
-           (javafx.scene.paint Color)
-           (javafx.scene.text Font FontSmoothingType TextAlignment)))
+            [editor.workspace :as workspace])
+  (:import [clojure.lang PersistentQueue]
+           [editor.code.data Cursor CursorRange LayoutInfo Rect]
+           [java.util.regex MatchResult]
+           [javafx.beans.property SimpleStringProperty]
+           [javafx.scene Parent Scene]
+           [javafx.scene.canvas Canvas GraphicsContext]
+           [javafx.scene.control Button Tab TabPane TextField]
+           [javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent]
+           [javafx.scene.layout GridPane Pane]
+           [javafx.scene.paint Color]
+           [javafx.scene.text Font FontSmoothingType TextAlignment]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private *pending (atom {:clear? false :entries []}))
-(def ^:private gutter-bubble-font (Font. "Source Sans Pro", 10.5))
-(def ^:private gutter-bubble-glyph-metrics (view/make-glyph-metrics gutter-bubble-font 1.0))
+(def ^:private pending-atom
+  (atom {:clear? false :entries PersistentQueue/EMPTY}))
+
+(def ^:private gutter-bubble-font
+  (Font. "Source Sans Pro", 10.5))
+
+(def ^:private gutter-bubble-glyph-metrics
+  (view/make-glyph-metrics gutter-bubble-font 1.0))
 
 (defn append-console-entry!
   "Append to the console. Callable from a background thread. If type is
@@ -35,22 +40,30 @@
   [type line]
   (assert (or (nil? type) (keyword? type)))
   (assert (string? line))
-  (swap! *pending update :entries conj [type line]))
+  (swap! pending-atom update :entries conj [type line]))
 
 (def append-console-line! (partial append-console-entry! nil))
 
 (defn clear-console!
   "Clear the console. Callable from a background thread."
   []
-  (reset! *pending {:clear? true :entries []}))
+  (reset! pending-atom {:clear? true :entries PersistentQueue/EMPTY}))
 
-(defn- flip-pending! []
-  (preset! *pending {:clear? false :entries []}))
+(defn- pop-n [coll ^long n]
+  (let [max-n (min n (count coll))]
+    (loop [i 0
+           xs coll]
+      (if (= max-n i)
+        xs
+        (recur (inc i) (pop xs))))))
 
-(defn show! [view-node]
-  (let [canvas (g/node-value view-node :canvas)
-        ^TabPane tab-pane (ui/closest-node-of-type TabPane canvas)]
-    (.select (.getSelectionModel tab-pane) 0)))
+(defn- dequeue-pending! [n]
+  (let [batch (first (swap-vals!
+                       pending-atom
+                       (fn [{:keys [entries]}]
+                         {:clear? false
+                          :entries (pop-n entries n)})))]
+    (update batch :entries #(take n %))))
 
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
@@ -190,7 +203,7 @@
   (run [view-node] (view/move! view-node :selection :file-end)))
 
 (handler/defhandler :copy :console-view
-  (enabled? [view-node] (view/has-selection? view-node))
+  (enabled? [view-node evaluation-context] (view/has-selection? view-node evaluation-context))
   (run [view-node clipboard] (view/copy! view-node clipboard)))
 
 (handler/defhandler :select-all :console-view
@@ -217,6 +230,7 @@
 ;; -----------------------------------------------------------------------------
 
 (g/defnode ConsoleNode
+  (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
@@ -238,6 +252,7 @@
         gutter-background-color (view/color-lookup color-scheme "editor.gutter.background")
         gutter-shadow-color (view/color-lookup color-scheme "editor.gutter.shadow")
         gutter-eval-expression-color (view/color-lookup color-scheme "editor.gutter.eval.expression")
+        gutter-eval-error-color (view/color-lookup color-scheme "editor.gutter.eval.error")
         gutter-eval-result-color (view/color-lookup color-scheme "editor.gutter.eval.result")]
 
     ;; Draw gutter background and shadow when scrolled horizontally.
@@ -282,6 +297,12 @@
             (.setFont gc font)
             (.setFill gc gutter-eval-result-color)
             (.fillText gc "=" text-right text-y))
+
+          :eval-error
+          (let [text-y (+ ascent line-y)]
+            (.setFont gc font)
+            (.setFill gc gutter-eval-error-color)
+            (.fillText gc "!" text-right text-y))
           nil)))))
 
 (deftype ConsoleGutterView []
@@ -297,13 +318,15 @@
   (g/transact
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
+      (g/connect console-node :indent-type view-node :indent-type)
       (g/connect console-node :cursor-ranges view-node :cursor-ranges)
       (g/connect console-node :invalidated-rows view-node :invalidated-rows)
       (g/connect console-node :lines view-node :lines)
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(def ^:private line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+(def ^:private ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
+(def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
 
 (defn- make-resource-reference-region
   ([row start-col end-col resource-proj-path on-click!]
@@ -320,19 +343,30 @@
    (assoc (make-resource-reference-region row start-col end-col resource-proj-path on-click!)
      :row resource-row)))
 
+(defn- find-project-resource-from-potential-match
+  [resource-map partial-path]
+  (if (contains? resource-map partial-path)
+    partial-path ;; Already a valid path
+    (let [partial-matches (filter #(.endsWith ^String % partial-path) (keys resource-map))]
+      (when (= 1 (bounded-count 2 partial-matches))
+        (first partial-matches)))))
+
 (defn- make-line-sub-regions [resource-map on-region-click! row line]
-  (keep (fn [^MatchResult result]
-          (let [resource-proj-path (.group result 1)]
-            (when (contains? resource-map resource-proj-path)
-              (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
-                    start-col (.start result)
-                    end-col (if (string/ends-with? (.group result) ":")
-                              (dec (.end result))
-                              (.end result))]
-                (if (nil? resource-row)
-                  (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
-                  (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
-        (re-match-result-seq line-sub-regions-pattern line)))
+  (into []
+        (comp
+          (mapcat #(re-match-result-seq % line))
+          (keep (fn [^MatchResult result]
+                  (when-let [resource-proj-path (find-project-resource-from-potential-match resource-map (.group result 1))]
+                    (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                          start-col (.start result)
+                          end-col (if (string/ends-with? (.group result) ":")
+                                    (dec (.end result))
+                                    (.end result))]
+                      (if (nil? resource-row)
+                        (make-resource-reference-region row start-col end-col resource-proj-path on-region-click!)
+                        (make-resource-reference-region row start-col end-col resource-proj-path (dec (long resource-row)) on-region-click!))))))
+          (distinct))
+        [line-sub-regions-pattern line-sub-regions-pattern-partial]))
 
 (defn- make-whole-line-region [type ^long row line]
   (assert (keyword? type))
@@ -383,7 +417,7 @@
           (partition-by #(nil? (first %)) entries)))
 
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
-  (let [{:keys [clear? entries]} (flip-pending!)]
+  (let [{:keys [clear? entries]} (dequeue-pending! 1000)]
     (when (or clear? (seq entries))
       (let [resource-map (g/node-value workspace :resource-map)
             ^LayoutInfo prev-layout (g/node-value view-node :layout)
@@ -431,6 +465,7 @@
        ["editor.background" background-color]
        ["editor.cursor" Color/TRANSPARENT]
        ["editor.gutter.eval.expression" (Color/valueOf "#DDDDDD")]
+       ["editor.gutter.eval.error" (Color/valueOf "#FF6161")]
        ["editor.gutter.eval.result" (Color/valueOf "#52575C")]
        ["editor.selection.background" selection-background-color]
        ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
@@ -457,7 +492,7 @@
                                (when (and (resource/openable-resource? resource)
                                           (resource/exists? resource))
                                  (let [opts (when-some [row (:row region)]
-                                              {:line (inc (long row))})]
+                                              {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                    (open-resource-fn resource opts))))))
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))

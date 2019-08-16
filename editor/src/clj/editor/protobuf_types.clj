@@ -1,5 +1,6 @@
 (ns editor.protobuf-types
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
@@ -16,7 +17,7 @@
                :icon "icons/32/Icons_35-Inputbinding.png"
                :pb-class Input$InputBinding
                :label "Input Binding"
-               :view-types [:form-view :text]}
+               :view-types [:cljfx-form-view :text]}
               {:ext "light"
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"
@@ -27,7 +28,7 @@
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
                :pb-class Input$GamepadMaps
-               :view-types [:form-view :text]}
+               :view-types [:cljfx-form-view :text]}
               {:ext "convexshape"
                :label "Convex Shape"
                ; TODO - missing icon
@@ -35,20 +36,20 @@
                :pb-class Physics$ConvexShape}
               {:ext "texture_profiles"
                :label "Texture Profiles"
-               :view-types [:form-view :text]
+               :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
-               :pb-class Graphics$TextureProfiles
-               }])
+               :pb-class Graphics$TextureProfiles}])
 
 (defn- build-pb [resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
 
 (g/defnk produce-build-targets [_node-id resource pb def]
-  {:node-id _node-id
-   :resource (workspace/make-build-resource resource)
-   :build-fn build-pb
-   :user-data {:pb pb
-               :pb-class (:pb-class def)}})
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-pb
+      :user-data {:pb pb
+                  :pb-class (:pb-class def)}})])
 
 (g/defnk produce-form-data [_node-id pb def]
   (protobuf-forms/produce-form-data _node-id pb def))

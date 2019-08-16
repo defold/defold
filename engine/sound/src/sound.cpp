@@ -187,6 +187,7 @@ namespace dmSound
 
         bool                    m_IsDeviceStarted;
         bool                    m_IsPhoneCallActive;
+        bool                    m_HasWindowFocus;
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -279,6 +280,7 @@ namespace dmSound
         SoundSystem* sound = g_SoundSystem;
         sound->m_IsDeviceStarted = false;
         sound->m_IsPhoneCallActive = false;
+        sound->m_HasWindowFocus = true; // Assume we startup with the window focused
         sound->m_DeviceType = device_type;
         sound->m_Device = device;
         dmSoundCodec::NewCodecContextParams codec_params;
@@ -718,7 +720,7 @@ namespace dmSound
         frames[instance->m_FrameCount] = frames[instance->m_FrameCount-1];
 
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float mix = frac * range_recip;
@@ -765,7 +767,7 @@ namespace dmSound
         frames[2 * instance->m_FrameCount + 1] = frames[2 * instance->m_FrameCount - 1];
 
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float mix = frac * range_recip;
@@ -804,7 +806,7 @@ namespace dmSound
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float s = frames[i];
@@ -821,7 +823,7 @@ namespace dmSound
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
-        for (int i = 0; i < mix_buffer_count; i++)
+        for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
             float gain = ramp.GetValue(i);
             float s1 = frames[2 * i];
@@ -1198,9 +1200,10 @@ namespace dmSound
 
         if (active_instance_count == 0)
         {
+            #if defined(ANDROID)
             if (sound->m_IsDeviceStarted)
             {
-                // DEF-3512 Wait with releasing audio focus until all our queued buffers have played, if any queued buffers are
+                // DEF-3512 Wait with stopping the device until all our queued buffers have played, if any queued buffers are
                 // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
                 // since it detects our buffered sounds as "other application".
                 uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
@@ -1210,14 +1213,12 @@ namespace dmSound
                     sound->m_IsDeviceStarted = false;
                 }
             }
+            #endif
             return RESULT_NOTHING_TO_PLAY;
         }
-
-        // DEF-3130 Don't request the audio focus unless something is being played
+        // DEF-3130 Don't start the device unless something is being played
         // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
-        // DEF-3138 If you queue silent audio to the device it will still be registered by Android
-        // as music is playing, therefore we need to acquire the audio focus even if the resulting
-        // sound of our mix is silence.
+
         if (sound->m_IsDeviceStarted == false)
         {
             sound->m_DeviceType->m_DeviceStart(sound->m_Device);
@@ -1253,12 +1254,20 @@ namespace dmSound
 
     bool IsMusicPlaying()
     {
-        return PlatformIsMusicPlaying(g_SoundSystem->m_IsDeviceStarted);
+        return PlatformIsMusicPlaying(g_SoundSystem->m_IsDeviceStarted, g_SoundSystem->m_HasWindowFocus);
     }
 
     bool IsPhoneCallActive()
     {
         return PlatformIsPhoneCallActive();
+    }
+
+    void OnWindowFocus(bool focus)
+    {
+        SoundSystem* sound = g_SoundSystem;
+        if (sound) {
+            sound->m_HasWindowFocus = focus;
+        }
     }
 
 }

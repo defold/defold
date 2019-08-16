@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build-target :as bt]
             [editor.code.script :as script]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -51,6 +52,11 @@
    :rotation rotation
    :data (or (:content save-data) "")})
 
+(defn- build-raw-sound [resource dep-resources user-data]
+  (let [pb (:pb user-data)
+        pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
+    {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
+
 (defn- wrap-if-raw-sound [_node-id target]
   (let [resource (:resource (:resource target))
         source-path (resource/proj-path resource)
@@ -59,13 +65,11 @@
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
             pb        {:sound source-path}
-            target    {:node-id  _node-id
-                       :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                       :build-fn (fn [resource dep-resources user-data]
-                                   (let [pb (:pb user-data)
-                                         pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
-                                     {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
-                       :deps     [target]}]
+            target    (bt/with-content-hash
+                        {:node-id _node-id
+                         :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
+                         :build-fn build-raw-sound
+                         :deps [target]})]
         target)
       target)))
 
@@ -201,14 +205,16 @@
                                    :aabb geom/empty-bounding-box
                                    :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
-                                             (if-let [target (first source-build-targets)]
-                                               (let [target (->> (assoc target :resource build-resource)
-                                                              (wrap-if-raw-sound _node-id))]
-                                                 [(assoc target :instance-data {:resource (:resource target)
-                                                                                :instance-msg rt-ddf-message
-                                                                                :transform transform})])
-                                               [])))
+  (output build-targets g/Any (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
+                                (when-some [target (first source-build-targets)]
+                                  (let [target (->> (assoc target :resource build-resource)
+                                                    (wrap-if-raw-sound _node-id))]
+                                    [(bt/with-content-hash
+                                       (assoc target
+                                         :instance-data
+                                         {:resource (:resource target)
+                                          :instance-msg rt-ddf-message
+                                          :transform transform}))]))))
   (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
@@ -350,11 +356,12 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-game-object
-        :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
-        :deps (flatten dep-build-targets)}]))
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-game-object
+          :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
+          :deps (flatten dep-build-targets)})]))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
@@ -485,7 +492,7 @@
                                               [:resource :source-resource]
                                               [:_properties :source-properties]
                                               [:node-outline :source-outline]
-                                              [:save-data :save-data]
+                                              [:undecorated-save-data :save-data]
                                               [:scene :scene]
                                               [:build-targets :source-build-targets]])
                   (attach-embedded-component self comp-node)

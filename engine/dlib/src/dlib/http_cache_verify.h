@@ -40,7 +40,7 @@ namespace dmHttpCacheVerify
      * @param max_age max-age of resource to verify in seconds
      * @return RESULT_OK on success
      */
-    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age);
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, dmDNS::HChannel channel, uint64_t max_age);
 
 }
 

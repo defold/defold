@@ -24,6 +24,13 @@
 (def error-warning (partial error-value :warning))
 (def error-fatal   (partial error-value :fatal))
 
+(defn map->error [m]
+  (assert (if-some [node-id (:_node-id m)] (gt/node-id? node-id) true))
+  (assert (if-some [label (:_label m)] (keyword? label) true))
+  (assert (if-some [severity (:severity m)] (contains? severity-levels severity) true))
+  (assert (if-some [message (:message m)] (string? message) true))
+  (map->ErrorValue m))
+
 (defn ->error
   ([node-id label severity value message]
     (->error node-id label severity value message nil))
@@ -72,6 +79,10 @@
       (error-severity packaged-errors)
       :info)))
 
+(defn error-package?
+  [value]
+  (instance? ErrorPackage value))
+
 (defn- unpack-if-package [error-or-package]
   (if (instance? ErrorPackage error-or-package)
     (:packaged-errors error-or-package)
@@ -102,9 +113,9 @@
 
 (defn flatten-errors [& errors]
   (some->> errors
-           (map unpack-if-package)
            flatten
-           (filter #(instance? ErrorValue %))
+           (map unpack-if-package)
+           (filter error-value?)
            not-empty
            error-aggregate))
 

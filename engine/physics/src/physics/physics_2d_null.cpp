@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -198,12 +198,54 @@ namespace dmPhysics
     {
     }
 
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
+    {
+    }
+
+    void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)
+    {
+    }
+
+    Vectormath::Aos::Vector3 GetGravity2D(HWorld2D world)
+    {
+        return Vectormath::Aos::Vector3(0.0f);
+    }
+
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {
     }
 
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape)
     {
+    }
+
+    HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Vectormath::Aos::Point3& pos_a, HCollisionObject2D obj_b, const Vectormath::Aos::Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
+    {
+        return (dmPhysics::HJoint)0x1;
+    }
+
+    bool GetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, ConnectJointParams& params)
+    {
+        return true;
+    }
+
+    bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
+    {
+        return true;
+    }
+
+    void DeleteJoint2D(HWorld2D world, HJoint joint)
+    {
+    }
+
+    bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vectormath::Aos::Vector3& force, float inv_dt)
+    {
+        return true;
+    }
+
+    bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float inv_dt)
+    {
+        return true;
     }
 
 }

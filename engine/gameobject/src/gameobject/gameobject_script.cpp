@@ -133,6 +133,9 @@ namespace dmGameObject
 #define SCRIPTINSTANCE "GOScriptInstance"
 #define SCRIPT "GOScript"
 
+    static uint32_t SCRIPT_TYPE_HASH = 0;
+    static uint32_t SCRIPTINSTANCE_TYPE_HASH = 0;
+
     using namespace dmPropertiesDDF;
 
     const char* SCRIPT_INSTANCE_TYPE_NAME = SCRIPTINSTANCE;
@@ -160,12 +163,8 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
         (void)top;
-        Script* script = 0x0;
         dmScript::GetInstance(L);
-        if (dmScript::IsUserType(L, -1, SCRIPT))
-        {
-            script = (Script*)lua_touserdata(L, -1);
-        }
+        Script* script = (Script*)dmScript::ToUserType(L, -1, SCRIPT_TYPE_HASH);
         // Clear stack and return
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
@@ -209,7 +208,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE, "You can only access go.* functions and values from a script instance (.script file)");
+        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE_TYPE_HASH, "You can only access go.* functions and values from a script instance (.script file)");
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
@@ -220,15 +219,6 @@ namespace dmGameObject
         return i;
     }
 
-    static int ScriptInstance_gc (lua_State *L)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
     static int ScriptInstance_tostring (lua_State *L)
     {
         lua_pushfstring(L, "Script: %p", lua_touserdata(L, 1));
@@ -237,7 +227,7 @@ namespace dmGameObject
 
     static int ScriptInstance_index(lua_State *L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -252,7 +242,7 @@ namespace dmGameObject
     {
         int top = lua_gettop(L);
 
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         (void) i;
         assert(i);
 
@@ -353,7 +343,6 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                                        ScriptInstance_gc},
         {"__tostring",                                  ScriptInstance_tostring},
         {"__index",                                     ScriptInstance_index},
         {"__newindex",                                  ScriptInstance_newindex},
@@ -527,7 +516,7 @@ namespace dmGameObject
 
     HInstance GetInstanceFromLua(lua_State* L) {
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE)) {
+        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE_TYPE_HASH)) {
             return (HInstance)user_data;
         } else {
             return 0;
@@ -587,14 +576,16 @@ namespace dmGameObject
             return 1;
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
             {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                lua_pushliteral(L, "");
-                lua_pushvalue(L, 1);
-                lua_concat(L, 2);
-                const char* name = lua_tostring(L, -1);
-                lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
+                const char* path = dmHashReverseSafe64(target.m_Path);
+                const char* property = dmHashReverseSafe64(property_id);
+                if (target.m_Fragment)
+                {
+                    return luaL_error(L, "'%s#%s' does not have any property called '%s'", path, dmHashReverseSafe64(target.m_Fragment), property);
+                }
+                else
+                {
+                    return luaL_error(L, "'%s' does not have any property called '%s'", path, property);
+                }
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
@@ -940,9 +931,10 @@ namespace dmGameObject
         Instance* instance = ResolveInstance(L, 2);
 
         // Supports both vector and number
-        if (dmScript::IsVector3(L, 1))
+        Vector3* v = dmScript::ToVector3(L, 1);
+        if (v != 0)
         {
-            Vector3 scale = *dmScript::CheckVector3(L, 1);
+            Vector3 scale = *v;
             if (scale.getX() <= 0.0f || scale.getY() <= 0.0f || scale.getZ() <= 0.0f)
             {
                 return luaL_error(L, "Vector passed to go.set_scale contains components that are below or equal to zero");
@@ -951,12 +943,12 @@ namespace dmGameObject
             return 0;
         }
 
-        lua_Number v = luaL_checknumber(L, 1);
-        if (v <= 0.0)
+        lua_Number n = luaL_checknumber(L, 1);
+        if (n <= 0.0)
         {
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
-        dmGameObject::SetScale(instance, (float)v);
+        dmGameObject::SetScale(instance, (float)n);
         return 0;
     }
 
@@ -1030,16 +1022,15 @@ namespace dmGameObject
         }
 
         dmGameObjectDDF::SetParent ddf;
+        ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
 
         if (parent_instance)
         {
-            ddf.m_ParentId           = dmGameObject::GetIdentifier(parent_instance);
-            ddf.m_KeepWorldTransform = lua_toboolean(L, 3);
+            ddf.m_ParentId = dmGameObject::GetIdentifier(parent_instance);
         }
         else
         {
-            ddf.m_ParentId           = 0;
-            ddf.m_KeepWorldTransform = 0;
+            ddf.m_ParentId = 0;
         }
 
         dmMessage::URL receiver;
@@ -1164,6 +1155,32 @@ namespace dmGameObject
     {
         Instance* instance = ResolveInstance(L, 1);
         lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
+        return 1;
+    }
+
+    /*# gets the game object instance world transform matrix
+     *
+     * @name go.get_world_transform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script
+     * @return transform [type:matrix4] instance world transform
+     * @examples
+     *
+     * Get the world transform of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local m = go.get_world_transform()
+     * ```
+     *
+     * Get the world transform of another game object instance with id "x":
+     *
+     * ```lua
+     * local m = go.get_world_transform("x")
+     * ```
+     */
+    int Script_GetWorldTransform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L,1);
+        dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(instance));
         return 1;
     }
 
@@ -1572,11 +1589,14 @@ namespace dmGameObject
 
 
     /*# delete one or more game object instances
-     * Delete one or more game objects identified by id. Deletion is asynchronous meaning that 
+     * Delete one or more game objects identified by id. Deletion is asynchronous meaning that
      * the game object(s) are scheduled for deletion which will happen at the end of the current
-     * frame. Note that game objects scheduled for deletion will be counted against 
+     * frame. Note that game objects scheduled for deletion will be counted against
      * `max_instances` in "game.project" until they are actually removed.
-     * 
+     *
+     * [icon:attention] Deleting a game object containing a particle FX component emitting particles will not immediately stop the particle FX from emitting particles. You need to manually stop the particle FX using `particlefx.stop()`.
+     * [icon:attention] Deleting a game object containing a sound component that is playing will not immediately stop the sound from playing. You need to manually stop the sound using `sound.stop()`.
+     *
      * @name go.delete
      * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
@@ -1804,15 +1824,15 @@ namespace dmGameObject
         {
             valid_type = true;
         }
-        else if (dmScript::IsVector3(L, 2))
+        else if (dmScript::ToVector3(L, 2) != 0)
         {
             valid_type = true;
         }
-        else if (dmScript::IsVector4(L, 2))
+        else if (dmScript::ToVector4(L, 2) != 0)
         {
             valid_type = true;
         }
-        else if (dmScript::IsQuat(L, 2))
+        else if (dmScript::ToQuat(L, 2) != 0)
         {
             valid_type = true;
         }
@@ -1845,6 +1865,7 @@ namespace dmGameObject
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
         {"get_world_scale_uniform", Script_GetWorldScaleUniform},
+        {"get_world_transform",     Script_GetWorldTransform},
         {"get_id",                  Script_GetId},
         {"animate",                 Script_Animate},
         {"cancel_animations",       Script_CancelAnimations},
@@ -1864,9 +1885,9 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
-        dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
+        SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
 
-        dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+        SCRIPTINSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
 
         luaL_register(L, "go", GO_methods);
 

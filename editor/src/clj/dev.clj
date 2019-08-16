@@ -1,14 +1,19 @@
 (ns dev
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
+            [editor.curve-view :as curve-view]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
             [internal.graph :as ig]
+            [internal.system :as is]
             [internal.util :as util])
   (:import [clojure.lang MapEntry]
+           [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
+           [java.lang.reflect Modifier]
            [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
@@ -82,6 +87,29 @@
 
 (def select-keys-deep #'internal.util/select-keys-deep)
 
+(defn deep-select [value-pred value]
+  (cond
+    (map? value)
+    (not-empty
+      (into (if (record? value)
+              {}
+              (empty value))
+            (keep (fn [[k v]]
+                    (when-some [v' (deep-select value-pred v)]
+                      [k v'])))
+            value))
+
+    (coll? value)
+    (not-empty
+      (into (sorted-map)
+            (keep-indexed (fn [i v]
+                            (when-some [v' (deep-select value-pred v)]
+                              [i v'])))
+            value))
+
+    (value-pred value)
+    value))
+
 (defn views-of-type [node-type]
   (keep (fn [node-id]
           (when (g/node-instance? node-type node-id)
@@ -98,14 +126,22 @@
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
 (def outline-view (partial view-of-type outline-view/OutlineView))
 (def properties-view (partial view-of-type properties-view/PropertiesView))
+(def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
 
+(def ^:private node-type-key (comp :k g/node-type*))
+
+(defn- class-symbol [^Class class]
+  (-> (.getSimpleName class)
+      (string/replace "[]" "-array") ; For arrays, e.g. "byte[]" -> "byte-array"
+      (symbol)))
+
 (defn- node-value-type-symbol [node-value-type]
-  (symbol (if-some [^Class class (:class (deref node-value-type))]
-            (.getSimpleName class)
-            (name (:k node-value-type)))))
+  (if-some [class (:class (deref node-value-type))]
+    (class-symbol class)
+    (symbol (name (:k node-value-type)))))
 
 (defn- node-label-type-keyword [node-type-def-key node-label-def-flags]
   (cond
@@ -137,6 +173,49 @@
         (comp (mapcat (partial label-infos (deref (g/node-type* node-id))))
               (util/distinct-by first))
         [:input :property :output]))
+
+(defn object-bean-info
+  ^BeanInfo [^Object instance]
+  (Introspector/getBeanInfo (.getClass instance)))
+
+(defn object-props
+  "Returns all the bean properties of the specified Object. The result is a
+  sorted set of vectors that include the property name in keyword format and the
+  value type symbol."
+  [^Object instance]
+  (into (sorted-set)
+        (map (fn [^PropertyDescriptor pd]
+               [(-> pd .getName keyword)
+                (some-> (.getPropertyType pd) class-symbol)]))
+        (.getPropertyDescriptors (object-bean-info instance))))
+
+(def ^:private arrow-symbol (symbol "->"))
+
+(def internal-method-name?
+  (into #{}
+        (map #(.intern ^String %))
+        ["__getClojureFnMappings"
+         "__initClojureFnMappings"
+         "__updateClojureFnMappings"]))
+
+(defn object-methods
+  "Returns all the public methods on the specified Object. The result is a
+  sorted set of vectors that include the method name in keyword format, followed
+  by a vector of argument type symbols, an arrow (->), and the return type."
+  [^Object instance]
+  (into (sorted-set)
+        (keep (fn [^MethodDescriptor md]
+                (let [m (.getMethod md)
+                      mod (.getModifiers m)]
+                  (when (and (Modifier/isPublic mod)
+                             (not (Modifier/isStatic mod)))
+                    (let [name (.getName md)]
+                      (when-not (internal-method-name? name)
+                        [(keyword name)
+                         (mapv class-symbol (.getParameterTypes m))
+                         arrow-symbol
+                         (class-symbol (.getReturnType m))]))))))
+        (.getMethodDescriptors (object-bean-info instance))))
 
 (defn successor-tree
   "Returns a tree of all downstream inputs and outputs affected by a change to
@@ -175,7 +254,7 @@
                      node-successors))]
      (util/group-into (sorted-map)
                       (sorted-set)
-                      (comp :k (partial g/node-type* basis) key)
+                      (comp (partial node-type-key basis) key)
                       val
                       (mapcat select
                               (successor-tree basis node-id label))))))
@@ -203,7 +282,7 @@
   ([basis node-id label]
    (util/group-into (sorted-map)
                     (sorted-set)
-                    (comp :k (partial g/node-type* basis) key)
+                    (comp (partial node-type-key basis) key)
                     val
                     (mapcat (fn [[node-id node-successors]]
                               (map (fn [[label]]
@@ -224,3 +303,39 @@
            (for [[node-id labels] label-seqs-by-node-id
                  label labels]
              (direct-successor-types basis node-id label)))))
+
+(defn ordered-occurrences
+  "Returns a sorted list of [occurrence-count entry]. The list is sorted by
+  occurrence count in descending order."
+  [coll]
+  (sort (fn [[occurrence-count-a entry-a] [occurrence-count-b entry-b]]
+          (cond (< occurrence-count-a occurrence-count-b) 1
+                (< occurrence-count-b occurrence-count-a) -1
+                (and (instance? Comparable entry-a)
+                     (instance? Comparable entry-b)) (compare entry-a entry-b)
+                :else 0))
+        (map (fn [[entry occurrence-count]]
+               (pair occurrence-count entry))
+             (frequencies coll))))
+
+(defn cached-output-report
+  "Returns a sorted list of what node outputs are in the system cache in the
+  format [entry-occurrence-count [node-type-key output-label]]. The list is
+  sorted by entry occurrence count in descending order."
+  []
+  (let [system @g/*the-system*
+        basis (is/basis system)]
+    (ordered-occurrences
+      (map (fn [[[node-id output-label]]]
+             (let [node-type-key (node-type-key basis node-id)]
+               (pair node-type-key output-label)))
+           (is/system-cache system)))))
+
+(defn cached-output-name-report
+  "Returns a sorted list of what output names are in the system cache in the
+  format [entry-occurrence-count output-label]. The list is sorted by entry
+  occurrence count in descending order."
+  []
+  (ordered-occurrences
+    (map (comp second key)
+         (is/system-cache @g/*the-system*))))

@@ -1,7 +1,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -37,6 +37,11 @@ namespace dmRender
     void DeleteDisplayProfiles(HDisplayProfiles profiles)
     {
         uint32_t profile_count = profiles->m_Profiles.Size();
+        if(profile_count == 0)
+        {
+            delete profiles;
+            return;
+        }
         DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
         for(uint32_t i = 0; i < profile_count; ++i)
         {
@@ -116,7 +121,7 @@ namespace dmRender
     {
         uint32_t device_models_count = qualifier->m_NumDeviceModels;
         size_t sys_device_model_len = strlen(sys_info->m_DeviceModel);
-        
+
         for (uint32_t d = 0; d < device_models_count; ++d)
         {
             const char* device_model = qualifier->m_DeviceModels[d];

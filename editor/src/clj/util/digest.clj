@@ -6,6 +6,9 @@
 
 (set! *warn-on-reflection* true)
 
+(defn bytes->hex [^bytes data]
+  (Hex/encodeHexString data))
+
 (defn sha1 [^bytes data]
   (DigestUtils/sha1 data))
 
@@ -34,5 +37,9 @@
   ^DigestOutputStream [^String algorithm]
   (DigestOutputStream. sink-output-stream (MessageDigest/getInstance algorithm)))
 
-(defn bytes->hex [^bytes data]
-  (Hex/encodeHexString data))
+(defn digest-output-stream->hex
+  ^String [^DigestOutputStream digest-output-stream]
+  (-> digest-output-stream
+      .getMessageDigest
+      .digest
+      bytes->hex))

@@ -186,6 +186,7 @@ namespace dmGui
         float    m_Delay;
         float    m_Elapsed;
         float    m_Duration;
+        float    m_PlaybackRate;
         dmEasing::Curve m_Easing;
         Playback m_Playback;
         AnimationComplete m_AnimationComplete;
@@ -216,12 +217,12 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height) 
+        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_OriginalWidth(original_width)
         , m_OriginalHeight(original_height) {}
-        
+
         void*    m_TextureSource;
         NodeTextureType m_TextureSourceType;
         uint32_t m_OriginalWidth : 16;
@@ -300,6 +301,8 @@ namespace dmGui
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
+
+    bool IsNodeValid(HScene scene, HNode node);
 
     /** calculates the transform of a node
      * A boundary transform maps the local rectangle (0,1),(0,1) to screen space such that it inclusively encapsulates the node boundaries in screen space.

@@ -407,7 +407,7 @@
 
 
 (g/defnode SceneResourceNode
-  (extern resource Resource))
+  (property resource Resource :unjammable))
 
 (g/defnode NodeTree
   (input nodes g/NodeID :array :cascade-delete)
@@ -938,7 +938,7 @@
 
 (defn- all-system-nodes []
   (into []
-        (mapcat #(keys (:nodes (deref (second %)))))
+        (mapcat #(keys (:nodes (second %))))
         (:graphs @g/*the-system*)))
 
 (deftest symmetric-input-output-arcs

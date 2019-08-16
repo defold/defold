@@ -13,16 +13,20 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+# Also defined in build.py _strip_engine
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
-ANDROID_NDK_API_VERSION='14'
-ANDROID_TARGET_API_LEVEL='23'
-ANDROID_MIN_API_LEVEL='9'
+ANDROID_NDK_API_VERSION='14' # Android 4.0
+ANDROID_TARGET_API_LEVEL='28' # Android 9.0
+ANDROID_MIN_API_LEVEL='16' # Android 4.1
 ANDROID_GCC_VERSION='4.8'
+ANDROID_64_NDK_API_VERSION='21' # Android 5.0
+ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 IOS_SDK_VERSION="12.1"
+IOS_SIMULATOR_SDK_VERSION="12.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
@@ -174,6 +178,37 @@ def dmsdk_add_files(bld, target, source):
             bld.install_files(os.path.join(target, sdk_dir), f)
     apidoc_extract_task(bld, doc_files)
 
+def getAndroidNDKArch(target_arch):
+    return 'arm64' if 'arm64' == target_arch else 'arm'
+
+def getAndroidArch(target_arch):
+    return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
+
+def getAndroidBuildtoolName(target_arch):
+    return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
+
+def getAndroidGCCVersion(target_arch):
+    return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
+
+def getAndroidNDKAPIVersion(target_arch):
+    return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+
+def getAndroidCompileFlags(target_arch):
+    # NOTE compared to armv7-android:
+    # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
+    if 'arm64' == target_arch:
+        return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden']
+    # NOTE:
+    # -fno-exceptions added
+    else:
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+
+def getAndroidLinkFlags(target_arch):
+    if 'arm64' == target_arch:
+        return ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
+    else:
+        return ['-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
+
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -229,9 +264,8 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
-                # see corresponding flag in build_gtest.sh
-                self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+                # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
@@ -239,43 +273,46 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem','-framework', 'Carbon','-flto'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem', '-framework', 'Carbon','-flto'])
 
-    elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         if Options.options.with_asan:
             MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
+        sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)
+        if 'x86_64' == build_util.get_target_architecture():
+            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
+
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+
             self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
-                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-stdlib=libc++',
-                                        '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+                                            '-isysroot', sys_root])
 
-    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
+            if 'x86_64' == build_util.get_target_architecture():
+                self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
-        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
-        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+
+    elif 'android' == build_util.get_target_os():
+        target_arch = build_util.get_target_architecture()
+        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-%s' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch))
+        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch))
+        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/%s" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch), getAndroidArch(target_arch))
         stl_arch="%s/include" % stl_lib
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            # NOTE:
-            # -mthumb and -funwind-tables removed from default flags
-            # -fno-exceptions added
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI',
-                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
+                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
                                       '-I%s' % stl,
                                       '-I%s' % stl_arch,
                                       '--sysroot=%s' % sysroot,
-                                      '-DANDROID', '-Wa,--noexecstack'])
+                                      '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
@@ -284,8 +321,7 @@ def default_flags(self):
         # -lgnustl_static -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '--sysroot=%s' % sysroot,
-                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
-                '-L%s' % stl_lib])
+                '-L%s' % stl_lib] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
         # Default to asmjs output
@@ -299,7 +335,7 @@ def default_flags(self):
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
+                                      '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
@@ -310,7 +346,7 @@ def default_flags(self):
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
         # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -348,6 +384,14 @@ def android_link_flags(self):
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
 
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+def osx_64_luajit(self):
+    # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
+    # however it is still needed for 64bit iOS Simulator.
+    if self.env['PLATFORM'] == 'x86_64-ios':
+        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
+
 @feature('skip_asan')
 @before('apply_core')
 def asan_skip(self):
@@ -369,10 +413,8 @@ def asan_cxxflags(self):
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')
 def apply_unit_test(self):
-    # Do not execute unit-tests tasks (compile and link)
-    # when --skip-build-tests is set
-    if hasattr(self, 'uselib') and str(self.uselib).find("GTEST") != -1:
-        if getattr(Options.options, 'skip_build_tests', False):
+    # Do not execute unit-tests tasks (compile and link) when --skip-build-tests is set
+    if 'test' in self.features and getattr(Options.options, 'skip_build_tests', False):
             for t in self.tasks:
                 t.hasrun = True
 
@@ -637,13 +679,31 @@ Task.task_type_from_func('app_bundle',
                          after  = 'cxx_link cc_link static_link')
 
 
+def _strip_executable(bld, platform, target_arch, path):
+    """ Strips the debug symbols from an executable """
+    if platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','armv7-android','arm64-android']:
+        return 0 # return ok, path is still unstripped
+
+    strip = "strip"
+    if 'android' in platform:
+        HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+        ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+        build_tool = getAndroidBuildtoolName(target_arch)
+        strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
+
+    return bld.exec_command("%s %s" % (strip, path))
+
 AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
 
 def authenticode_certificate_installed(task):
+    if Options.options.skip_codesign:
+        return 0
     ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
     return ret > 0
 
 def authenticode_sign(task):
+    if Options.options.skip_codesign:
+        return
     exe_file = task.inputs[0].abspath(task.env)
     exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
     exe_file_signed = task.outputs[0].abspath(task.env)
@@ -727,17 +787,14 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="%(min_api_level)s" android:targetSdkVersion="%(target_api_level)s" />
-    <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
+    <application
+        android:label="%(app_name)s"
+        android:hasCode="true"
+        android:name="android.support.multidex.MultiDexApplication">
 
-        <!-- For Local Notifications -->
-        <receiver android:name="com.defold.push.LocalNotificationReceiver" >
-        </receiver>
-
-        <!-- For GCM (push) -->
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version" />
-
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
+        
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -750,54 +807,39 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.NoDisplay">
+        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <activity android:name="com.defold.iap.IapGooglePlayActivity"
+          android:theme="@android:style/Theme.Translucent.NoTitleBar"
+          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+          android:label="IAP">
         </activity>
 
-        <!-- For Local Notifications -->
-        <activity android:name="com.defold.push.LocalPushDispatchActivity"
+        <!-- For IAC Invocations -->
+        <activity android:name="com.defold.iac.IACActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:launchMode="singleTask"
-            android:noHistory="true"
             android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
+               <action android:name="android.intent.action.VIEW" />
+               <category android:name="android.intent.category.DEFAULT" />
+               <category android:name="android.intent.category.BROWSABLE" />
+               <data android:scheme="%(package)s" />
             </intent-filter>
         </activity>
 
-        <!-- For GCM (push) -->
-        <activity android:name="com.defold.push.PushDispatchActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+        <!-- For Amazon IAP -->
+        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
             <intent-filter>
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
-            </intent-filter>
-        </activity>
-        <receiver
-            android:name="com.defold.push.GcmBroadcastReceiver"
-            android:permission="com.google.android.c2dm.permission.SEND" >
-            <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
+                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
             </intent-filter>
         </receiver>
 
-        %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- For GCM (push) -->
-    <!-- NOTE: Package name from actual app here! -->
-    <permission android:name="%(package)s.permission.C2D_MESSAGE" android:protectionLevel="signature" />
-    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
-    <!-- NOTE: Package name from actual app here! -->
-    <uses-permission android:name="%(package)s.permission.C2D_MESSAGE" />
-    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->
@@ -822,23 +864,34 @@ def android_package(task):
 
     bld = task.generator.bld
 
-    activities = ''
-    for activity, attr in task.activities:
-        activities += '<activity android:name="%s" %s/>' % (activity, attr)
-
     package = 'com.defold.%s' % task.exe_name
     if task.android_package:
         package = task.android_package
 
+    try:
+        build_util = create_build_utility(task.env)
+    except BuildUtilityException as ex:
+        task.fatal(ex.msg)
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
+    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'min_api_level' : ANDROID_MIN_API_LEVEL, 'target_api_level' : ANDROID_TARGET_API_LEVEL })
     manifest_file.close()
 
     aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
-    res_dirs = glob.glob('%s/ext/share/java/res/*' % (dynamo_home))
+
+    # DEF-3873
+    # Previously we looped over all subfolders in ext/share/java/res and added them to this list.
+    # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
+    # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
+    # argument list and now we use the same order on all places.
+    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
+                "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
+                "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
+                "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
+                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home]
+
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
     r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
@@ -851,7 +904,6 @@ def android_package(task):
     gen = os.path.join(dme_and, 'gen')
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
-    gdbserver = task.gdbserver.abspath(task.env)
 
     bld.exec_command('mkdir -p %s' % (libs))
     bld.exec_command('mkdir -p %s' % (bin))
@@ -860,7 +912,6 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (gen))
     bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-    shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
     res_args = ""
     for d in res_dirs:
@@ -871,19 +922,12 @@ def android_package(task):
         error('Error running aapt')
         return 1
 
-    clspath = ':'.join(task.jars)
-    dx_jars = []
-    for jar in task.jars:
-        dx_jar = os.path.join(dx_libs, os.path.basename(jar))
-        dx_jars.append(jar)
-    dx_jars.append(r_jar)
-
     if task.extra_packages:
         extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s %s -F %s -m -J %s %s' % (aapt, manifest, android_jar, res_args, ap_, r_java_gen_dir, extra_packages_cmd))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
     if ret != 0:
         error('Error running aapt')
         return 1
@@ -908,20 +952,40 @@ def android_package(task):
         error('Error creating jar of compiled R.java files')
         return 1
 
-    if dx_jars:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dx_jars)))
-        if ret != 0:
-            error('Error running dx')
-            return 1
+    dx_jars = []
+    for jar in task.jars:
+        dx_jars.append(jar)
+    dx_jars.append(r_jar)
 
-        # We can't use with statement here due to http://bugs.python.org/issue5511
-        from zipfile import ZipFile
-        f = ZipFile(ap_, 'a')
-        f.write(task.classes_dex.abspath(task.env), 'classes.dex')
-        f.close()
+    if getattr(task, 'proguard', None):
+        proguardtxt = task.proguard[0]
+        proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
+        dex_input = ['%s/share/java/classes.jar' % dynamo_home]
+
+        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        if ret != 0:
+            error('Error running proguard')
+            return 1
+    else:
+        dex_input = dx_jars
+
+    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+    if ret != 0:
+        error('Error running dx')
+        return 1
+
+    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+        zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
+
+    # strip the executable
+    path = task.native_lib.abspath(task.env)
+    ret = _strip_executable(bld, task.env.PLATFORM, build_util.get_target_architecture(), path)
+    if ret != 0:
+        error('Error stripping file %s' % path)
+        return 1
 
     # add library files
     with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
@@ -930,6 +994,8 @@ def android_package(task):
                 full_path = os.path.join(root, f)
                 relative_path = os.path.relpath(full_path, libs_dir)
                 if relative_path.startswith('armeabi-v7a'):
+                    relative_path = os.path.join('lib', relative_path)
+                if relative_path.startswith('arm64-v8a'):
                     relative_path = os.path.join('lib', relative_path)
                 zip.write(full_path, relative_path)
 
@@ -954,13 +1020,16 @@ def android_package(task):
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
-        print >>f, 'APP_ABI := armeabi-v7a'
+        print >>f, 'APP_ABI := %s' % getAndroidArch(build_util.get_target_architecture())
 
     with open(task.application_mk.abspath(task.env), 'wb') as f:
         print >>f, ''
 
     with open(task.gdb_setup.abspath(task.env), 'wb') as f:
-        print >>f, 'set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/'
+        if 'arm64' == build_util.get_target_architecture():
+            print >>f, 'set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/'
+        else:
+            print >>f, 'set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/'
 
     return 0
 
@@ -981,8 +1050,7 @@ def create_android_package(self):
     android_package_task.set_inputs(self.link_task.outputs)
     android_package_task.android_package = self.android_package
 
-    Utils.def_attrs(self, activities=[], extra_packages = "")
-    android_package_task.activities = Utils.to_list(self.activities)
+    Utils.def_attrs(self, extra_packages = "")
     android_package_task.extra_packages = Utils.to_list(self.extra_packages)
 
     Utils.def_attrs(self, jars=[])
@@ -996,12 +1064,17 @@ def create_android_package(self):
     manifest = self.path.exclusive_build_node("%s.android/AndroidManifest.xml" % exe_name)
     android_package_task.manifest = manifest
 
-    native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+    try:
+        build_util = create_build_utility(android_package_task.env)
+    except BuildUtilityException as ex:
+        android_package_task.fatal(ex.msg)
+
+    if 'arm64' == build_util.get_target_architecture():
+        native_lib = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
+    else:
+        native_lib = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
-
-    gdbserver = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdbserver" % (exe_name))
-    android_package_task.gdbserver = gdbserver
 
     ap_ = self.path.exclusive_build_node("%s.android/%s.ap_" % (exe_name, exe_name))
     android_package_task.ap_ = ap_
@@ -1020,9 +1093,12 @@ def create_android_package(self):
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
-    android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+    if 'arm64' == build_util.get_target_architecture():
+        android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
+    else:
+        android_package_task.gdb_setup = self.path.exclusive_build_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
 
-    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk, gdbserver,
+    android_package_task.set_outputs([native_lib, manifest, ap_, apk_unaligned, apk,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
 
     self.android_package_task = android_package_task
@@ -1148,7 +1224,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
-def run_gtests(valgrind = False, configfile = None):
+def run_tests(valgrind = False, configfile = None):
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
@@ -1167,11 +1243,13 @@ def run_gtests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1 and 'test' in t.features:
+        if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
+            # disable shortly during beta release, due to issue with jctest + test_gui
+            valgrind = False
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
@@ -1187,13 +1265,6 @@ def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
-
-@feature('cprogram', 'cxxprogram')
-@before('apply_core')
-def osx_64_luajit(self):
-    # This is needed for 64 bit LuaJIT on OSX (See http://luajit.org/install.html "Embedding LuaJIT")
-    if self.env['PLATFORM'] == 'x86_64-darwin':
-        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
 
 @feature('swf')
 @after('apply_link')
@@ -1227,7 +1298,7 @@ def test_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             self.env.append_value(f, ['--memory-init-file', '0'])
 
-@feature('web')
+@feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
 def js_web_web_link_flags(self):
     platform = self.env['PLATFORM']
@@ -1237,7 +1308,7 @@ def js_web_web_link_flags(self):
             lib_dirs = self.env['JS_LIB_PATHS']
         else:
             lib_dirs = {}
-        libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js", "library_facebook_iap.js", "library_sound.js"])
+        libs = getattr(self, 'web_libs', [])
         jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', platform, 'js')
         for lib in libs:
             js = ''
@@ -1369,11 +1440,40 @@ def _find_msvc_installs():
                 continue
     return list(set(installs))
 
-def find_installed_msvc_versions(conf):
-    versions = []
-    for version, product_dir in _find_msvc_installs():
-        versions.append(('msvc '+ version, _get_msvc_target_support(conf, product_dir, version)))
-    return versions
+def get_msvc_version(conf, platform):
+    dynamo_home = conf.env['DYNAMO_HOME']
+    msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
+    windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
+
+    if not os.path.exists(msvcdir):
+        msvcdir = os.path.normpath(os.path.join(os.environ['VS140COMNTOOLS'], '..', '..'))
+        windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+
+    target_map = {'win32': 'x86',
+                   'x86_64-win32': 'x64'}
+    platform_map = {'win32': '',
+                    'x86_64-win32': 'amd64'}
+
+    msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
+                os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
+
+    includes = [os.path.join(msvcdir,'VC','include'),
+                os.path.join(msvcdir,'VC','atlmfc','include'),
+                os.path.join(windowskitsdir,'10','Include','10.0.10240.0','ucrt'),
+                os.path.join(windowskitsdir,'8.1','Include','winrt'),
+                os.path.join(windowskitsdir,'8.1','Include','um'),
+                os.path.join(windowskitsdir,'8.1','Include','shared')]
+    libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
+                os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
+                os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x64'),
+                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
+    if platform == 'win32':
+        libdirs = [os.path.join(msvcdir,'VC','lib'),
+                    os.path.join(msvcdir,'VC','atlmfc','lib'),
+                    os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x86'),
+                    os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
+
+    return msvc_path, includes, libdirs
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1420,28 +1520,16 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     if 'win32' in platform:
-        target_map = {'win32': 'x86',
-                      'x86_64-win32': 'x64'}
-        platform_map = {'win32': 'x86',
-                        'x86_64-win32': 'amd64'}
+        if platform == 'x86_64-win32':
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
+        else:
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', get_msvc_version(conf, 'win32')))])]
 
-        desired_version = 'msvc 14.0'
-
-        versions = find_installed_msvc_versions(conf)
-        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
-        conf.env['MSVC_TARGETS'] = target_map[platform]
-        conf.env['MSVC_VERSIONS'] = [desired_version]
-
-        search_path = None
-        for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
-            if msvc_version == desired_version:
-                for (target, (target_platform, paths)) in targets:
-                    if target == target_map[platform] and target_platform == platform_map[platform]:
-                        search_path = paths[0]
-        if search_path == None:
-            conf.fatal("Unable to determine search path for platform: %s" % platform)
-
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
+        target_map = {'win32': 'x86', 'x86_64-win32': 'x64'}
+        windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
+        if not os.path.exists(windowskitsdir):
+            windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = [os.path.join(windowskitsdir, '8.1','bin', target_map[platform] )])
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
@@ -1452,6 +1540,7 @@ def detect(conf):
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
+
         conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
@@ -1460,7 +1549,7 @@ def detect(conf):
         conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
 
-    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64'):
+    elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
@@ -1479,20 +1568,32 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
-    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
+    elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch = 'x86_64'
-
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
-        conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
-        conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
-        conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
-        conf.env['CPP'] = '%s/arm-linux-androideabi-cpp' % (bin)
-        conf.env['AR'] = '%s/arm-linux-androideabi-ar' % (bin)
-        conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
-        conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
+        target_arch = build_util.get_target_architecture()
+        bin='%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidBuildtoolName(target_arch), getAndroidGCCVersion(target_arch), build_platform, arch)
+        conf.env['CC'] = '%s/%s-gcc' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['LINK_CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['CPP'] = '%s/%s-cpp' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['AR'] = '%s/%s-ar' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['RANLIB'] = '%s/%s-ranlib' % (bin, getAndroidBuildtoolName(target_arch))
+        conf.env['LD'] = '%s/%s-ld' % (bin, getAndroidBuildtoolName(target_arch))
 
         conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    elif 'linux' == build_util.get_target_os():
+        conf.find_program('gcc-5', var='GCC5', mandatory = False)
+        if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
+            conf.env.CXX = "g++-5"
+            conf.env.CC = "gcc-5"
+            conf.env.CPP = "cpp-5"
+            conf.env.AR = "gcc-ar-5"
+            conf.env.RANLIB = "gcc-ranlib-5"
+        else:
+            conf.env.CXX = "g++"
+            conf.env.CC = "gcc"
+            conf.env.CPP = "cpp"
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -1582,20 +1683,23 @@ def detect(conf):
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
         use_vanilla = True
-    if build_util.get_target_platform() == 'x86_64-linux':
-        # TODO: LuaJIT is currently broken on x86_64-linux
-        use_vanilla = True
-    if build_util.get_target_platform() == 'arm64-darwin':
-        # TODO: LuaJIT is currently not supported on arm64
-        # Note: There is some support in the head branch for LuaJit 2.1
-        use_vanilla = True
 
+    conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
+    conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
+        if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
+            conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
+        else:
+            conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
+
+    conf.env['STATICLIB_CARES'] = []
+    if platform != 'web':
+        conf.env['STATICLIB_CARES'].append('cares')
+    if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+        conf.env['STATICLIB_CARES'].append('resolv')
 
 def configure(conf):
     detect(conf)
@@ -1629,3 +1733,4 @@ def set_options(opt):
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')

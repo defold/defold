@@ -1,13 +1,12 @@
 (ns editor.engine.build-errors
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.code.data :refer [line-number->CursorRange]]
             [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
-            [editor.resource :as resource]
-            [editor.workspace :as workspace]
-            [dynamo.graph :as g])
-  (:import [clojure.lang IExceptionInfo]
-           [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
+            [editor.resource :as resource])
+  (:import [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
            [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
            [com.dynamo.bob.fs IResource]
            [org.apache.commons.io FilenameUtils]))
@@ -24,21 +23,21 @@
 (defprotocol ErrorInfoProvider
   (error-message [this] "Returns a non-empty string describing the issue.")
   (error-path [this] "Returns a slash-prefixed project-relative path to the offending resource, or nil if the issue does not relate to a particular resource.")
-  (error-line [this] "Returns a 1-based index denoting the offending line in the resource. Can be nil or zero if the issue does not relate to a particular line.")
+  (error-range [this] "Returns a CursorRange denoting the offending region in the file. Can be nil if the issue does not relate to a particular region.")
   (error-severity [this] "Returns either :info, :warning, or :fatal."))
 
 (extend-type CompileExceptionError
   ErrorInfoProvider
   (error-message [this] (.getMessage this))
   (error-path [this] (some->> this .getResource .getPath (str "/")))
-  (error-line [this] (.getLineNumber this))
+  (error-range [this] (line-number->CursorRange (.getLineNumber this)))
   (error-severity [_this] :fatal))
 
 (extend-type MultipleCompileException$Info
   ErrorInfoProvider
   (error-message [this] (.getMessage this))
   (error-path [this] (some->> this .getResource .getPath (str "/")))
-  (error-line [this] (.getLineNumber this))
+  (error-range [this] (line-number->CursorRange (.getLineNumber this)))
   (error-severity [this] (condp = (.getSeverity this)
                            MultipleCompileException$Info/SEVERITY_ERROR :fatal
                            MultipleCompileException$Info/SEVERITY_WARNING :warning
@@ -48,7 +47,7 @@
   ErrorInfoProvider
   (error-message [this] (.message this))
   (error-path [this] (some->> this .resource (str "/")))
-  (error-line [this] (.lineNumber this))
+  (error-range [this] (line-number->CursorRange (.lineNumber this)))
   (error-severity [this] (condp = (.severity this)
                            "error" :fatal
                            "warning" :warning
@@ -60,27 +59,28 @@
                           message
                           (throw (or (.getException this)
                                      (ex-info "TaskResult failed without message or exception." {})))))
-  (error-path [this] (some->> this .getTask root-task .getInputs ^IResource first .getPath (str "/")))
-  (error-line [this] (.getLineNumber this))
+  (error-path [this]
+    (when-some [^IResource resource (some->> this .getTask root-task .getInputs first)]
+      (str "/" (.getPath resource))))
+  (error-range [this] (line-number->CursorRange (.getLineNumber this)))
   (error-severity [_this] :fatal))
 
 (defn- error-info-provider->cause [project evaluation-context e]
   (let [node-id (when-let [path (error-path e)]
                   (project/get-resource-node project path evaluation-context))
-        line (error-line e)
-        value (when (and (integer? line) (pos? line))
-                (reify IExceptionInfo
-                  (getData [_]
-                    {:line line})))
+        cursor-range (error-range e)
         message (error-message e)
-        adjusted-message (if (string/ends-with? (string/lower-case message) "internal server error")
+        adjusted-message (if (or (string/blank? message)
+                                 (string/ends-with? message "internal server error"))
                            no-information-message
-                           message)
+                           (string/trim message))
         severity (error-severity e)]
-    {:_node-id node-id
-     :value value
-     :message adjusted-message
-     :severity severity}))
+    (g/map->error
+      {:_node-id node-id
+       :message adjusted-message
+       :severity severity
+       :user-data (when cursor-range
+                    {:cursor-range cursor-range})})))
 
 (def ^:private invalid-lib-re #"(?m)^Invalid lib in extension '(.+?)'.*$")
 (def ^:private manifest-ext-name-re1 #"(?m)^name:\s*\"(.+)\"\s*$") ; Double-quoted name
@@ -91,9 +91,10 @@
   (assert (string? (not-empty manifest-ext-name)))
   (let [manifest-ext-resource (manifest-ext-resources-by-name manifest-ext-name)
         node-id (project/get-resource-node project manifest-ext-resource evaluation-context)]
-    {:_node-id node-id
-     :message all
-     :severity :fatal}))
+    (g/map->error
+      {:_node-id node-id
+       :message all
+       :severity :fatal})))
 
 (defn- try-parse-manifest-ext-name [resource]
   (when (satisfies? io/IOFactory resource)
@@ -158,6 +159,8 @@
     #"^(?:(?!:\/| |\\).)*: (error|warning)?:?\s*(.*)$"]
    [:javac
     #"^javac\s.*$"]
+   [:jar-conflict
+    #"Uncaught translation error:*.+"]
    [:empty
     #"^$"]])
 
@@ -228,6 +231,9 @@
                             :message (match 3)}
       :undefined-symbols {:type :error
                           :message line}
+      :jar-conflict {:type :error
+                     :file ext-manifest-file
+                     :message line}
       {:type name :message line})))
 
 (defn- merge-compilation-messages
@@ -253,17 +259,17 @@
                                  :lines (next lines)
                                  :included-from? false})]
     (reduce
-     (fn [state action]
-       (case action
-         :conj-message (assoc state :current (merge-compilation-messages current line))
-         :conj-message-to-previous (merge state {:current (merge-compilation-messages (last acc) (merge-compilation-messages current line))
-                                                 :acc (pop acc)})
-         :included-from (assoc state :included-from? true)
-         :replace-file (assoc state :current (merge (:current state) (select-keys line [:file :line])))
-         :replace-type (assoc state :current (assoc (:current state) :type (:type line)))
-         :conj-entry (assoc state :acc (conj-compilation-entry acc current))))
-     next-state
-     actions)))
+      (fn [state action]
+        (case action
+          :conj-message (assoc state :current (merge-compilation-messages current line))
+          :conj-message-to-previous (merge state {:current (merge-compilation-messages (last acc) (merge-compilation-messages current line))
+                                                  :acc (pop acc)})
+          :included-from (assoc state :included-from? true)
+          :replace-file (assoc state :current (merge (:current state) (select-keys line [:file :line])))
+          :replace-type (assoc state :current (assoc (:current state) :type (:type line)))
+          :conj-entry (assoc state :acc (conj-compilation-entry acc current))))
+      next-state
+      actions)))
 
 (defn- ignore-line-and-start-next-entry
   [state original-ext-manifest-file]
@@ -372,7 +378,7 @@
   (reify ErrorInfoProvider
     (error-message [_] (:message error))
     (error-path [_] (:file error))
-    (error-line [_] (:line error))
+    (error-range [_] (line-number->CursorRange (:line error) (:column error)))
     (error-severity [_]
       (case (:type error)
         :warning :warning
@@ -395,14 +401,19 @@
   ;; control we use currently does not cope well with multi-line strings.
   (let [node-id (first (extension-manifest-node-ids project evaluation-context))]
     (or (when-let [log-lines (seq (drop-while string/blank? (string/split-lines (string/trim-newline log))))]
-          (vec (map-indexed (fn [index log-line]
-                              {:_node-id node-id
-                               :message log-line
-                               :severity (if (zero? index) :fatal :info)})
-                            log-lines)))
-        [{:_node-id node-id
-          :message no-information-message
-          :severity :fatal}])))
+          (into []
+                (map-indexed (fn [index log-line]
+                               (g/map->error
+                                 {:_node-id node-id
+                                  :message log-line
+                                  :severity (if (zero? index)
+                                              :fatal
+                                              :info)})))
+                log-lines))
+        [(g/map->error
+           {:_node-id node-id
+            :message no-information-message
+            :severity :fatal})])))
 
 (defn failed-tasks-error-causes [project evaluation-context failed-tasks]
   (mapv (partial error-info-provider->cause project evaluation-context)
@@ -417,9 +428,10 @@
   (= ::unsupported-platform-error (:type (ex-data exception))))
 
 (defn unsupported-platform-error-causes [project evaluation-context]
-  [{:_node-id (first (extension-manifest-node-ids project evaluation-context))
-    :message "Native Extensions are not yet supported for the target platform"
-    :severity :fatal}])
+  [(g/map->error
+     {:_node-id (first (extension-manifest-node-ids project evaluation-context))
+      :message "Native Extensions are not yet supported for the target platform"
+      :severity :fatal})])
 
 (defn missing-resource-error [prop-name referenced-proj-path referencing-node-id]
   (ex-info (format "%s '%s' could not be found" prop-name referenced-proj-path)
@@ -431,9 +443,10 @@
   (= ::missing-resource-error (:type (ex-data exception))))
 
 (defn- missing-resource-error-causes [^Throwable exception]
-  [{:_node-id (:node-id (ex-data exception))
-    :message (.getMessage exception)
-    :severity :fatal}])
+  [(g/map->error
+     {:_node-id (:node-id (ex-data exception))
+      :message (.getMessage exception)
+      :severity :fatal})])
 
 (defn build-error [platform status log]
   (ex-info (format "Failed to build engine, status %d: %s" status log)
@@ -460,17 +473,18 @@
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
   (let [log (.getRawLog exception)
         ext-manifest-file (find-ext-manifest-relative-to-resource
-                           project
-                           (buildpath->projpath (.getPath (.getContextResource exception)))
-                           evaluation-context)]
+                            project
+                            (buildpath->projpath (.getPath (.getContextResource exception)))
+                            evaluation-context)]
     (or (try-parse-invalid-lib-error-causes project evaluation-context log)
         (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
         (generic-extension-error-causes project evaluation-context log))))
 
 (defn- library-exception-error-causes [project evaluation-context ^Throwable exception]
-  [{:_node-id (project/get-resource-node project "/game.project" evaluation-context)
-    :message (.getMessage exception)
-    :severity :fatal}])
+  [(g/map->error
+     {:_node-id (project/get-resource-node project "/game.project" evaluation-context)
+      :message (.getMessage exception)
+      :severity :fatal})])
 
 (defn handle-build-error! [render-error! project evaluation-context exception]
   (cond

@@ -1,11 +1,13 @@
 package com.dynamo.bob.bundle.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +21,7 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class BundleHelperTest {
@@ -116,6 +119,9 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
 
+            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
+            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
+
             assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
 
             // Clang errors
@@ -167,5 +173,54 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 166, "error", "undefined reference to `Foobar()'\ncollect2: error: ld returned 1 exit status"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "cannot find -lsteam_api"));
         }
+    }
+
+    @Test
+    public void testReadYaml() throws IOException {
+        IResource resource = this.mp.get("com/dynamo/bob/bundle/test/test.yml");
+        Map<String, Object> main = ExtenderUtil.readYaml(resource);
+        Map<String, Object> platforms = (Map<String, Object>)main.getOrDefault("platforms", null);
+        assertNotNull(platforms);
+        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("android", null);
+        assertNotNull(platform);
+        Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
+        assertNotNull(bundle);
+        List<String> packages = (List<String>)bundle.getOrDefault("aaptExtraPackages", new ArrayList<String>());
+        String[] expectedPackages = {"com.facebook"};
+        assertEquals(Arrays.asList(expectedPackages), packages);
+    }
+
+    @Test
+    public void testMergeManifestContext() throws IOException {
+        IResource resourceA = this.mp.get("com/dynamo/bob/bundle/test/test.yml");
+        Map<String, Object> manifestA = ExtenderUtil.readYaml(resourceA);
+        IResource resourceB = this.mp.get("com/dynamo/bob/bundle/test/test2.yml");
+        Map<String, Object> manifestB = ExtenderUtil.readYaml(resourceB);
+
+        // Make them compatible (cannot merge strings)
+        manifestA.remove("name");
+        manifestB.remove("name");
+        Map<String, Object> merged = ExtenderUtil.mergeManifestContext(manifestA, manifestB);
+        assertNotNull(merged);
+
+        Map<String, Object> platforms = (Map<String, Object>)merged.getOrDefault("platforms", null);
+        assertNotNull(platforms);
+        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("android", null);
+        assertNotNull(platform);
+        Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
+        assertNotNull(bundle);
+
+        List<String> packages = (List<String>)bundle.getOrDefault("aaptExtraPackages", new ArrayList<String>());
+        String[] expectedPackages = {"com.facebook", "com.other.package"};
+        assertEquals(Arrays.asList(expectedPackages), packages);
+    }
+
+    @Test
+    public void testExcludeString() throws IOException {
+        List<String> input = Arrays.asList(new String[]{"com.facebook", "com.other.package", "com.foobar.blah"});
+
+        List<String> expressions = Arrays.asList(new String[]{"com.f(.*)"});
+        List<String> result = BundleHelper.excludeItems(input, expressions);
+        assertEquals(Arrays.asList(new String[]{"com.other.package"}), result);
     }
 }

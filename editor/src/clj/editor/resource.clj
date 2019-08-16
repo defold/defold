@@ -55,10 +55,17 @@
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
-        p2 (->unix-seps (str (.getAbsolutePath f2)))
-        path (string/replace p2 p1 "")]
-    (if (.startsWith path "/")
+  ;; The strange comparison below is done due to the fact that we support case
+  ;; insensitive file systems. For example NTFS and HFS. We want to compare the
+  ;; paths without case but preserve the casing as supplied by the caller in the
+  ;; result we produce.
+  (let [p1-lower (string/lower-case (->unix-seps (str (.getAbsolutePath f1))))
+        p2-abs (->unix-seps (str (.getAbsolutePath f2)))
+        p2-lower (string/lower-case p2-abs)
+        path (if (string/starts-with? p2-lower p1-lower)
+               (subs p2-abs (count p1-lower))
+               p2-abs)]
+    (if (string/starts-with? path "/")
       (subs path 1)
       path)))
 
@@ -285,7 +292,8 @@
       :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
 
 (g/defnode ResourceNode
-  (extern resource Resource (dynamic visible (g/constantly false))))
+  (property resource Resource :unjammable
+            (dynamic visible (g/constantly false))))
 
 (defn base-name ^String [resource]
   (FilenameUtils/getBaseName (resource-name resource)))
@@ -310,6 +318,26 @@
 (defn resource->sha1-hex [resource]
   (with-open [rs (io/input-stream resource)]
     (digest/stream->sha1-hex rs)))
+
+(defn resource->path-inclusive-sha1-hex
+  "For certain files, we want to include the proj-path in the sha1 identifier
+  along with the file contents. For example, it used to be that two atlases
+  that referred to separate copies of an image would be packed into a shared
+  `.texturec` resource since the image contents matched. While this appears good
+  on paper, there is an issue with it: If a texture is modified at runtime, it
+  will affect both atlases. The user might expect this if both atlases refer to
+  the same image file, but most would assume that having one of them refer to a
+  copy of the image would make the packed atlas textures unique.
+
+  See DEFEDIT-4218 for additional info about the rationale."
+  ^String [resource]
+  (with-open [input-stream (io/input-stream resource)
+              digest-output-stream (digest/make-digest-output-stream "SHA-1")]
+    (io/copy input-stream digest-output-stream)
+    (when-some [^String proj-path (proj-path resource)]
+      (.write digest-output-stream (.getBytes proj-path "UTF-8")))
+    (.flush digest-output-stream)
+    (digest/digest-output-stream->hex digest-output-stream)))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
 

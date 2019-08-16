@@ -63,7 +63,7 @@ union SaveLoadBuffer
      * This size reflects the output file size which must not exceed this limit.
      * Additionally, the total number of rows that any one table may contain is limited to 65536
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
-     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however 
+     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
      *
      * @name sys.save
@@ -199,6 +199,8 @@ union SaveLoadBuffer
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
      *
+     * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
+     *
      * @name sys.get_save_file
      * @param application_id [type:string] user defined id of the application, which helps define the location of the save-file
      * @param file_name [type:string] file-name to get path for
@@ -220,7 +222,7 @@ union SaveLoadBuffer
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
+            return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
         const char* filename = luaL_checkstring(L, 2);
@@ -235,6 +237,34 @@ union SaveLoadBuffer
         dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
+
+        return 1;
+    }
+
+
+    /*# gets the application path
+     * The path from which the application is run.
+     *
+     * @name sys.get_application_path
+     * @return path [type:string] path to application executable
+     * @examples
+     *
+     * Find a path where we can store data (the example path is on the macOS platform):
+     *
+     * ```lua
+     * local application_path = sys.get_application_path()
+     * print(application_path) --> /Applications/my_game.app
+     * ```
+     */
+    int Sys_GetApplicationPath(lua_State* L)
+    {
+        char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
+        dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
+        if (r != dmSys::RESULT_OK)
+        {
+            return luaL_error(L, "Unable to locate application path: (%d)", r);
+        }
+        lua_pushstring(L, application_path);
 
         return 1;
     }
@@ -295,15 +325,13 @@ union SaveLoadBuffer
             default_value = lua_tostring(L, 2);
         }
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
+        HContext context = dmScript::GetScriptContext(L);
+
         dmConfigFile::HConfig config_file = 0;
         if (context)
         {
             config_file = context->m_ConfigFile;
         }
-
-        lua_pop(L, 1);
 
         const char* value;
         if (config_file)
@@ -355,7 +383,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil.
+     * If loading fails, the function returns nil plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -367,15 +395,20 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or nil if the resource could not be loaded
+     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
      * -- Load level data into a string
-     * local data = sys.load_resource("/assets/level_data.json")
+     * local data, error = sys.load_resource("/assets/level_data.json")
      * -- Decode json string to a Lua table
-     * local data_table = json.decode(data)
-     * pprint(data_table)
+     * if data then
+     *   local data_table = json.decode(data)
+     *   pprint(data_table)
+     * else
+     *   print(error)
+     * end
      * ```
      */
     int Sys_LoadResource(lua_State* L)
@@ -383,20 +416,19 @@ union SaveLoadBuffer
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
 
-        lua_getglobal(L, SCRIPT_CONTEXT);
-        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
 
         void* resource;
         uint32_t resource_size;
         dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
         if (r != dmResource::RESULT_OK) {
-            dmLogWarning("Failed to load resource: %s (%d)", filename, r);
             lua_pushnil(L);
-        } else {
-            lua_pushlstring(L, (const char*) resource, resource_size);
-            free(resource);
+            lua_pushfstring(L, "Failed to load resource: %s (%d)", filename, r);
+            assert(top + 2 == lua_gettop(L));
+            return 2;
         }
+        lua_pushlstring(L, (const char*) resource, resource_size);
+        free(resource);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -711,8 +743,22 @@ union SaveLoadBuffer
             }
             lua_rawset(L, -3);
 
-            lua_pushliteral(L, "mac");
+            lua_pushliteral(L, "family");
+            if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
+            {
+                lua_pushstring(L, "ipv4");
+            }
+            else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
+            {
+                lua_pushstring(L, "ipv6");
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+            lua_rawset(L, -3);
 
+            lua_pushliteral(L, "mac");
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
                 char tmp[64];
@@ -881,7 +927,7 @@ union SaveLoadBuffer
     /*# exits application
     * Terminates the game application and reports the specified <code>code</code> to the OS.
     *
-    * @name exit
+    * @name sys.exit
     * @param code [type:number] exit code to report to the OS, 0 means clean exit
     * @examples
     *
@@ -904,7 +950,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Exit::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Exit::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -919,7 +965,7 @@ union SaveLoadBuffer
     * On startup the engine reads configuration from "game.project" in the
     * project root.
     *
-    * @name reboot
+    * @name sys.reboot
     * @param arg1 [type:string] argument 1
     * @param arg2 [type:string] argument 2
     * @param arg3 [type:string] argument 3
@@ -950,7 +996,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -970,12 +1016,12 @@ union SaveLoadBuffer
     *
     * This setting may be overridden by driver settings.
     *
-    * @name set_vsync_swap_interval
+    * @name sys.set_vsync_swap_interval
     * @param swap_interval target swap interval.
     * @examples
     *
     * Setting the swap intervall to swap every v-blank
-    *  
+    *
     * ```lua
     * sys.set_vsync_swap_interval(1)
     * ```
@@ -989,7 +1035,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -1003,12 +1049,12 @@ union SaveLoadBuffer
     * unchecked the engine will try to respect the rate in software using timers. There is no
     * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
     *
-    * @name set_update_frequency
+    * @name sys.set_update_frequency
     * @param frequency target frequency. 60 for 60 fps
     * @examples
-    * 
+    *
     * Setting the update frequency to 60 frames per second
-    *  
+    *
     * ```lua
     * sys.set_update_frequency(60)
     * ```
@@ -1022,7 +1068,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -1040,6 +1086,7 @@ union SaveLoadBuffer
         {"get_sys_info", Sys_GetSysInfo},
         {"get_engine_info", Sys_GetEngineInfo},
         {"get_application_info", Sys_GetApplicationInfo},
+        {"get_application_path", Sys_GetApplicationPath},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},

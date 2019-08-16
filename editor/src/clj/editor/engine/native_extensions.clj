@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.data.json :as json]
    [dynamo.graph :as g]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
    [editor.engine.build-errors :as engine-build-errors]
@@ -30,7 +31,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const defold-build-server-url "https://build.defold.com")
+(def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
@@ -95,6 +96,8 @@
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
+   (.getPair Platform/Arm64Android) {:platform      "arm64-android"
+                                     :library-paths #{"android" "arm64-android"}}
    (.getPair Platform/JsWeb)        {:platform      "js-web"
                                      :library-paths #{"web" "js-web"}}
    (.getPair Platform/X86Win32)     {:platform      "x86-win32"
@@ -107,6 +110,7 @@
 (def ^:private common-extension-paths
   [["ext.manifest"]
    ["include"]
+   ["manifests"]
    ["src"]
    ["lib" "common"]])
 
@@ -245,18 +249,20 @@
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
-(defn- get-app-manifest-resource [project-settings]
-  (get project-settings ["native_extension" "app_manifest"]))
-
+;; Note: When we do bundling for Android via the editor, we need add
+;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
-  (if-some [app-manifest-resource (get-app-manifest-resource (g/node-value project :settings evaluation-context))]
-    (let [resource-node (project/get-resource-node project app-manifest-resource evaluation-context)]
-      (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
-        {"_app/app.manifest" resource-node}
-        (throw (engine-build-errors/missing-resource-error "Native Extension App Manifest"
-                                                           (resource/proj-path app-manifest-resource)
-                                                           (project/get-resource-node project "/game.project" evaluation-context)))))
-    {}))
+ (let [project-settings (g/node-value project :settings evaluation-context)]
+   (into {}
+         (keep (fn [[[section key] target]]
+                 (when-let [resource (get project-settings [section key])]
+                   (let [resource-node (project/get-resource-node project resource evaluation-context)]
+                     (if (some-> resource-node (g/node-value :resource evaluation-context) resource/exists?)
+                       [target resource-node]
+                       (throw (engine-build-errors/missing-resource-error "Missing Native Extension Resource"
+                                                                          (resource/proj-path resource)
+                                                                          (project/get-resource-node project "/game.project" evaluation-context)))))))
+               [[["native_extension" "app_manifest"] "_app/app.manifest"]]))))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))

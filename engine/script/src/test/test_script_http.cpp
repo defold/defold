@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 #include "script.h"
 #include "script_http.h" // to set the timeout
 
@@ -9,8 +7,12 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/socket.h>
+#include <dlib/dns.h>
 #include <dlib/thread.h>
 #include <dlib/sys.h>
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 extern "C"
 {
@@ -75,7 +77,7 @@ static const luaL_reg META_TABLE[] =
     {0, 0}
 };
 
-class ScriptHttpTest : public ::testing::Test
+class ScriptHttpTest : public jc_test_base_class
 {
 public:
     int m_HttpResponseCount;
@@ -359,9 +361,11 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();
+    dmDNS::Initialize();
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
+    dmDNS::Finalize();
     dmSocket::Finalize();
     return ret;
 }

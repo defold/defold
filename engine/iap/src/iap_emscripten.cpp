@@ -3,7 +3,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dmsdk/dlib/json.h>
 #include <script/script.h>
 #include <extension/extension.h>
 #include "iap.h"
@@ -80,7 +80,6 @@ void IAPList_Callback(void* Lv, const char* result_json)
             if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
                 char err_str[128];
                 if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                    lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                     dmLogError("Failed converting list result JSON to Lua; %s", err_str);
                     lua_pushnil(L);
                     IAP_PushError(L, "Failed converting list result JSON to Lua", REASON_UNSPECIFIED);
@@ -165,7 +164,6 @@ void IAPListener_Callback(void* Lv, const char* result_json, int error_code)
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
             char err_str[128];
             if (dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str)) < 0) {
-                lua_pop(L, lua_gettop(L) - top - 2); // Need to leave function and self references.
                 dmLogError("Failed converting purchase result JSON to Lua; %s", err_str);
                 lua_pushnil(L);
                 IAP_PushError(L, "failed converting purchase result JSON to Lua", REASON_UNSPECIFIED);

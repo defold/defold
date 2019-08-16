@@ -31,10 +31,11 @@ public class OSXBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir)
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Darwin;
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -47,9 +48,11 @@ public class OSXBundler implements IBundler {
         File macosDir = new File(contentsDir, "MacOS");
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+
+        BundleHelper.throwIfCanceled(canceled);
+
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
         if (bundleExes == null) {
-            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
         if (bundleExes.size() > 1) {
@@ -57,28 +60,41 @@ public class OSXBundler implements IBundler {
         }
         File bundleExe = bundleExes.get(0);
 
+        BundleHelper.throwIfCanceled(canceled);
+
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
         contentsDir.mkdirs();
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app");
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
+        BundleHelper.throwIfCanceled(canceled);
+
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("exe-name", exeName);
-        helper.format(infoData, "osx", "infoplist", new File(contentsDir, "Info.plist"));
+        IResource sourceManifestFile = helper.getResource("osx", "infoplist");
+        helper.format(infoData, sourceManifestFile, new File(contentsDir, "Info.plist"));
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);

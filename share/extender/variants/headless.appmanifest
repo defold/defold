@@ -42,6 +42,12 @@ platforms:
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
             libs: ["record_null","sound_null","graphics_null","hid_null"]
 
+    arm64-android:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
     armv7-ios:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]

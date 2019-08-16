@@ -114,7 +114,7 @@ id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
 int g_AppDelegatesCount = 0;
 id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 
-@interface AppDelegateProxy : NSObject <UIApplicationDelegate>
+@interface AppDelegateProxy: NSObject
 
 @end
 
@@ -173,7 +173,7 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
     }
 
     if (!invoked) {
-        [super forwardInvocation:anInvocation];
+        [g_ApplicationDelegate forwardInvocation:anInvocation];
     }
 }
 
@@ -188,12 +188,12 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
         }
     }
 
-    return [super respondsToSelector: aSelector];
+    return [g_ApplicationDelegate respondsToSelector: aSelector];
 }
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
-    NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
+    NSMethodSignature* signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
 
     if (!signature)
     {
@@ -1331,8 +1331,8 @@ _GLFWwin g_Savewin;
     _glfwWin.window = window;
 
     UIApplication* app = [UIApplication sharedApplication];
-    AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
     g_ApplicationDelegate = [app.delegate retain];
+    AppDelegateProxy* proxy = [AppDelegateProxy alloc];
     app.delegate = proxy;
 
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
@@ -1370,12 +1370,13 @@ _GLFWwin g_Savewin;
 
     // According to Apple glFinish() should be called here
     glFinish();
+
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(0);
 }
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
-    if(_glfwWin.windowFocusCallback)
-        _glfwWin.windowFocusCallback(0);
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
@@ -1733,5 +1734,4 @@ GLFWAPI void glfwAccelerometerEnable()
     [[UIAccelerometer sharedAccelerometer] setDelegate:_glfwWin.viewController];
     g_AccelerometerEnabled = 1;
 }
-
 

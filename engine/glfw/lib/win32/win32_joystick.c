@@ -37,6 +37,25 @@
 // NOTE: We put this information here instead of in _glfwInput as
 // _glfwInput is cleared when opening a new window
 int g_ControllerPresent[GLFW_MAX_XINPUT_CONTROLLERS] = { 0 };
+int g_ControllerPresent_prev[GLFW_MAX_XINPUT_CONTROLLERS] = { 0 };
+
+void _update_joystick(int joy)
+{
+    DWORD dwResult;
+    XINPUT_STATE state;
+
+    dwResult = XInputGetState(joy, &state);
+    g_ControllerPresent[joy] = dwResult == ERROR_SUCCESS;
+
+    int state_now = g_ControllerPresent[joy];
+    int state_prev = g_ControllerPresent_prev[joy];
+
+    if (state_now != state_prev)
+    {
+        _glfwWin.gamepadCallback(joy, g_ControllerPresent[joy]);
+        g_ControllerPresent_prev[joy] = g_ControllerPresent[joy];
+    }
+}
 
 void _glfwPlatformDiscoverJoysticks()
 {
@@ -48,6 +67,7 @@ void _glfwPlatformDiscoverJoysticks()
     {
         dwResult = XInputGetState(i, &state);
         g_ControllerPresent[i] = dwResult == ERROR_SUCCESS;
+        g_ControllerPresent_prev[i] = g_ControllerPresent[i];
     }
 }
 
@@ -60,8 +80,18 @@ static int _glfwJoystickPresent( int joy )
     return GL_FALSE;
 }
 
-int _glfwPlatformGetJoystickParam( int joy, int param )
+int _glfwPlatformGetJoystickParam(int joy, int param)
 {
+    if (joy < 0 || joy >= GLFW_MAX_XINPUT_CONTROLLERS)
+    {
+        return 0;
+    }
+
+    if( param == GLFW_PRESENT )
+    {
+        _update_joystick(joy);
+    }
+
     // Is joystick present?
     if( !_glfwJoystickPresent( joy ) )
     {
@@ -82,9 +112,11 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
 
     case GLFW_BUTTONS:
         // Return number of joystick buttons
-		// NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15 
+        // NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15
         return 16;
-
+    case GLFW_HATS:
+        // Return number of hats
+        return 1;
     default:
         break;
     }
@@ -140,7 +172,7 @@ int _glfwPlatformGetJoystickPos(int joy, float *pos, int numaxes)
 
 #undef AXIS_VAL
 #undef TRIGGER_VAL
-	return axis;
+    return axis;
 }
 
 //========================================================================
@@ -190,6 +222,30 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
 
     *device_id = (char*) name;
     return GL_TRUE;
+}
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    DWORD result;
+    XINPUT_STATE state;
+
+    if( !_glfwJoystickPresent(joy) )
+    {
+        return 0;
+    }
+
+    result = XInputGetState(joy, &state);
+
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP)
+        hats[0] |= GLFW_HAT_UP;
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+        hats[0] |= GLFW_HAT_RIGHT;
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+        hats[0] |= GLFW_HAT_DOWN;
+    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+        hats[0] |= GLFW_HAT_LEFT;
+
+    return 1;
 }
 
 #else
@@ -255,8 +311,6 @@ int _glfwPlatformGetJoystickParam( int joy, int param )
 {
     JOYCAPS jc;
 
-//  return 0;
-
     // Is joystick present?
     if( !_glfwJoystickPresent( joy ) )
     {
@@ -299,8 +353,6 @@ int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
     JOYCAPS   jc;
     JOYINFOEX ji;
     int       axis;
-
-//  return 0;
 
     // Is joystick present?
     if( !_glfwJoystickPresent( joy ) )

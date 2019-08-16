@@ -1,11 +1,10 @@
 //========================================================================
 // GLFW - An OpenGL framework
-// File:        macosx_joystick.c
-// Platform:    Mac OS X
-// API Version: 2.6
-// WWW:         http://glfw.sourceforge.net
+// Platform:    Cocoa/NSOpenGL
+// API Version: 2.7
+// WWW:         http://www.glfw.org/
 //------------------------------------------------------------------------
-// Copyright (c) 2002-2006 Camilla Berglund
+// Copyright (c) 2009-2010 Camilla Berglund <elmindreda@elmindreda.org>
 //
 // This software is provided 'as-is', without any express or implied
 // warranty. In no event will the authors be held liable for any damages
@@ -28,1064 +27,774 @@
 //
 //========================================================================
 
-/*
-    SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2010 Sam Lantinga
+// NOTE: Modified source of GLFW 2.7 cocoa_joystick.m
+// - Updated GLFW functions to comply with Defold changes.
+// - Added connect/disconnect handling through callbacks.
+// - Changed hat inputs to behave separately too regular buttons.
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Lesser General Public
-    License as published by the Free Software Foundation; either
-    version 2.1 of the License, or (at your option) any later version.
-
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Lesser General Public License for more details.
-
-    You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
-    Sam Lantinga
-    slouken@libsdl.org
-*/
+#include "internal.h"
 
 #include <unistd.h>
 #include <ctype.h>
-#include <sysexits.h>
+
 #include <mach/mach.h>
 #include <mach/mach_error.h>
+
+#include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/IOCFPlugIn.h>
-#ifdef MACOS_10_0_4
-#include <IOKit/hidsystem/IOHIDUsageTables.h>
-#else
-/* The header was moved here in Mac OS X 10.1 */
-#include <Kernel/IOKit/hidsystem/IOHIDUsageTables.h>
-#endif
-
 #include <IOKit/hid/IOHIDLib.h>
-
 #include <IOKit/hid/IOHIDKeys.h>
-#include <CoreFoundation/CoreFoundation.h>
-#include <Carbon/Carbon.h>      /* for NewPtrClear, DisposePtr */
+#include <Kernel/IOKit/hidsystem/IOHIDUsageTables.h>
 
 
-#include "internal.h"
-//#include "SDL_sysjoystick_c.h"
-// TO DO: use HID manager to implement joystick support.
+//------------------------------------------------------------------------
+// Joystick state
+//------------------------------------------------------------------------
 
-struct recElement
+typedef struct
 {
-    IOHIDElementCookie cookie;  /* unique value which identifies element, will NOT change */
-    long usagePage, usage;      /* HID usage */
-    long min;                   /* reported min value possible */
-    long max;                   /* reported max value possible */
-#if 0
-    /* TODO: maybe should handle the following stuff somehow? */
+    int present;
+    int index;
+    long usagePage, usage;
+    char product[256];
 
-    long scaledMin;             /* reported scaled min value possible */
-    long scaledMax;             /* reported scaled max value possible */
-    long size;                  /* size in bits of data return from element */
-    Boolean relative;           /* are reports relative to last report (deltas) */
-    Boolean wrapping;           /* does element wrap around (one value higher than max is min) */
-    Boolean nonLinear;          /* are the values reported non-linear relative to element movement */
-    Boolean preferredState;     /* does element have a preferred state (such as a button) */
-    Boolean nullState;          /* does element have null state */
-#endif                          /* 0 */
+    IOHIDDeviceInterface** interface;
+    io_service_t hid_service;
 
-    /* runtime variables used for auto-calibration */
-    long minReport;             /* min returned value */
-    long maxReport;             /* max returned value */
+    int numAxes;
+    int numButtons;
+    int numHats;
 
-    struct recElement *pNext;   /* next element in list */
-};
-typedef struct recElement recElement;
+    CFMutableArrayRef axes;
+    CFMutableArrayRef buttons;
+    CFMutableArrayRef hats;
 
-struct joystick_hwdata
+} _glfwJoystick;
+
+static _glfwJoystick _glfwJoysticks[GLFW_JOYSTICK_LAST + 1];
+
+
+typedef struct
 {
-    io_service_t ffservice;     /* Interface for force feedback, 0 = no ff */
-    IOHIDDeviceInterface **interface;   /* interface to device, NULL = no interface */
+    IOHIDElementCookie cookie;
 
-    char product[256];          /* name of product */
-    long usage;                 /* usage page from IOUSBHID Parser.h which defines general usage */
-    long usagePage;             /* usage within above page from IOUSBHID Parser.h which defines specific usage */
+    long value;
 
-    long axes;                  /* number of axis (calculated, not reported by device) */
-    long buttons;               /* number of buttons (calculated, not reported by device) */
-    long hats;                  /* number of hat switches (calculated, not reported by device) */
-    long elements;              /* number of total elements (shouldbe total of above) (calculated, not reported by device) */
+    long min;
+    long max;
 
-    recElement *firstAxis;
-    recElement *firstButton;
-    recElement *firstHat;
+    long minReport;
+    long maxReport;
 
-    int removed;
-    int uncentered;
+    long usage;
 
-    struct joystick_hwdata *pNext;      /* next device */
-};
-typedef struct joystick_hwdata recDevice;
+} _glfwJoystickElement;
 
-static recDevice *gpDeviceList = NULL;
 
-static void
-HIDReportErrorNum(char *strError, long numError)
+static IOHIDManagerRef gHidManager = nil;
+
+void GetElementsCFArrayHandler( const void* value, void* parameter );
+
+//========================================================================
+// Adds an element to the specified joystick
+//========================================================================
+
+static void addJoystickElement( _glfwJoystick* joystick, CFTypeRef refElement )
 {
-    printf("%s\n", strError);
+    long elementType, usagePage, usage;
+
+    CFTypeRef refElementType = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementTypeKey ) );
+    CFTypeRef refUsagePage = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementUsagePageKey ) );
+    CFTypeRef refUsage = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementUsageKey ) );
+
+    CFMutableArrayRef elementsArray = NULL;
+
+    if ((refElementType) && CFNumberGetValue( refElementType, kCFNumberLongType, &elementType ))
+    {
+        if( elementType == kIOHIDElementTypeInput_Axis ||
+            elementType == kIOHIDElementTypeInput_Button ||
+            elementType == kIOHIDElementTypeInput_Misc )
+        {
+            if (refUsagePage
+             && CFNumberGetValue(refUsagePage, kCFNumberLongType, &usagePage)
+             && refUsage
+             && CFNumberGetValue(refUsage, kCFNumberLongType, &usage)) {
+
+                switch( usagePage ) /* only interested in kHIDPage_GenericDesktop and kHIDPage_Button */
+                {
+                    case kHIDPage_GenericDesktop:
+                    {
+                        switch( usage )
+                        {
+                            case kHIDUsage_GD_X:
+                            case kHIDUsage_GD_Y:
+                            case kHIDUsage_GD_Z:
+                            case kHIDUsage_GD_Rx:
+                            case kHIDUsage_GD_Ry:
+                            case kHIDUsage_GD_Rz:
+                            case kHIDUsage_GD_Slider:
+                            case kHIDUsage_GD_Dial:
+                            case kHIDUsage_GD_Wheel:
+                                joystick->numAxes++;
+                                elementsArray = joystick->axes;
+                                break;
+                            case kHIDUsage_GD_Hatswitch:
+                                joystick->numHats++;
+                                elementsArray = joystick->hats;
+                                break;
+                        }
+
+                        break;
+                    }
+
+                    case kHIDPage_Button:
+                        joystick->numButtons++;
+                        elementsArray = joystick->buttons;
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+
+        }
+        else
+        {
+            CFTypeRef refElementTop = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementKey ) );
+            if( refElementTop )
+            {
+                CFTypeID type = CFGetTypeID( refElementTop );
+                if( type == CFArrayGetTypeID() ) /* if element is an array */
+                {
+                    CFRange range = { 0, CFArrayGetCount( refElementTop ) };
+                    CFArrayApplyFunction( refElementTop, range, GetElementsCFArrayHandler, joystick );
+                }
+            }
+        }
+    }
+
+    if( elementsArray )
+    {
+        long number;
+        CFTypeRef refType;
+
+        _glfwJoystickElement* element = (_glfwJoystickElement*) malloc( sizeof( _glfwJoystickElement ) );
+
+        // Make sure to input the element in the correct order
+        // based on the usage.
+        int j = 0;
+        for( ; j < CFArrayGetCount(elementsArray);  j++ )
+        {
+            _glfwJoystickElement* elem =
+                (_glfwJoystickElement*) CFArrayGetValueAtIndex( elementsArray, j );
+            if (usage < elem->usage) {
+                break;
+            }
+        }
+        CFArrayInsertValueAtIndex( elementsArray, j, element );
+
+        element->usage = usage;
+
+        refType = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementCookieKey ) );
+        if( refType && CFNumberGetValue( refType, kCFNumberLongType, &number ) )
+        {
+            element->cookie = (IOHIDElementCookie) number;
+        }
+
+        refType = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementMinKey ) );
+        if( refType && CFNumberGetValue( refType, kCFNumberLongType, &number ) )
+        {
+            element->minReport = element->min = number;
+        }
+
+        refType = CFDictionaryGetValue( refElement, CFSTR( kIOHIDElementMaxKey ) );
+        if( refType && CFNumberGetValue( refType, kCFNumberLongType, &number ) )
+        {
+            element->maxReport = element->max = number;
+        }
+
+    }
 }
 
-void XSDL_SetError(const char* str)
+
+//========================================================================
+// Adds an element to the specified joystick
+//========================================================================
+
+void GetElementsCFArrayHandler( const void* value, void* parameter )
 {
-    printf("%s\n", str);
+    if( CFGetTypeID( value ) == CFDictionaryGetTypeID() )
+    {
+        addJoystickElement( (_glfwJoystick*) parameter, (CFTypeRef) value );
+    }
 }
 
-static void HIDGetCollectionElements(CFMutableDictionaryRef deviceProperties,
-                                     recDevice * pDevice);
 
-/* returns current value for element, polling element
- * will return 0 on error conditions which should be accounted for by application
- */
+//========================================================================
+// Returns the value of the specified element of the specified joystick
+//========================================================================
 
-static SInt32
-HIDGetElementValue(recDevice * pDevice, recElement * pElement)
+static long getElementValue( _glfwJoystick* joystick, _glfwJoystickElement* element )
 {
     IOReturn result = kIOReturnSuccess;
     IOHIDEventStruct hidEvent;
     hidEvent.value = 0;
 
-    if (NULL != pDevice && NULL != pElement && NULL != pDevice->interface) {
-        result =
-            (*(pDevice->interface))->getElementValue(pDevice->interface,
-                                                     pElement->cookie,
-                                                     &hidEvent);
-        if (kIOReturnSuccess == result) {
+    if( joystick && element && joystick->interface )
+    {
+        result = (*(joystick->interface))->getElementValue( joystick->interface,
+                                                            element->cookie,
+                                                            &hidEvent );
+        if( kIOReturnSuccess == result )
+        {
             /* record min and max for auto calibration */
-            if (hidEvent.value < pElement->minReport)
-                pElement->minReport = hidEvent.value;
-            if (hidEvent.value > pElement->maxReport)
-                pElement->maxReport = hidEvent.value;
+            if( hidEvent.value < element->minReport )
+            {
+                element->minReport = hidEvent.value;
+            }
+            if( hidEvent.value > element->maxReport )
+            {
+                element->maxReport = hidEvent.value;
+            }
         }
     }
 
     /* auto user scale */
-    return hidEvent.value;
-}
-
-static SInt32
-HIDScaledCalibratedValue(recDevice * pDevice, recElement * pElement,
-                         long min, long max)
-{
-    float deviceScale = max - min;
-    float readScale = pElement->maxReport - pElement->minReport;
-    SInt32 value = HIDGetElementValue(pDevice, pElement);
-    if (readScale == 0)
-        return value;           /* no scaling at all */
-    else
-        return ((value - pElement->minReport) * deviceScale / readScale) +
-            min;
+    return (long) hidEvent.value;
 }
 
 
-static void
-HIDRemovalCallback(void *target, IOReturn result, void *refcon, void *sender)
+//========================================================================
+// Removes the specified joystick
+//========================================================================
+
+static void removeJoystick( _glfwJoystick* joystick )
 {
-    recDevice *device = (recDevice *) refcon;
-    device->removed = 1;
-    device->uncentered = 1;
-}
-
-
-
-/* Create and open an interface to device, required prior to extracting values or building queues.
- * Note: appliction now owns the device and must close and release it prior to exiting
- */
-
-static IOReturn
-HIDCreateOpenDeviceInterface(io_object_t hidDevice, recDevice * pDevice)
-{
-    IOReturn result = kIOReturnSuccess;
-    HRESULT plugInResult = S_OK;
-    SInt32 score = 0;
-    IOCFPlugInInterface **ppPlugInInterface = NULL;
-
-    if (NULL == pDevice->interface) {
-        result =
-            IOCreatePlugInInterfaceForService(hidDevice,
-                                              kIOHIDDeviceUserClientTypeID,
-                                              kIOCFPlugInInterfaceID,
-                                              &ppPlugInInterface, &score);
-        if (kIOReturnSuccess == result) {
-            /* Call a method of the intermediate plug-in to create the device interface */
-            plugInResult =
-                (*ppPlugInInterface)->QueryInterface(ppPlugInInterface,
-                                                     CFUUIDGetUUIDBytes
-                                                     (kIOHIDDeviceInterfaceID),
-                                                     (void *)
-                                                     &(pDevice->interface));
-            if (S_OK != plugInResult)
-                HIDReportErrorNum
-                    ("Couldn't query HID class device interface from plugInInterface",
-                     plugInResult);
-            (*ppPlugInInterface)->Release(ppPlugInInterface);
-        } else
-            HIDReportErrorNum
-                ("Failed to create **plugInInterface via IOCreatePlugInInterfaceForService.",
-                 result);
-    }
-    if (NULL != pDevice->interface) {
-        result = (*(pDevice->interface))->open(pDevice->interface, 0);
-        if (kIOReturnSuccess != result)
-            HIDReportErrorNum
-                ("Failed to open pDevice->interface via open.", result);
-        else
-            (*(pDevice->interface))->setRemovalCallback(pDevice->interface,
-                                                        HIDRemovalCallback,
-                                                        pDevice, pDevice);
-
-    }
-    return result;
-}
-
-/* Closes and releases interface to device, should be done prior to exting application
- * Note: will have no affect if device or interface do not exist
- * application will "own" the device if interface is not closed
- * (device may have to be plug and re-plugged in different location to get it working again without a restart)
- */
-
-static IOReturn
-HIDCloseReleaseInterface(recDevice * pDevice)
-{
-    IOReturn result = kIOReturnSuccess;
-
-    if ((NULL != pDevice) && (NULL != pDevice->interface)) {
-        /* close the interface */
-        result = (*(pDevice->interface))->close(pDevice->interface);
-        if (kIOReturnNotOpen == result) {
-            /* do nothing as device was not opened, thus can't be closed */
-        } else if (kIOReturnSuccess != result)
-            HIDReportErrorNum("Failed to close IOHIDDeviceInterface.",
-                              result);
-        /* release the interface */
-        result = (*(pDevice->interface))->Release(pDevice->interface);
-        if (kIOReturnSuccess != result)
-            HIDReportErrorNum("Failed to release IOHIDDeviceInterface.",
-                              result);
-        pDevice->interface = NULL;
-    }
-    return result;
-}
-
-/* extracts actual specific element information from each element CF dictionary entry */
-
-static void
-HIDGetElementInfo(CFTypeRef refElement, recElement * pElement)
-{
-    long number;
-    CFTypeRef refType;
-
-    refType = CFDictionaryGetValue(refElement, CFSTR(kIOHIDElementCookieKey));
-    if (refType && CFNumberGetValue(refType, kCFNumberLongType, &number))
-        pElement->cookie = (IOHIDElementCookie) number;
-    refType = CFDictionaryGetValue(refElement, CFSTR(kIOHIDElementMinKey));
-    if (refType && CFNumberGetValue(refType, kCFNumberLongType, &number))
-        pElement->minReport = pElement->min = number;
-    pElement->maxReport = pElement->min;
-    refType = CFDictionaryGetValue(refElement, CFSTR(kIOHIDElementMaxKey));
-    if (refType && CFNumberGetValue(refType, kCFNumberLongType, &number))
-        pElement->maxReport = pElement->max = number;
-/*
-    TODO: maybe should handle the following stuff somehow?
-
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementScaledMinKey));
-    if (refType && CFNumberGetValue (refType, kCFNumberLongType, &number))
-        pElement->scaledMin = number;
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementScaledMaxKey));
-    if (refType && CFNumberGetValue (refType, kCFNumberLongType, &number))
-        pElement->scaledMax = number;
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementSizeKey));
-    if (refType && CFNumberGetValue (refType, kCFNumberLongType, &number))
-        pElement->size = number;
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementIsRelativeKey));
-    if (refType)
-        pElement->relative = CFBooleanGetValue (refType);
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementIsWrappingKey));
-    if (refType)
-        pElement->wrapping = CFBooleanGetValue (refType);
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementIsNonLinearKey));
-    if (refType)
-        pElement->nonLinear = CFBooleanGetValue (refType);
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementHasPreferedStateKey));
-    if (refType)
-        pElement->preferredState = CFBooleanGetValue (refType);
-    refType = CFDictionaryGetValue (refElement, CFSTR(kIOHIDElementHasNullStateKey));
-    if (refType)
-        pElement->nullState = CFBooleanGetValue (refType);
-*/
-}
-
-/* examines CF dictionary vlaue in device element hierarchy to determine if it is element of interest or a collection of more elements
- * if element of interest allocate storage, add to list and retrieve element specific info
- * if collection then pass on to deconstruction collection into additional individual elements
- */
-
-static void
-HIDAddElement(CFTypeRef refElement, recDevice * pDevice)
-{
-    recElement *element = NULL;
-    recElement **headElement = NULL;
-    long elementType, usagePage, usage;
-    CFTypeRef refElementType =
-        CFDictionaryGetValue(refElement, CFSTR(kIOHIDElementTypeKey));
-    CFTypeRef refUsagePage =
-        CFDictionaryGetValue(refElement, CFSTR(kIOHIDElementUsagePageKey));
-    CFTypeRef refUsage =
-        CFDictionaryGetValue(refElement, CFSTR(kIOHIDElementUsageKey));
-
-
-    if ((refElementType)
-        &&
-        (CFNumberGetValue(refElementType, kCFNumberLongType, &elementType))) {
-        /* look at types of interest */
-        if ((elementType == kIOHIDElementTypeInput_Misc)
-            || (elementType == kIOHIDElementTypeInput_Button)
-            || (elementType == kIOHIDElementTypeInput_Axis)) {
-            if (refUsagePage
-                && CFNumberGetValue(refUsagePage, kCFNumberLongType,
-                                    &usagePage) && refUsage
-                && CFNumberGetValue(refUsage, kCFNumberLongType, &usage)) {
-                switch (usagePage) {    /* only interested in kHIDPage_GenericDesktop and kHIDPage_Button */
-                case kHIDPage_GenericDesktop:
-                    {
-                        switch (usage) {        /* look at usage to determine function */
-                        case kHIDUsage_GD_X:
-                        case kHIDUsage_GD_Y:
-                        case kHIDUsage_GD_Z:
-                        case kHIDUsage_GD_Rx:
-                        case kHIDUsage_GD_Ry:
-                        case kHIDUsage_GD_Rz:
-                        case kHIDUsage_GD_Slider:
-                        case kHIDUsage_GD_Dial:
-                        case kHIDUsage_GD_Wheel:
-                            element = (recElement *)
-                                NewPtrClear(sizeof(recElement));
-                            if (element) {
-                                pDevice->axes++;
-                                headElement = &(pDevice->firstAxis);
-                            }
-                            break;
-                        case kHIDUsage_GD_Hatswitch:
-                            element = (recElement *)
-                                NewPtrClear(sizeof(recElement));
-                            if (element) {
-                                pDevice->hats++;
-                                headElement = &(pDevice->firstHat);
-                            }
-                            break;
-                        }
-                    }
-                    break;
-                case kHIDPage_Button:
-                    element = (recElement *)
-                        NewPtrClear(sizeof(recElement));
-                    if (element) {
-                        pDevice->buttons++;
-                        headElement = &(pDevice->firstButton);
-                    }
-                    break;
-                default:
-                    break;
-                }
-            }
-        } else if (kIOHIDElementTypeCollection == elementType)
-            HIDGetCollectionElements((CFMutableDictionaryRef) refElement,
-                                     pDevice);
-    }
-
-    if (element && headElement) {       /* add to list */
-        recElement *elementPrevious = NULL;
-        recElement *elementCurrent = *headElement;
-        while (elementCurrent && usage >= elementCurrent->usage) {
-            elementPrevious = elementCurrent;
-            elementCurrent = elementCurrent->pNext;
-        }
-        if (elementPrevious) {
-            elementPrevious->pNext = element;
-        } else {
-            *headElement = element;
-        }
-        element->usagePage = usagePage;
-        element->usage = usage;
-        element->pNext = elementCurrent;
-        HIDGetElementInfo(refElement, element);
-        pDevice->elements++;
-    }
-}
-
-/* collects information from each array member in device element list (each array memeber = element) */
-
-static void
-HIDGetElementsCFArrayHandler(const void *value, void *parameter)
-{
-    if (CFGetTypeID(value) == CFDictionaryGetTypeID())
-        HIDAddElement((CFTypeRef) value, (recDevice *) parameter);
-}
-
-/* handles retrieval of element information from arrays of elements in device IO registry information */
-
-static void
-HIDGetElements(CFTypeRef refElementCurrent, recDevice * pDevice)
-{
-    CFTypeID type = CFGetTypeID(refElementCurrent);
-    if (type == CFArrayGetTypeID()) {   /* if element is an array */
-        CFRange range = { 0, CFArrayGetCount(refElementCurrent) };
-        /* CountElementsCFArrayHandler called for each array member */
-        CFArrayApplyFunction(refElementCurrent, range,
-                             HIDGetElementsCFArrayHandler, pDevice);
-    }
-}
-
-/* handles extracting element information from element collection CF types
- * used from top level element decoding and hierarchy deconstruction to flatten device element list
- */
-
-static void
-HIDGetCollectionElements(CFMutableDictionaryRef deviceProperties,
-                         recDevice * pDevice)
-{
-    CFTypeRef refElementTop =
-        CFDictionaryGetValue(deviceProperties, CFSTR(kIOHIDElementKey));
-    if (refElementTop)
-        HIDGetElements(refElementTop, pDevice);
-}
-
-/* use top level element usage page and usage to discern device usage page and usage setting appropriate vlaues in device record */
-
-static void
-HIDTopLevelElementHandler(const void *value, void *parameter)
-{
-    CFTypeRef refCF = 0;
-    if (CFGetTypeID(value) != CFDictionaryGetTypeID())
-        return;
-    refCF = CFDictionaryGetValue(value, CFSTR(kIOHIDElementUsagePageKey));
-    if (!CFNumberGetValue
-        (refCF, kCFNumberLongType, &((recDevice *) parameter)->usagePage))
-        XSDL_SetError("CFNumberGetValue error retrieving pDevice->usagePage.");
-    refCF = CFDictionaryGetValue(value, CFSTR(kIOHIDElementUsageKey));
-    if (!CFNumberGetValue
-        (refCF, kCFNumberLongType, &((recDevice *) parameter)->usage))
-        XSDL_SetError("CFNumberGetValue error retrieving pDevice->usage.");
-}
-
-/* extracts device info from CF dictionary records in IO registry */
-
-static void
-HIDGetDeviceInfo(io_object_t hidDevice, CFMutableDictionaryRef hidProperties,
-                 recDevice * pDevice)
-{
-    CFMutableDictionaryRef usbProperties = 0;
-    io_registry_entry_t parent1, parent2;
-
-    /* Mac OS X currently is not mirroring all USB properties to HID page so need to look at USB device page also
-     * get dictionary for usb properties: step up two levels and get CF dictionary for USB properties
-     */
-    if ((KERN_SUCCESS ==
-         IORegistryEntryGetParentEntry(hidDevice, kIOServicePlane, &parent1))
-        && (KERN_SUCCESS ==
-            IORegistryEntryGetParentEntry(parent1, kIOServicePlane, &parent2))
-        && (KERN_SUCCESS ==
-            IORegistryEntryCreateCFProperties(parent2, &usbProperties,
-                                              kCFAllocatorDefault,
-                                              kNilOptions))) {
-        if (usbProperties) {
-            CFTypeRef refCF = 0;
-            /* get device info
-             * try hid dictionary first, if fail then go to usb dictionary
-             */
-
-
-            /* get product name */
-            refCF =
-                CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDProductKey));
-            if (!refCF)
-                refCF =
-                    CFDictionaryGetValue(usbProperties,
-                                         CFSTR("USB Product Name"));
-            if (refCF) {
-                if (!CFStringGetCString
-                    (refCF, pDevice->product, 256,
-                     CFStringGetSystemEncoding()))
-                    XSDL_SetError
-                        ("CFStringGetCString error retrieving pDevice->product.");
-            }
-
-            /* get usage page and usage */
-            refCF =
-                CFDictionaryGetValue(hidProperties,
-                                     CFSTR(kIOHIDPrimaryUsagePageKey));
-            if (refCF) {
-                if (!CFNumberGetValue
-                    (refCF, kCFNumberLongType, &pDevice->usagePage))
-                    XSDL_SetError
-                        ("CFNumberGetValue error retrieving pDevice->usagePage.");
-                refCF =
-                    CFDictionaryGetValue(hidProperties,
-                                         CFSTR(kIOHIDPrimaryUsageKey));
-                if (refCF)
-                    if (!CFNumberGetValue
-                        (refCF, kCFNumberLongType, &pDevice->usage))
-                        XSDL_SetError
-                            ("CFNumberGetValue error retrieving pDevice->usage.");
-            }
-
-            if (NULL == refCF) {        /* get top level element HID usage page or usage */
-                /* use top level element instead */
-                CFTypeRef refCFTopElement = 0;
-                refCFTopElement =
-                    CFDictionaryGetValue(hidProperties,
-                                         CFSTR(kIOHIDElementKey));
-                {
-                    /* refCFTopElement points to an array of element dictionaries */
-                    CFRange range = { 0, CFArrayGetCount(refCFTopElement) };
-                    CFArrayApplyFunction(refCFTopElement, range,
-                                         HIDTopLevelElementHandler, pDevice);
-                }
-            }
-
-            CFRelease(usbProperties);
-        } else
-            XSDL_SetError
-                ("IORegistryEntryCreateCFProperties failed to create usbProperties.");
-
-        if (kIOReturnSuccess != IOObjectRelease(parent2))
-            XSDL_SetError("IOObjectRelease error with parent2.");
-        if (kIOReturnSuccess != IOObjectRelease(parent1))
-            XSDL_SetError("IOObjectRelease error with parent1.");
-    }
-}
-
-
-static recDevice *
-HIDBuildDevice(io_object_t hidDevice)
-{
-    recDevice *pDevice = (recDevice *) NewPtrClear(sizeof(recDevice));
-    if (pDevice) {
-        /* get dictionary for HID properties */
-        CFMutableDictionaryRef hidProperties = 0;
-        kern_return_t result =
-            IORegistryEntryCreateCFProperties(hidDevice, &hidProperties,
-                                              kCFAllocatorDefault,
-                                              kNilOptions);
-        if ((result == KERN_SUCCESS) && hidProperties) {
-            /* create device interface */
-            result = HIDCreateOpenDeviceInterface(hidDevice, pDevice);
-            if (kIOReturnSuccess == result) {
-                HIDGetDeviceInfo(hidDevice, hidProperties, pDevice);    /* hidDevice used to find parents in registry tree */
-                HIDGetCollectionElements(hidProperties, pDevice);
-            } else {
-                DisposePtr((Ptr) pDevice);
-                pDevice = NULL;
-            }
-            CFRelease(hidProperties);
-        } else {
-            DisposePtr((Ptr) pDevice);
-            pDevice = NULL;
-        }
-    }
-    return pDevice;
-}
-
-/* disposes of the element list associated with a device and the memory associated with the list
- */
-
-static void
-HIDDisposeElementList(recElement ** elementList)
-{
-    recElement *pElement = *elementList;
-    while (pElement) {
-        recElement *pElementNext = pElement->pNext;
-        DisposePtr((Ptr) pElement);
-        pElement = pElementNext;
-    }
-    *elementList = NULL;
-}
-
-/* disposes of a single device, closing and releaseing interface, freeing memory fro device and elements, setting device pointer to NULL
- * all your device no longer belong to us... (i.e., you do not 'own' the device anymore)
- */
-
-static recDevice *
-HIDDisposeDevice(recDevice ** ppDevice)
-{
-    kern_return_t result = KERN_SUCCESS;
-    recDevice *pDeviceNext = NULL;
-    if (*ppDevice) {
-        /* save next device prior to disposing of this device */
-        pDeviceNext = (*ppDevice)->pNext;
-
-        /* free posible io_service_t */
-        if ((*ppDevice)->ffservice) {
-            IOObjectRelease((*ppDevice)->ffservice);
-            (*ppDevice)->ffservice = 0;
-        }
-
-        /* free element lists */
-        HIDDisposeElementList(&(*ppDevice)->firstAxis);
-        HIDDisposeElementList(&(*ppDevice)->firstButton);
-        HIDDisposeElementList(&(*ppDevice)->firstHat);
-
-        result = HIDCloseReleaseInterface(*ppDevice);   /* function sanity checks interface value (now application does not own device) */
-        if (kIOReturnSuccess != result)
-            HIDReportErrorNum
-                ("HIDCloseReleaseInterface failed when trying to dipose device.",
-                 result);
-        DisposePtr((Ptr) * ppDevice);
-        *ppDevice = NULL;
-    }
-    return pDeviceNext;
-}
-
-int XSDL_numjoysticks = 0;
-
-int XSDL_SYS_JoystickInit(void)
-{
-    IOReturn result = kIOReturnSuccess;
-    mach_port_t masterPort = 0;
-    io_iterator_t hidObjectIterator = 0;
-    CFMutableDictionaryRef hidMatchDictionary = NULL;
-    recDevice *device, *lastDevice;
-    io_object_t ioHIDDeviceObject = 0;
-
-    XSDL_numjoysticks = 0;
-
-    if (gpDeviceList) {
-        XSDL_SetError("Joystick: Device list already inited.");
-        return -1;
-    }
-
-    result = IOMasterPort(bootstrap_port, &masterPort);
-    if (kIOReturnSuccess != result) {
-        XSDL_SetError("Joystick: IOMasterPort error with bootstrap_port.");
-        return -1;
-    }
-
-    /* Set up a matching dictionary to search I/O Registry by class name for all HID class devices. */
-    hidMatchDictionary = IOServiceMatching(kIOHIDDeviceKey);
-    if (hidMatchDictionary) {
-        /* Add key for device type (joystick, in this case) to refine the matching dictionary. */
-
-        /* NOTE: we now perform this filtering later
-           UInt32 usagePage = kHIDPage_GenericDesktop;
-           UInt32 usage = kHIDUsage_GD_Joystick;
-           CFNumberRef refUsage = NULL, refUsagePage = NULL;
-
-           refUsage = CFNumberCreate (kCFAllocatorDefault, kCFNumberIntType, &usage);
-           CFDictionarySetValue (hidMatchDictionary, CFSTR (kIOHIDPrimaryUsageKey), refUsage);
-           refUsagePage = CFNumberCreate (kCFAllocatorDefault, kCFNumberIntType, &usagePage);
-           CFDictionarySetValue (hidMatchDictionary, CFSTR (kIOHIDPrimaryUsagePageKey), refUsagePage);
-         */
-    } else {
-        XSDL_SetError
-            ("Joystick: Failed to get HID CFMutableDictionaryRef via IOServiceMatching.");
-        return -1;
-    }
-
-    /*/ Now search I/O Registry for matching devices. */
-    result =
-        IOServiceGetMatchingServices(masterPort, hidMatchDictionary,
-                                     &hidObjectIterator);
-    /* Check for errors */
-    if (kIOReturnSuccess != result) {
-        XSDL_SetError("Joystick: Couldn't create a HID object iterator.");
-        return -1;
-    }
-    if (!hidObjectIterator) {   /* there are no joysticks */
-        gpDeviceList = NULL;
-        XSDL_numjoysticks = 0;
-        return 0;
-    }
-    /* IOServiceGetMatchingServices consumes a reference to the dictionary, so we don't need to release the dictionary ref. */
-
-    /* build flat linked list of devices from device iterator */
-
-    gpDeviceList = lastDevice = NULL;
-
-    while ((ioHIDDeviceObject = IOIteratorNext(hidObjectIterator))) {
-        /* build a device record */
-        device = HIDBuildDevice(ioHIDDeviceObject);
-        if (!device)
-            continue;
-
-        /* Filter device list to non-keyboard/mouse stuff */
-        if ((device->usagePage != kHIDPage_GenericDesktop) ||
-            ((device->usage != kHIDUsage_GD_Joystick &&
-              device->usage != kHIDUsage_GD_GamePad &&
-              device->usage != kHIDUsage_GD_MultiAxisController))) {
-
-            /* release memory for the device */
-            HIDDisposeDevice(&device);
-            DisposePtr((Ptr) device);
-            continue;
-        }
-
-        /* We have to do some storage of the io_service_t for
-         * SDL_HapticOpenFromJoystick */
-        device->ffservice = 0;
-/*
-        if (FFIsForceFeedback(ioHIDDeviceObject) == FF_OK) {
-            device->ffservice = ioHIDDeviceObject;
-        } else {
-            device->ffservice = 0;
-        }*/
-
-        /* Add device to the end of the list */
-        if (lastDevice)
-            lastDevice->pNext = device;
-        else
-            gpDeviceList = device;
-        lastDevice = device;
-    }
-    IOObjectRelease(hidObjectIterator);        /* release the iterator */
-
-    /* Count the total number of devices we found */
-    device = gpDeviceList;
-    while (device) {
-        XSDL_numjoysticks++;
-        device = device->pNext;
-    }
-
-    return XSDL_numjoysticks;
-}
-
-#if 0
-int
-XSDL_PrivateJoystickAxis(SDL_Joystick * joystick, Uint8 axis, Sint16 value)
-{
-    int posted;
-
-    /* Update internal joystick state */
-    joystick->axes[axis] = value;
-
-    /* Post the event, if desired */
-    posted = 0;
-#if 0
-    if (SDL_GetEventState(SDL_JOYAXISMOTION) == SDL_ENABLE) {
-        SDL_Event event;
-        event.type = SDL_JOYAXISMOTION;
-        event.jaxis.which = joystick->index;
-        event.jaxis.axis = axis;
-        event.jaxis.value = value;
-        if ((SDL_EventOK == NULL)
-            || (*SDL_EventOK) (SDL_EventOKParam, &event)) {
-            posted = 1;
-            SDL_PushEvent(&event);
-        }
-    }
-#endif /* !SDL_EVENTS_DISABLED */
-    return (posted);
-}
-
-
-int
-XSDL_PrivateJoystickHat(SDL_Joystick * joystick, Uint8 hat, Uint8 value)
-{
-    int posted;
-
-    /* Update internal joystick state */
-    joystick->hats[hat] = value;
-
-    /* Post the event, if desired */
-    posted = 0;
-#if 0
-    if (SDL_GetEventState(SDL_JOYHATMOTION) == SDL_ENABLE) {
-        SDL_Event event;
-        event.jhat.type = SDL_JOYHATMOTION;
-        event.jhat.which = joystick->index;
-        event.jhat.hat = hat;
-        event.jhat.value = value;
-        if ((SDL_EventOK == NULL)
-            || (*SDL_EventOK) (SDL_EventOKParam, &event)) {
-            posted = 1;
-            SDL_PushEvent(&event);
-        }
-    }
-#endif /* !SDL_EVENTS_DISABLED */
-    return (posted);
-}
-#endif
-
-
-/* Function to update the state of a joystick - called as a device poll.
- * This function shouldn't update the joystick structure directly,
- * but instead should call SDL_PrivateJoystick*() to deliver events
- * and update joystick device state.
- */
-void
-XSDL_SYS_JoystickUpdate(int joy_index)
-{
-    recDevice *device = (recDevice*) _glfwJoy[joy_index].Device;
-    recElement *element;
-    SInt32 value;
-    //SInt32 range;
     int i;
 
-    if (device->removed) {      /* device was unplugged; ignore it. */
-        if (device->uncentered) {
-            device->uncentered = 0;
+    if( joystick->present )
+    {
+        joystick->present = GL_FALSE;
 
-            /* Tell the app that everything is centered/unpressed... */
-            for (i = 0; i < device->axes; i++)
-                _glfwJoy[joy_index].Axis[i] = 0;
-
-            for (i = 0; i < device->buttons; i++)
-                _glfwJoy[joy_index].Button[i] = GLFW_RELEASE;
-
-            //for (i = 0; i < device->hats; i++)
-              //  XSDL_PrivateJoystickHat(joystick, i, SDL_HAT_CENTERED);
+        for( i = 0;  i < joystick->numAxes;  i++ )
+        {
+            _glfwJoystickElement* axes =
+                (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick->axes, i );
+            free( axes );
         }
+        CFArrayRemoveAllValues( joystick->axes );
+        joystick->numAxes = 0;
 
+        for( i = 0;  i < joystick->numButtons;  i++ )
+        {
+            _glfwJoystickElement* button =
+                (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick->buttons, i );
+            free( button );
+        }
+        CFArrayRemoveAllValues( joystick->buttons );
+        joystick->numButtons = 0;
+
+        for( i = 0;  i < joystick->numHats;  i++ )
+        {
+            _glfwJoystickElement* hat =
+                (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick->hats, i );
+            free( hat );
+        }
+        CFArrayRemoveAllValues( joystick->hats );
+        joystick->hats = 0;
+
+        (*(joystick->interface))->close( joystick->interface );
+        (*(joystick->interface))->Release( joystick->interface );
+
+        joystick->interface = NULL;
+    }
+}
+
+
+//========================================================================
+// Callback for user-initiated joystick removal
+//========================================================================
+
+static void removalCallback( void* target, IOReturn result, void* refcon, void* sender )
+{
+    removeJoystick( (_glfwJoystick*) refcon );
+}
+
+
+//========================================================================
+// Polls for joystick events and updates GFLW state
+//========================================================================
+
+static void pollJoystickEvents( void )
+{
+    int i;
+    CFIndex j;
+
+    for( i = 0;  i < GLFW_JOYSTICK_LAST + 1;  i++ )
+    {
+        _glfwJoystick* joystick = &_glfwJoysticks[i];
+
+        if( joystick->present )
+        {
+            for( j = 0;  j < joystick->numButtons;  j++ )
+            {
+                _glfwJoystickElement* button =
+                    (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick->buttons, j );
+                button->value = getElementValue( joystick, button );
+            }
+
+            for( j = 0;  j < joystick->numAxes;  j++ )
+            {
+                _glfwJoystickElement* axes =
+                    (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick->axes, j );
+                // axes->value = getElementValue( joystick, axes );
+                long value = getElementValue( joystick, axes );
+                long t_min = -32768;
+                long t_max = 32767;
+                float deviceScale = t_max - t_min;
+                float readScale = axes->maxReport - axes->minReport;
+                if (readScale != 0)
+                    value = ((value - axes->minReport) * deviceScale / readScale) + t_min;
+                axes->value = value;
+            }
+
+            for( j = 0;  j < joystick->numHats;  j++ )
+            {
+                _glfwJoystickElement* hat =
+                    (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick->hats, j );
+                int value = getElementValue(joystick, hat) - hat->min;
+
+                uint8_t pos = 0;
+                int range = (hat->max - hat->min + 1);
+                if (range == 4)         /* 4 position hatswitch - scale up value */
+                    value *= 2;
+                else if (range != 8)    /* Neither a 4 nor 8 positions - fall back to default position (centered) */
+                    value = -1;
+                switch (value) {
+                    case 0:
+                        pos = GLFW_HAT_UP;
+                        break;
+                    case 1:
+                        pos = GLFW_HAT_RIGHTUP;
+                        break;
+                    case 2:
+                        pos = GLFW_HAT_RIGHT;
+                        break;
+                    case 3:
+                        pos = GLFW_HAT_RIGHTDOWN;
+                        break;
+                    case 4:
+                        pos = GLFW_HAT_DOWN;
+                        break;
+                    case 5:
+                        pos = GLFW_HAT_LEFTDOWN;
+                        break;
+                    case 6:
+                        pos = GLFW_HAT_LEFT;
+                        break;
+                    case 7:
+                        pos = GLFW_HAT_LEFTUP;
+                        break;
+                    default:
+                        /* Every other value is mapped to center. We do that because some
+                         * joysticks use 8 and some 15 for this value, and apparently
+                         * there are even more variants out there - so we try to be generous.
+                         */
+                        pos = GLFW_HAT_CENTERED;
+                        break;
+                }
+                if (pos != hat->value)
+                    hat->value = pos;
+            }
+        }
+    }
+}
+
+static void joystickAddedCallback(void* inContext, IOReturn inResult, void* inSender, IOHIDDeviceRef device)
+{
+    _glfwJoystick* joystick = NULL;
+    for (int i = 0; i <= GLFW_JOYSTICK_LAST; ++i)
+    {
+        if (!_glfwJoysticks[i].present) {
+            joystick = &_glfwJoysticks[i];
+            break;
+        }
+    }
+
+    if (!joystick) {
+        printf("Couldn't find any unused joystick entries, skipping newly connected.\n");
         return;
     }
 
-    element = device->firstAxis;
-    i = 0;
-    while (element) {
-        value = HIDScaledCalibratedValue(device, element, -32768, 32767);
-        _glfwJoy[joy_index].Axis[i] = value;
-        //if (value != joystick->axes[i])
-          //  XSDL_PrivateJoystickAxis(joystick, i, value);
-        element = element->pNext;
-        ++i;
+    IOCFPlugInInterface** ppPlugInInterface = NULL;
+    HRESULT plugInResult = S_OK;
+    SInt32 score = 0;
+
+    CFMutableDictionaryRef hidProperties = 0;
+    kern_return_t result;
+    CFTypeRef refCF = 0;
+
+    long usagePage, usage;
+
+    io_service_t hid_device_service = IOHIDDeviceGetService(device);
+
+    result = IORegistryEntryCreateCFProperties( hid_device_service,
+                                                &hidProperties,
+                                                kCFAllocatorDefault,
+                                                kNilOptions );
+
+    if( result != kIOReturnSuccess )
+    {
+        printf("IORegistryEntryCreateCFProperties failed\n");
+        return;
     }
 
-    element = device->firstButton;
-    i = 0;
-    while (element) {
-        value = HIDGetElementValue(device, element);
-        if (value > 1)          /* handle pressure-sensitive buttons */
-            value = 1;
-        _glfwJoy[joy_index].Button[i] = value ? GLFW_PRESS : GLFW_RELEASE;
-        //if (value != joystick->buttons[i])
-          //  XSDL_PrivateJoystickButton(joystick, i, value);
-        element = element->pNext;
-        ++i;
-    }
-
-#if 0
-    element = device->firstHat;
-    i = 0;
-    while (element) {
-        uint8_t pos = 0;
-
-        range = (element->max - element->min + 1);
-        value = HIDGetElementValue(device, element) - element->min;
-        if (range == 4)         /* 4 position hatswitch - scale up value */
-            value *= 2;
-        else if (range != 8)    /* Neither a 4 nor 8 positions - fall back to default position (centered) */
-            value = -1;
-        switch (value) {
-        case 0:
-            pos = SDL_HAT_UP;
-            break;
-        case 1:
-            pos = SDL_HAT_RIGHTUP;
-            break;
-        case 2:
-            pos = SDL_HAT_RIGHT;
-            break;
-        case 3:
-            pos = SDL_HAT_RIGHTDOWN;
-            break;
-        case 4:
-            pos = SDL_HAT_DOWN;
-            break;
-        case 5:
-            pos = SDL_HAT_LEFTDOWN;
-            break;
-        case 6:
-            pos = SDL_HAT_LEFT;
-            break;
-        case 7:
-            pos = SDL_HAT_LEFTUP;
-            break;
-        default:
-            /* Every other value is mapped to center. We do that because some
-             * joysticks use 8 and some 15 for this value, and apparently
-             * there are even more variants out there - so we try to be generous.
-             */
-            pos = SDL_HAT_CENTERED;
-            break;
+    // Check device type
+    refCF = CFDictionaryGetValue( hidProperties, CFSTR( kIOHIDPrimaryUsagePageKey ) );
+    if( refCF )
+    {
+        CFNumberGetValue( refCF, kCFNumberLongType, &usagePage );
+        if( usagePage != kHIDPage_GenericDesktop )
+        {
+            // We are not interested in this device
+            return;
         }
-        if (pos != joystick->hats[i])
-            SDL_PrivateJoystickHat(joystick, i, pos);
-        element = element->pNext;
-        ++i;
     }
-#endif
 
-    return;
+    refCF = CFDictionaryGetValue( hidProperties, CFSTR( kIOHIDPrimaryUsageKey ) );
+    if( refCF )
+    {
+        CFNumberGetValue( refCF, kCFNumberLongType, &usage );
+
+        if( usage != kHIDUsage_GD_Joystick &&
+            usage != kHIDUsage_GD_GamePad &&
+            usage != kHIDUsage_GD_MultiAxisController )
+        {
+            // We are not interested in this device
+            return;
+        }
+    }
+
+    result = IOCreatePlugInInterfaceForService( hid_device_service,
+                                                kIOHIDDeviceUserClientTypeID,
+                                                kIOCFPlugInInterfaceID,
+                                                &ppPlugInInterface,
+                                                &score );
+
+    if( kIOReturnSuccess != result )
+    {
+        printf("IOCreatePlugInInterfaceForService was not successfull.\n");
+        return;
+    }
+
+    plugInResult = (*ppPlugInInterface)->QueryInterface( ppPlugInInterface,
+                                                         CFUUIDGetUUIDBytes( kIOHIDDeviceInterfaceID ),
+                                                         (void *) &(joystick->interface) );
+
+    if( plugInResult != S_OK )
+    {
+        printf("QueryInterface was not successfull.\n");
+        return;
+    }
+
+    (*ppPlugInInterface)->Release( ppPlugInInterface );
+
+    (*(joystick->interface))->open( joystick->interface, 0 );
+    (*(joystick->interface))->setRemovalCallback( joystick->interface,
+                                                  removalCallback,
+                                                  joystick,
+                                                  joystick );
+
+    // Get product string
+    refCF = CFDictionaryGetValue( hidProperties, CFSTR( kIOHIDProductKey ) );
+    if( refCF )
+    {
+        CFStringGetCString( refCF,
+                            (char*) &(joystick->product),
+                            256,
+                            CFStringGetSystemEncoding() );
+    }
+
+    joystick->hid_service = hid_device_service;
+    joystick->present = GL_TRUE;
+    joystick->numAxes = 0;
+    joystick->numButtons = 0;
+    joystick->numHats = 0;
+    joystick->axes = CFArrayCreateMutable( NULL, 0, NULL );
+    joystick->buttons = CFArrayCreateMutable( NULL, 0, NULL );
+    joystick->hats = CFArrayCreateMutable( NULL, 0, NULL );
+
+    CFTypeRef refTopElement = CFDictionaryGetValue( hidProperties,
+                                                    CFSTR( kIOHIDElementKey ) );
+    CFTypeID type = CFGetTypeID( refTopElement );
+    if( type == CFArrayGetTypeID() )
+    {
+        CFRange range = { 0, CFArrayGetCount( refTopElement ) };
+        CFArrayApplyFunction( refTopElement,
+                              range,
+                              GetElementsCFArrayHandler,
+                              (void*) joystick);
+    }
+
+    if (_glfwWin.gamepadCallback) {
+        _glfwWin.gamepadCallback(joystick->index, 1);
+    }
 }
+
+static void joystickRemovedCallback(void* inContext, IOReturn inResult, void* inSender, IOHIDDeviceRef device) {
+    io_service_t hid_device_service = IOHIDDeviceGetService(device);
+
+    for (int i = 0; i <= GLFW_JOYSTICK_LAST; ++i)
+    {
+        _glfwJoystick* joystick = &_glfwJoysticks[i];
+        if (joystick->present && joystick->hid_service == hid_device_service) {
+            joystick->hid_service = 0;
+
+            removeJoystick(joystick);
+
+            if (_glfwWin.gamepadCallback) {
+                _glfwWin.gamepadCallback(joystick->index, 0);
+            }
+            return;
+        }
+    }
+
+    printf("Couldn't find any newly disconnected joystick, skipping.\n");
+}
+
+//************************************************************************
+//****                  GLFW internal functions                       ****
+//************************************************************************
+
+//========================================================================
+// Initialize joystick interface
+//========================================================================
 
 int _glfwInitJoysticks( void )
 {
-    int i;
-    // Start by saying that there are no sticks
-    for( i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
+    for( int i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
     {
-        _glfwJoy[ i ].Present = GL_FALSE;
-        _glfwJoy[ i ].Device = 0;
+        _glfwJoysticks[ i ].index = i;
+        _glfwJoysticks[ i ].present = GL_FALSE;
     }
 
-    int ret = XSDL_SYS_JoystickInit();
-    if (ret == -1)
-        return GL_FALSE;
-    else
+    mach_port_t masterPort = 0;
+    CFMutableDictionaryRef hidMatchDictionary = NULL;
+    io_object_t ioHIDDeviceObject = 0;
+
+    gHidManager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
+
+    NSMutableArray *criterionArray = [NSMutableArray arrayWithCapacity:3];
     {
-        recDevice* device = gpDeviceList;
-        int i = 0;
-        while (device)
-        {
-            //printf("%d: %s\n", i, device->product);
-            _glfwJoy[i].Present = GL_TRUE;
-            _glfwJoy[i].Device = device;
-            _glfwJoy[i].NumAxes = device->axes;
-            _glfwJoy[i].Axis = malloc(sizeof(float) * device->axes);
-
-            _glfwJoy[i].NumButtons = device->buttons;
-            _glfwJoy[i].Button = malloc(sizeof(unsigned char) * device->buttons);
-
-            i++;
-            device = device->pNext;
-        }
-
-        return GL_TRUE;
+        NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
+            [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
+            [criterion setObject: [NSNumber numberWithInt: kHIDUsage_GD_Joystick]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsageKey)];
+        [criterionArray addObject:criterion];
     }
-}
-
-int _glfwTerminateJoysticks()
-{
-    while (NULL != gpDeviceList)
-        gpDeviceList = HIDDisposeDevice(&gpDeviceList);
-
-    int i;
-    for( i = 0; i <= GLFW_JOYSTICK_LAST; ++ i )
     {
-        if (_glfwJoy[i].Axis)
-            free(_glfwJoy[i].Axis);
-
-        if (_glfwJoy[i].Button)
-            free(_glfwJoy[i].Button);
-
-        _glfwJoy[i].Axis = 0;
-        _glfwJoy[i].Button = 0;
+        NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
+            [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
+            [criterion setObject: [NSNumber numberWithInt: kHIDUsage_GD_GamePad]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsageKey)];
+        [criterionArray addObject:criterion];
     }
+    {
+        NSMutableDictionary* criterion = [NSMutableDictionary dictionaryWithCapacity: 2];
+            [criterion setObject: [NSNumber numberWithInt: kHIDPage_GenericDesktop]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsagePageKey)];
+            [criterion setObject: [NSNumber numberWithInt: kHIDUsage_GD_MultiAxisController]
+                          forKey: (NSString*)CFSTR(kIOHIDDeviceUsageKey)];
+        [criterionArray addObject:criterion];
+    }
+
+    IOHIDManagerSetDeviceMatchingMultiple(gHidManager, (__bridge CFArrayRef)criterionArray);
+    IOHIDManagerRegisterDeviceMatchingCallback(gHidManager, joystickAddedCallback, NULL);
+    IOHIDManagerRegisterDeviceRemovalCallback(gHidManager, joystickRemovedCallback, NULL);
+    IOHIDManagerScheduleWithRunLoop(gHidManager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    IOHIDManagerOpen(gHidManager, kIOHIDOptionsTypeNone);
 
     return GL_TRUE;
 }
 
+
+//========================================================================
+// Close all opened joystick handles
+//========================================================================
+
+void _glfwTerminateJoysticks( void )
+{
+    int i;
+
+    for( i = 0;  i < GLFW_JOYSTICK_LAST + 1;  i++ )
+    {
+        _glfwJoystick* joystick = &_glfwJoysticks[i];
+        removeJoystick( joystick );
+    }
+
+    IOHIDManagerClose(gHidManager, kIOHIDOptionsTypeNone);
+}
+
+
+//************************************************************************
+//****               Platform implementation functions                ****
+//************************************************************************
+
+//========================================================================
+// Determine joystick capabilities
+//========================================================================
+
 int _glfwPlatformGetJoystickParam( int joy, int param )
 {
-    if (param == GLFW_PRESENT)
+    if( !_glfwJoysticks[joy].present )
     {
-        if (joy < GLFW_JOYSTICK_LAST)
-        {
-            return _glfwJoy[ joy ].Present;
-        }
-        else
-        {
-            return GL_FALSE;
-        }
-    }
-    else if (param == GLFW_AXES)
-    {
-        return _glfwJoy[ joy ].NumAxes;
-    }
-    else if (param == GLFW_BUTTONS)
-    {
-        return _glfwJoy[ joy ].NumButtons;
-    }
-    else
-    {
+        // TODO: Figure out if this is an error
         return GL_FALSE;
     }
+
+    switch( param )
+    {
+        case GLFW_PRESENT:
+            return GL_TRUE;
+
+        case GLFW_AXES:
+            return (int) CFArrayGetCount( _glfwJoysticks[joy].axes );
+
+        case GLFW_BUTTONS:
+            return (int) CFArrayGetCount( _glfwJoysticks[joy].buttons );
+
+        case GLFW_HATS:
+            return (int) CFArrayGetCount( _glfwJoysticks[joy].hats );
+
+        default:
+            break;
+    }
+
+    return GL_FALSE;
 }
+
+
+//========================================================================
+// Get joystick axis positions
+//========================================================================
 
 int _glfwPlatformGetJoystickPos( int joy, float *pos, int numaxes )
 {
+    int i;
 
-    int       i;
-
-    // Is joystick present?
-    if( !_glfwJoy[ joy ].Present )
+    if( joy < GLFW_JOYSTICK_1 || joy > GLFW_JOYSTICK_LAST )
     {
         return 0;
     }
 
+    _glfwJoystick joystick = _glfwJoysticks[joy];
+
+    if( !joystick.present )
+    {
+        // TODO: Figure out if this is an error
+        return 0;
+    }
+
+    numaxes = numaxes < joystick.numAxes ? numaxes : joystick.numAxes;
 
     // Update joystick state
-    if (joy < XSDL_numjoysticks)
-    {
-        XSDL_SYS_JoystickUpdate(joy);
-    }
+    pollJoystickEvents();
 
-    // Does the joystick support less axes than requested?
-    if( _glfwJoy[ joy ].NumAxes < numaxes )
+    for( i = 0;  i < numaxes;  i++ )
     {
-        numaxes = _glfwJoy[ joy ].NumAxes;
-    }
+        _glfwJoystickElement* axes =
+            (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick.axes, i );
 
-    // Copy axis positions from internal state
-    for( i = 0; i < numaxes; ++ i )
-    {
-        pos[ i ] = _glfwJoy[ joy ].Axis[ i ];
+        pos[ i ] = axes->value;
         pos[ i ] = (((pos[ i ] + 32768.0f) / 32767.5f) - 1.0f);
     }
 
     return numaxes;
 }
 
+
+//========================================================================
+// Get joystick button states
+//========================================================================
+
 int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons )
 {
-    int       i;
+    int button;
 
-    // Is joystick present?
-    if( !_glfwJoy[ joy ].Present )
+    if( joy < GLFW_JOYSTICK_1 || joy > GLFW_JOYSTICK_LAST )
     {
         return 0;
     }
 
+    _glfwJoystick joystick = _glfwJoysticks[joy];
+
+    if( !joystick.present )
+    {
+        // TODO: Figure out if this is an error
+        return 0;
+    }
+
     // Update joystick state
-    if (joy < XSDL_numjoysticks)
+    pollJoystickEvents();
+
+    for( button = 0;  button < numbuttons && button < joystick.numButtons;  button++ )
     {
-        XSDL_SYS_JoystickUpdate(joy);
+        _glfwJoystickElement* element = (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick.buttons, button );
+        buttons[button] = element->value ? GLFW_PRESS : GLFW_RELEASE;
     }
 
-    // Does the joystick support less buttons than requested?
-    if( _glfwJoy[ joy ].NumButtons < numbuttons )
+    return button;
+}
+
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    int i, value;
+
+    if( joy < GLFW_JOYSTICK_1 || joy > GLFW_JOYSTICK_LAST )
     {
-        numbuttons = _glfwJoy[ joy ].NumButtons;
+        return 0;
     }
 
-    // Copy button states from internal state
-    for( i = 0; i < numbuttons; ++ i )
+    _glfwJoystick joystick = _glfwJoysticks[joy];
+
+    // Is joystick present?
+    if( !joystick.present )
     {
-        buttons[ i ] = _glfwJoy[ joy ].Button[ i ];
+        return 0;
     }
 
-    return numbuttons;
+    // Does the joystick support less hats than requested?
+    if( joystick.numHats < numhats )
+    {
+        numhats = joystick.numHats;
+    }
+
+    // Update joystick state
+    pollJoystickEvents();
+
+    // Copy hat states from internal state
+    for( i = 0; i < numhats; ++ i )
+    {
+        _glfwJoystickElement* element = (_glfwJoystickElement*) CFArrayGetValueAtIndex( joystick.hats, i );
+        hats[i] = element->value;
+    }
+
+    return numhats;
 }
 
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
 {
     // Is joystick present?
-    if( !_glfwJoy[ joy ].Present )
+    if( !_glfwJoysticks[ joy ].present )
     {
         return GL_FALSE;
     }
     else
     {
-        recDevice* d = (recDevice*) _glfwJoy[ joy ].Device;
-        *device_id = d->product;
+        *device_id = _glfwJoysticks[ joy ].product;
         return GL_TRUE;
     }
 }

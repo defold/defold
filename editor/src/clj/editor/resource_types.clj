@@ -29,6 +29,7 @@
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
             [editor.rig :as rig]
+            [editor.script-api :as script-api]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.sprite :as sprite]
@@ -71,4 +72,6 @@
       (tile-source/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
-      (code-text-file/register-resource-types workspace))))
+      (code-text-file/register-resource-types workspace)
+      (script-api/register-resource-types workspace))))
+

@@ -8,8 +8,7 @@ repositories {
 }
 
 dependencies {
-    compile 'com.google.firebase:firebase-messaging:17.3.4'
-    compile 'com.google.firebase:firebase-core:16.0.7'
+    compile 'com.google.android.gms:play-services-ads-identifier:16.0.0'
     compile 'com.google.android.gms:play-services-base:16.0.1'
     compile 'com.android.support:support-v4:27.1.1'
     compile 'com.android.support:support-compat:27.1.1'
@@ -114,7 +113,15 @@ task createDefoldPackage(dependsOn: fixResPermissions, type: Tar) {
     destinationDir file("./")
 }
 
-build.dependsOn createDefoldPackage
+task duplicateArchive(dependsOn: createDefoldPackage, type: Copy) {
+    from createDefoldPackage
+    into "./"
+    rename { String fileName ->
+        fileName.replace(fileName, "android-support-v4-arm64-android.tar.gz")
+    }
+}
+
+build.dependsOn duplicateArchive
 
 clean {
     delete "${project.buildDir}"

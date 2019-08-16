@@ -36,8 +36,7 @@ Important: *Make sure your branches are up to date!*
 
     This will trigger the beta channel to be built on build bot.
 
- 1. Wait for [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta) to finish, make sure autobuilders are green.
- 1. Write release beta release notes.
+ 1. Wait for [editor2-beta](http://ci.defold.com/builders/editor2-beta) to finish, make sure autobuilders are green.
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -63,13 +62,17 @@ Important: *Make sure your branches are up to date!*
 
     Important: *Make sure the SHA1 and channel is correct!*
 
- 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
+ 1. Build QRT test apps on [Jenkins](https://jenkins-defold.ess.midasplayer.com/job/defold-qrt_pipeline) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/)) ([older link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
 
     Log in and open "Build with Parameters"
 
     In "DEFOLD_CHANNEL" select "beta"
 
     Let ATL or PO know about the started build so they can monitor and smoke test the apps when build is done.
+
+ 1. Write release beta release notes (while CI builds the test apps)
+
+ 1. (Optional) Verify dev mobile apps from [app store](https://app-store.king.com/#/builds/DefoldQRT?filterByUserAgent=true&buildName=beta&onlyFeaturedBuilds=false)
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
@@ -86,9 +89,11 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
-Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [App Store/DefoldQRT](https://app-store.king.com/#/builds/DefoldQRT)
 
 You can also download desktop and html5 versions from the artifacts on that page.
+
+Upload the IAP Tester to Amazon by following [these instructions](https://kingfluence.com/display/Defold/How+to+upload+to+Amazon)
 
 ### Defold Team
 The following smoke tests are currently performed by the team on each platform (OSX, Win, Linux):

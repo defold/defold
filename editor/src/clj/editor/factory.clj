@@ -3,6 +3,7 @@
             [plumbing.core :as pc]
             [dynamo.graph :as g]
             [editor.colors :as colors]
+            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -41,6 +42,7 @@
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
+   :navigation false
    :sections [{:title (get-in factory-types [factory-type :title])
                :fields [{:path [:prototype]
                          :label "Prototype"
@@ -73,13 +75,14 @@
             dep-resources (map (fn [[label resource]]
                                  [label (get deps-by-resource resource)])
                                [[:prototype prototype]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-factory
-          :user-data {:pb-msg pb-msg
-                      :pb-type (get-in factory-types [factory-type :pb-type])
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-factory
+            :user-data {:pb-msg pb-msg
+                        :pb-type (get-in factory-types [factory-type :pb-type])
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (defn load-factory
   [factory-type project self resource factory]
@@ -138,7 +141,7 @@
                                      :ddf-type GameSystem$FactoryDesc
                                      :load-fn (partial load-factory :game-object)
                                      :icon (get-in factory-types [:game-object :icon])
-                                     :view-types [:form-view :text]
+                                     :view-types [:cljfx-form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
                                      :tag-opts {:component {:transform-properties #{}}}
@@ -150,7 +153,7 @@
                                      :ddf-type GameSystem$CollectionFactoryDesc
                                      :load-fn (partial load-factory :collection)
                                      :icon (get-in factory-types [:collection :icon])
-                                     :view-types [:form-view :text]
+                                     :view-types [:cljfx-form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
                                      :tag-opts {:component {:transform-properties #{}}}

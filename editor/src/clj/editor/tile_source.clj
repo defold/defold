@@ -1,45 +1,43 @@
 (ns editor.tile-source
-  (:require
-   [clojure.string :as str]
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.camera :as camera]
-   [editor.collision-groups :as collision-groups]
-   [editor.colors :as colors]
-   [editor.graph-util :as gu]
-   [editor.image :as image]
-   [editor.image-util :as image-util]
-   [editor.workspace :as workspace]
-   [editor.resource :as resource]
-   [editor.resource-io :as resource-io]
-   [editor.resource-node :as resource-node]
-   [editor.defold-project :as project]
-   [editor.handler :as handler]
-   [editor.gl :as gl]
-   [editor.gl.shader :as shader]
-   [editor.gl.texture :as texture]
-   [editor.gl.vertex :as vtx]
-   [editor.geom :as geom]
-   [editor.types :as types]
-   [editor.gl.pass :as pass]
-   [editor.pipeline.tex-gen :as tex-gen]
-   [editor.pipeline.texture-set-gen :as texture-set-gen]
-   [editor.properties :as properties]
-   [editor.scene :as scene]
-   [editor.texture-set :as texture-set]
-   [editor.outline :as outline]
-   [editor.protobuf :as protobuf]
-   [editor.util :as util]
-   [editor.validation :as validation])
-  (:import
-   [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
-   [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-   [com.google.protobuf ByteString]
-   [editor.types AABB]
-   [javax.vecmath Point3d Matrix4d Vector3d]
-   [com.jogamp.opengl GL GL2]
-   [java.awt.image BufferedImage]
-   [java.nio ByteBuffer ByteOrder FloatBuffer]))
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.build-target :as bt]
+            [editor.camera :as camera]
+            [editor.collision-groups :as collision-groups]
+            [editor.colors :as colors]
+            [editor.defold-project :as project]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
+            [editor.image :as image]
+            [editor.image-util :as image-util]
+            [editor.outline :as outline]
+            [editor.pipeline.tex-gen :as tex-gen]
+            [editor.pipeline.texture-set-gen :as texture-set-gen]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
+            [editor.texture-set :as texture-set]
+            [editor.types :as types]
+            [editor.util :as util]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]
+            [util.digestable :as digestable])
+  (:import [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+           [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
+           [com.jogamp.opengl GL2]
+           [editor.types AABB]
+           [java.awt.image BufferedImage]
+           [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -152,12 +150,13 @@
   (let [workspace (project/workspace (project/get-project _node-id))
         compress? (:compress-textures? build-settings false)
         texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-texture-set
-      :user-data {:texture-set texture-set
-                  :dep-resources [[:texture (:resource texture-target)]]}
-      :deps [texture-target]}]))
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-texture-set
+        :user-data {:texture-set texture-set
+                    :dep-resources [[:texture (:resource texture-target)]]}
+        :deps [texture-target]})]))
 
 (g/defnk produce-anim-data [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))
@@ -449,15 +448,17 @@
 
 
 (g/defnk produce-scene
-  [_node-id tile-source-attributes aabb uv-transforms texture-set gpu-texture convex-hulls collision-groups-data child-scenes]
+  [_node-id tile-source-attributes aabb layout-size uv-transforms texture-set texture-profile gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
     (let [user-data {:node-id _node-id
                      :tile-source-attributes tile-source-attributes
                      :uv-transforms uv-transforms
                      :gpu-texture gpu-texture
                      :convex-hulls convex-hulls
-                     :collision-groups-data collision-groups-data}]
+                     :collision-groups-data collision-groups-data}
+          [width height] layout-size]
       {:aabb aabb
+       :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
        :renderable {:render-fn render-tile-source
                     :tags #{:tile-source}
                     :user-data user-data
@@ -522,9 +523,8 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [tile-source-attributes animation-data collision-groups convex-hulls collision]}]
-  (let [animation-ddfs (mapv :ddf-message animation-data)]
-    (texture-set-gen/tile-source->texture-set-data tile-source-attributes convex-hulls collision-groups animation-ddfs)))
+(defn- generate-texture-set-data [{:keys [tile-source-attributes animation-ddfs collision-groups convex-hulls collision]}]
+  (texture-set-gen/tile-source->texture-set-data tile-source-attributes convex-hulls collision-groups animation-ddfs))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -613,8 +613,11 @@
   (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls collision tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
-                                                 {:f generate-texture-set-data
-                                                  :args args})))
+                                                 (let [animation-ddfs (mapv :ddf-message animation-data)]
+                                                   {:f generate-texture-set-data
+                                                    :args (-> args
+                                                              (dissoc :animation-data)
+                                                              (assoc :animation-ddfs animation-ddfs))}))))
 
   (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))
@@ -622,12 +625,16 @@
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
-                                          {:f generate-packed-image
-                                           :sha1 (resource/resource->sha1-hex image-resource)
-                                           :args {:_node-id _node-id
-                                                  :texture-set-data-generator texture-set-data-generator
-                                                  :image-resource image-resource
-                                                  :tile-source-attributes tile-source-attributes}}))
+                                         (let [packed-image-sha1 (digestable/sha1-hash
+                                                                   {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
+                                                                    :tile-source-attributes tile-source-attributes
+                                                                    :type :packed-tile-source-image})]
+                                           {:f generate-packed-image
+                                            :sha1 packed-image-sha1
+                                            :args {:_node-id _node-id
+                                                   :texture-set-data-generator texture-set-data-generator
+                                                   :image-resource image-resource
+                                                   :tile-source-attributes tile-source-attributes}})))
 
   (output packed-image BufferedImage (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 
@@ -694,7 +701,7 @@
 
 (g/defnk produce-active-tile
   [cursor-world-pos tile-source-attributes convex-hulls camera viewport]
-  (when (and cursor-world-pos (seq convex-hulls))
+  (when (some? cursor-world-pos)
     (let [{:keys [width height]} tile-source-attributes
           rows (:tiles-per-column tile-source-attributes)
           cols (:tiles-per-row tile-source-attributes)
@@ -704,8 +711,7 @@
           [x y :as tile] (world-pos->tile-pos cursor-world-pos width height x-border y-border)
           convex-hull (nth convex-hulls (+ x (* (- rows y 1) cols)) nil)]
       (when (and (<= 0 x (dec cols))
-                 (<= 0 y (dec rows))
-                 (not (zero? (or (:count convex-hull) 0))))
+                 (<= 0 y (dec rows)))
         tile))))
 
 (g/defnk produce-active-tile-idx
@@ -839,7 +845,10 @@
   (output active-tile-idx g/Any :cached produce-active-tile-idx)
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
-  (output input-handler Runnable :cached (g/constantly handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/fnk [active-tile-idx]
+                            (when (some? active-tile-idx)
+                              (str "Tile " (+ active-tile-idx 1))))))
 
 (defmethod scene/attach-tool-controller ::ToolController
   [_ tool-id view-id resource-id]

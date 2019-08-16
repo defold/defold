@@ -49,8 +49,10 @@
             ["F11" :step-into]
             ["F2" :rename]
             ["F5" :start-debugger]
-            ["F6" :continue]
-            ["F7" :break]
+            ["F5" :continue]
+            ["F6" :toggle-pane-left]
+            ["F7" :toggle-pane-bottom]
+            ["F8" :toggle-pane-right]
             ["F9" :toggle-breakpoint]
             ["Home" :beginning-of-line-text]
             ["Left" :left]
@@ -64,6 +66,7 @@
             ["Meta+Delete" :delete-to-end-of-line]
             ["Meta+Down" :end-of-file]
             ["Meta+E" :hide-selected]
+            ["Meta+F" :filter-form]
             ["Meta+F" :find-text]
             ["Meta+G" :find-next]
             ["Meta+L" :goto-line]
@@ -102,7 +105,6 @@
             ["Shift+E" :erase-tool]
             ["Shift+End" :select-end-of-line]
             ["Shift+F11" :step-out]
-            ["Shift+F5" :stop-debugger]
             ["Shift+Home" :select-beginning-of-line-text]
             ["Shift+Left" :left-major]
             ["Shift+Left" :select-left]
@@ -147,6 +149,7 @@
            ["Ctrl+Delete" :delete-next-word]
            ["Ctrl+E" :hide-selected]
            ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :filter-form]
            ["Ctrl+F" :find-text]
            ["Ctrl+G" :find-next]
            ["Ctrl+H" :replace-text]
@@ -183,8 +186,10 @@
            ["F11" :step-into]
            ["F2" :rename]
            ["F5" :start-debugger]
-           ["F6" :continue]
-           ["F7" :break]
+           ["F5" :continue]
+           ["F6" :toggle-pane-left]
+           ["F7" :toggle-pane-bottom]
+           ["F8" :toggle-pane-right]
            ["F9" :toggle-breakpoint]
            ["Home" :beginning-of-line-text]
            ["Left" :left]
@@ -245,6 +250,7 @@
            ["Ctrl+Delete" :delete-next-word]
            ["Ctrl+E" :hide-selected]
            ["Ctrl+End" :end-of-file]
+           ["Ctrl+F" :filter-form]
            ["Ctrl+F" :find-text]
            ["Ctrl+G" :find-next]
            ["Ctrl+H" :replace-text]
@@ -281,8 +287,10 @@
            ["F11" :step-into]
            ["F2" :rename]
            ["F5" :start-debugger]
-           ["F6" :continue]
-           ["F7" :break]
+           ["F5" :continue]
+           ["F6" :toggle-pane-left]
+           ["F7" :toggle-pane-bottom]
+           ["F8" :toggle-pane-right]
            ["F9" :toggle-breakpoint]
            ["Home" :beginning-of-line-text]
            ["Left" :left]
@@ -335,13 +343,15 @@
 (def ^:private default-allowed-duplicate-shortcuts
   #{"Alt+Down"
     "Alt+Up"
+    "Ctrl+F"
+    "Ctrl+H"
+    "F5"
+    "Meta+F"
     "Shift+Down"
     "Shift+Left"
     "Shift+Right"
     "Shift+Up"
-    "Ctrl+H"
-    "Space"
-    "F5"})
+    "Space"})
 
 ;; These are only (?) used in contexts where there is no text field
 ;; interested in the actual typable input.
@@ -567,7 +577,8 @@
                   (loop [[command & rest] commands]
                     (when (some? command)
                       (let [ret (ui/invoke-handler command-contexts command)]
-                        (if (= ret :editor.ui/not-active)
+                        (if (or (= ret ::ui/not-active)
+                                (= ret ::ui/not-enabled))
                           (recur rest)
                           ret)))))))
 

@@ -49,6 +49,8 @@ namespace dmGui
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
+    static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
+    static inline void ResetInternalNode(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -131,7 +133,7 @@ namespace dmGui
 
     static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        if (!user_data1 || !user_data2) 
+        if (!user_data1 || !user_data2)
         {
             return;
         }
@@ -166,6 +168,16 @@ namespace dmGui
     InputAction::InputAction()
     {
         memset(this, 0, sizeof(InputAction));
+    }
+
+    bool IsNodeValid(HScene scene, HNode node)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        if (index >= scene->m_Nodes.Size())
+            return false;
+        InternalNode* n = &scene->m_Nodes[index];
+        return n->m_Version == version && n->m_Index == index;
     }
 
     InternalNode* GetNode(HScene scene, HNode node)
@@ -922,13 +934,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     inline void CalculateNodeSize(InternalNode* in)
     {
         Node& n = in->m_Node;
-        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_NodeType == NODE_TYPE_SPINE) || (n.m_NodeType == NODE_TYPE_PARTICLEFX) || (n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
+        if(n.m_SizeMode == SIZE_MODE_MANUAL || n.m_NodeType == NODE_TYPE_SPINE ||
+           n.m_NodeType == NODE_TYPE_PARTICLEFX || n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET ||
+           n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
+        {
             return;
+        }
+
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
-        int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
+        int32_t anim_frames = anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
         int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
         anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
-        const float* tc = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_Start + anim_frame)<<3);
+        const float* tc = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_State.m_Start + anim_frame)<<3);
 
         float w,h;
         if(tc[0] != tc[2] && tc[3] != tc[5])
@@ -936,15 +953,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             // uv-rotated
             w = tc[2]-tc[0];
             h = tc[1]-tc[5];
-            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_OriginalTextureHeight;
-            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_OriginalTextureWidth;
+            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_State.m_OriginalTextureHeight;
+            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_State.m_OriginalTextureWidth;
         }
         else
         {
             w = tc[4]-tc[0];
             h = tc[3]-tc[1];
-            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_OriginalTextureWidth;
-            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_OriginalTextureHeight;
+            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_State.m_OriginalTextureWidth;
+            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_State.m_OriginalTextureHeight;
         }
     }
 
@@ -1275,12 +1292,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                 if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
                 {
+                    HNode hnode = GetNodeHandle(n);
                     uint32_t alive_count = scene->m_AliveParticlefxs.Size();
                     for (uint32_t i = 0; i < alive_count; ++i)
                     {
                         ParticlefxComponent* comp = &scene->m_AliveParticlefxs[i];
-                        InternalNode* comp_node = GetNode(scene, comp->m_Node);
-                        if (comp_node->m_Version == n->m_Version && comp_node->m_NameHash == n->m_NameHash)
+                        if (hnode == comp->m_Node)
                         {
                             uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
 
@@ -1410,7 +1427,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             } else {
                 c->m_StencilScopes.Push(0x0);
             }
-            UpdateTextureSetAnimData(scene, n);
         }
 
         scene->m_ResChanged = 0;
@@ -1440,17 +1456,19 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
-        uint32_t n = animations->Size();
 
         uint32_t active_animations = 0;
 
-        for (uint32_t i = 0; i < n; ++i)
+        for (uint32_t i = 0; i < animations->Size(); ++i)
         {
             Animation* anim = &(*animations)[i];
 
+            dmGui::Playback playback = anim->m_Playback;
+            bool looping = playback == PLAYBACK_LOOP_FORWARD || playback == PLAYBACK_LOOP_BACKWARD || playback == PLAYBACK_LOOP_PINGPONG;
+
             if (anim->m_Elapsed > anim->m_Duration
                 || anim->m_Cancelled
-                || (anim->m_Elapsed == anim->m_Duration && anim->m_Duration != 0))
+                || (!looping && anim->m_Elapsed == anim->m_Duration && anim->m_Duration != 0))
             {
                 continue;
             }
@@ -1468,13 +1486,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     anim->m_FirstUpdate = 0;
                     // Compensate Elapsed with Delay underflow
                     anim->m_Elapsed = -anim->m_Delay;
+                    anim->m_Delay = 0;
                 }
 
                 // NOTE: We add dt to elapsed before we calculate t.
                 // Example: 60 updates with dt=1/60.0 should result in a complete animation
-                anim->m_Elapsed += dt;
+                anim->m_Elapsed += dt*anim->m_PlaybackRate;
+
                 // Clamp elapsed to duration if we are closer than half a time step
-                anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
+                anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * anim->m_PlaybackRate * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
                 // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
                 float t = 1.0f;
                 if (anim->m_Duration != 0)
@@ -1482,10 +1502,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
                 }
                 float t2 = t;
-                if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
+                if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
                 }
-                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG || anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                if (playback == PLAYBACK_ONCE_PINGPONG || playback == PLAYBACK_LOOP_PINGPONG) {
                     t2 *= 2.0f;
                     if (t2 > 1.0f) {
                         t2 = 2.0f - t2;
@@ -1501,22 +1521,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 // Animation complete, see above
                 if (t >= 1.0f)
                 {
-                    bool looping = anim->m_Playback == PLAYBACK_LOOP_FORWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_PINGPONG;
                     if (looping) {
                         anim->m_Elapsed = anim->m_Elapsed - anim->m_Duration;
-                        if (anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                        if (playback == PLAYBACK_LOOP_PINGPONG) {
                             anim->m_Backwards ^= 1;
                         }
                     } else {
-                        if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                        if (!anim->m_AnimationCompleteCalled)
                         {
                             // NOTE: Very important to set m_AnimationCompleteCalled to 1
                             // before invoking the call-back. The call-back could potentially
                             // start a new animation that could reuse the same animation slot.
                             anim->m_AnimationCompleteCalled = 1;
-                            anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
 
-                            if (anim->m_Easing.release_callback != 0x0)
+                            if (anim->m_AnimationComplete)
+                            {
+                                anim->m_AnimationComplete(scene, anim->m_Node, true, anim->m_Userdata1, anim->m_Userdata2);
+                            }
+                            if (anim->m_Easing.release_callback)
                             {
                                 anim->m_Easing.release_callback(&anim->m_Easing);
                             }
@@ -1530,13 +1552,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        n = animations->Size();
+        uint32_t n = animations->Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
 
             if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
             {
+                // If we have cancelled an animation, its callback won't be called which means
+                // we potentially get dangling lua refs in the script system
+                if (anim->m_Cancelled && anim->m_AnimationComplete)
+                {
+                    if (!anim->m_AnimationCompleteCalled)
+                    {
+                        anim->m_AnimationCompleteCalled = 1;
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
+                }
+
                 animations->EraseSwap(i);
                 i--;
                 n--;
@@ -1818,32 +1851,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             Result result = RESULT_OK;
 
-            const char* function_source = scene->m_Script->m_SourceFileName;
-            const char* function_name = SCRIPT_FUNCTION_NAMES[script_function];
-            char function_line_number_buffer[16];
-
-            if (dmProfile::g_IsInitialized)
             {
-                if (custom_ref != LUA_NOREF)
-                {
-                    dmScript::LuaFunctionInfo fi;
-                    if (dmScript::GetLuaFunctionRefInfo(L, -5, &fi))
-                    {
-                        function_source = fi.m_FileName;
-                        if (fi.m_OptionalName)
-                        {
-                            function_name = fi.m_OptionalName;
-                        }
-                        else
-                        {
-                            DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
-                            function_name = function_line_number_buffer;
-                        }
-                    }
-                }
-            }
-            {
-                DM_PROFILE_FMT(Script, "%s%s%s%s@%s", function_name, message_name ? "[" : "", message_name ? message_name : "", message_name ? "]" : "", function_source);
+                uint32_t profiler_hash = 0;
+                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, &profiler_hash);
+                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
@@ -1935,14 +1946,29 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, LUA_NOREF, (void*)&dt);
 
+        uint32_t node_count = scene->m_Nodes.Size();
+        InternalNode* nodes = scene->m_Nodes.Begin();
+
+        if (dLib::IsDebugMode())
+        {
+            for (uint32_t i = 0; i < node_count; ++i)
+            {
+                InternalNode* node = &nodes[i];
+                if (!node->m_Deleted)
+                {
+                    UpdateTextureSetAnimData(scene, node);
+                }
+            }
+        }
+
         UpdateAnimations(scene, dt);
 
         uint32_t total_nodes = 0;
         uint32_t active_nodes = 0;
         // Deferred deletion of nodes
-        uint32_t n = scene->m_Nodes.Size();
-        InternalNode* nodes = scene->m_Nodes.Begin();
-        for (uint32_t i = 0; i < n; ++i)
+        node_count = scene->m_Nodes.Size();
+        nodes      = scene->m_Nodes.Begin();
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             InternalNode* node = &nodes[i];
             if (node->m_Deleted)
@@ -1952,7 +1978,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 HNode hnode = ((uint32_t) version) << 16 | index;
                 DeleteNode(scene, hnode, false);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
-                n = scene->m_Nodes.Size();
+                node_count = scene->m_Nodes.Size();
             }
             else if (node->m_Index != INVALID_INDEX)
             {
@@ -1970,11 +1996,32 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
             if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
             {
-
-                InternalNode* n = GetNode(scene, c->m_Node);
-                if (n->m_Node.m_ParticleInstance == c->m_Instance)
+                if (c->m_Node != INVALID_HANDLE)
                 {
-                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                    InternalNode* n = GetNode(scene, c->m_Node);
+
+                    if (n->m_Node.m_ParticleInstance == c->m_Instance)
+                    {
+                        n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                    }
+
+                    if (n->m_Node.m_HasHeadlessPfx)
+                    {
+                        // Mark all ParticlefxComponents that reference this node
+                        // so we don't try to delete the same internal node more than once
+                        HNode hnode = c->m_Node;
+                        for (uint32_t i_inner = 0; i_inner < count; ++i_inner)
+                        {
+                            ParticlefxComponent* c_inner = &scene->m_AliveParticlefxs[i_inner];
+                            if (c_inner->m_Node == hnode)
+                            {
+                                c_inner->m_Node = INVALID_HANDLE; // makes the callbacks return nil to the user
+                            }
+                        }
+
+                        n->m_ParentIndex = INVALID_INDEX;
+                        ResetInternalNode(scene, n);
+                    }
                 }
 
                 dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
@@ -2256,6 +2303,21 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             *tail_ptr = n->m_PrevIndex;
     }
 
+    static inline void ResetInternalNode(HScene scene, InternalNode* n)
+    {
+        RemoveFromNodeList(scene, n);
+        uint16_t node_index = n->m_Index;
+        scene->m_NodePool.Push(node_index);
+        if (node_index + 1 == scene->m_Nodes.Size())
+        {
+            scene->m_Nodes.SetSize(node_index);
+        }
+        if (n->m_Node.m_Text)
+            free((void*)n->m_Node.m_Text);
+        memset(n, 0, sizeof(InternalNode));
+        n->m_Index = INVALID_INDEX;
+    }
+
     void DeleteNode(HScene scene, HNode node, bool delete_headless_pfx)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2272,29 +2334,32 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
-        while (i < count)
+        if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
         {
-            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
-            InternalNode* comp_n = GetNode(scene, c->m_Node);
-            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            while (i < count)
             {
-                if (delete_headless_pfx)
+                ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+                if (node == c->m_Node)
                 {
-                    dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
-                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
-                    scene->m_AliveParticlefxs.EraseSwap(i);
-                    --count;
+                    if (delete_headless_pfx)
+                    {
+                        InternalNode* comp_n = GetNode(scene, c->m_Node);
+                        dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
+                        n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                        scene->m_AliveParticlefxs.EraseSwap(i);
+                        --count;
+                    }
+                    else
+                    {
+                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
+                        n->m_Node.m_HasHeadlessPfx = 1;
+                        ++i;
+                    }
                 }
                 else
                 {
-                    dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
-                    n->m_Node.m_HasHeadlessPfx = 1;
                     ++i;
                 }
-            }
-            else
-            {
-                ++i;
             }
         }
 
@@ -2315,12 +2380,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (anim->m_Node == node)
             {
-                if(!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                if(!anim->m_AnimationCompleteCalled)
                 {
                     anim->m_AnimationCompleteCalled = 1;
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    if (anim->m_AnimationComplete)
+                    {
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
 
-                    if (anim->m_Easing.release_callback != 0x0)
+                    if (anim->m_Easing.release_callback)
                     {
                         anim->m_Easing.release_callback(&anim->m_Easing);
                     }
@@ -2338,17 +2406,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return;
         }
 
-        RemoveFromNodeList(scene, n);
-        uint16_t node_index = n->m_Index;
-        scene->m_NodePool.Push(node_index);
-        if (node_index + 1 == scene->m_Nodes.Size())
-        {
-            scene->m_Nodes.SetSize(node_index);
-        }
-        if (n->m_Node.m_Text)
-            free((void*)n->m_Node.m_Text);
-        memset(n, 0, sizeof(InternalNode));
-        n->m_Index = INVALID_INDEX;
+        ResetInternalNode(scene, n);
     }
 
     void ClearNodes(HScene scene)
@@ -3057,6 +3115,62 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
+    float GetNodeFlipbookCursor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        float t = n->m_Node.m_FlipbookAnimPosition;
+
+        return t;
+    }
+
+    void SetNodeFlipbookCursor(HScene scene, HNode node, float cursor)
+    {
+        InternalNode* n = GetNode(scene, node);
+
+        cursor = dmMath::Clamp(cursor, 0.0f, 1.0f);
+        n->m_Node.m_FlipbookAnimPosition = cursor;
+        if (n->m_Node.m_FlipbookAnimHash) {
+            Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            if (anim) {
+
+                if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD)
+                {
+                    cursor = 1.0f - cursor;
+                } else if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG || anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                    cursor /= 2.0f;
+                }
+
+                anim->m_Elapsed = cursor * anim->m_Duration;
+            }
+        }
+    }
+
+    float GetNodeFlipbookPlaybackRate(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+
+        if (n->m_Node.m_FlipbookAnimHash) {
+            Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            if (anim) {
+                return anim->m_PlaybackRate;
+            }
+        }
+
+        return 0.0f;
+    }
+
+    void SetNodeFlipbookPlaybackRate(HScene scene, HNode node, float playback_rate)
+    {
+        InternalNode* n = GetNode(scene, node);
+
+        if (n->m_Node.m_FlipbookAnimHash) {
+            Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            if (anim) {
+                anim->m_PlaybackRate = playback_rate;
+            }
+        }
+    }
+
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3471,7 +3585,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return (SizeMode) n->m_Node.m_SizeMode;
     }
 
-    static void AnimateComponent(HScene scene,
+    static Animation* AnimateComponent(HScene scene,
                                  HNode node,
                                  float* value,
                                  float to,
@@ -3479,6 +3593,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                                  Playback playback,
                                  float duration,
                                  float delay,
+                                 float playback_rate,
                                  AnimationComplete animation_complete,
                                  void* userdata1,
                                  void* userdata2)
@@ -3497,7 +3612,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             const Animation* anim = &scene->m_Animations[i];
             if (value == anim->m_Value)
             {
-                //scene->m_Animations.EraseSwap(i);
+                // Make sure to invoke the callback when we are re-using the
+                // animation index so that we can clean up dangling ref's in
+                // the gui_script module.
+                if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+                {
+                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                }
+
                 animation_index = i;
                 break;
             }
@@ -3508,7 +3630,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (scene->m_Animations.Full())
             {
                 dmLogWarning("Out of animation resources (%d)", scene->m_Animations.Size());
-                return;
+                return NULL;
             }
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
@@ -3520,6 +3642,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Delay = delay;
         animation.m_Elapsed = 0.0f;
         animation.m_Duration = duration;
+        animation.m_PlaybackRate = playback_rate;
         animation.m_Easing = easing;
         animation.m_Playback = playback;
         animation.m_AnimationComplete = animation_complete;
@@ -3531,6 +3654,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
+        return &scene->m_Animations[animation_index];
     }
 
     void AnimateNodeHash(HScene scene,
@@ -3551,19 +3675,29 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         assert(n->m_Version == version);
 
         PropDesc* pd = GetPropertyDesc(property);
-        if (pd) {
-            Vector4* base_value = &n->m_Node.m_Properties[pd->m_Property];
+        if (pd)
+        {
+            float* base_value = (float*)&n->m_Node.m_Properties[pd->m_Property];
 
-            if (pd->m_Component == 0xff) {
-                for (int j = 0; j < 4; ++j) {
-                    // Only run callback for the lastcomponent
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
-                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
+            if (pd->m_Component == 0xff)
+            {
+                dmEasing::Curve no_callback_easing = easing;
+                no_callback_easing.release_callback = 0;
+                for (int j = 0; j < 3; ++j)
+                {
+                    AnimateComponent(scene, node, &base_value[j], to.getElem(j), no_callback_easing, playback, duration, delay, 1.0f, 0, 0, 0);
                 }
-            } else {
-                AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+
+                // Only run callback for the lastcomponent
+                AnimateComponent(scene, node, &base_value[3], to.getElem(3), easing, playback, duration, delay, 1.0f, animation_complete, userdata1, userdata2);
             }
-        } else {
+            else
+            {
+                AnimateComponent(scene, node, &base_value[pd->m_Component], to.getElem(pd->m_Component), easing, playback, duration, delay, 1.0f, animation_complete, userdata1, userdata2);
+            }
+        }
+        else
+        {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
     }
@@ -3663,23 +3797,52 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         anim->m_Cancelled = 1;
     }
 
-    static inline void AnimateTextureSetAnim(HScene scene, HNode node, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    static inline void AnimateTextureSetAnim(HScene scene, HNode node, float offset, float playback_rate, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
-        float anim_frames = (float) (anim_desc.m_End - anim_desc.m_Start);
-        AnimateComponent(
+        uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
+        dmGui::Playback playback = (dmGui::Playback)anim_desc.m_State.m_Playback;
+        bool pingpong = playback == dmGui::PLAYBACK_ONCE_PINGPONG || playback == dmGui::PLAYBACK_LOOP_PINGPONG;
+
+        // Ping pong for flipbook animations should result in double the
+        // animation duration.
+        if (pingpong)
+            anim_frames = anim_frames * 2;
+
+        // Convert offset into elapsed time, needed for GUI animation system.
+        offset = dmMath::Clamp(offset, 0.0f, 1.0f);
+        float elapsed = offset;
+        float duration = (float) anim_frames / (float) anim_desc.m_State.m_FPS;
+        if (pingpong) {
+            elapsed /= 2.0f;
+        }
+        elapsed = elapsed * duration;
+
+        Animation* anim = AnimateComponent(
                 scene,
                 node,
                 &n->m_Node.m_FlipbookAnimPosition,
                 1.0f,
                 dmEasing::Curve(dmEasing::TYPE_LINEAR),
-                (Playback) anim_desc.m_Playback,
-                anim_frames / (float) anim_desc.m_FPS,
+                playback,
+                duration,
                 0.0f,
+                playback_rate,
                 anim_complete_callback,
                 callback_userdata1,
                 callback_userdata2);
+
+        if (!anim) {
+            return;
+        }
+
+        // We force some of the animation properties here to simulate
+        // elapsed time for flipbook animations that has offset.
+        anim->m_From = 0.0f,
+        anim->m_FirstUpdate = 0.0f;
+        anim->m_Elapsed = elapsed;
+        n->m_Node.m_FlipbookAnimPosition = offset;
     }
 
     static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
@@ -3702,7 +3865,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         // update animationdata, compare state to current and early bail if equal
         TextureSetAnimDesc& anim_desc = n->m_Node.m_TextureSetAnimDesc;
-        uint64_t current_state = anim_desc.m_State;
+        const TextureSetAnimDesc::State state_previous = anim_desc.m_State;
         if(FetchTextureSetAnim(scene, n, anim_hash)!=FETCH_ANIMATION_OK)
         {
             // general error in retreiving animation. This could be it being deleted or otherwise changed erraneously
@@ -3712,12 +3875,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return;
         }
 
-        if(current_state == anim_desc.m_State)
+        if (anim_desc.m_State.IsEqual(state_previous))
             return;
 
         n->m_Node.m_FlipbookAnimPosition = 0.0f;
         HNode node = GetNodeHandle(n);
-        if(anim_desc.m_Playback == PLAYBACK_NONE)
+        if(anim_desc.m_State.m_Playback == PLAYBACK_NONE)
         {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             return;
@@ -3725,12 +3888,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         Animation* anim = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         if(anim && (anim->m_Cancelled == 0))
-            AnimateTextureSetAnim(scene, node, anim->m_AnimationComplete, anim->m_Userdata1, anim->m_Userdata2);
+            AnimateTextureSetAnim(scene, node, 0.0f, 1.0f, anim->m_AnimationComplete, anim->m_Userdata1, anim->m_Userdata2);
         else
-            AnimateTextureSetAnim(scene, node, 0, 0, 0);
+            AnimateTextureSetAnim(scene, node, 0.0f, 1.0f, 0, 0, 0);
     }
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_FlipbookAnimPosition = 0.0f;
@@ -3765,17 +3928,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        if(n->m_Node.m_TextureSetAnimDesc.m_Playback == PLAYBACK_NONE)
+        if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         else
-            AnimateTextureSetAnim(scene, node, anim_complete_callback, callback_userdata1, callback_userdata2);
+            AnimateTextureSetAnim(scene, node, offset, playback_rate, anim_complete_callback, callback_userdata1, callback_userdata2);
         CalculateNodeSize(n);
         return RESULT_OK;
     }
 
-    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
+    Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback, void* callback_userdata1, void* callback_userdata2)
     {
-        return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), anim_complete_callback, callback_userdata1, callback_userdata2);
+        return PlayNodeFlipbookAnim(scene, node, dmHashString64(anim), offset, playback_rate, anim_complete_callback, callback_userdata1, callback_userdata2);
     }
 
     void CancelNodeFlipbookAnim(HScene scene, HNode node)
@@ -3792,10 +3955,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         if(n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET || n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
             return 0;
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
-        int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
+        int32_t anim_frames = anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
         int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
         anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
-        const float* frame_uv = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_Start + anim_frame)<<3);
+        const float* frame_uv = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_State.m_Start + anim_frame)<<3);
         return frame_uv;
     }
 

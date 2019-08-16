@@ -197,7 +197,7 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     SResourceFactory* factory = (SResourceFactory*) user_data;
     factory->m_HttpStatus = status_code;
 
-    if (strcmp(key, "Content-Length") == 0)
+    if (dmStrCaseCmp(key, "Content-Length") == 0)
     {
         factory->m_HttpContentLength = strtol(value, 0, 10);
         if (factory->m_HttpContentLength < 0) {
@@ -644,6 +644,9 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    dmDNS::HChannel dns_channel;
+    dmDNS::NewChannel(&dns_channel);
+
     factory->m_HttpBuffer = 0;
     factory->m_HttpClient = 0;
     factory->m_HttpCache = 0;
@@ -667,7 +670,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 }
                 else
                 {
-                    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, 60 * 60 * 24 * 5); // 5 days
+                    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, dns_channel, 60 * 60 * 24 * 5); // 5 days
                     // Http-cache batch verification might be unsupported
                     // We currently does not have support for batch validation in the editor http-server
                     // Batch validation was introduced when we had remote branch and latency problems
@@ -690,11 +693,13 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         http_params.m_HttpContent = &HttpContent;
         http_params.m_Userdata = factory;
         http_params.m_HttpCache = factory->m_HttpCache;
+        http_params.m_DNSChannel = dns_channel;
         factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port, strcmp(factory->m_UriParts.m_Scheme, "https") == 0);
         if (!factory->m_HttpClient)
         {
             dmLogError("Invalid URI: %s", uri);
             dmMessage::DeleteSocket(socket);
+            dmDNS::DeleteChannel(dns_channel);
             delete factory;
             return 0;
         }
@@ -858,7 +863,9 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_HttpClient)
     {
+        dmDNS::HChannel dns_channel = dmHttpClient::GetDNSChannel(factory->m_HttpClient);
         dmHttpClient::Delete(factory->m_HttpClient);
+        dmDNS::DeleteChannel(dns_channel);
     }
     if (factory->m_HttpCache)
     {

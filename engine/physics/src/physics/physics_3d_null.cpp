@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
@@ -168,6 +168,19 @@ namespace dmPhysics
 
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
+    }
+
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& response)
+    {
+    }
+
+    void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
+    {
+    }
+
+    Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world)
+    {
+        return Vectormath::Aos::Vector3(0.0f);
     }
 
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)

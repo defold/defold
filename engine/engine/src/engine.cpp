@@ -2,7 +2,7 @@
 
 #include "engine_private.h"
 
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
 #include <stdio.h>
@@ -689,6 +689,7 @@ namespace dmEngine
         }
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+        new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
 
         // Accelerometer
         int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
@@ -1115,6 +1116,8 @@ bail:
 
         input_action.m_IsGamepad = action->m_IsGamepad;
         input_action.m_GamepadIndex = action->m_GamepadIndex;
+        input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
+        input_action.m_GamepadConnected = action->m_GamepadConnected;
 
         input_buffer->Push(input_action);
     }
@@ -1645,13 +1648,16 @@ bail:
             }
         }
 
-        const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
-        dmInputDDF::GamepadMaps* gamepad_maps_ddf;
-        fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
-        if (fact_error != dmResource::RESULT_OK)
-            return false;
-        dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
-        dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
+        const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", 0);
+        if (gamepads)
+        {
+            dmInputDDF::GamepadMaps* gamepad_maps_ddf;
+            fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
+            if (fact_error != dmResource::RESULT_OK)
+                return false;
+            dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
+            dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
+        }
 
         const char* game_input_binding = dmConfigFile::GetString(config, "input.game_binding", "/input/game.input_bindingc");
         fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);

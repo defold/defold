@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Bundle-ManifestVersion: 2
-Bundle-Name: Test
-Bundle-SymbolicName: com.dynamo.cr.editor.core.test
-Bundle-Version: 1.0.0.qualifier
-Bundle-Vendor: DYNAMO
-Fragment-Host: com.dynamo.cr.editor.core
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Require-Bundle: org.junit

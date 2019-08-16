@@ -1,6 +1,7 @@
 (ns editor.render-pb
   (:require
    [dynamo.graph :as g]
+   [editor.build-target :as bt]
    [editor.core :as core]
    [editor.graph-util :as gu]
    [editor.resource :as resource]
@@ -49,30 +50,24 @@
 
 
 (def ^:private form-sections
-  {
-   :sections
-   [
-    {
-     :title "Render"
-     :fields
-     [
-      {
-       :path [:script]
-       :type :resource
-       :filter "render_script"
-       :label "Script"
-       }
-      {
-       :path [:named-materials]
-       :type :table
-       :label "Materials"
-       :columns [{:path [:name] :label "Name" :type :string :default "New Material"}
-                 {:path [:material] :label "Material" :type :resource :filter "material" :default nil}]
-       }
-      ]
-     }
-    ]
-   })
+  {:navigation false
+   :sections [{:title "Render"
+               :fields [{:path [:script]
+                         :type :resource
+                         :filter "render_script"
+                         :label "Script"}
+                        {:path [:named-materials]
+                         :type :table
+                         :label "Materials"
+                         :columns [{:path [:name]
+                                    :label "Name"
+                                    :type :string
+                                    :default "New Material"}
+                                   {:path [:material]
+                                    :label "Material"
+                                    :type :resource
+                                    :filter "material"
+                                    :default nil}]}]}]})
 
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
@@ -128,12 +123,13 @@
                                                  [[:materials i :material]
                                                   (when material (deps-by-source material))])
                                                named-materials))]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-render
-          :user-data {:pb-msg pb-msg
-                      :built-resources built-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-render
+            :user-data {:pb-msg pb-msg
+                        :built-resources built-resources}
+            :deps dep-build-targets})])))
 
 (g/defnode RenderNode
   (inherits core/Scope)
@@ -172,5 +168,5 @@
     :ddf-type Render$RenderPrototypeDesc
     :load-fn load-render
     :icon "icons/32/Icons_30-Render.png"
-    :view-types [:form-view :text]
+    :view-types [:cljfx-form-view :text]
     :label "Render"))

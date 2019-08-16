@@ -521,14 +521,9 @@ public class GameProjectBuilder extends Builder<Void> {
         FileInputStream resourcePackInputStream = null;
         FileInputStream publicKeyInputStream = null;
 
-        BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
-        try {
-            properties.loadDefaults();
-            properties.load(new ByteArrayInputStream(input.getContent()));
-        } catch (Exception e) {
-            throw new CompileExceptionError(input, -1, "Failed to parse game.project", e);
-        }
+
+        BobProjectProperties properties = Project.loadProperties(input, project.getPropertyFiles());
 
         try {
             if (project.option("archive", "false").equals("true")) {
@@ -543,6 +538,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
 
                 // Create output for the data archive
+                String platform = project.option("platform", "generic");
+                project.getPublisher().setPlatform(platform);
                 File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");

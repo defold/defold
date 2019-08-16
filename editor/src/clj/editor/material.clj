@@ -2,6 +2,7 @@
   (:require [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -50,16 +51,18 @@
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
                                [[:vertex-program vertex-program]
                                 [:fragment-program fragment-program]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-material
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+        [(bt/with-content-hash
+           {:node-id _node-id
+            :resource (workspace/make-build-resource resource)
+            :build-fn build-material
+            :user-data {:pb-msg pb-msg
+                        :dep-resources dep-resources}
+            :deps dep-build-targets})])))
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-     {:sections
+     {:navigation false
+      :sections
       [{:title "Material"
         :fields
         [{:path [:name]
@@ -264,4 +267,4 @@
     :load-fn load-material
     :sanitize-fn convert-textures-to-samplers
     :icon "icons/32/Icons_31-Material.png"
-    :view-types [:form-view :text]))
+    :view-types [:cljfx-form-view :text]))

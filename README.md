@@ -451,7 +451,7 @@ You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 doe
 
 ## Licenses
 
-* **Sony Vectormath Library**: [http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary](http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary) - **BSD**
+* **Sony Vectormath Library**: [https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
 * **zlib**: [http://www.zlib.net](http://www.zlib.net) - **zlib**
 * **axTLS**: [http://axtls.sourceforge.net](http://axtls.sourceforge.net) - **BSD**
@@ -697,17 +697,6 @@ extension library and set "exported_symbols" in the wscript, see note below.
 *NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
 in the wscript-target. See extension-test.
 
-### Facebook Extension
-
-How to package a new Android Facebook SDK:
-
-* Download the SDK
-* Replicate a structure based on previous FB SDK package (rooted at share/java within the package)
-* From within the SDK:
-  * copy bin/facebooksdk.jar into share/java/facebooksdk.jar
-  * copy res/* into share/java/res/facebook
-* tar/gzip the new structure
-
 ## Energy Consumption
 
 ### Android
@@ -744,3 +733,4 @@ To debug memory and alignment issues the following parameters should be added bo
 ## Porting to another compiler
 
 You will likely need to recompile external libraries. Source code for most is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).
+

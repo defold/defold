@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="LeiningenProjectSettings">
-    <option name="leiningenVersion" value="2.8.3" />
     <option name="selectedProfiles">
       <list>
         <option value="base" />

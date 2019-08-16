@@ -125,7 +125,7 @@
               (render-save-progress! progress/done)
               (ui/run-later
                 (try
-                  (g/update-cache-from-evaluation-context! evaluation-context)
+                  (project/update-system-cache-save-data! evaluation-context)
                   (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
                   (project/invalidate-save-data-source-values! save-data)
                   (when (some? changes-view)
@@ -158,7 +158,7 @@
       true
       (throw exception))))
 
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! render-build-error! bob-commands bob-args project changes-view callback!]
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! task-cancelled? render-build-error! bob-commands bob-args project changes-view callback!]
   (disk-availability/push-busy!)
   (try
     ;; We need to save because bob reads from FS.
@@ -171,7 +171,7 @@
                        (finally
                          (disk-availability/pop-busy!)))
                      (try
-                       (render-build-progress! (progress/make "Building..."))
+                       (render-build-progress! (progress/make-cancellable-indeterminate "Building..."))
                        ;; evaluation-context below is used to map
                        ;; project paths to resource node id:s. To be
                        ;; strictly correct, we should probably re-use
@@ -181,7 +181,7 @@
                        (let [evaluation-context (g/make-evaluation-context)]
                          (future
                            (try
-                             (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress!)]
+                             (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! task-cancelled?)]
                                (render-build-progress! progress/done)
                                (ui/run-later
                                  (try

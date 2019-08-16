@@ -8,6 +8,12 @@
 /go/pkg
 /go/bin
 
+.cache
+.dcache
+.java
+.oracle*
+.bash*
+
 /.ccache
 /.idea
 *.iml
@@ -25,3 +31,6 @@ scripts/android-v4/build/
 # eastwood
 editor/.eastwood
 editor/eastwood-warnings.txt
+
+# This file is generated when starting editor in dev mode and when bundling
+editor/resources/sorted_clojure_ns_list.edn
