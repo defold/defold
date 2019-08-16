@@ -21,9 +21,8 @@ Where [rev] corresponds to an SDK Tools revision, e.g. 23.0.2. The process of in
 
 Install the platform tools and build tools for a version matching what is defined in `waf_dynamo.py` (currently 23.0.2).
 
-* ~~Download NDK 10e: [http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip](http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip)~~
-    * Note: The Android NDK is now managed as a package and installed via install_ext from the build.py script
 * Put the SDK in **~/android/android-sdk**
+* The Android NDK is managed as a package and automatically installed via install_ext from the `build.py` script
 
 Installer+GUI installation of those tools are a bit tricky, so it's recommended doing it via command line
 Here are some commands to help out with the process:
