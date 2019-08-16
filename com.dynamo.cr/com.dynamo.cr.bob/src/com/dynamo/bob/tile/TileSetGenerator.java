@@ -109,7 +109,7 @@ public class TileSetGenerator {
 
         builder.setTileWidth(tileSet.getTileWidth()).setTileHeight(tileSet.getTileHeight());
 
-        buildConvexHulls(tileSet, collisionImage, builder);
+        buildCollisionConvexHulls(tileSet, collisionImage, builder);
 
         return result;
     }
@@ -150,7 +150,7 @@ public class TileSetGenerator {
         return iterator;
     }
 
-    private static void buildConvexHulls(TileSet tileSet,
+    private static void buildCollisionConvexHulls(TileSet tileSet,
             BufferedImage collisionImage, TextureSet.Builder textureSet) {
         if (collisionImage != null) {
             ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(collisionImage.getAlphaRaster(), 16,
@@ -171,7 +171,7 @@ public class TileSetGenerator {
             }
 
             for (int i = 0; i < convexHulls.points.length; ++i) {
-                textureSet.addConvexHullPoints(convexHulls.points[i]);
+                textureSet.addCollisionHullPoints(convexHulls.points[i]);
             }
         }
         textureSet.addAllCollisionGroups(tileSet.getCollisionGroupsList());
