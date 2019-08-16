@@ -1623,18 +1623,16 @@ def detect(conf):
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
-        bintools    = '%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, tool_name, ANDROID_GCC_VERSION, build_platform, arch)
-        llvm        = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
-        conf.env['CC'] = '%s/%s' % (llvm, clang_name)
-        conf.env['CXX'] = '%s/%s++' % (llvm, clang_name)
-        conf.env['LINK_CXX'] = '%s/%s++' % (llvm, clang_name)
-        conf.env['CPP'] = '%s/%s -E' % (llvm, clang_name)
-        conf.env['AR'] = '%s/%s-ar' % (bintools, tool_name)
-        conf.env['RANLIB'] = '%s/%s-ranlib' % (bintools, tool_name)
-        conf.env['LD'] = '%s/%s-ld' % (bintools, tool_name)
-
-        conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+        conf.env['CC']       = '%s/%s' % (bintools, clang_name)
+        conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
+        conf.env['LINK_CXX'] = '%s/%s++' % (bintools, clang_name)
+        conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
+        conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
+        conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
+        conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
+        conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     elif 'linux' == build_util.get_target_os():
         conf.find_program('gcc-5', var='GCC5', mandatory = False)
         if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
