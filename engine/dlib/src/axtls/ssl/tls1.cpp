@@ -293,7 +293,7 @@ EXP_FUNC void STDCALL ssl_free(SSL *ssl)
 EXP_FUNC int STDCALL ssl_read(SSL *ssl, uint8_t **in_data)
 {
     int ret = basic_read(ssl, in_data);
-
+    printf("RET: %i \n", ret);
     /* check for return code so we can send an alert */
     if (ret < SSL_OK && ret != SSL_CLOSE_NOTIFY)
     {
@@ -1582,6 +1582,7 @@ int send_alert(SSL *ssl, int error_code)
     /* Don't bother, we're already dead */
     if (ssl->hs_status == SSL_ERROR_DEAD)
     {
+        printf("SSL_ERROR_DEAD");
         return SSL_ERROR_CONN_LOST;
     }
 

@@ -417,6 +417,7 @@ namespace dmHttpClient
                 return SSLToSocket(r);
             }
         } else {
+            dmLogWarning("One more else");
             return dmSocket::Receive(response->m_Socket, buffer, length, received_bytes);
         }
     }
