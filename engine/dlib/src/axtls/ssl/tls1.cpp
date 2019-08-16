@@ -1069,7 +1069,7 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
 
 #ifdef WIN32
 
-            print("]WIN ERR: %i", GetLastError());
+            printf("WIN ERR: %i", GetLastError());
             if (GetLastError() != WSAEWOULDBLOCK)
 #else
             if (errno != EAGAIN && errno != EWOULDBLOCK)
