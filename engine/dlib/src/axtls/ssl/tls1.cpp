@@ -1068,6 +1068,14 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
         {
 
 #ifdef WIN32
+            wchar_t *s = NULL;
+            print("\nWIN ERR:");
+            FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
+                           NULL, WSAGetLastError(),
+                           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                           (LPWSTR)&s, 0, NULL);
+            fprintf(stderr, "%S\n", s);
+            LocalFree(s);
             if (GetLastError() != WSAEWOULDBLOCK)
 #else
             if (errno != EAGAIN && errno != EWOULDBLOCK)
@@ -1320,7 +1328,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
     /* connection has gone, so die */
     if (read_len <= 0)
     {
-        printf("connection has gone, so die. read_len: %i", read_len);
+        printf("connection has gone, so die. read_len: %i\n", read_len);
         ret = SSL_ERROR_CONN_LOST;
         ssl->hs_status = SSL_ERROR_DEAD;  /* make sure it stays dead */
         goto error;
