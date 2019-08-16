@@ -1585,10 +1585,8 @@ int send_alert(SSL *ssl, int error_code)
         return SSL_ERROR_CONN_LOST;
     }
 
-#ifdef CONFIG_SSL_FULL_MODE
-    if (IS_SET_SSL_FLAG(SSL_DISPLAY_STATES))
-        ssl_display_error(error_code);
-#endif
+
+    ssl_display_error(error_code);
 
     switch (error_code)
     {
@@ -2232,8 +2230,6 @@ void DISPLAY_BYTES(SSL *ssl, const char *format,
  */
 EXP_FUNC void STDCALL ssl_display_error(int error_code)
 {
-    if (error_code == SSL_OK)
-        return;
 
     printf("Error: ");
 
