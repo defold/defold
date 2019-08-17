@@ -794,7 +794,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />
         <meta-data android:name="android.notch_support" android:value="true"/>
-        
+
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -1700,6 +1700,10 @@ def detect(conf):
         conf.env['STATICLIB_CARES'].append('cares')
     if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_CARES'].append('resolv')
+
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_BOX2D'] = ['Box2D']
+    conf.env['STATICLIB_BULLET'] = ['BulletDynamics', 'BulletCollision', 'LinearMath']
 
 def configure(conf):
     detect(conf)

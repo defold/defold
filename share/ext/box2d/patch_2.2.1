@@ -1,6 +1,6 @@
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Box2D.h b/Box2D_v2.2.1/Box2D/Box2D.h
---- a/Box2D_v2.2.1/Box2D/Box2D.h	2011-09-03 01:39:00.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Box2D.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Box2D.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Box2D.h	2019-08-17 09:40:05.000000000 +0200
 @@ -39,6 +39,7 @@
  #include <Box2D/Collision/Shapes/b2EdgeShape.h>
  #include <Box2D/Collision/Shapes/b2ChainShape.h>
@@ -9,10 +9,27 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Box2D.h b/Box2D_v2.2.1/Box2D
  
  #include <Box2D/Collision/b2BroadPhase.h>
  #include <Box2D/Collision/b2Distance.h>
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2ChainShape.h b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2ChainShape.h
+--- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2ChainShape.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2ChainShape.h	2019-08-17 09:45:33.000000000 +0200
+@@ -93,10 +93,10 @@
+ {
+ 	m_type = e_chain;
+ 	m_radius = b2_polygonRadius;
+-	m_vertices = NULL;
++	m_vertices = 0;
+ 	m_count = 0;
+-	m_hasPrevVertex = NULL;
+-	m_hasNextVertex = NULL;
++	m_hasPrevVertex = false;
++	m_hasNextVertex = false;
+ }
+ 
+ #endif
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp
 --- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp	2018-07-15 10:16:07.000000000 +0200
-@@ -0,0 +1,387 @@
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp	2019-08-17 09:40:05.000000000 +0200
+@@ -0,0 +1,394 @@
 +#include <assert.h>
 +#include <string.h>
 +#include <Box2D/Common/b2Settings.h>
@@ -381,6 +398,13 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape
 +    return mask;
 +}
 +
++void b2GridShape::ClearCellData()
++{
++    uint32 cellCount = m_rowCount * m_columnCount;
++    memset(m_cells, B2GRIDSHAPE_EMPTY_CELL, sizeof(Cell) * cellCount);
++    memset(m_cellFlags, 0x0, sizeof(CellFlags) * cellCount);
++}
++
 +void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, b2GridShape::CellFlags flags)
 +{
 +    assert(m_type == b2Shape::e_grid);
@@ -402,8 +426,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape
 +}
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h
 --- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h	2018-07-15 10:16:07.000000000 +0200
-@@ -0,0 +1,119 @@
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h	2019-08-17 09:40:05.000000000 +0200
+@@ -0,0 +1,121 @@
 +#ifndef B2_TILE_SHAPE_H
 +#define B2_TILE_SHAPE_H
 +
@@ -506,6 +530,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape
 +
 +    void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, CellFlags flags);
 +
++    void ClearCellData();
++
 +    uint32 CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column);
 +
 +    b2Vec2  m_position;
@@ -524,8 +550,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape
 +
 +#endif // B2_TILE_SHAPE_H
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h
---- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h	2011-08-21 19:49:54.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h	2019-08-17 09:40:05.000000000 +0200
 @@ -42,14 +42,15 @@
  class b2Shape
  {
@@ -558,8 +584,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h b
  
  inline b2Shape::Type b2Shape::GetType() const
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h b/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h
---- a/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h	2011-03-27 14:23:24.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h	2019-08-17 09:40:05.000000000 +0200
 @@ -197,7 +197,7 @@
  		const b2AABB& fatAABB = m_tree.GetFatAABB(m_queryProxyId);
  
@@ -570,8 +596,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h b/B
  
  	// Reset move buffer
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp b/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp
---- a/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp	2011-03-24 10:17:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -31,10 +31,10 @@
  	b2Vec2 pB = b2Mul(xfB, circleB->m_p);
  
@@ -642,8 +668,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cp
  	}
  }
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp b/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp
---- a/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp	2011-08-22 20:38:46.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -80,7 +80,8 @@
  		manifold->localPoint = P;
  		manifold->points[0].id.key = 0;
@@ -683,8 +709,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp 
  			++pointCount;
  		}
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp b/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp
---- a/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp	2011-06-26 16:09:20.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -215,6 +215,7 @@
  	const float32 k_relativeTol = 0.98f;
  	const float32 k_absoluteTol = 0.001f;
@@ -718,8 +744,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.c
  			cp->id = clipPoints2[i].id;
  			if (flip)
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2Collision.h b/Box2D_v2.2.1/Box2D/Collision/b2Collision.h
---- a/Box2D_v2.2.1/Box2D/Collision/b2Collision.h	2011-06-05 13:22:42.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2Collision.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2Collision.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2Collision.h	2019-08-17 09:40:05.000000000 +0200
 @@ -72,6 +72,7 @@
  	float32 normalImpulse;	///< the non-penetration impulse
  	float32 tangentImpulse;	///< the friction impulse
@@ -729,8 +755,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2Collision.h b/Bo
  
  /// A manifold for two touching convex shapes.
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp b/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp
---- a/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp	2011-08-31 23:49:40.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -77,6 +77,17 @@
  		}
  		break;
@@ -768,8 +794,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp b/B
  	float32 n123 = b2Cross(e12, e13);
  
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h b/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h
---- a/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h	2011-06-25 00:46:30.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h	2019-08-17 09:40:05.000000000 +0200
 @@ -88,8 +88,15 @@
  
  	/// Query an AABB for overlapping proxies. The callback class
@@ -837,8 +863,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h b/
  			else
  			{
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Draw.h b/Box2D_v2.2.1/Box2D/Common/b2Draw.h
---- a/Box2D_v2.2.1/Box2D/Common/b2Draw.h	2011-03-27 11:31:42.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Common/b2Draw.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Common/b2Draw.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Draw.h	2019-08-17 09:40:05.000000000 +0200
 @@ -72,9 +72,14 @@
  	/// Draw a line segment.
  	virtual void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) = 0;
@@ -858,8 +884,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Draw.h b/Box2D_v2.2
  protected:
  	uint32 m_drawFlags;
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Math.h b/Box2D_v2.2.1/Box2D/Common/b2Math.h
---- a/Box2D_v2.2.1/Box2D/Common/b2Math.h	2011-09-03 18:48:02.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Common/b2Math.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Common/b2Math.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Math.h	2019-08-17 09:40:05.000000000 +0200
 @@ -327,6 +327,13 @@
  		c = cosf(angle);
  	}
@@ -876,7 +902,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Math.h b/Box2D_v2.2
  	{
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Pow.h b/Box2D_v2.2.1/Box2D/Common/b2Pow.h
 --- a/Box2D_v2.2.1/Box2D/Common/b2Pow.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Common/b2Pow.h	2018-07-15 10:16:07.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Pow.h	2019-08-17 09:40:05.000000000 +0200
 @@ -0,0 +1,36 @@
 +// Defold modification, not included in original Box2D
 +
@@ -915,8 +941,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Pow.h b/Box2D_v2.2.
 +
 +#endif // B2_POW_H
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Settings.h b/Box2D_v2.2.1/Box2D/Common/b2Settings.h
---- a/Box2D_v2.2.1/Box2D/Common/b2Settings.h	2011-09-03 02:49:22.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Common/b2Settings.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Common/b2Settings.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Settings.h	2019-08-17 09:40:05.000000000 +0200
 @@ -50,7 +50,9 @@
  
  /// The maximum number of vertices on a convex polygon. You cannot increase
@@ -938,8 +964,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Settings.h b/Box2D_
  /// Maximum number of sub-steps per contact in continuous physics simulation.
  #define b2_maxSubSteps			8
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp	2011-08-22 01:09:06.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp	2019-08-17 08:52:10.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -24,6 +24,8 @@
  #include <Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.h>
  #include <Box2D/Dynamics/Contacts/b2ChainAndCircleContact.h>
@@ -997,7 +1023,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.
  		m_manifold.pointCount = 0;
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp
 --- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp	2018-07-15 10:16:07.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -0,0 +1,49 @@
 +#include <Box2D/Dynamics/Contacts/b2GridAndCircleContact.h>
 +#include <Box2D/Dynamics/b2Body.h>
@@ -1050,7 +1076,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndC
 +}
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h
 --- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h	2018-07-15 10:16:07.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h	2019-08-17 09:40:05.000000000 +0200
 @@ -0,0 +1,21 @@
 +#ifndef B2_GRID_AND_CIRCLE_CONTACT_H
 +#define B2_GRID_AND_CIRCLE_CONTACT_H
@@ -1075,7 +1101,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndC
 +#endif
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp
 --- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp	2018-07-15 10:16:07.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -0,0 +1,49 @@
 +#include <Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h>
 +#include <Box2D/Dynamics/b2Body.h>
@@ -1128,7 +1154,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndP
 +}
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h
 --- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h	2018-07-15 10:16:07.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h	2019-08-17 09:40:05.000000000 +0200
 @@ -0,0 +1,21 @@
 +#ifndef B2_GRID_AND_POLYGON_CONTACT_H
 +#define B2_GRID_AND_POLYGON_CONTACT_H
@@ -1152,8 +1178,17 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndP
 +
 +#endif
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp	2011-09-11 20:52:20.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp	2019-08-17 08:52:10.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp	2019-08-17 09:40:05.000000000 +0200
+@@ -144,7 +144,7 @@
+ 	// Since the body type changed, we need to flag contacts for filtering.
+ 	for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
+ 	{
+-		f->Refilter();
++		f->Refilter(true);
+ 	}
+ }
+ 
 @@ -379,10 +379,12 @@
  bool b2Body::ShouldCollide(const b2Body* other) const
  {
@@ -1210,8 +1245,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp b/Box2D_
 \ No newline at end of file
 +}
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h	2011-09-03 15:12:24.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h	2019-08-17 09:40:05.000000000 +0200
 @@ -190,9 +190,9 @@
  	/// @param omega the new angular velocity in radians/second.
  	void SetAngularVelocity(float32 omega);
@@ -1290,8 +1325,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h b/Box2D_v2
 +
  #endif
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp	2011-09-03 01:49:48.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -114,7 +114,7 @@
  		int32 indexB = c->GetChildIndexB();
  		b2Body* bodyA = fixtureA->GetBody();
@@ -1361,8 +1396,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cp
  		return;
  	}
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h	2011-03-24 10:17:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h	2019-08-17 09:40:05.000000000 +0200
 @@ -32,8 +32,10 @@
  public:
  	b2ContactManager();
@@ -1377,8 +1412,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h 
  	void FindNewContacts();
  
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp	2011-09-01 00:02:00.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp	2019-08-17 08:52:10.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -36,6 +36,7 @@
  	m_proxyCount = 0;
  	m_shape = NULL;
@@ -1531,7 +1566,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box
  		proxy->aabb.Combine(aabb1, aabb2);
  
  		b2Vec2 displacement = transform2.p - transform1.p;
-@@ -173,11 +192,37 @@
+@@ -173,14 +192,38 @@
  	}
  }
  
@@ -1540,8 +1575,7 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box
  {
 -	m_filter = filter;
 +    b2Assert(index < m_proxyCount);
- 
--	Refilter();
++
 +    b2FixtureProxy* proxy = m_proxies + index;
 +
 +    b2AABB aabb1, aabb2;
@@ -1549,7 +1583,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box
 +    m_shape->ComputeAABB(&aabb2, transform2, proxy->childIndex);
 +
 +    proxy->aabb.Combine(aabb1, aabb2);
-+
+ 
+-	Refilter();
 +    b2Vec2 displacement = transform2.p - transform1.p;
 +
 +    broadPhase->MoveProxy(proxy->proxyId, proxy->aabb, displacement);
@@ -1560,19 +1595,33 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box
 +    // Defold modifications. Added index
 +    m_filters[index * m_shape->m_filterPerChild] = filter;
 +
-+    // Defold modifications. Skip re-filtering of grid-shapes
-+    // in order to avoid O(n^2) memory allocations
-+    // see b2BroadPhase::BufferMove
-+    // We don't support changing filters at run-time so the
-+    // fix will hopefully have no impact
-+    if (GetType() != b2Shape::e_grid)
-+    {
-+        Refilter();
-+    }
++    // Defold modifications. If the body is a grid,
++    // we skip updating the proxy list since that will
++    // potentially expand the movement buffer.
++    // Instead, we just flag the entire body for
++    // filtering, which is what the argument passed into
++    // the function is for.
++    Refilter(GetType() != b2Shape::e_grid);
  }
  
- void b2Fixture::Refilter()
-@@ -233,9 +278,22 @@
+-void b2Fixture::Refilter()
++void b2Fixture::Refilter(bool touchProxies)
+ {
+ 	if (m_body == NULL)
+ 	{
+@@ -202,6 +245,11 @@
+ 		edge = edge->next;
+ 	}
+ 
++	if (!touchProxies)
++	{
++		return;
++	}
++
+ 	b2World* world = m_body->GetWorld();
+ 
+ 	if (world == NULL)
+@@ -233,9 +281,22 @@
  	b2Log("    fd.restitution = %.15lef;\n", m_restitution);
  	b2Log("    fd.density = %.15lef;\n", m_density);
  	b2Log("    fd.isSensor = bool(%d);\n", m_isSensor);
@@ -1599,9 +1648,9 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box
  	switch (m_shape->m_type)
  	{
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h	2011-09-03 10:52:22.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h	2018-07-15 10:16:07.000000000 +0200
-@@ -127,10 +127,12 @@
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h	2019-08-17 09:40:05.000000000 +0200
+@@ -127,13 +127,15 @@
  	/// Set the contact filtering data. This will not update contacts until the next time
  	/// step when either parent body is active and awake.
  	/// This automatically calls Refilter.
@@ -1615,7 +1664,11 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h b/Box2D
 +	const b2Filter& GetFilterData(int32 index) const;
  
  	/// Call this if you want to establish collision that was previously disabled by b2ContactFilter::ShouldCollide.
- 	void Refilter();
+-	void Refilter();
++	void Refilter(bool touchProxies);
+ 
+ 	/// Get the parent body of this fixture. This is NULL if the fixture is not attached.
+ 	/// @return the parent body.
 @@ -201,6 +203,7 @@
  	friend class b2World;
  	friend class b2Contact;
@@ -1658,8 +1711,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h b/Box2D
  
  inline void* b2Fixture::GetUserData() const
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp	2011-09-03 15:08:56.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -26,6 +26,7 @@
  #include <Box2D/Dynamics/Joints/b2Joint.h>
  #include <Box2D/Common/b2StackAllocator.h>
@@ -1697,8 +1750,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp b/Box2
  
  		m_positions[i].c = c;
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp	2011-09-04 15:32:52.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp	2019-08-17 08:52:10.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -29,6 +29,7 @@
  #include <Box2D/Collision/Shapes/b2EdgeShape.h>
  #include <Box2D/Collision/Shapes/b2ChainShape.h>
@@ -1899,8 +1952,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp b/Box2D
  	if (flags & b2Draw::e_aabbBit)
  	{
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2World.h b/Box2D_v2.2.1/Box2D/Dynamics/b2World.h
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2World.h	2011-09-04 15:06:38.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2World.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2World.h	2019-08-17 08:52:10.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2World.h	2019-08-17 09:40:05.000000000 +0200
 @@ -224,6 +224,7 @@
  
  	void DrawJoint(b2Joint* joint);
@@ -1910,8 +1963,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2World.h b/Box2D_v
  	b2BlockAllocator m_blockAllocator;
  	b2StackAllocator m_stackAllocator;
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp	2011-03-24 10:17:00.000000000 +0100
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp	2019-08-17 08:52:10.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp	2019-08-17 09:40:05.000000000 +0200
 @@ -21,10 +21,10 @@
  
  // Return true if contact calculations should be performed between these two shapes.
@@ -1927,8 +1980,8 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cp
  	if (filterA.groupIndex == filterB.groupIndex && filterA.groupIndex != 0)
  	{
 diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h
---- a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h	2011-08-22 21:26:42.000000000 +0200
-+++ b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h	2018-07-15 10:16:07.000000000 +0200
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h	2019-08-17 08:52:11.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h	2019-08-17 09:40:05.000000000 +0200
 @@ -56,7 +56,7 @@
  
  	/// Return true if contact calculations should be performed between these two shapes.
@@ -1947,3 +2000,15 @@ diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h 
  									const b2Vec2& normal, float32 fraction) = 0;
  };
  
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/wscript b/Box2D_v2.2.1/Box2D/wscript
+--- a/Box2D_v2.2.1/Box2D/wscript	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/wscript	2019-08-17 09:40:05.000000000 +0200
+@@ -0,0 +1,8 @@
++def configure(conf):
++    pass
++
++def build(bld):
++    box2d = bld.new_task_gen(features = 'cxx cstaticlib',
++                                   includes = '..',
++                                   target = 'Box2D')
++    box2d.find_sources_in_dirs('. Collision Collision/Shapes Common Dynamics Dynamics/Contacts Dynamics/Joints')

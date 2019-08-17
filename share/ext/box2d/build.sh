@@ -46,6 +46,8 @@ function cmi_make() {
     pwd
     make -j8 VERBOSE=1
 
+    export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
+
     # "install"
     mkdir -p $PREFIX/bin
     mkdir -p $PREFIX/lib/$CONF_TARGET

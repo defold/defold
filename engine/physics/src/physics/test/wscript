@@ -3,18 +3,18 @@
 def build(bld):
     test_physics = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics.cpp',
-                                    uselib = 'DLIB PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics Box2D',
-                                    includes = ['../../../src', '../../../src/box2d'],
+                                    uselib = 'DLIB PLATFORM_THREAD BULLET BOX2D',
+                                    uselib_local = 'physics',
+                                    includes = ['../../../src'],
                                     target = 'test_physics')
 
     test_physics.install_path = None
 
     test_physics_2d = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics_2d.cpp',
-                                    uselib = 'DLIB PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics_2d Box2D',
-                                    includes = ['../../../src', '../../../src/box2d'],
+                                    uselib = 'DLIB PLATFORM_THREAD BOX2D',
+                                    uselib_local = 'physics_2d',
+                                    includes = ['../../../src'],
                                     target = 'test_physics_2d')
 
     test_physics_2d.install_path = None
@@ -24,18 +24,18 @@ def build(bld):
     # We do this by removing the 'test' feature which excludes it from the test run
     null_test = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_physics.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET BOX2D',
                                     uselib_local = 'physics_null',
-                                    includes = ['../../../src', '../../../src/box2d'],
+                                    includes = ['../../../src'],
                                     target = 'test_physics_null')
 
     null_test.install_path = None
 
     null_test = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_physics_2d.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD BOX2D',
                                     uselib_local = 'physics_null',
-                                    includes = ['../../../src', '../../../src/box2d'],
+                                    includes = ['../../../src'],
                                     target = 'test_physics_2d_null')
 
     null_test.install_path = None

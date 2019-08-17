@@ -3,8 +3,8 @@ def configure(conf):
 
 def build(bld):
     physics = bld.new_task_gen(features = 'cxx cstaticlib',
-                               use_lib = 'DLIB  BULLET',
-                               includes = '. ../bullet ../box2d',
+                               use_lib = 'DLIB BULLET',
+                               includes = '.',
                                proto_gen_py = True,
                                target = 'physics')
     physics.find_sources_in_dirs('.')
@@ -18,8 +18,8 @@ def build(bld):
                                     target = 'physics_null')
 
     physics_2d = bld.new_task_gen(features = 'cxx cstaticlib',
-                                    use_lib = 'DLIB',
-                                    includes = '. ../box2d',
+                                    use_lib = 'DLIB BOX2D',
+                                    includes = '.',
                                     proto_gen_py = True,
                                     source = ['physics.cpp', 'physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
                                     target = 'physics_2d')
