@@ -1,0 +1,1949 @@
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Box2D.h b/Box2D_v2.2.1/Box2D/Box2D.h
+--- a/Box2D_v2.2.1/Box2D/Box2D.h	2011-09-03 01:39:00.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Box2D.h	2018-07-15 10:16:07.000000000 +0200
+@@ -39,6 +39,7 @@
+ #include <Box2D/Collision/Shapes/b2EdgeShape.h>
+ #include <Box2D/Collision/Shapes/b2ChainShape.h>
+ #include <Box2D/Collision/Shapes/b2PolygonShape.h>
++#include <Box2D/Collision/Shapes/b2GridShape.h>
+ 
+ #include <Box2D/Collision/b2BroadPhase.h>
+ #include <Box2D/Collision/b2Distance.h>
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp
+--- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,387 @@
++#include <assert.h>
++#include <string.h>
++#include <Box2D/Common/b2Settings.h>
++#include <Box2D/Collision/Shapes/b2GridShape.h>
++#include <Box2D/Collision/Shapes/b2PolygonShape.h>
++#include <Box2D/Collision/Shapes/b2EdgeShape.h>
++#include <Box2D/Collision/b2BroadPhase.h>
++#include <Box2D/Dynamics/b2Fixture.h>
++#include <Box2D/Dynamics/b2World.h>
++#include <new>
++using namespace std;
++
++b2GridShape::b2GridShape(const b2HullSet* hullSet,
++                         const b2Vec2 position,
++                         float32 cellWidth, float32 cellHeight,
++                         uint32 rowCount, uint32 columnCount)
++    : m_hullSet(hullSet),
++      m_cellWidth(cellWidth), m_cellHeight(cellHeight),
++      m_rowCount(rowCount), m_columnCount(columnCount)
++{
++    uint32 cellCount = m_rowCount * m_columnCount;
++    uint32 size = sizeof(Cell) * cellCount;
++    m_cells = (Cell*) b2Alloc(size);
++    memset(m_cells, 0xff, size); // NOTE: This will set all Cell#m_Index to 0xffffffff
++    size = sizeof(CellFlags) * cellCount;
++    m_cellFlags = (CellFlags*) b2Alloc(size);
++    memset(m_cellFlags, 0x0, size);
++
++    m_position = position;
++    m_type = e_grid;
++    m_radius = b2_polygonRadius;
++    m_filterPerChild = 1;
++}
++
++b2GridShape::~b2GridShape()
++{
++    b2Free(m_cells);
++    b2Free(m_cellFlags);
++}
++
++b2Shape* b2GridShape::Clone(b2BlockAllocator* allocator) const
++{
++    assert(false);
++    return 0;
++}
++
++int32 b2GridShape::GetChildCount() const
++{
++    return m_rowCount * m_columnCount;
++}
++
++bool b2GridShape::TestPoint(const b2Transform& transform, const b2Vec2& p) const
++{
++    B2_NOT_USED(transform);
++    B2_NOT_USED(p);
++    // TestPoint should only be supported for convex shapes according to documentation
++    return false;
++}
++
++bool b2GridShape::RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
++                            const b2Transform& transform, int32 childIndex) const
++{
++    const b2GridShape::Cell& cell = m_cells[childIndex];
++    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
++    {
++        return false;
++    }
++
++    b2PolygonShape polyShape;
++    GetPolygonShapeForCell(childIndex, polyShape);
++    return polyShape.RayCast(output, input, transform, childIndex);
++}
++
++void b2GridShape::ComputeAABB(b2AABB* aabb, const b2Transform& transform, int32 childIndex) const
++{
++    const b2GridShape::Cell& cell = m_cells[childIndex];
++    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
++    {
++        aabb->lowerBound = b2Vec2(FLT_MAX, FLT_MAX);
++        aabb->upperBound = b2Vec2(-FLT_MAX, -FLT_MAX);
++        return;
++    }
++
++    int row = childIndex / m_columnCount;
++    int col = childIndex - m_columnCount * row;
++
++    b2Vec2 halfDims(m_cellWidth * m_columnCount * 0.5f, m_cellHeight * m_rowCount * 0.5f);
++    b2Vec2 offset = m_position - halfDims;
++
++    float32 x0 = m_cellWidth * col - m_radius;
++    float32 x1 = m_cellWidth * (col + 1) + m_radius;
++    float32 y0 = m_cellHeight * row - m_radius;
++    float32 y1 = m_cellHeight * (row + 1) + m_radius;
++
++    b2Vec2 v00 = b2Mul(transform, b2Vec2(x0, y0) + offset);
++    b2Vec2 v10 = b2Mul(transform, b2Vec2(x1, y0) + offset);
++    b2Vec2 v01 = b2Mul(transform, b2Vec2(x0, y1) + offset);
++    b2Vec2 v11 = b2Mul(transform, b2Vec2(x1, y1) + offset);
++
++    b2Vec2 lower(b2Min(b2Min(v00.x, v01.x), b2Min(v10.x, v11.x)), b2Min(b2Min(v00.y, v01.y), b2Min(v10.y, v11.y)));
++    b2Vec2 upper(b2Max(b2Max(v00.x, v01.x), b2Max(v10.x, v11.x)), b2Max(b2Max(v00.y, v01.y), b2Max(v10.y, v11.y)));
++
++    aabb->lowerBound = lower;
++    aabb->upperBound = upper;
++}
++
++void b2GridShape::ComputeMass(b2MassData* massData, float32 density) const
++{
++    // NOTE: Moment of inertia is approximated to a box
++    // This is not correct but grid-shapes should only be used
++    // for static geometry
++    // This could be improved if required. Far fetched though.
++    float32 w = m_cellHeight * m_rowCount;
++    float32 h = m_cellWidth * m_columnCount;
++    float32 area = w * h;
++
++    massData->mass = area * density;
++    massData->center = b2Vec2_zero;
++    massData->I = massData->mass * (w * w + h * h + b2Dot(m_position, m_position)) / 12.0f;
++}
++
++uint32 b2GridShape::GetCellVertices(uint32 index, b2Vec2* vertices) const
++{
++    const b2GridShape::Cell& cell = m_cells[index];
++    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
++        return 0;
++
++    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
++
++    b2Assert(hull.m_Count <= b2_maxPolygonVertices);
++
++    int row = index / m_columnCount;
++    int col = index - (m_columnCount * row);
++
++    float32 halfWidth = m_cellWidth * m_columnCount * 0.5f;
++    float32 halfHeight = m_cellHeight * m_rowCount * 0.5f;
++
++    b2Vec2 t(m_cellWidth * col - halfWidth, m_cellHeight * row - halfHeight);
++    t.x += m_cellWidth * 0.5f;
++    t.y += m_cellHeight * 0.5f;
++    t += m_position;
++
++    const b2GridShape::CellFlags& flags = m_cellFlags[index];
++    float32 xScale = flags.m_FlipHorizontal ? -1.0f : 1.0f;
++    float32 yScale = flags.m_FlipVertical ? -1.0f : 1.0f;
++
++    for (uint32 i = 0; i < hull.m_Count; ++i)
++    {
++        vertices[i] = m_hullSet->m_vertices[hull.m_Index + i];
++        vertices[i].x *= xScale * m_cellWidth;
++        vertices[i].y *= yScale * m_cellHeight;
++        vertices[i] += t;
++    }
++
++    // Reverse order when single flipped
++    if (flags.m_FlipHorizontal != flags.m_FlipVertical)
++    {
++        uint16 halfCount = hull.m_Count / 2;
++        for (uint32 i = 0; i < halfCount; ++i)
++        {
++            b2Vec2& v1 = vertices[i];
++            b2Vec2& v2 = vertices[hull.m_Count - 1 - i];
++            b2Vec2 tmp = v1;
++            v1 = v2;
++            v2 = tmp;
++        }
++    }
++
++    return hull.m_Count;
++}
++
++void b2GridShape::GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const
++{
++    const b2GridShape::Cell& cell = m_cells[index];
++    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
++    b2Assert(hull.m_Count <= b2_maxPolygonVertices);
++
++    b2Vec2 vertices[b2_maxPolygonVertices];
++    GetCellVertices(index, vertices);
++
++    polyShape.Set(vertices, hull.m_Count);
++    polyShape.m_radius = m_radius;
++}
++
++b2Vec2 b2GridShape::GetGhostPoint(uint32 index, b2Vec2 v0, b2Vec2 v1, bool fwdDirection) const
++{
++    int32 row = index / m_columnCount;
++    int32 col = index - m_columnCount * row;
++    b2Vec2 delta = v1 - v0;
++    // the negated normal will point in the direction of the neighboring cell which has the ghost point in its edge
++    b2Vec2 negNormal = b2Vec2(delta.y, -delta.x);
++    b2Vec2 mag = b2Vec2(negNormal.x * negNormal.x, negNormal.y * negNormal.y);
++    int32 dRow = 0;
++    int32 dCol = 0;
++    if (mag.x == b2Max(mag.x, mag.y))
++    {
++        // no b2Select
++        if (negNormal.x >= 0.0f)
++            dCol = 1;
++        else
++            dCol = -1;
++    }
++    else
++    {
++        // no b2Select
++        if (negNormal.y >= 0.0f)
++            dRow = 1;
++        else
++            dRow = -1;
++    }
++    row += dRow;
++    col += dCol;
++
++    uint32 neighborIndex = row * m_columnCount + col;
++    const b2GridShape::Cell& cell = m_cells[neighborIndex];
++    if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
++    {
++        if (fwdDirection)
++        {
++            return 2.0f * (v0 - v1);
++        }
++        else
++        {
++            return 2.0f * (v1 - v0);
++        }
++    }
++    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
++
++    // find the closes hull point
++    b2Vec2 vn[b2_maxPolygonVertices];
++    uint32 vnCount = GetCellVertices(neighborIndex, vn);
++    float minD = b2_maxFloat;
++    b2Vec2 orig = fwdDirection ? v1 : v0;
++    uint32 ghostIndex = 0;
++    for (uint16 i = 0; i < hull.m_Count; ++i)
++    {
++        b2Vec2 diff = vn[i] - orig;
++        float d = b2Dot(diff, diff);
++        if (d < minD)
++        {
++            ghostIndex = i;
++            minD = d;
++        }
++    }
++    int32 deltaIndex = fwdDirection ? -1 : 1;
++    return vn[(ghostIndex + vnCount + deltaIndex) % vnCount];
++}
++
++uint32 b2GridShape::GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, uint32 edgeShapeCount, uint32 edgeMask) const
++{
++    const b2GridShape::Cell& cell = m_cells[index];
++    const b2HullSet::Hull& hull = m_hullSet->m_hulls[cell.m_Index];
++    b2Assert(hull.m_Count <= b2_maxPolygonVertices);
++
++    b2Vec2 v[b2_maxPolygonVertices];
++    uint32 vCount = GetCellVertices(index, v);
++
++    uint32 vPrev = vCount - 1;
++    uint32 v0 = 0;
++    uint32 v1 = 1;
++    uint32 vNext = 2;
++    uint32 edgeCount = 0;
++    for (uint32 i = 0; i < vCount && i < edgeShapeCount; ++i)
++    {
++        if (edgeMask & (1 << v0))
++        {
++            b2EdgeShape& edge = edgeShapes[edgeCount];
++            edge.Set(v[v0], v[v1]);
++            edge.m_hasVertex0 = true;
++            if (edgeMask & (1 << vPrev))
++            {
++                edge.m_vertex0 = v[vPrev];
++            }
++            else
++            {
++                edge.m_vertex0 = GetGhostPoint(index, v[vPrev], v[v0], true);
++            }
++            edge.m_hasVertex3 = true;
++            if (edgeMask & (1 << v1))
++            {
++                edge.m_vertex3 = v[vNext];
++            }
++            else
++            {
++                edge.m_vertex3 = GetGhostPoint(index, v[v1], v[vNext], false);
++            }
++            ++edgeCount;
++        }
++        vPrev = v0;
++        v0 = v1;
++        v1 = vNext;
++        vNext = (vNext + 1) % vCount;
++    }
++    return edgeCount;
++}
++
++static bool hasEdge(b2Vec2 p0, b2Vec2 p1, b2Vec2* vertices, uint32 n, float32 cellWidth, float32 cellHeight)
++{
++    const float32 epsilon = 0.01f;
++    // Calculate absolute tolerance values by scaling epsilon with the magnitude
++    // of the compared. We assume that the cell dimensions will be close to the max magnitude of the compared values
++    float32 absTol = epsilon * b2Max(cellWidth, cellHeight);
++    // Square it since we compare with squared distances below
++    absTol *= absTol;
++
++    for (uint32 i = 0; i < n; ++i)
++    {
++        uint32 i1 = i % n;
++        uint32 i2 = (i+1) % n;
++        float32 d1 = b2DistanceSquared(p0, vertices[i1]);
++        float32 d2 = b2DistanceSquared(p1, vertices[i2]);
++
++        if (d1 < absTol && d2 < absTol)
++        {
++            return true;
++        }
++    }
++
++    return false;
++}
++
++uint32 b2GridShape::CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column)
++{
++    uint32 index = row * m_columnCount + column;
++    const b2Filter& filter = fixture->GetFilterData(index);
++    uint32 mask = 0xffffffff;
++
++    b2Vec2 vertices[b2_maxPolygonVertices];
++    b2Vec2 neighbourVertices[b2_maxPolygonVertices];
++
++    uint32 nv = GetCellVertices(index, vertices);
++
++    static const int32 deltas[4][2] = { {0, 1}, {1, 0}, {0, -1}, {-1, 0} };
++
++    for (uint32 idelta = 0; idelta < 4; ++idelta)
++    {
++        int32 dr = deltas[idelta][0];
++        int32 dc = deltas[idelta][1];
++
++        int32 r = ((int32) row) + dr;
++        int32 c = ((int32) column) + dc;
++        if (r >= 0 && r < (int32) m_rowCount &&
++            c >= 0 && c < (int32) m_columnCount)
++        {
++            uint32 neighbourIndex = r * m_columnCount + c;
++            uint32 nnv = GetCellVertices(neighbourIndex, neighbourVertices);
++
++            const b2Filter& neighbourFilter = fixture->GetFilterData(neighbourIndex);
++
++            if (filter.categoryBits == neighbourFilter.categoryBits)
++            {
++                for (uint32 i = 0; i < nv; ++i)
++                {
++                    uint32 i1 = i % nv;
++                    uint32 i2 = (i+1) % nv;
++
++                    if (hasEdge(vertices[i2], vertices[i1], neighbourVertices, nnv, m_cellWidth, m_cellHeight))
++                    {
++                        mask &= ~(1 << i);
++                    }
++                }
++            }
++        }
++    }
++
++    return mask;
++}
++
++void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, b2GridShape::CellFlags flags)
++{
++    assert(m_type == b2Shape::e_grid);
++
++    uint32 index = row * m_columnCount + column;
++    b2Assert(index < m_rowCount * m_columnCount);
++    b2GridShape::Cell* cell = &m_cells[index];
++    cell->m_Index = hull;
++    m_cellFlags[index] = flags;
++    // treat cells with an empty hull as an empty cell
++    if (hull != B2GRIDSHAPE_EMPTY_CELL)
++    {
++        b2HullSet::Hull& h = m_hullSet->m_hulls[hull];
++        if (h.m_Count == 0)
++            cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
++    }
++
++    body->SynchronizeSingle(this, index);
++}
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h
+--- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2GridShape.h	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,119 @@
++#ifndef B2_TILE_SHAPE_H
++#define B2_TILE_SHAPE_H
++
++#include <Box2D/Common/b2Math.h>
++#include <Box2D/Collision/Shapes/b2Shape.h>
++#include <Box2D/Dynamics/b2Body.h>
++#include <string.h>
++
++struct b2HullSet
++{
++    struct Hull
++    {
++        uint16 m_Index;
++        uint16 m_Count;
++    };
++
++    b2HullSet(const b2Vec2* vertices, uint32 vertex_count,
++              const Hull* hulls, uint32 hull_count)
++    {
++        uint32 vertices_size = vertex_count * sizeof(vertices[0]);
++        m_vertices = (b2Vec2*) b2Alloc(vertices_size);
++        memcpy(m_vertices, vertices, vertices_size);
++        m_vertexCount = vertex_count;
++
++        uint32 hulls_size = hull_count * sizeof(hulls[0]);
++        m_hulls = (Hull*) b2Alloc(hulls_size);
++        memcpy(m_hulls, hulls, hulls_size);
++        m_hullCount = hull_count;
++    }
++
++    ~b2HullSet()
++    {
++        b2Free(m_vertices);
++        b2Free(m_hulls);
++    }
++
++    b2Vec2* m_vertices;
++    uint32  m_vertexCount;
++    Hull*   m_hulls;
++    uint32  m_hullCount;
++
++private:
++    b2HullSet(const b2HullSet&);
++    b2HullSet& operator=(const b2HullSet&);
++};
++
++/*
++ * NOTE AND BEWARE: comp_tilegrid has this value implicitly hard-coded
++ * by subtracting by 1. If you change here a corrsponding change
++ * is required in comp_tilegrid
++ */
++const uint32 B2GRIDSHAPE_EMPTY_CELL = 0xffffffff;
++
++class b2GridShape : public b2Shape
++{
++public:
++    struct Cell
++    {
++        // Index to hull in hull-set
++        // NOTE: If you add members to this struct memset(m_Cells, 0xff, size); in constructor must be replaced
++        uint32 m_Index;
++    };
++    struct CellFlags
++    {
++        CellFlags()
++        : m_FlipHorizontal(0)
++        , m_FlipVertical(0)
++        , m_Padding(0)
++        {}
++
++        uint16 m_FlipHorizontal : 1;
++        uint16 m_FlipVertical : 1;
++        uint16 m_Padding : 14;
++    };
++
++    b2GridShape(const b2HullSet* hullSet,
++                const b2Vec2 position,
++                float32 cellWidth, float32 cellHeight,
++                uint32 rowCount, uint32 columnCount);
++
++    virtual ~b2GridShape();
++
++    virtual b2Shape* Clone(b2BlockAllocator* allocator) const;
++
++    Type GetType() const;
++
++    virtual int32 GetChildCount() const;
++
++    virtual bool TestPoint(const b2Transform& xf, const b2Vec2& p) const;
++
++    virtual bool RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
++                        const b2Transform& transform, int32 childIndex) const;
++
++    virtual void ComputeAABB(b2AABB* aabb, const b2Transform& xf, int32 childIndex) const;
++
++    virtual void ComputeMass(b2MassData* massData, float32 density) const;
++
++    void GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const;
++    uint32 GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, uint32 edgeShapeCount, uint32 edgeMask) const;
++
++    void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, CellFlags flags);
++
++    uint32 CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column);
++
++    b2Vec2  m_position;
++    Cell*   m_cells;
++    CellFlags* m_cellFlags;
++    const b2HullSet* m_hullSet;
++    float32  m_cellWidth;
++    float32  m_cellHeight;
++    uint32  m_rowCount;
++    uint32  m_columnCount;
++
++private:
++    uint32 GetCellVertices(uint32 index, b2Vec2* vertices) const;
++    b2Vec2 GetGhostPoint(uint32 index, b2Vec2 v0, b2Vec2 v1, bool fwdDirection) const;
++};
++
++#endif // B2_TILE_SHAPE_H
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h
+--- a/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h	2011-08-21 19:49:54.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/Shapes/b2Shape.h	2018-07-15 10:16:07.000000000 +0200
+@@ -42,14 +42,15 @@
+ class b2Shape
+ {
+ public:
+-	
++
+ 	enum Type
+ 	{
+ 		e_circle = 0,
+ 		e_edge = 1,
+ 		e_polygon = 2,
+ 		e_chain = 3,
+-		e_typeCount = 4
++		e_grid = 4,
++		e_typeCount = 5
+ 	};
+ 
+ 	virtual ~b2Shape() {}
+@@ -91,6 +92,12 @@
+ 
+ 	Type m_type;
+ 	float32 m_radius;
++
++	// Defold modifications
++
++	uint8 m_filterPerChild : 1;
++
++    b2Shape() : m_filterPerChild(0) {}
+ };
+ 
+ inline b2Shape::Type b2Shape::GetType() const
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h b/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h
+--- a/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h	2011-03-27 14:23:24.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2BroadPhase.h	2018-07-15 10:16:07.000000000 +0200
+@@ -197,7 +197,7 @@
+ 		const b2AABB& fatAABB = m_tree.GetFatAABB(m_queryProxyId);
+ 
+ 		// Query tree, create pairs and add them pair buffer.
+-		m_tree.Query(this, fatAABB);
++		m_tree.Query(this, callback, fatAABB, m_queryProxyId);
+ 	}
+ 
+ 	// Reset move buffer
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp b/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp
+--- a/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp	2011-03-24 10:17:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Collision/b2CollideCircle.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -31,10 +31,10 @@
+ 	b2Vec2 pB = b2Mul(xfB, circleB->m_p);
+ 
+ 	b2Vec2 d = pB - pA;
+-	float32 distSqr = b2Dot(d, d);
++	float32 distSq = b2Dot(d, d);
+ 	float32 rA = circleA->m_radius, rB = circleB->m_radius;
+ 	float32 radius = rA + rB;
+-	if (distSqr > radius * radius)
++	if (distSq > radius * radius)
+ 	{
+ 		return;
+ 	}
+@@ -46,6 +46,7 @@
+ 
+ 	manifold->points[0].localPoint = circleB->m_p;
+ 	manifold->points[0].id.key = 0;
++	manifold->points[0].distance = radius - b2Sqrt(distSq);
+ }
+ 
+ void b2CollidePolygonAndCircle(
+@@ -99,6 +100,8 @@
+ 		manifold->localPoint = 0.5f * (v1 + v2);
+ 		manifold->points[0].localPoint = circleB->m_p;
+ 		manifold->points[0].id.key = 0;
++		// Defold modification: set distance
++		manifold->points[0].distance = circleB->m_radius - separation;
+ 		return;
+ 	}
+ 
+@@ -107,7 +110,8 @@
+ 	float32 u2 = b2Dot(cLocal - v2, v1 - v2);
+ 	if (u1 <= 0.0f)
+ 	{
+-		if (b2DistanceSquared(cLocal, v1) > radius * radius)
++		float distSq = b2DistanceSquared(cLocal, v1);
++		if (distSq > radius * radius)
+ 		{
+ 			return;
+ 		}
+@@ -119,10 +123,12 @@
+ 		manifold->localPoint = v1;
+ 		manifold->points[0].localPoint = circleB->m_p;
+ 		manifold->points[0].id.key = 0;
++		manifold->points[0].distance = circleB->m_radius - b2Sqrt(distSq);
+ 	}
+ 	else if (u2 <= 0.0f)
+ 	{
+-		if (b2DistanceSquared(cLocal, v2) > radius * radius)
++		float distSq = b2DistanceSquared(cLocal, v2);
++		if (distSq > radius * radius)
+ 		{
+ 			return;
+ 		}
+@@ -134,6 +140,7 @@
+ 		manifold->localPoint = v2;
+ 		manifold->points[0].localPoint = circleB->m_p;
+ 		manifold->points[0].id.key = 0;
++		manifold->points[0].distance = circleB->m_radius - b2Sqrt(distSq);
+ 	}
+ 	else
+ 	{
+@@ -150,5 +157,6 @@
+ 		manifold->localPoint = faceCenter;
+ 		manifold->points[0].localPoint = circleB->m_p;
+ 		manifold->points[0].id.key = 0;
++		manifold->points[0].distance = circleB->m_radius - separation;
+ 	}
+ }
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp b/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp
+--- a/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp	2011-08-22 20:38:46.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2CollideEdge.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -80,7 +80,8 @@
+ 		manifold->localPoint = P;
+ 		manifold->points[0].id.key = 0;
+ 		manifold->points[0].id.cf = cf;
+-		manifold->points[0].localPoint = circleB->m_p;
++        manifold->points[0].localPoint = circleB->m_p;
++        manifold->points[0].distance = circleB->m_radius - b2Sqrt(dd);
+ 		return;
+ 	}
+ 	
+@@ -118,7 +119,8 @@
+ 		manifold->localPoint = P;
+ 		manifold->points[0].id.key = 0;
+ 		manifold->points[0].id.cf = cf;
+-		manifold->points[0].localPoint = circleB->m_p;
++        manifold->points[0].localPoint = circleB->m_p;
++        manifold->points[0].distance = circleB->m_radius - b2Sqrt(dd);
+ 		return;
+ 	}
+ 	
+@@ -148,7 +150,8 @@
+ 	manifold->localPoint = A;
+ 	manifold->points[0].id.key = 0;
+ 	manifold->points[0].id.cf = cf;
+-	manifold->points[0].localPoint = circleB->m_p;
++    manifold->points[0].localPoint = circleB->m_p;
++    manifold->points[0].distance = circleB->m_radius - b2Sqrt(dd);
+ }
+ 
+ // This structure is used to keep track of the best separating axis.
+@@ -609,6 +612,7 @@
+ 				cp->id.cf.indexA = clipPoints2[i].id.cf.indexB;
+ 				cp->id.cf.indexB = clipPoints2[i].id.cf.indexA;
+ 			}
++			cp->distance = -separation;
+ 			
+ 			++pointCount;
+ 		}
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp b/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp
+--- a/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp	2011-06-26 16:09:20.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2CollidePolygon.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -215,6 +215,7 @@
+ 	const float32 k_relativeTol = 0.98f;
+ 	const float32 k_absoluteTol = 0.001f;
+ 
++	float max_separation = 0.0f;
+ 	if (separationB > k_relativeTol * separationA + k_absoluteTol)
+ 	{
+ 		poly1 = polyB;
+@@ -222,6 +223,7 @@
+ 		xf1 = xfB;
+ 		xf2 = xfA;
+ 		edge1 = edgeB;
++		max_separation = separationB;
+ 		manifold->type = b2Manifold::e_faceB;
+ 		flip = 1;
+ 	}
+@@ -232,6 +234,7 @@
+ 		xf1 = xfA;
+ 		xf2 = xfB;
+ 		edge1 = edgeA;
++		max_separation = separationA;
+ 		manifold->type = b2Manifold::e_faceA;
+ 		flip = 0;
+ 	}
+@@ -298,6 +301,7 @@
+ 		if (separation <= totalRadius)
+ 		{
+ 			b2ManifoldPoint* cp = manifold->points + pointCount;
++			cp->distance = -max_separation;
+ 			cp->localPoint = b2MulT(xf2, clipPoints2[i].v);
+ 			cp->id = clipPoints2[i].id;
+ 			if (flip)
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2Collision.h b/Box2D_v2.2.1/Box2D/Collision/b2Collision.h
+--- a/Box2D_v2.2.1/Box2D/Collision/b2Collision.h	2011-06-05 13:22:42.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2Collision.h	2018-07-15 10:16:07.000000000 +0200
+@@ -72,6 +72,7 @@
+ 	float32 normalImpulse;	///< the non-penetration impulse
+ 	float32 tangentImpulse;	///< the friction impulse
+ 	b2ContactID id;			///< uniquely identifies a contact point between two shapes
++    float32 distance;
+ };
+ 
+ /// A manifold for two touching convex shapes.
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp b/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp
+--- a/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp	2011-08-31 23:49:40.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2Distance.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -77,6 +77,17 @@
+ 		}
+ 		break;
+ 
++    case b2Shape::e_grid:
++        {
++            /*
++             * TODO: We can't support this in grid-shape.
++             * Currently the vertices are instantiated in the contact, eg b2GridAndPolygonContact
++             * Hence, we have no data in the shape to set. We could increase the memory footprint
++             * and bake all cells in order to support continuous collision detection
++             */
++        }
++        break;
++
+ 	default:
+ 		b2Assert(false);
+ 	}
+@@ -100,7 +111,7 @@
+ 					const b2DistanceProxy* proxyB, const b2Transform& transformB)
+ 	{
+ 		b2Assert(cache->count <= 3);
+-		
++
+ 		// Copy data from cache.
+ 		m_count = cache->count;
+ 		b2SimplexVertex* vertices = &m_v1;
+@@ -366,7 +377,7 @@
+ 	float32 w3e23 = b2Dot(w3, e23);
+ 	float32 d23_1 = w3e23;
+ 	float32 d23_2 = -w2e23;
+-	
++
+ 	// Triangle123
+ 	float32 n123 = b2Cross(e12, e13);
+ 
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h b/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h
+--- a/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h	2011-06-25 00:46:30.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Collision/b2DynamicTree.h	2018-07-15 10:16:07.000000000 +0200
+@@ -88,8 +88,15 @@
+ 
+ 	/// Query an AABB for overlapping proxies. The callback class
+ 	/// is called for each proxy that overlaps the supplied AABB.
+-	template <typename T>
+-	void Query(T* callback, const b2AABB& aabb) const;
++    template <typename T>
++	inline void Query(T* callback, const b2AABB& aabb) const;
++
++    /// Defold modifications
++    /// Variant of standard Query method with filtering support
++    /// Due to the layered design b2ContectManager -> b2BroadPhase -> b2DynamicTree
++    /// the fix is not the prettiest one
++	template <typename T, typename U>
++	inline void Query(T* callback, U* canCollide, const b2AABB& aabb, int32 aabbProxyId) const;
+ 
+ 	/// Ray-cast against the proxies in the tree. This relies on the callback
+ 	/// to perform a exact ray-cast in the case were the proxy contains a shape.
+@@ -160,9 +167,25 @@
+ 	return m_nodes[proxyId].aabb;
+ }
+ 
++// Defold modifications. Dummy callback
++struct DummyCanCollide
++{
++    inline bool CanCollide(void*, void*)
++    {
++        return true;
++    }
++};
++
+ template <typename T>
+ inline void b2DynamicTree::Query(T* callback, const b2AABB& aabb) const
+ {
++    DummyCanCollide dummy;
++    Query(callback, &dummy, aabb, 0);
++}
++
++template <typename T, typename U>
++inline void b2DynamicTree::Query(T* callback, U* canCollide, const b2AABB& aabb, int32 aabbProxyId) const
++{
+ 	b2GrowableStack<int32, 256> stack;
+ 	stack.Push(m_root);
+ 
+@@ -180,11 +203,16 @@
+ 		{
+ 			if (node->IsLeaf())
+ 			{
+-				bool proceed = callback->QueryCallback(nodeId);
+-				if (proceed == false)
+-				{
+-					return;
+-				}
++			    // Defold modifications. CanCollide
++			    // Filter out pairs early
++			    if (canCollide->CanCollide(node->userData, GetUserData(aabbProxyId)))
++		        {
++                    bool proceed = callback->QueryCallback(nodeId);
++                    if (proceed == false)
++                    {
++                        return;
++                    }
++		        }
+ 			}
+ 			else
+ 			{
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Draw.h b/Box2D_v2.2.1/Box2D/Common/b2Draw.h
+--- a/Box2D_v2.2.1/Box2D/Common/b2Draw.h	2011-03-27 11:31:42.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Draw.h	2018-07-15 10:16:07.000000000 +0200
+@@ -72,9 +72,14 @@
+ 	/// Draw a line segment.
+ 	virtual void DrawSegment(const b2Vec2& p1, const b2Vec2& p2, const b2Color& color) = 0;
+ 
+-	/// Draw a transform. Choose your own length scale.
+-	/// @param xf a transform.
+-	virtual void DrawTransform(const b2Transform& xf) = 0;
++    /// Draw a transform. Choose your own length scale.
++    /// @param xf a transform.
++    virtual void DrawTransform(const b2Transform& xf) = 0;
++
++    /// Draw an arrow. Choose your own length scale.
++    /// @param p position.
++    /// @param d direction.
++    virtual void DrawArrow(const b2Vec2& p, const b2Vec2& d, const b2Color& color) = 0;
+ 
+ protected:
+ 	uint32 m_drawFlags;
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Math.h b/Box2D_v2.2.1/Box2D/Common/b2Math.h
+--- a/Box2D_v2.2.1/Box2D/Common/b2Math.h	2011-09-03 18:48:02.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Math.h	2018-07-15 10:16:07.000000000 +0200
+@@ -327,6 +327,13 @@
+ 		c = cosf(angle);
+ 	}
+ 
++    /// Set using complex number representation
++    void SetComplex(float32 i, float32 j)
++    {
++        s = j;
++        c = i;
++    }
++
+ 	/// Set to the identity rotation
+ 	void SetIdentity()
+ 	{
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Pow.h b/Box2D_v2.2.1/Box2D/Common/b2Pow.h
+--- a/Box2D_v2.2.1/Box2D/Common/b2Pow.h	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Common/b2Pow.h	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,36 @@
++// Defold modification, not included in original Box2D
++
++#ifndef B2_POW_H
++#define B2_POW_H
++
++#include <stdint.h>
++
++inline float b2FastLog2(float x) {
++    union { float f; uint32_t i; } vx = { x };
++    union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
++    float y = vx.i;
++    y *= 1.1920928955078125e-7f;
++
++    return y - 124.22551499f
++           - 1.498030302f * mx.f
++           - 1.72587999f / (0.3520887068f + mx.f);
++}
++
++inline float b2FastPow2(float p) {
++    float offset = (p < 0) ? 1.0f : 0.0f;
++    float clipp = (p < -126) ? -126.0f : p;
++    int w = clipp;
++    float z = clipp - w + offset;
++    union {
++        uint32_t i;
++        float f;
++    } v = { (uint32_t)( (1 << 23) * (clipp + 121.2740575f + 27.7280233f / (4.84252568f - z) - 1.49012907f * z) ) };
++
++    return v.f;
++}
++
++inline float b2FastPow(float x, float p) {
++  return b2FastPow2(p * b2FastLog2(x));
++}
++
++#endif // B2_POW_H
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Common/b2Settings.h b/Box2D_v2.2.1/Box2D/Common/b2Settings.h
+--- a/Box2D_v2.2.1/Box2D/Common/b2Settings.h	2011-09-03 02:49:22.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Common/b2Settings.h	2018-07-15 10:16:07.000000000 +0200
+@@ -50,7 +50,9 @@
+ 
+ /// The maximum number of vertices on a convex polygon. You cannot increase
+ /// this too much because b2BlockAllocator has a maximum object size.
+-#define b2_maxPolygonVertices	8
++//#define b2_maxPolygonVertices   8
++// Defold modification
++#define b2_maxPolygonVertices   16
+ 
+ /// This is used to fatten AABBs in the dynamic tree. This allows proxies
+ /// to move by a small amount without triggering a tree adjustment.
+@@ -73,7 +75,7 @@
+ /// The radius of the polygon/edge shape skin. This should not be modified. Making
+ /// this smaller means polygons will have an insufficient buffer for continuous collision.
+ /// Making it larger may create artifacts for vertex collision.
+-#define b2_polygonRadius		(2.0f * b2_linearSlop)
++#define b2_polygonRadius        (2.0f * b2_linearSlop)
+ 
+ /// Maximum number of sub-steps per contact in continuous physics simulation.
+ #define b2_maxSubSteps			8
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp	2011-08-22 01:09:06.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2Contact.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -24,6 +24,8 @@
+ #include <Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.h>
+ #include <Box2D/Dynamics/Contacts/b2ChainAndCircleContact.h>
+ #include <Box2D/Dynamics/Contacts/b2ChainAndPolygonContact.h>
++#include <Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h>
++#include <Box2D/Dynamics/Contacts/b2GridAndCircleContact.h>
+ #include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
+ 
+ #include <Box2D/Collision/b2Collision.h>
+@@ -46,6 +48,9 @@
+ 	AddType(b2EdgeAndPolygonContact::Create, b2EdgeAndPolygonContact::Destroy, b2Shape::e_edge, b2Shape::e_polygon);
+ 	AddType(b2ChainAndCircleContact::Create, b2ChainAndCircleContact::Destroy, b2Shape::e_chain, b2Shape::e_circle);
+ 	AddType(b2ChainAndPolygonContact::Create, b2ChainAndPolygonContact::Destroy, b2Shape::e_chain, b2Shape::e_polygon);
++	// Defold additions
++	AddType(b2GridAndPolygonContact::Create, b2GridAndPolygonContact::Destroy, b2Shape::e_grid, b2Shape::e_polygon);
++    AddType(b2GridAndCircleContact::Create, b2GridAndCircleContact::Destroy, b2Shape::e_grid, b2Shape::e_circle);
+ }
+ 
+ void b2Contact::AddType(b2ContactCreateFcn* createFcn, b2ContactDestroyFcn* destoryFcn,
+@@ -53,7 +58,7 @@
+ {
+ 	b2Assert(0 <= type1 && type1 < b2Shape::e_typeCount);
+ 	b2Assert(0 <= type2 && type2 < b2Shape::e_typeCount);
+-	
++
+ 	s_registers[type1][type2].createFcn = createFcn;
+ 	s_registers[type1][type2].destroyFcn = destoryFcn;
+ 	s_registers[type1][type2].primary = true;
+@@ -79,7 +84,7 @@
+ 
+ 	b2Assert(0 <= type1 && type1 < b2Shape::e_typeCount);
+ 	b2Assert(0 <= type2 && type2 < b2Shape::e_typeCount);
+-	
++
+ 	b2ContactCreateFcn* createFcn = s_registers[type1][type2].createFcn;
+ 	if (createFcn)
+ 	{
+@@ -175,7 +180,16 @@
+ 	{
+ 		const b2Shape* shapeA = m_fixtureA->GetShape();
+ 		const b2Shape* shapeB = m_fixtureB->GetShape();
+-		touching = b2TestOverlap(shapeA, m_indexA, shapeB, m_indexB, xfA, xfB);
++		// Defold mod, Fake manifold update to test grid, not currently involved in overlap-test (b2Distance.cpp:83)
++		if (shapeA->m_type == b2Shape::e_grid || shapeB->m_type == b2Shape::e_grid)
++		{
++		    Evaluate(&m_manifold, xfA, xfB);
++		    touching = m_manifold.pointCount > 0;
++		}
++		else
++		{
++		    touching = b2TestOverlap(shapeA, m_indexA, shapeB, m_indexB, xfA, xfB);
++		}
+ 
+ 		// Sensors don't generate manifolds.
+ 		m_manifold.pointCount = 0;
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,49 @@
++#include <Box2D/Dynamics/Contacts/b2GridAndCircleContact.h>
++#include <Box2D/Dynamics/b2Body.h>
++#include <Box2D/Dynamics/b2Fixture.h>
++#include <Box2D/Dynamics/b2WorldCallbacks.h>
++#include <Box2D/Common/b2BlockAllocator.h>
++#include <Box2D/Collision/b2TimeOfImpact.h>
++#include <Box2D/Collision/Shapes/b2GridShape.h>
++#include <Box2D/Collision/Shapes/b2PolygonShape.h>
++#include <Box2D/Collision/Shapes/b2EdgeShape.h>
++
++#include <new>
++using namespace std;
++
++b2Contact* b2GridAndCircleContact::Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
++{
++	void* mem = allocator->Allocate(sizeof(b2GridAndCircleContact));
++	return new (mem) b2GridAndCircleContact(fixtureA, indexA, fixtureB);
++}
++
++void b2GridAndCircleContact::Destroy(b2Contact* contact, b2BlockAllocator* allocator)
++{
++	((b2GridAndCircleContact*)contact)->~b2GridAndCircleContact();
++	allocator->Free(contact, sizeof(b2GridAndCircleContact));
++}
++
++b2GridAndCircleContact::b2GridAndCircleContact(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB)
++	: b2Contact(fixtureA, indexA, fixtureB, 0)
++{
++	b2Assert(m_fixtureA->GetType() == b2Shape::e_grid);
++	b2Assert(m_fixtureB->GetType() == b2Shape::e_circle);
++}
++
++void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB)
++{
++    b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
++    b2CircleShape* circleB = (b2CircleShape*)m_fixtureB->GetShape();
++
++    manifold->pointCount = 0;
++
++    const b2GridShape::Cell& cell = gridShape->m_cells[m_indexA];
++    if (cell.m_Index == 0xffffffff)
++    {
++        return;
++    }
++
++    b2PolygonShape polyA;
++    gridShape->GetPolygonShapeForCell(m_indexA, polyA);
++    b2CollidePolygonAndCircle(manifold, &polyA, xfA, circleB, xfB);
++}
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndCircleContact.h	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,21 @@
++#ifndef B2_GRID_AND_CIRCLE_CONTACT_H
++#define B2_GRID_AND_CIRCLE_CONTACT_H
++
++#include <Box2D/Dynamics/Contacts/b2Contact.h>
++
++class b2BlockAllocator;
++
++class b2GridAndCircleContact : public b2Contact
++{
++public:
++	static b2Contact* Create(b2Fixture* fixtureA, int32 indexA,
++	                         b2Fixture* fixtureB, int32 indexB, b2BlockAllocator* allocator);
++	static void Destroy(b2Contact* contact, b2BlockAllocator* allocator);
++
++	b2GridAndCircleContact(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB);
++	~b2GridAndCircleContact() {}
++
++	void Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB);
++};
++
++#endif
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,49 @@
++#include <Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h>
++#include <Box2D/Dynamics/b2Body.h>
++#include <Box2D/Dynamics/b2Fixture.h>
++#include <Box2D/Dynamics/b2WorldCallbacks.h>
++#include <Box2D/Common/b2BlockAllocator.h>
++#include <Box2D/Collision/b2TimeOfImpact.h>
++#include <Box2D/Collision/Shapes/b2GridShape.h>
++#include <Box2D/Collision/Shapes/b2PolygonShape.h>
++#include <Box2D/Collision/Shapes/b2EdgeShape.h>
++
++#include <new>
++using namespace std;
++
++b2Contact* b2GridAndPolygonContact::Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32, b2BlockAllocator* allocator)
++{
++	void* mem = allocator->Allocate(sizeof(b2GridAndPolygonContact));
++	return new (mem) b2GridAndPolygonContact(fixtureA, indexA, fixtureB);
++}
++
++void b2GridAndPolygonContact::Destroy(b2Contact* contact, b2BlockAllocator* allocator)
++{
++	((b2GridAndPolygonContact*)contact)->~b2GridAndPolygonContact();
++	allocator->Free(contact, sizeof(b2GridAndPolygonContact));
++}
++
++b2GridAndPolygonContact::b2GridAndPolygonContact(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB)
++	: b2Contact(fixtureA, indexA, fixtureB, 0)
++{
++	b2Assert(m_fixtureA->GetType() == b2Shape::e_grid);
++	b2Assert(m_fixtureB->GetType() == b2Shape::e_polygon);
++}
++
++void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB)
++{
++    b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
++    b2PolygonShape* polyB = (b2PolygonShape*)m_fixtureB->GetShape();
++
++    manifold->pointCount = 0;
++
++    const b2GridShape::Cell& cell = gridShape->m_cells[m_indexA];
++    if (cell.m_Index == 0xffffffff)
++    {
++        return;
++    }
++
++    b2PolygonShape polyA;
++    gridShape->GetPolygonShapeForCell(m_indexA, polyA);
++    b2CollidePolygons(manifold, &polyA, xfA, polyB, xfB);
++}
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h	1970-01-01 01:00:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Dynamics/Contacts/b2GridAndPolygonContact.h	2018-07-15 10:16:07.000000000 +0200
+@@ -0,0 +1,21 @@
++#ifndef B2_GRID_AND_POLYGON_CONTACT_H
++#define B2_GRID_AND_POLYGON_CONTACT_H
++
++#include <Box2D/Dynamics/Contacts/b2Contact.h>
++
++class b2BlockAllocator;
++
++class b2GridAndPolygonContact : public b2Contact
++{
++public:
++	static b2Contact* Create(b2Fixture* fixtureA, int32 indexA,
++	                         b2Fixture* fixtureB, int32 indexB, b2BlockAllocator* allocator);
++	static void Destroy(b2Contact* contact, b2BlockAllocator* allocator);
++
++	b2GridAndPolygonContact(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB);
++	~b2GridAndPolygonContact() {}
++
++	void Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB);
++};
++
++#endif
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp	2011-09-11 20:52:20.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -379,10 +379,12 @@
+ bool b2Body::ShouldCollide(const b2Body* other) const
+ {
+ 	// At least one body should be dynamic.
+-	if (m_type != b2_dynamicBody && other->m_type != b2_dynamicBody)
+-	{
+-		return false;
+-	}
++    // Defold mod: At least one body should be dynamic or kinematic
++    if (m_type != b2_dynamicBody && other->m_type != b2_dynamicBody
++            && m_type != b2_kinematicBody && other->m_type != b2_kinematicBody)
++    {
++        return false;
++    }
+ 
+ 	// Does a joint prevent collision?
+ 	for (b2JointEdge* jn = m_jointList; jn; jn = jn->next)
+@@ -438,6 +440,30 @@
+ 	}
+ }
+ 
++void b2Body::SynchronizeSingle(b2Shape* shape, int32 index)
++{
++    // Defold fix: Shapes call this function blindly not knowing if proxies have been created or not.
++    // b2Body only has proxied created when active, so discard calls when not active so shapes can be
++    // updated without crash on inactive objects.
++    if (!IsActive())
++    {
++        return;
++    }
++
++    b2Transform xf1;
++    xf1.q.Set(m_sweep.a0);
++    xf1.p = m_sweep.c0 - b2Mul(xf1.q, m_sweep.localCenter);
++
++    b2BroadPhase* broadPhase = &m_world->m_contactManager.m_broadPhase;
++    for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
++    {
++        if (f->GetShape() == shape)
++        {
++            f->SynchronizeSingle(broadPhase, index, xf1, m_xf);
++        }
++    }
++}
++
+ void b2Body::SetActive(bool flag)
+ {
+ 	b2Assert(m_world->IsLocked() == false);
+@@ -511,4 +537,4 @@
+ 		b2Log("  }\n");
+ 	}
+ 	b2Log("}\n");
+-}
+\ No newline at end of file
++}
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h	2011-09-03 15:12:24.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Body.h	2018-07-15 10:16:07.000000000 +0200
+@@ -190,9 +190,9 @@
+ 	/// @param omega the new angular velocity in radians/second.
+ 	void SetAngularVelocity(float32 omega);
+ 
+-	/// Get the angular velocity.
+-	/// @return the angular velocity in radians/second.
+-	float32 GetAngularVelocity() const;
++    /// Get the angular velocity.
++    /// @return the angular velocity in radians/second.
++    float32 GetAngularVelocity() const;
+ 
+ 	/// Apply a force at a world point. If the force is not
+ 	/// applied at the center of mass, it will generate a torque and
+@@ -378,6 +378,11 @@
+ 	/// Dump this body to a log file
+ 	void Dump();
+ 
++    /* The following functions are added by defold */
++
++    /// Get the total force
++    const b2Vec2& GetForce() const;
++
+ private:
+ 
+ 	friend class b2World;
+@@ -385,7 +390,7 @@
+ 	friend class b2ContactManager;
+ 	friend class b2ContactSolver;
+ 	friend class b2Contact;
+-	
++
+ 	friend class b2DistanceJoint;
+ 	friend class b2GearJoint;
+ 	friend class b2WheelJoint;
+@@ -397,6 +402,8 @@
+ 	friend class b2FrictionJoint;
+ 	friend class b2RopeJoint;
+ 
++    friend class b2GridShape;
++
+ 	// m_flags
+ 	enum
+ 	{
+@@ -412,8 +419,10 @@
+ 	b2Body(const b2BodyDef* bd, b2World* world);
+ 	~b2Body();
+ 
+-	void SynchronizeFixtures();
+-	void SynchronizeTransform();
++    void SynchronizeFixtures();
++    // Defold mod
++    void SynchronizeSingle(b2Shape* shape, int32 index);
++    void SynchronizeTransform();
+ 
+ 	// This is used to prevent connected bodies from colliding.
+ 	// It may lie, depending on the collideConnected flag.
+@@ -739,7 +748,7 @@
+ 
+ inline void* b2Body::GetUserData() const
+ {
+-	return m_userData;
++    return m_userData;
+ }
+ 
+ inline void b2Body::ApplyForce(const b2Vec2& force, const b2Vec2& point)
+@@ -843,4 +852,11 @@
+ 	return m_world;
+ }
+ 
++/* Defold additions */
++
++inline const b2Vec2& b2Body::GetForce() const
++{
++    return m_force;
++}
++
+ #endif
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp	2011-09-03 01:49:48.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -114,7 +114,7 @@
+ 		int32 indexB = c->GetChildIndexB();
+ 		b2Body* bodyA = fixtureA->GetBody();
+ 		b2Body* bodyB = fixtureB->GetBody();
+-		 
++
+ 		// Is this contact flagged for filtering?
+ 		if (c->m_flags & b2Contact::e_filterFlag)
+ 		{
+@@ -128,7 +128,7 @@
+ 			}
+ 
+ 			// Check user filtering.
+-			if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, fixtureB) == false)
++			if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, indexA, fixtureB, indexB) == false)
+ 			{
+ 				b2Contact* cNuke = c;
+ 				c = cNuke->GetNext();
+@@ -140,10 +140,10 @@
+ 			c->m_flags &= ~b2Contact::e_filterFlag;
+ 		}
+ 
+-		bool activeA = bodyA->IsAwake() && bodyA->m_type != b2_staticBody;
+-		bool activeB = bodyB->IsAwake() && bodyB->m_type != b2_staticBody;
++		bool activeA = (bodyA->IsAwake() || bodyA->GetType() == b2_kinematicBody) && bodyA->m_type != b2_staticBody;
++		bool activeB = (bodyB->IsAwake() || bodyB->GetType() == b2_kinematicBody) && bodyB->m_type != b2_staticBody;
+ 
+-		// At least one body must be awake and it must be dynamic or kinematic.
++		// Defold Mod: At least one body must be awake and it must be dynamic or kinematic
+ 		if (activeA == false && activeB == false)
+ 		{
+ 			c = c->GetNext();
+@@ -174,6 +174,19 @@
+ 	m_broadPhase.UpdatePairs(this);
+ }
+ 
++// Defold modifications
++// Early out filter (broad-phase)
++// See API-changes for more info
++bool b2ContactManager::CanCollide(void* proxyUserDataA, void* proxyUserDataB)
++{
++    b2FixtureProxy* proxyA = (b2FixtureProxy*)proxyUserDataA;
++    b2FixtureProxy* proxyB = (b2FixtureProxy*)proxyUserDataB;
++
++    b2Fixture* fixtureA = proxyA->fixture;
++    b2Fixture* fixtureB = proxyB->fixture;
++    return !(fixtureA == fixtureB && fixtureA->GetType() == b2Shape::e_grid);
++}
++
+ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
+ {
+ 	b2FixtureProxy* proxyA = (b2FixtureProxy*)proxyUserDataA;
+@@ -224,13 +237,14 @@
+ 	}
+ 
+ 	// Does a joint override collision? Is at least one body dynamic?
++	// Defold modification: Is at least one body dynamic or kinematic. We disable contacts with no dynamic body after creation below.
+ 	if (bodyB->ShouldCollide(bodyA) == false)
+ 	{
+ 		return;
+ 	}
+ 
+ 	// Check user filtering.
+-	if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, fixtureB) == false)
++	if (m_contactFilter && m_contactFilter->ShouldCollide(fixtureA, indexA, fixtureB, indexB) == false)
+ 	{
+ 		return;
+ 	}
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h	2011-03-24 10:17:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2ContactManager.h	2018-07-15 10:16:07.000000000 +0200
+@@ -32,8 +32,10 @@
+ public:
+ 	b2ContactManager();
+ 
+-	// Broad-phase callback.
+-	void AddPair(void* proxyUserDataA, void* proxyUserDataB);
++    // Broad-phase callback.
++    void AddPair(void* proxyUserDataA, void* proxyUserDataB);
++	// Defold modifications
++	bool CanCollide(void* proxyUserDataA, void* proxyUserDataB);
+ 
+ 	void FindNewContacts();
+ 
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp	2011-09-01 00:02:00.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -36,6 +36,7 @@
+ 	m_proxyCount = 0;
+ 	m_shape = NULL;
+ 	m_density = 0.0f;
++	m_filters = &m_singleFilter;
+ }
+ 
+ void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2FixtureDef* def)
+@@ -47,19 +48,32 @@
+ 	m_body = body;
+ 	m_next = NULL;
+ 
+-	m_filter = def->filter;
++	// Defold modification. Set first filter as default
++	m_filters[0] = def->filter;
+ 
+ 	m_isSensor = def->isSensor;
+ 
+-	m_shape = def->shape->Clone(allocator);
++    // Defold mod: Don't take ownership of shape
++    //m_shape = def->shape->Clone(allocator);
++    m_shape = (b2Shape*)def->shape;
+ 
+ 	// Reserve proxy space
+ 	int32 childCount = m_shape->GetChildCount();
+ 	m_proxies = (b2FixtureProxy*)allocator->Allocate(childCount * sizeof(b2FixtureProxy));
++    // Defold modification. Allocate filters per child-shape
++	if (m_shape->m_filterPerChild)
++	{
++	    m_filters = (b2Filter*)allocator->Allocate(childCount * sizeof(b2Filter));
++	}
+ 	for (int32 i = 0; i < childCount; ++i)
+ 	{
+ 		m_proxies[i].fixture = NULL;
+ 		m_proxies[i].proxyId = b2BroadPhase::e_nullProxy;
++	    // Defold modification. Set filter per child shape
++	    if (m_shape->m_filterPerChild)
++	    {
++	        m_filters[i] = def->filter;
++	    }
+ 	}
+ 	m_proxyCount = 0;
+ 
+@@ -75,47 +89,52 @@
+ 	int32 childCount = m_shape->GetChildCount();
+ 	allocator->Free(m_proxies, childCount * sizeof(b2FixtureProxy));
+ 	m_proxies = NULL;
+-
+-	// Free the child shape.
+-	switch (m_shape->m_type)
++	if (m_shape->m_filterPerChild)
+ 	{
+-	case b2Shape::e_circle:
+-		{
+-			b2CircleShape* s = (b2CircleShape*)m_shape;
+-			s->~b2CircleShape();
+-			allocator->Free(s, sizeof(b2CircleShape));
+-		}
+-		break;
+-
+-	case b2Shape::e_edge:
+-		{
+-			b2EdgeShape* s = (b2EdgeShape*)m_shape;
+-			s->~b2EdgeShape();
+-			allocator->Free(s, sizeof(b2EdgeShape));
+-		}
+-		break;
+-
+-	case b2Shape::e_polygon:
+-		{
+-			b2PolygonShape* s = (b2PolygonShape*)m_shape;
+-			s->~b2PolygonShape();
+-			allocator->Free(s, sizeof(b2PolygonShape));
+-		}
+-		break;
+-
+-	case b2Shape::e_chain:
+-		{
+-			b2ChainShape* s = (b2ChainShape*)m_shape;
+-			s->~b2ChainShape();
+-			allocator->Free(s, sizeof(b2ChainShape));
+-		}
+-		break;
+-
+-	default:
+-		b2Assert(false);
+-		break;
++	    allocator->Free(m_filters, childCount * sizeof(b2Filter));
+ 	}
+ 
++    // Defold mod: Don't take ownership of shape
++//	// Free the child shape.
++//	switch (m_shape->m_type)
++//	{
++//	case b2Shape::e_circle:
++//		{
++//			b2CircleShape* s = (b2CircleShape*)m_shape;
++//			s->~b2CircleShape();
++//			allocator->Free(s, sizeof(b2CircleShape));
++//		}
++//		break;
++//
++//	case b2Shape::e_edge:
++//		{
++//			b2EdgeShape* s = (b2EdgeShape*)m_shape;
++//			s->~b2EdgeShape();
++//			allocator->Free(s, sizeof(b2EdgeShape));
++//		}
++//		break;
++//
++//	case b2Shape::e_polygon:
++//		{
++//			b2PolygonShape* s = (b2PolygonShape*)m_shape;
++//			s->~b2PolygonShape();
++//			allocator->Free(s, sizeof(b2PolygonShape));
++//		}
++//		break;
++//
++//	case b2Shape::e_chain:
++//		{
++//			b2ChainShape* s = (b2ChainShape*)m_shape;
++//			s->~b2ChainShape();
++//			allocator->Free(s, sizeof(b2ChainShape));
++//		}
++//		break;
++//
++//	default:
++//		b2Assert(false);
++//		break;
++//	}
++
+ 	m_shape = NULL;
+ }
+ 
+@@ -152,7 +171,7 @@
+ void b2Fixture::Synchronize(b2BroadPhase* broadPhase, const b2Transform& transform1, const b2Transform& transform2)
+ {
+ 	if (m_proxyCount == 0)
+-	{	
++	{
+ 		return;
+ 	}
+ 
+@@ -164,7 +183,7 @@
+ 		b2AABB aabb1, aabb2;
+ 		m_shape->ComputeAABB(&aabb1, transform1, proxy->childIndex);
+ 		m_shape->ComputeAABB(&aabb2, transform2, proxy->childIndex);
+-	
++
+ 		proxy->aabb.Combine(aabb1, aabb2);
+ 
+ 		b2Vec2 displacement = transform2.p - transform1.p;
+@@ -173,11 +192,37 @@
+ 	}
+ }
+ 
+-void b2Fixture::SetFilterData(const b2Filter& filter)
++void b2Fixture::SynchronizeSingle(b2BroadPhase* broadPhase, int32 index, const b2Transform& transform1, const b2Transform& transform2)
+ {
+-	m_filter = filter;
++    b2Assert(index < m_proxyCount);
+ 
+-	Refilter();
++    b2FixtureProxy* proxy = m_proxies + index;
++
++    b2AABB aabb1, aabb2;
++    m_shape->ComputeAABB(&aabb1, transform1, proxy->childIndex);
++    m_shape->ComputeAABB(&aabb2, transform2, proxy->childIndex);
++
++    proxy->aabb.Combine(aabb1, aabb2);
++
++    b2Vec2 displacement = transform2.p - transform1.p;
++
++    broadPhase->MoveProxy(proxy->proxyId, proxy->aabb, displacement);
++}
++
++void b2Fixture::SetFilterData(const b2Filter& filter, int32 index)
++{
++    // Defold modifications. Added index
++    m_filters[index * m_shape->m_filterPerChild] = filter;
++
++    // Defold modifications. Skip re-filtering of grid-shapes
++    // in order to avoid O(n^2) memory allocations
++    // see b2BroadPhase::BufferMove
++    // We don't support changing filters at run-time so the
++    // fix will hopefully have no impact
++    if (GetType() != b2Shape::e_grid)
++    {
++        Refilter();
++    }
+ }
+ 
+ void b2Fixture::Refilter()
+@@ -233,9 +278,22 @@
+ 	b2Log("    fd.restitution = %.15lef;\n", m_restitution);
+ 	b2Log("    fd.density = %.15lef;\n", m_density);
+ 	b2Log("    fd.isSensor = bool(%d);\n", m_isSensor);
+-	b2Log("    fd.filter.categoryBits = uint16(%d);\n", m_filter.categoryBits);
+-	b2Log("    fd.filter.maskBits = uint16(%d);\n", m_filter.maskBits);
+-	b2Log("    fd.filter.groupIndex = int16(%d);\n", m_filter.groupIndex);
++	if (m_shape->m_filterPerChild)
++	{
++	    int32 childCount = m_shape->GetChildCount();
++	    for (int32 i = 0; i < childCount; ++i)
++	    {
++	        b2Log("    fd.filter[%d].categoryBits = uint16(%d);\n", i, m_filters[i].categoryBits);
++	        b2Log("    fd.filter[%d].maskBits = uint16(%d);\n", i, m_filters[i].maskBits);
++	        b2Log("    fd.filter[%d].groupIndex = int16(%d);\n", i, m_filters[i].groupIndex);
++	    }
++	}
++	else
++	{
++	    b2Log("    fd.filter.categoryBits = uint16(%d);\n", m_filters[0].categoryBits);
++	    b2Log("    fd.filter.maskBits = uint16(%d);\n", m_filters[0].maskBits);
++	    b2Log("    fd.filter.groupIndex = int16(%d);\n", m_filters[0].groupIndex);
++	}
+ 
+ 	switch (m_shape->m_type)
+ 	{
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h	2011-09-03 10:52:22.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Fixture.h	2018-07-15 10:16:07.000000000 +0200
+@@ -127,10 +127,12 @@
+ 	/// Set the contact filtering data. This will not update contacts until the next time
+ 	/// step when either parent body is active and awake.
+ 	/// This automatically calls Refilter.
+-	void SetFilterData(const b2Filter& filter);
++    // Defold modifications. Added index
++	void SetFilterData(const b2Filter& filter, int32 index);
+ 
+ 	/// Get the contact filtering data.
+-	const b2Filter& GetFilterData() const;
++	// Defold modifications. Added index
++	const b2Filter& GetFilterData(int32 index) const;
+ 
+ 	/// Call this if you want to establish collision that was previously disabled by b2ContactFilter::ShouldCollide.
+ 	void Refilter();
+@@ -201,6 +203,7 @@
+ 	friend class b2World;
+ 	friend class b2Contact;
+ 	friend class b2ContactManager;
++    friend class b2GridShape;
+ 
+ 	b2Fixture();
+ 
+@@ -214,6 +217,7 @@
+ 	void DestroyProxies(b2BroadPhase* broadPhase);
+ 
+ 	void Synchronize(b2BroadPhase* broadPhase, const b2Transform& xf1, const b2Transform& xf2);
++	void SynchronizeSingle(b2BroadPhase* broadPhase, int32 index, const b2Transform& transform1, const b2Transform& transform2);
+ 
+ 	float32 m_density;
+ 
+@@ -228,7 +232,8 @@
+ 	b2FixtureProxy* m_proxies;
+ 	int32 m_proxyCount;
+ 
+-	b2Filter m_filter;
++	b2Filter m_singleFilter;
++    b2Filter* m_filters;
+ 
+ 	bool m_isSensor;
+ 
+@@ -255,9 +260,12 @@
+ 	return m_isSensor;
+ }
+ 
+-inline const b2Filter& b2Fixture::GetFilterData() const
++inline const b2Filter& b2Fixture::GetFilterData(int32 index) const
+ {
+-	return m_filter;
++    // Defold modifications. Added index
++    // NOTE: Multiply with m_filterPerChild to force index to zero
++    // when filtering is *not* performed per child shape
++	return m_filters[index * m_shape->m_filterPerChild];
+ }
+ 
+ inline void* b2Fixture::GetUserData() const
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp	2011-09-03 15:08:56.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2Island.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -26,6 +26,7 @@
+ #include <Box2D/Dynamics/Joints/b2Joint.h>
+ #include <Box2D/Common/b2StackAllocator.h>
+ #include <Box2D/Common/b2Timer.h>
++#include <Box2D/Common/b2Pow.h>
+ 
+ /*
+ Position Correction Notes
+@@ -206,6 +207,9 @@
+ 			v += h * (b->m_gravityScale * gravity + b->m_invMass * b->m_force);
+ 			w += h * b->m_invI * b->m_torque;
+ 
++			// Defold modification
++			// The expression below is incorrect for time steps != 1
++			// Instead we use the same damping as bullet, following this discussion: http://code.google.com/p/bullet/issues/detail?id=74
+ 			// Apply damping.
+ 			// ODE: dv/dt + c * v = 0
+ 			// Solution: v(t) = v0 * exp(-c * t)
+@@ -213,8 +217,15 @@
+ 			// v2 = exp(-c * dt) * v1
+ 			// Taylor expansion:
+ 			// v2 = (1.0f - c * dt) * v1
+-			v *= b2Clamp(1.0f - h * b->m_linearDamping, 0.0f, 1.0f);
+-			w *= b2Clamp(1.0f - h * b->m_angularDamping, 0.0f, 1.0f);
++
++			// OLD DAMPING
++			// v *= b2Clamp(1.0f - h * b->m_linearDamping, 0.0f, 1.0f);
++			// w *= b2Clamp(1.0f - h * b->m_angularDamping, 0.0f, 1.0f);
++
++			// NEW DAMPING
++			// The clamping is needed because of the approximative power function
++			v *= b2Clamp(b2FastPow(1.0f - b->m_linearDamping, h), 0.0f, 1.0f);
++			w *= b2Clamp(b2FastPow(1.0f - b->m_angularDamping, h), 0.0f, 1.0f);
+ 		}
+ 
+ 		m_positions[i].c = c;
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp	2011-09-04 15:32:52.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2World.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -29,6 +29,7 @@
+ #include <Box2D/Collision/Shapes/b2EdgeShape.h>
+ #include <Box2D/Collision/Shapes/b2ChainShape.h>
+ #include <Box2D/Collision/Shapes/b2PolygonShape.h>
++#include <Box2D/Collision/Shapes/b2GridShape.h>
+ #include <Box2D/Collision/b2TimeOfImpact.h>
+ #include <Box2D/Common/b2Draw.h>
+ #include <Box2D/Common/b2Timer.h>
+@@ -839,7 +840,7 @@
+ 					{
+ 						continue;
+ 					}
+-					
++
+ 					// Add the other body to the island.
+ 					other->m_flags |= b2Body::e_islandFlag;
+ 
+@@ -923,7 +924,7 @@
+ 	step.dtRatio = m_inv_dt0 * dt;
+ 
+ 	step.warmStarting = m_warmStarting;
+-	
++
+ 	// Update contacts. This is where some contacts are destroyed.
+ 	{
+ 		b2Timer timer;
+@@ -966,8 +967,14 @@
+ {
+ 	for (b2Body* body = m_bodyList; body; body = body->GetNext())
+ 	{
+-		body->m_force.SetZero();
+-		body->m_torque = 0.0f;
++		// Defold modification: Added IsActive() check; spawned objects are inactive
++		// their first (incomplete) frame, and should retain accumulated forces
++		// until active.
++		if (body->IsActive())
++		{
++			body->m_force.SetZero();
++			body->m_torque = 0.0f;
++		}
+ 	}
+ }
+ 
+@@ -1006,7 +1013,7 @@
+ 		{
+ 			float32 fraction = output.fraction;
+ 			b2Vec2 point = (1.0f - fraction) * input.p1 + fraction * input.p2;
+-			return callback->ReportFixture(fixture, point, output.normal, fraction);
++			return callback->ReportFixture(fixture, index, point, output.normal, fraction);
+ 		}
+ 
+ 		return input.maxFraction;
+@@ -1028,6 +1035,20 @@
+ 	m_contactManager.m_broadPhase.RayCast(&wrapper, input);
+ }
+ 
++void b2World::DrawPolygon(const b2Transform& xf, const b2PolygonShape& poly, const b2Color& color)
++{
++    int32 vertexCount = poly.m_vertexCount;
++    b2Assert(vertexCount <= b2_maxPolygonVertices);
++    b2Vec2 vertices[b2_maxPolygonVertices];
++
++    for (int32 i = 0; i < vertexCount; ++i)
++    {
++        vertices[i] = b2Mul(xf, poly.m_vertices[i]);
++    }
++
++    m_debugDraw->DrawSolidPolygon(vertices, vertexCount, color);
++}
++
+ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color& color)
+ {
+ 	switch (fixture->GetType())
+@@ -1070,22 +1091,46 @@
+ 		}
+ 		break;
+ 
+-	case b2Shape::e_polygon:
+-		{
+-			b2PolygonShape* poly = (b2PolygonShape*)fixture->GetShape();
+-			int32 vertexCount = poly->m_vertexCount;
+-			b2Assert(vertexCount <= b2_maxPolygonVertices);
+-			b2Vec2 vertices[b2_maxPolygonVertices];
++    case b2Shape::e_polygon:
++        {
++            b2PolygonShape* poly = (b2PolygonShape*)fixture->GetShape();
++            DrawPolygon(xf, *poly, color);
++        }
++        break;
+ 
+-			for (int32 i = 0; i < vertexCount; ++i)
+-			{
+-				vertices[i] = b2Mul(xf, poly->m_vertices[i]);
+-			}
++    case b2Shape::e_grid:
++        {
++            b2GridShape* grid = (b2GridShape*)fixture->GetShape();
++
++            uint32 cellCount = grid->GetChildCount();
++            b2PolygonShape poly;
++            b2EdgeShape edgeShapes[b2_maxPolygonVertices];
++            const float32 fillShade = 0.8f;
++            b2Color fillColor(color.r * fillShade, color.g * fillShade, color.b * fillShade);
++            for (uint32 i = 0; i < cellCount; ++i)
++            {
++                const b2Filter& filter = fixture->GetFilterData(i);
++                uint32 index = grid->m_cells[i].m_Index;
++                if (index != B2GRIDSHAPE_EMPTY_CELL && filter.categoryBits != 0)
++                {
++                    grid->GetPolygonShapeForCell(i, poly);
++                    DrawPolygon(xf, poly, fillColor);
++                    int32 row = i / grid->m_columnCount;
++                    int32 col = i - (grid->m_columnCount * row);
++                    uint32 edgeMask = grid->CalculateCellMask(fixture, row, col);
++                    uint32 edgeCount = grid->GetEdgeShapesForCell(i, edgeShapes, b2_maxPolygonVertices, edgeMask);
++                    for (uint32 j = 0; j < edgeCount; ++j)
++                    {
++                        b2EdgeShape* edge = &edgeShapes[j];
++                        b2Vec2 v1 = b2Mul(xf, edge->m_vertex1);
++                        b2Vec2 v2 = b2Mul(xf, edge->m_vertex2);
++                        m_debugDraw->DrawSegment(v1, v2, color);
++                    }
++                }
++            }
++        }
++        break;
+ 
+-			m_debugDraw->DrawSolidPolygon(vertices, vertexCount, color);
+-		}
+-		break;
+-            
+     default:
+         break;
+ 	}
+@@ -1129,6 +1174,7 @@
+ 		m_debugDraw->DrawSegment(x1, p1, color);
+ 		m_debugDraw->DrawSegment(p1, p2, color);
+ 		m_debugDraw->DrawSegment(x2, p2, color);
++		break;
+ 	}
+ }
+ 
+@@ -1156,17 +1202,21 @@
+ 				{
+ 					DrawShape(f, xf, b2Color(0.5f, 0.9f, 0.5f));
+ 				}
+-				else if (b->GetType() == b2_kinematicBody)
+-				{
+-					DrawShape(f, xf, b2Color(0.5f, 0.5f, 0.9f));
+-				}
++				// Defold modification: sleeping kinematics should also be visualized
+ 				else if (b->IsAwake() == false)
+ 				{
+ 					DrawShape(f, xf, b2Color(0.6f, 0.6f, 0.6f));
+ 				}
+ 				else
+ 				{
+-					DrawShape(f, xf, b2Color(0.9f, 0.7f, 0.7f));
++                    if (b->GetType() == b2_kinematicBody)
++                    {
++                        DrawShape(f, xf, b2Color(0.5f, 0.5f, 0.9f));
++                    }
++                    else
++                    {
++                        DrawShape(f, xf, b2Color(0.9f, 0.7f, 0.7f));
++                    }
+ 				}
+ 			}
+ 		}
+@@ -1185,15 +1235,20 @@
+ 		b2Color color(0.3f, 0.9f, 0.9f);
+ 		for (b2Contact* c = m_contactManager.m_contactList; c; c = c->GetNext())
+ 		{
+-			//b2Fixture* fixtureA = c->GetFixtureA();
+-			//b2Fixture* fixtureB = c->GetFixtureB();
+-
+-			//b2Vec2 cA = fixtureA->GetAABB().GetCenter();
+-			//b2Vec2 cB = fixtureB->GetAABB().GetCenter();
+-
+-			//m_debugDraw->DrawSegment(cA, cB, color);
+-		}
+-	}
++            if (!c->IsEnabled() || !c->IsTouching())
++            {
++                continue;
++            }
++
++            b2WorldManifold world_manifold;
++            c->GetWorldManifold(&world_manifold);
++            int32 pc = c->GetManifold()->pointCount;
++            for (int32 i = 0; i < pc; ++i)
++            {
++                m_debugDraw->DrawArrow(world_manifold.points[i], world_manifold.normal, color);
++            }
++        }
++    }
+ 
+ 	if (flags & b2Draw::e_aabbBit)
+ 	{
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2World.h b/Box2D_v2.2.1/Box2D/Dynamics/b2World.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2World.h	2011-09-04 15:06:38.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2World.h	2018-07-15 10:16:07.000000000 +0200
+@@ -224,6 +224,7 @@
+ 
+ 	void DrawJoint(b2Joint* joint);
+ 	void DrawShape(b2Fixture* shape, const b2Transform& xf, const b2Color& color);
++	void DrawPolygon(const b2Transform& xf, const b2PolygonShape& poly, const b2Color& color);
+ 
+ 	b2BlockAllocator m_blockAllocator;
+ 	b2StackAllocator m_stackAllocator;
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp	2011-03-24 10:17:00.000000000 +0100
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.cpp	2018-07-15 10:16:07.000000000 +0200
+@@ -21,10 +21,10 @@
+ 
+ // Return true if contact calculations should be performed between these two shapes.
+ // If you implement your own collision filter you may want to build from this implementation.
+-bool b2ContactFilter::ShouldCollide(b2Fixture* fixtureA, b2Fixture* fixtureB)
++bool b2ContactFilter::ShouldCollide(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB)
+ {
+-	const b2Filter& filterA = fixtureA->GetFilterData();
+-	const b2Filter& filterB = fixtureB->GetFilterData();
++	const b2Filter& filterA = fixtureA->GetFilterData(indexA);
++	const b2Filter& filterB = fixtureB->GetFilterData(indexB);
+ 
+ 	if (filterA.groupIndex == filterB.groupIndex && filterA.groupIndex != 0)
+ 	{
+diff -Naur --strip-trailing-cr a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h
+--- a/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h	2011-08-22 21:26:42.000000000 +0200
++++ b/Box2D_v2.2.1/Box2D/Dynamics/b2WorldCallbacks.h	2018-07-15 10:16:07.000000000 +0200
+@@ -56,7 +56,7 @@
+ 
+ 	/// Return true if contact calculations should be performed between these two shapes.
+ 	/// @warning for performance reasons this is only called when the AABBs begin to overlap.
+-	virtual bool ShouldCollide(b2Fixture* fixtureA, b2Fixture* fixtureB);
++	virtual bool ShouldCollide(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB);
+ };
+ 
+ /// Contact impulses for reporting. Impulses are used instead of forces because
+@@ -148,7 +148,7 @@
+ 	/// @param normal the normal vector at the point of intersection
+ 	/// @return -1 to filter, 0 to terminate, fraction to clip the ray for
+ 	/// closest hit, 1 to continue
+-	virtual float32 ReportFixture(	b2Fixture* fixture, const b2Vec2& point,
++	virtual float32 ReportFixture(	b2Fixture* fixture, int32 index, const b2Vec2& point,
+ 									const b2Vec2& normal, float32 fraction) = 0;
+ };
+ 

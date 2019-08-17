@@ -1,7 +1,0 @@
-import sys
-
-def configure(conf):
-    pass
-
-def build(bld):
-    bld.add_subdirs('Box2D')
