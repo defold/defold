@@ -269,6 +269,14 @@ namespace dmScript
         return 1;
     }
 
+    static int Vector3_div(lua_State *L)
+    {
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        float s = (float) luaL_checknumber(L, 2);
+        PushVector3(L, *v / s);
+        return 1;
+    }
+
     static int Vector3_unm(lua_State *L)
     {
         Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
@@ -308,6 +316,7 @@ namespace dmScript
         {"__add", Vector3_add},
         {"__sub", Vector3_sub},
         {"__mul", Vector3_mul},
+        {"__div", Vector3_div},
         {"__unm", Vector3_unm},
         {"__concat", Vector3_concat},
         {"__eq", Vector3_eq},
@@ -423,6 +432,14 @@ namespace dmScript
         return 1;
     }
 
+    static int Vector4_div(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        float s = (float) luaL_checknumber(L, 2);
+        PushVector4(L, *v / s);
+        return 1;
+    }
+
     static int Vector4_unm(lua_State *L)
     {
         Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
@@ -462,6 +479,7 @@ namespace dmScript
         {"__add",       Vector4_add},
         {"__sub",       Vector4_sub},
         {"__mul",       Vector4_mul},
+        {"__div",       Vector4_div},
         {"__unm",       Vector4_unm},
         {"__concat",    Vector4_concat},
         {"__eq",        Vector4_eq},
