@@ -1,6 +1,6 @@
 # config
 
-IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain
+DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
 IOS_SDK_VERSION=12.1
 IOS_SIMULATOR_SDK_VERSION=12.1
@@ -180,27 +180,24 @@ function cmi_setup_vs2015_env() {
     export PATH="${c_VSINSTALLDIR}Common7/IDE/:$PATH"
 }
 
-function cmi() {
-    export PREFIX=`pwd`/build
-    export PLATFORM=$1
 
+function cmi_set_compilers() {
     case $1 in
         armv7-darwin)
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
-            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
-            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
-            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-darwin
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
         arm64-darwin)
@@ -209,7 +206,7 @@ function cmi() {
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
-            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CPPFLAGS="-arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
@@ -217,19 +214,18 @@ function cmi() {
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
-            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
-            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-darwin
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
         x86_64-ios)
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
-            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
@@ -237,13 +233,11 @@ function cmi() {
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
-            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
-            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
-            # cmi_buildplatform $1
-            cmi_cross $1 x86_64-darwin
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
          armv7-android)
@@ -268,7 +262,6 @@ function cmi() {
             export AS=${bin}/arm-linux-androideabi-as
             export LD=${bin}/arm-linux-androideabi-ld
             export RANLIB=${bin}/arm-linux-androideabi-ranlib
-            cmi_cross $1 arm-linux
             ;;
 
         arm64-android)
@@ -290,7 +283,6 @@ function cmi() {
             export AS=${bin}/aarch64-linux-android-as
             export LD=${bin}/aarch64-linux-android-ld
             export RANLIB=${bin}/aarch64-linux-android-ranlib
-            cmi_cross $1 arm-linux
             ;;
 
         darwin)
@@ -300,14 +292,18 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
             export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
             export LDFLAGS="-m32"
-            cmi_buildplatform $1
             ;;
 
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            cmi_buildplatform $1
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
+
             ;;
 
         linux)
@@ -315,13 +311,92 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
             export CFLAGS="${CFLAGS} -m32 -fPIC"
             export LDFLAGS="-m32"
-            cmi_buildplatform $1
             ;;
 
         x86_64-linux)
             export CFLAGS="${CFLAGS} -fPIC"
             export CXXFLAGS="${CXXFLAGS} -fPIC"
             export CPPFLAGS="${CPPFLAGS} -fPIC"
+            ;;
+
+        win32)
+            ;;
+
+        x86_64-win32)
+            ;;
+
+        i586-mingw32msvc)
+            export CPP=i586-mingw32msvc-cpp
+            export CC=i586-mingw32msvc-gcc
+            export CXX=i586-mingw32msvc-g++
+            export AR=i586-mingw32msvc-ar
+            export RANLIB=i586-mingw32msvc-ranlib
+            ;;
+
+        js-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
+            export CC=${EMSCRIPTEN}/emcc
+            export CXX=${EMSCRIPTEN}/em++
+            export AR=${EMSCRIPTEN}/emar
+            export LD=${EMSCRIPTEN}/em++
+            export RANLIB=${EMSCRIPTEN}/emranlib
+            ;;
+
+        wasm-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
+            export CC=${EMSCRIPTEN}/emcc
+            export CXX=${EMSCRIPTEN}/em++
+            export AR=${EMSCRIPTEN}/emar
+            export LD=${EMSCRIPTEN}/em++
+            export RANLIB=${EMSCRIPTEN}/emranlib
+            ;;
+
+        *)
+            echo "Unknown target $1" && exit 1
+            ;;
+    esac
+}
+
+function cmi() {
+    export PREFIX=`pwd`/build
+    export PLATFORM=$1
+
+    cmi_set_compilers $1
+
+    case $1 in
+        armv7-darwin)
+            cmi_cross $1 arm-darwin
+            ;;
+
+        arm64-darwin)
+            cmi_cross $1 arm-darwin
+            ;;
+
+        x86_64-ios)
+            cmi_cross $1 x86_64-darwin
+            ;;
+
+         armv7-android)
+            cmi_cross $1 arm-linux
+            ;;
+
+        arm64-android)
+            cmi_cross $1 arm-linux
+            ;;
+
+        darwin)
+            cmi_buildplatform $1
+            ;;
+
+        x86_64-darwin)
+            cmi_buildplatform $1
+            ;;
+
+        linux)
+            cmi_buildplatform $1
+            ;;
+
+        x86_64-linux)
             cmi_buildplatform $1
             ;;
 
@@ -334,42 +409,15 @@ function cmi() {
             ;;
 
         i586-mingw32msvc)
-            export CPP=i586-mingw32msvc-cpp
-            export CC=i586-mingw32msvc-gcc
-            export CXX=i586-mingw32msvc-g++
-            export AR=i586-mingw32msvc-ar
-            export RANLIB=i586-mingw32msvc-ranlib
             cmi_cross $1 $1
             ;;
 
         js-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
             cmi_cross $1 $1
             ;;
 
         wasm-web)
-            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
-            export CC=${EMSCRIPTEN}/emcc
-            export CXX=${EMSCRIPTEN}/em++
-            export AR=${EMSCRIPTEN}/emar
-            export LD=${EMSCRIPTEN}/em++
-            export RANLIB=${EMSCRIPTEN}/emranlib
             cmi_cross $1 $1
-            ;;
-
-        as3-web)
-            export CPP="$FLASCC/usr/bin/cpp"
-            export CC=$FLASCC/usr/bin/gcc
-            export CXX=$FLASCC/usr/bin/g++
-            export AR=$FLASCC/usr/bin/ar
-            export RANLIB=$FLASCC/usr/bin/ranlib
-            # NOTE: We use a fake platform in order to make configure-scripts happy
-            cmi_cross $1 i386-freebsd
             ;;
 
         *)

@@ -357,8 +357,8 @@ namespace dmPhysics
             for (int i = 0; i < num_manifolds && (requests_collision_callbacks || requests_contact_callbacks); ++i)
             {
                 btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
-                btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
-                btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+                btCollisionObject* object_a = const_cast<btCollisionObject*>(contact_manifold->getBody0());
+                btCollisionObject* object_b = const_cast<btCollisionObject*>(contact_manifold->getBody1());
 
                 if (!object_a->isActive() && !object_b->isActive())
                     continue;
@@ -438,8 +438,8 @@ namespace dmPhysics
         for (int i = 0; i < num_manifolds; ++i)
         {
             btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
-            btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
-            btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+            btCollisionObject* object_a = const_cast<btCollisionObject*>(contact_manifold->getBody0());
+            btCollisionObject* object_b = const_cast<btCollisionObject*>(contact_manifold->getBody1());
 
             if (!object_a->isActive() || !object_b->isActive())
                 continue;
@@ -802,7 +802,7 @@ namespace dmPhysics
     bool IsEnabled3D(HCollisionObject3D collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
-        return co->isInWorld();
+        return co->getBroadphaseHandle() != 0;
     }
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
