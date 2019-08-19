@@ -170,6 +170,16 @@ namespace dmGui
         memset(this, 0, sizeof(InputAction));
     }
 
+    bool IsNodeValid(HScene scene, HNode node)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        if (index >= scene->m_Nodes.Size())
+            return false;
+        InternalNode* n = &scene->m_Nodes[index];
+        return n->m_Version == version && n->m_Index == index;
+    }
+
     InternalNode* GetNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
@@ -1282,12 +1292,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                 if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
                 {
+                    HNode hnode = GetNodeHandle(n);
                     uint32_t alive_count = scene->m_AliveParticlefxs.Size();
                     for (uint32_t i = 0; i < alive_count; ++i)
                     {
                         ParticlefxComponent* comp = &scene->m_AliveParticlefxs[i];
-                        InternalNode* comp_node = GetNode(scene, comp->m_Node);
-                        if (comp_node->m_Version == n->m_Version && comp_node->m_NameHash == n->m_NameHash)
+                        if (hnode == comp->m_Node)
                         {
                             uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
 
@@ -1997,14 +2007,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                     if (n->m_Node.m_HasHeadlessPfx)
                     {
-                        // Look ahead and mark all ParticlefxComponents that also reference this node
+                        // Mark all ParticlefxComponents that reference this node
                         // so we don't try to delete the same internal node more than once
-                        for (uint32_t i_inner = i+1; i_inner < scene->m_AliveParticlefxs.Size(); ++i_inner)
+                        HNode hnode = c->m_Node;
+                        for (uint32_t i_inner = 0; i_inner < count; ++i_inner)
                         {
                             ParticlefxComponent* c_inner = &scene->m_AliveParticlefxs[i_inner];
-                            if (c_inner->m_Node == c->m_Node)
+                            if (c_inner->m_Node == hnode)
                             {
-                                c_inner->m_Node = INVALID_HANDLE;
+                                c_inner->m_Node = INVALID_HANDLE; // makes the callbacks return nil to the user
                             }
                         }
 
@@ -2323,29 +2334,32 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
-        while (i < count)
+        if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
         {
-            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
-            InternalNode* comp_n = GetNode(scene, c->m_Node);
-            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            while (i < count)
             {
-                if (delete_headless_pfx)
+                ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+                if (node == c->m_Node)
                 {
-                    dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
-                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
-                    scene->m_AliveParticlefxs.EraseSwap(i);
-                    --count;
+                    if (delete_headless_pfx)
+                    {
+                        InternalNode* comp_n = GetNode(scene, c->m_Node);
+                        dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
+                        n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                        scene->m_AliveParticlefxs.EraseSwap(i);
+                        --count;
+                    }
+                    else
+                    {
+                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
+                        n->m_Node.m_HasHeadlessPfx = 1;
+                        ++i;
+                    }
                 }
                 else
                 {
-                    dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
-                    n->m_Node.m_HasHeadlessPfx = 1;
                     ++i;
                 }
-            }
-            else
-            {
-                ++i;
             }
         }
 

@@ -576,14 +576,16 @@ namespace dmGameObject
             return 1;
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
             {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                lua_pushliteral(L, "");
-                lua_pushvalue(L, 1);
-                lua_concat(L, 2);
-                const char* name = lua_tostring(L, -1);
-                lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
+                const char* path = dmHashReverseSafe64(target.m_Path);
+                const char* property = dmHashReverseSafe64(property_id);
+                if (target.m_Fragment)
+                {
+                    return luaL_error(L, "'%s#%s' does not have any property called '%s'", path, dmHashReverseSafe64(target.m_Fragment), property);
+                }
+                else
+                {
+                    return luaL_error(L, "'%s' does not have any property called '%s'", path, property);
+                }
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
