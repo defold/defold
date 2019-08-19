@@ -87,7 +87,6 @@ def build(bld):
     extra_packages = 'com.google.android.gms:com.google.android.gms.common:com.android.support'
 
     android_jar_paths = [
-              '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
               '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
