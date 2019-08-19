@@ -576,14 +576,16 @@ namespace dmGameObject
             return 1;
         case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
             {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                lua_pushliteral(L, "");
-                lua_pushvalue(L, 1);
-                lua_concat(L, 2);
-                const char* name = lua_tostring(L, -1);
-                lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
+                const char* path = dmHashReverseSafe64(target.m_Path);
+                const char* property = dmHashReverseSafe64(property_id);
+                if (target.m_Fragment)
+                {
+                    return luaL_error(L, "'%s#%s' does not have any property called '%s'", path, dmHashReverseSafe64(target.m_Fragment), property);
+                }
+                else
+                {
+                    return luaL_error(L, "'%s' does not have any property called '%s'", path, property);
+                }
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
@@ -1153,6 +1155,32 @@ namespace dmGameObject
     {
         Instance* instance = ResolveInstance(L, 1);
         lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
+        return 1;
+    }
+
+    /*# gets the game object instance world transform matrix
+     *
+     * @name go.get_world_transform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world transform for, by default the instance of the calling script
+     * @return transform [type:matrix4] instance world transform
+     * @examples
+     *
+     * Get the world transform of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local m = go.get_world_transform()
+     * ```
+     *
+     * Get the world transform of another game object instance with id "x":
+     *
+     * ```lua
+     * local m = go.get_world_transform("x")
+     * ```
+     */
+    int Script_GetWorldTransform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L,1);
+        dmScript::PushMatrix4(L, dmGameObject::GetWorldMatrix(instance));
         return 1;
     }
 
@@ -1837,6 +1865,7 @@ namespace dmGameObject
         {"get_world_rotation",      Script_GetWorldRotation},
         {"get_world_scale",         Script_GetWorldScale},
         {"get_world_scale_uniform", Script_GetWorldScaleUniform},
+        {"get_world_transform",     Script_GetWorldTransform},
         {"get_id",                  Script_GetId},
         {"animate",                 Script_Animate},
         {"cancel_animations",       Script_CancelAnimations},

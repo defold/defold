@@ -1,18 +1,23 @@
 (ns editor.fxui
+  (:refer-clojure :exclude [partial])
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [editor.error-reporting :as error-reporting]
             [editor.ui :as ui]
             [editor.util :as eutil])
-  (:import [javafx.application Platform]
+  (:import [clojure.lang Fn IFn IHashEq MultiFn]
+           [com.defold.control ListCell]
+           [javafx.application Platform]
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
-           [javafx.scene.control TextInputControl]))
+           [javafx.scene.control TextInputControl ListView]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -25,40 +30,31 @@
       (:value desc))
     (delete [_ _ _])))
 
-(defn make-ext-with-extra-props
-  "Creates extension lifecycle that allows specifying additional props
+(extend-protocol fx.lifecycle/Lifecycle
+  MultiFn
+  (create [_ desc opts]
+    (fx.lifecycle/create fx.lifecycle/dynamic-fn->dynamic desc opts))
+  (advance [_ component desc opts]
+    (fx.lifecycle/advance fx.lifecycle/dynamic-fn->dynamic component desc opts))
+  (delete [_ component opts]
+    (fx.lifecycle/delete fx.lifecycle/dynamic-fn->dynamic component opts)))
 
-  `props-config` is a map from arbitrary keys to values created by
-  `cljfx.prop/make`
-
-  Returned extension lifecycle expects these keys:
-  - `:desc` (required) - description of underlying component, can have
-    additional keys from `props-config`, such props will be applied *after*
-    applying other props from description"
-  [props-config]
-  (let [lifecycle (fx.lifecycle/wrap-extra-props fx.lifecycle/dynamic props-config)]
-    (reify fx.lifecycle/Lifecycle
-      (create [_ desc opts]
-        (fx.lifecycle/create lifecycle (:desc desc) opts))
-      (advance [_ component desc opts]
-        (fx.lifecycle/advance lifecycle component (:desc desc) opts))
-      (delete [_ component opts]
-        (fx.lifecycle/delete lifecycle component opts)))))
+(defn focus-when-on-scene! [^Node node]
+  (if (some? (.getScene node))
+    (.requestFocus node)
+    (.addListener (.sceneProperty node)
+                  (reify ChangeListener
+                    (changed [this _ _ new-scene]
+                      (when (some? new-scene)
+                        (.removeListener (.sceneProperty node) this)
+                        (.requestFocus node)))))))
 
 (defn ext-focused-by-default
   "Function component that mimics extension lifecycle. Focuses node specified by
    `:desc` key when it gets added to scene graph"
   [{:keys [desc]}]
   {:fx/type fx/ext-on-instance-lifecycle
-   :on-created (fn [^Node node]
-                 (if (some? (.getScene node))
-                   (.requestFocus node)
-                   (.addListener (.sceneProperty node)
-                                 (reify ChangeListener
-                                   (changed [this _ _ new-scene]
-                                     (when (some? new-scene)
-                                       (.removeListener (.sceneProperty node) this)
-                                       (.requestFocus node)))))))
+   :on-created focus-when-on-scene!
    :desc desc})
 
 (def ext-with-advance-events
@@ -84,15 +80,20 @@
   handler (either EventHandler, function or event map)"
   [event-type]
   (fx.prop/make
-    (reify fx.mutator/Mutator
-      (assign! [_ instance coerce value]
-        (.addEventFilter ^Node instance event-type (coerce value)))
-      (replace! [this instance coerce old-value new-value]
-        (when-not (= old-value new-value)
-          (fx.mutator/retract! this instance coerce old-value)
-          (fx.mutator/assign! this instance coerce new-value)))
-      (retract! [_ instance coerce value]
-        (.removeEventFilter ^Node instance event-type (coerce value))))
+    (fx.mutator/adder-remover #(.addEventFilter ^Node %1 event-type %2)
+                              #(.removeEventFilter ^Node %1 event-type %2))
+    (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler
+                              fx.coerce/event-handler)))
+
+(defn make-event-handler-prop
+  "Creates a prop-config that will add event handler for specified `event-type`
+
+  Value for such prop in component description is expected to be an event
+  handler (either EventHandler, function or event map)"
+  [event-type]
+  (fx.prop/make
+    (fx.mutator/adder-remover #(.addEventHandler ^Node %1 event-type %2)
+                              #(.removeEventHandler ^Node %1 event-type %2))
     (fx.lifecycle/wrap-coerce fx.lifecycle/event-handler
                               fx.coerce/event-handler)))
 
@@ -111,6 +112,25 @@
           (.selectRange ^TextInputControl instance anchor caret)))
       (retract! [_ _ _ _]))
     fx.lifecycle/scalar))
+
+(def list-cell-factory-prop
+  "Prop-config that provides simple list cell instead of text-field based one
+
+  Value for such prop is a function of list view item that returns cell's prop
+  map (without `:fx/type`)"
+  (fx.prop/make
+    (fx.mutator/setter #(.setCellFactory ^ListView %1 %2))
+    (fx.lifecycle/detached-prop-map fx.list-cell/props)
+    :coerce
+    #(let [props-vol (volatile! {})]
+       (reify Callback
+         (call [_ _]
+           (proxy [ListCell] []
+             (updateItem [item empty]
+               (let [^ListCell this this
+                     props @props-vol]
+                 (proxy-super updateItem item empty)
+                 (vreset! props-vol (% props this item empty))))))))))
 
 (def on-text-input-selection-changed-prop
   "Prop-config that will observe changes for selection in TextInputControl
@@ -430,3 +450,66 @@
                                 :icon/circle-check "#65c647"
                                 (:icon/triangle-error :icon/triangle-sad) "#e32f44"
                                 "#9fb0be"))))
+
+(deftype PartialFn [pfn fn args]
+  Fn
+  IFn
+  (invoke [_]
+    (pfn))
+  (invoke [_ a]
+    (pfn a))
+  (invoke [_ a b]
+    (pfn a b))
+  (invoke [_ a b c]
+    (pfn a b c))
+  (invoke [_ a b c d]
+    (pfn a b c d))
+  (invoke [_ a b c d e]
+    (pfn a b c d e))
+  (invoke [_ a b c d e f]
+    (pfn a b c d e f))
+  (invoke [_ a b c d e f g]
+    (pfn a b c d e f g))
+  (invoke [_ a b c d e f g h]
+    (pfn a b c d e f g h))
+  (invoke [_ a b c d e f g h i]
+    (pfn a b c d e f g h i))
+  (invoke [_ a b c d e f g h i j]
+    (pfn a b c d e f g h i j))
+  (invoke [_ a b c d e f g h i j k]
+    (pfn a b c d e f g h i j k))
+  (invoke [_ a b c d e f g h i j k l]
+    (pfn a b c d e f g h i j k l))
+  (invoke [_ a b c d e f g h i j k l m]
+    (pfn a b c d e f g h i j k l m))
+  (invoke [_ a b c d e f g h i j k l m n]
+    (pfn a b c d e f g h i j k l m n))
+  (invoke [_ a b c d e f g h i j k l m n o]
+    (pfn a b c d e f g h i j k l m n o))
+  (invoke [_ a b c d e f g h i j k l m n o p]
+    (pfn a b c d e f g h i j k l m n o p))
+  (invoke [_ a b c d e f g h i j k l m n o p q]
+    (pfn a b c d e f g h i j k l m n o p q))
+  (invoke [_ a b c d e f g h i j k l m n o p q r]
+    (pfn a b c d e f g h i j k l m n o p q r))
+  (invoke [_ a b c d e f g h i j k l m n o p q r s]
+    (pfn a b c d e f g h i j k l m n o p q r s))
+  (invoke [_ a b c d e f g h i j k l m n o p q r s t]
+    (pfn a b c d e f g h i j k l m n o p q r s t))
+  (invoke [_ a b c d e f g h i j k l m n o p q r s t rest]
+    (apply pfn a b c d e f g h i j k l m n o p q r s t rest))
+  (applyTo [_ arglist]
+    (apply pfn arglist))
+  IHashEq
+  (hasheq [_]
+    (hash [fn args]))
+  Object
+  (equals [_ obj]
+    (if (instance? PartialFn obj)
+      (let [^PartialFn that obj]
+        (and (= fn (.-fn that))
+             (= args (.-args that))))
+      false)))
+
+(defn partial [f & args]
+  (PartialFn. (apply clojure.core/partial f args) f args))

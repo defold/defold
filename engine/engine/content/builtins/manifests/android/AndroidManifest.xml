@@ -15,17 +15,13 @@
         android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
-        <!-- For Local Notifications -->
-        <receiver android:name="com.defold.push.LocalNotificationReceiver" >
-        </receiver>
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
 
         <!-- For Google Play Services -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
-
-        <!-- Disable Firebase Analytics -->
-        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="{{project.title}}"
@@ -35,58 +31,17 @@
                 android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
                     android:value="{{exe-name}}" />
-            {{#android.push_field_title}}
-            <meta-data
-                android:name="com.defold.push.field_title"
-                android:value="{{android.push_field_title}}" />
-            {{/android.push_field_title}}
-            {{#android.push_field_text}}
-            <meta-data
-                android:name="com.defold.push.field_text"
-                android:value="{{android.push_field_text}}" />
-            {{/android.push_field_text}}
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <activity android:name="com.defold.iap.IapGooglePlayActivity"
           android:theme="@android:style/Theme.Translucent.NoTitleBar"
           android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
           android:label="IAP">
         </activity>
-
-        <!-- For local and Firebase notifications -->
-        <activity android:name="com.defold.push.PushDispatchActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
-            </intent-filter>
-        </activity>
-
-        <!-- For Firebase Cloud Messaging -->
-        <service android:enabled="true" android:exported="true" android:name="com.defold.push.FirebaseMessagingService">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-        <service android:exported="true" android:name="com.google.firebase.messaging.FirebaseMessagingService">
-            <intent-filter android:priority="-500">
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-        <service android:exported="false" android:name="com.google.firebase.components.ComponentDiscoveryService">
-            <meta-data android:name="com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
-            <meta-data android:name="com.google.firebase.components:com.google.firebase.iid.Registrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
-        </service>
-        <receiver android:exported="true" android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:permission="com.google.android.c2dm.permission.SEND">
-            <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
-            </intent-filter>
-        </receiver>
 
         <!-- For IAC Invocations -->
         <activity android:name="com.defold.iac.IACActivity"
@@ -107,18 +62,15 @@
                 <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
             </intent-filter>
         </receiver>
+
     </application>
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- For GCM (push) -->
-    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
-    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->

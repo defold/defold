@@ -42,7 +42,7 @@ public class ColladaModelBuilder extends Builder<Void>  {
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
         try {
-            ColladaUtil.loadMesh(collada_is, meshSetBuilder);
+            ColladaUtil.loadMesh(collada_is, meshSetBuilder, true);
         } catch (XMLStreamException e) {
             throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
         } catch (LoaderException e) {

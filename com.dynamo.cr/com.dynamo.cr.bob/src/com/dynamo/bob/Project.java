@@ -377,8 +377,7 @@ public class Project {
     // Also adds any properties specified with the "--settings" flag
     public static BobProjectProperties loadProperties(IResource resource, List<String> settingsFiles) throws IOException {
         if (!resource.exists()) {
-            System.err.println(String.format("Project file not found: %s", resource.getAbsPath()));
-            return null;
+            throw new IOException(String.format("Project file not found: %s", resource.getAbsPath()));
         }
 
         BobProjectProperties properties = new BobProjectProperties();
@@ -397,7 +396,10 @@ public class Project {
     }
 
     public void loadProjectFile() throws IOException, ParseException {
-        projectProperties = Project.loadProperties(getGameProjectResource(), this.getPropertyFiles());
+        IResource gameProject = getGameProjectResource();
+        if (gameProject.exists()) {
+            projectProperties = Project.loadProperties(gameProject, this.getPropertyFiles());
+        }
     }
 
     public void addPropertyFile(String filepath) {
@@ -678,7 +680,12 @@ public class Project {
                 String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
                 proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
 
-                if (!androidResourcesGenerated)
+                // NOTE:
+                // We previously only generated and sent Android resources for at most one arch,
+                // to avoid sending and building these twice.
+                // However the server will run proguard for both of these architectures which means
+                // for the second arch it will not find R attributes and fail.
+                // if (!androidResourcesGenerated)
                 {
                     androidResourcesGenerated = true;
 

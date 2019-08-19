@@ -14,7 +14,6 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
-            [editor.form-view :as form-view]
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -75,7 +74,6 @@
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)
-        (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
