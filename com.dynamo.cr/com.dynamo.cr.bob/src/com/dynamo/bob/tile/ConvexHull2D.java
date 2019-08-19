@@ -1,7 +1,17 @@
 package com.dynamo.bob.tile;
 
 import java.util.Arrays;
+import java.lang.Math;
 import javax.vecmath.Vector2d;
+
+// for easier debugging standalone
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.File;
+import javax.imageio.ImageIO;
+
+import java.awt.*;
+import java.awt.image.*;
 
 /*
  * Intersection of two lines:
@@ -82,6 +92,47 @@ public class ConvexHull2D {
         @Override
         public String toString() {
             return String.format("(%d, %d)", x, y);
+        }
+    }
+
+    public static class PointF {
+        double x;
+        double y;
+
+        public PointF(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    public static class Line {
+        Point p;
+        Point slope;
+
+        public Line(Point p0, Point p1) {
+            this.p = p0;
+            this.slope = new Point(p1.x - p0.x, p1.y - p0.y);
+        }
+
+        private static double perp(Point u, Point v) {
+            return u.x * v.y - u.y * v.x;
+        }
+
+        public static boolean intersect(Line l0, Line l1, PointF out) {
+            double d = perp(l0.slope, l1.slope);
+            if (Math.abs(d) < 0.000001f) {
+                return false; // parallel lines
+            }
+
+            double t = perp(l1.slope, new Point(l0.p.x-l1.p.x, l0.p.y-l1.p.y)) / d;
+
+            if (t < 0.5) { // wrong side
+                return false;
+            }
+
+            out.x = l0.p.x + t * l0.slope.x;
+            out.y = l0.p.y + t * l0.slope.y;
+            return true;
         }
     }
 
@@ -211,4 +262,245 @@ public class ConvexHull2D {
         return refine(distinct, mask, width, height);
     }
 
+    private static double areaX2(Point p0, Point p1, Point p2) {
+        // normally you'd divide by two, but we just need the area for sorting
+        Point v0 = new Point(p1.x - p0.x, p1.y - p0.y);
+        Point v1 = new Point(p2.x - p0.x, p2.y - p0.y);
+        return (v0.x*v1.y) - (v0.y*v1.x); // a 3D cross product
+    }
+
+    public static double area(Point[] points) {
+        double a = 0;
+        for (int i = 1; i < points.length-1; ++i) {
+            a += ConvexHull2D.areaX2(points[0], points[i], points[i+1]);
+        }
+        return a * 0.5;
+    }
+
+
+    // Tries to remove the least significant edges of a hull
+    // https://softwareengineering.stackexchange.com/a/395439
+    public static Point[] simplifyHull(Point[] points, int targetCount, int width, int height) {
+        while (points.length > targetCount) {
+
+            int indexOfLeastSignificance = -1;
+            double leastArea = width*height*2;
+            Point intersectionPoint = null;
+
+            for (int i = 0; i < points.length; ++i) {
+                Point p0 = points[(i-1+points.length)%points.length];
+                Point p1 = points[i];
+                Point p2 = points[(i+1)%points.length];
+                Point p3 = points[(i+2)%points.length];
+
+                Line l0 = new Line(p0, p1);
+                Line l1 = new Line(p2, p3);
+
+                // Project the line (p1-p0) onto the line (p2-p3)
+                PointF pf = new PointF(-1, -1);
+                if (!Line.intersect(l0, l1, pf)) {
+
+        System.out.println(String.format("No intersection"));
+                    continue;
+                }
+
+                // TODO: Fix so that we clamp the intersection point to integers, in the direction outwards from the center of the hull
+                // It should suffice to move the point along the general direction of line 1 which the point was projected to
+                Point p = new Point((int)Math.floor(pf.x + (l1.slope.x > 1 ? 1 : 0)),
+                                    (int)Math.floor(pf.y + (l1.slope.y > 1 ? 1 : 0)));
+
+        //System.out.println(String.format("Intersection: %f x %f  -> %d x %d", pf.x, pf.y, p.x, p.y));
+
+                // check that the intersection is inside the box
+                if (p.x < 0 || p.x >= width || p.y < 0 || p.y >= height) {
+        System.out.println(String.format("  candidate outside of box"));
+                    continue;
+                }
+
+                // calculate the area of triangle [p1, p2, I]
+                double area = ConvexHull2D.areaX2(p1, p, p2);
+                if (area < leastArea) {
+                    indexOfLeastSignificance = i;
+                    leastArea = area;
+                    intersectionPoint = p;
+                }
+            }
+
+            if (indexOfLeastSignificance == -1) {
+                break;
+            }
+
+            // We have chosen an edge to remove
+
+        System.out.println(String.format("  removing point %d: %d x %d", indexOfLeastSignificance, intersectionPoint.x, intersectionPoint.y));
+
+            points[(indexOfLeastSignificance+1)%points.length] = intersectionPoint;
+
+            Point[] refined = new Point[points.length-1];
+            System.arraycopy(points, 0, refined, 0, indexOfLeastSignificance);
+            System.arraycopy(points, indexOfLeastSignificance + 1, refined, indexOfLeastSignificance, points.length - indexOfLeastSignificance - 1);
+
+            points = refined;
+        }
+        return points;
+    }
+
+    public static Point[] calcRect(Point[] points) {
+        int maxX = -1000000;
+        int maxY = -1000000;
+        int minX = 1000000;
+        int minY = 1000000;
+         for (Point p : points) {
+            if (p.x > maxX)
+                maxX = p.x;
+            if (p.x < minX)
+                minX = p.x;
+            if (p.y > maxY)
+                maxY = p.y;
+            if (p.y < minY)
+                minY = p.y;
+        }
+        points = new Point[4];
+        points[0] = new Point(minX, minY);
+        points[1] = new Point(minX, maxY);
+        points[2] = new Point(maxX, maxY);
+        points[3] = new Point(minX, minY);
+
+
+        System.out.println(String.format("calcRect: area %f", ConvexHull2D.area(points)));
+        return points;
+    }
+
+
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.out.println("No image specified!");
+            return;
+        }
+        if (args.length >= 2 && args[0].equals(args[1])) {
+            System.out.println("Source and target images cannot be the same!");
+            return;
+        }
+        for (String arg : args) {
+            System.out.println("ARG: " + arg);
+        }
+
+        BufferedImage img = null;
+        try {
+            img = ImageIO.read(new File(args[0]));
+        } catch (IOException e) {
+            System.out.println("Couldn't read image: " + args[0]);
+            return;
+        }
+
+        // // Create mask
+        int width = img.getWidth();
+        int height = img.getHeight();
+        System.out.println(String.format("w/h: %d x %d", width, height));
+
+
+        int maxX = 0;
+        int maxY = 0;
+        int minX = width;
+        int minY = height;
+
+        int any_zero_alpha = 0;
+        int mask[] = new int[width*height];
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int color = img.getRGB(x, y); // bgra
+                int alpha = (color >> 24) & 0xff;
+                mask[y * width + x] = alpha == 0 ? 0 : 1;
+                any_zero_alpha |= alpha == 0 ? 1 : 0;
+
+                if (alpha > 0) {
+                    if (x > maxX)
+                        maxX = x;
+                    if (x < minX)
+                        minX = x;
+                    if (y > maxY)
+                        maxY = y;
+                    if (y < minY)
+                        minY = y;
+                }
+            }
+        }
+
+        System.out.println(String.format("any_zero_alpha: %d", any_zero_alpha));
+
+        Point[] points = imageConvexHull(mask, width, height, 16);
+
+        // check that it's valid
+        System.out.println("Is it valid?");
+        if (validHull(points, mask, width, height)) {
+            System.out.println("valid");
+        } else {
+            System.out.println("NOT VALID!");
+        }
+
+
+        Graphics2D g2d = img.createGraphics();
+        BasicStroke bs = new BasicStroke(2);
+        g2d.setStroke(bs);
+
+        g2d.setColor(Color.BLUE);
+        g2d.drawLine(minX, height-minY, minX, height-maxY);
+        g2d.drawLine(maxX, height-minY, maxX, height-maxY);
+        g2d.drawLine(minX, height-minY, maxX, height-minY);
+        g2d.drawLine(minX, height-maxY, maxX, height-maxY);
+
+
+        g2d.setColor(Color.YELLOW);
+        System.out.println(String.format("Points: %d", points.length));
+        for (int i = 0; i < points.length; ++i) {
+            Point point = points[i];
+            Point pointNext = points[(i+1)%points.length];
+
+            System.out.println(String.format("  %2d: %d x %d", i, point.getX(), point.getY()));
+
+            g2d.drawLine(point.getX(), height-point.getY(), pointNext.getX(), height-pointNext.getY());
+        }
+
+        int numTargetVertices = 4;
+        points = simplifyHull(points, numTargetVertices, width, height);
+
+        // check that it's still valid
+        System.out.println("After simplification:");
+        if (validHull(points, mask, width, height)) {
+            System.out.println("Still valid");
+        } else {
+            System.out.println("NOT VALID");
+        }
+
+        g2d.setColor(Color.RED);
+
+        System.out.println(String.format("Points: %d", points.length));
+        for (int i = 0; i < points.length; ++i) {
+            Point point = points[i];
+            Point pointNext = points[(i+1)%points.length];
+
+            System.out.println(String.format("  %2d: %d x %d", i, point.getX(), point.getY()));
+
+            g2d.drawLine(point.getX(), height-point.getY(), pointNext.getX(), height-pointNext.getY());
+        }
+
+
+        double area = ConvexHull2D.area(points);
+        System.out.println(String.format("Area: %f / %f  (%f %%)", area, (double)width*height, area / (width*height)));
+        double areaRect = (maxX-minX) * (maxY-minY);
+        System.out.println(String.format("Tight rect:  %f / %f  (%f %%)", areaRect, (double)width*height, areaRect / (width*height)));
+
+        if (args.length >= 2) {
+            // Write output
+            try {
+                File outputfile = new File(args[1]);
+                String ext = args[1].substring(args[1].lastIndexOf(".")+1);
+                ImageIO.write(img, ext, outputfile);
+                System.out.println("Wrote " + args[1]);
+            } catch (IOException e) {
+                System.out.println("Couldn't write image: " + args[1]);
+                return;
+            }
+        }
+    }
 }

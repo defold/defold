@@ -76,4 +76,11 @@ message TextureSet
     // A series of two float pairs of dimensions representing quad texture width and height in texels.
     // Unused for tilemap
     optional bytes tex_dims                 = 19;
+
+
+    // The number of vertices in each hull. max 8
+    optional uint32 convex_hull_size        = 20 [default = 0]; // 0 == no hulls
+    // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
+    // Each point is relative to the sprite center
+    repeated float convex_hull_points       = 21;
 }
