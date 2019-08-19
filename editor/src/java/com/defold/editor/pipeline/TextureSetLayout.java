@@ -149,26 +149,20 @@ public class TextureSetLayout {
      * @return
      */
     public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
-        if (rotate) {
-            // Sort by longest side if rotation is enabled.
-            Collections.sort(rectangles, new Comparator<Rect>() {
-                @Override
-                public int compare(Rect o1, Rect o2) {
-                    int n1 = o1.width > o1.height ? o1.width : o1.height;
-                    int n2 = o2.width > o2.height ? o2.width : o2.height;
-                    return n2 - n1;
+        // Sort by area first, then longest side
+        Collections.sort(rectangles, new Comparator<Rect>() {
+            @Override
+            public int compare(Rect o1, Rect o2) {
+                int a1 = o1.width * o1.height;
+                int a2 = o2.width * o2.height;
+                if (a1 != a2) {
+                    return a2 - a1;
                 }
-            });
-        }
-        else {
-            // Sort only by width (largest to smallest) if rotation is disabled.
-            Collections.sort(rectangles, new Comparator<Rect>() {
-                @Override
-                public int compare(Rect o1, Rect o2) {
-                    return o2.width - o1.width;
-                }
-            });
-        }
+                int n1 = o1.width > o1.height ? o1.width : o1.height;
+                int n2 = o2.width > o2.height ? o2.width : o2.height;
+                return n2 - n1;
+            }
+        });
 
         // Calculate total area of rectangles and the max length of a rectangle
         int maxLengthScale = 0;
@@ -202,7 +196,7 @@ public class TextureSetLayout {
         while (layouts.size() > 1) {
             iterations++;
             settings.minPageWidth = settings.maxPageWidth;
-            settings.maxPageHeight = settings.maxPageHeight;
+            settings.minPageHeight = settings.maxPageHeight;
             settings.maxPageHeight *= (iterations % 2) == 0 ? 2 : 1;
             settings.maxPageWidth *= (iterations % 2) == 0 ? 1 : 2;
             layouts = strategy.createLayout(rectangles);
