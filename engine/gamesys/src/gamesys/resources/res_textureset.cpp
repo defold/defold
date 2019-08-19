@@ -27,30 +27,47 @@ namespace dmGameSystem
             {
                 return dmResource::RESULT_INVALID_DATA;
             }
-            uint32_t n_hulls = texture_set_ddf->m_ConvexHulls.m_Count;
-            tile_set->m_HullCollisionGroups.SetCapacity(n_hulls);
-            tile_set->m_HullCollisionGroups.SetSize(n_hulls);
-            dmPhysics::HullDesc* hull_descs = new dmPhysics::HullDesc[n_hulls];
-            for (uint32_t i = 0; i < n_hulls; ++i)
+
+            // Convex hulls for rendering
             {
-                dmGameSystemDDF::ConvexHull* hull_ddf = &texture_set_ddf->m_ConvexHulls[i];
-                tile_set->m_HullCollisionGroups[i] = dmHashString64(hull_ddf->m_CollisionGroup);
-                hull_descs[i].m_Index = (uint16_t)hull_ddf->m_Index;
-                hull_descs[i].m_Count = (uint16_t)hull_ddf->m_Count;
+                dmLogWarning("MAWE: %s: ", texture_set_ddf->m_Texture);
+                dmLogWarning("MAWE:   convex_hull_size: %u", texture_set_ddf->m_ConvexHullSize);
+                if (texture_set_ddf->m_ConvexHullSize > 0)
+                {
+                    float* points = texture_set_ddf->m_ConvexHullPoints.m_Data;
+                    for (int j = 0; j < texture_set_ddf->m_ConvexHullPoints.m_Count; j += 2) {
+                        dmLogWarning("MAWE: %f, %f", points[j+0], points[j+1]);
+                    }
+                }
             }
-            uint32_t n_points = texture_set_ddf->m_CollisionHullPoints.m_Count / 2;
-            float recip_tile_width = 1.0f / (texture_set_ddf->m_TileWidth - 1);
-            float recip_tile_height = 1.0f / (texture_set_ddf->m_TileHeight - 1);
-            float* points = texture_set_ddf->m_CollisionHullPoints.m_Data;
-            float* norm_points = new float[n_points * 2];
-            for (uint32_t i = 0; i < n_points; ++i)
+
+            // Physics convex hulls
             {
-                norm_points[i*2] = (points[i*2]) * recip_tile_width - 0.5f;
-                norm_points[i*2+1] = (points[i*2+1]) * recip_tile_height - 0.5f;
+                uint32_t n_hulls = texture_set_ddf->m_ConvexHulls.m_Count;
+                tile_set->m_HullCollisionGroups.SetCapacity(n_hulls);
+                tile_set->m_HullCollisionGroups.SetSize(n_hulls);
+                dmPhysics::HullDesc* hull_descs = new dmPhysics::HullDesc[n_hulls];
+                for (uint32_t i = 0; i < n_hulls; ++i)
+                {
+                    dmGameSystemDDF::ConvexHull* hull_ddf = &texture_set_ddf->m_ConvexHulls[i];
+                    tile_set->m_HullCollisionGroups[i] = dmHashString64(hull_ddf->m_CollisionGroup);
+                    hull_descs[i].m_Index = (uint16_t)hull_ddf->m_Index;
+                    hull_descs[i].m_Count = (uint16_t)hull_ddf->m_Count;
+                }
+                uint32_t n_points = texture_set_ddf->m_CollisionHullPoints.m_Count / 2;
+                float recip_tile_width = 1.0f / (texture_set_ddf->m_TileWidth - 1);
+                float recip_tile_height = 1.0f / (texture_set_ddf->m_TileHeight - 1);
+                float* points = texture_set_ddf->m_CollisionHullPoints.m_Data;
+                float* norm_points = new float[n_points * 2];
+                for (uint32_t i = 0; i < n_points; ++i)
+                {
+                    norm_points[i*2] = (points[i*2]) * recip_tile_width - 0.5f;
+                    norm_points[i*2+1] = (points[i*2+1]) * recip_tile_height - 0.5f;
+                }
+                tile_set->m_HullSet = dmPhysics::NewHullSet2D(context, norm_points, n_points, hull_descs, n_hulls);
+                delete [] hull_descs;
+                delete [] norm_points;
             }
-            tile_set->m_HullSet = dmPhysics::NewHullSet2D(context, norm_points, n_points, hull_descs, n_hulls);
-            delete [] hull_descs;
-            delete [] norm_points;
 
             uint32_t n_animations = texture_set_ddf->m_Animations.m_Count;
             tile_set->m_AnimationIds.Clear();

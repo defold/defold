@@ -90,6 +90,9 @@ public class TileSetGenerator {
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
                 tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
 
+        System.out.println("");
+        System.out.println("TileSetGenerator generate");
+
         if (metrics == null) {
             return null;
         }
@@ -109,7 +112,13 @@ public class TileSetGenerator {
 
         builder.setTileWidth(tileSet.getTileWidth()).setTileHeight(tileSet.getTileHeight());
 
+        // These hulls are for rendering and texture packing
+        buildConvexHulls(tileSet, image, builder, 6);
+
+        // These hulls are for collision detection
         buildCollisionConvexHulls(tileSet, collisionImage, builder);
+
+        System.out.println("");
 
         return result;
     }
@@ -150,12 +159,11 @@ public class TileSetGenerator {
         return iterator;
     }
 
-    private static void buildCollisionConvexHulls(TileSet tileSet,
-            BufferedImage collisionImage, TextureSet.Builder textureSet) {
-        if (collisionImage != null) {
-            ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(collisionImage.getAlphaRaster(), 16,
-                    collisionImage.getWidth(), collisionImage.getHeight(), tileSet.getTileWidth(),
-                    tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing());
+    private static void buildCollisionConvexHulls(TileSet tileSet, BufferedImage image, TextureSet.Builder textureSet) {
+        if (image != null) {
+            ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(image.getAlphaRaster(), 16,
+                    image.getWidth(), image.getHeight(), tileSet.getTileWidth(),
+                    tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), 0);
 
             for (int i = 0; i < convexHulls.hulls.length; ++i) {
                 ConvexHull convexHull = convexHulls.hulls[i];
@@ -177,4 +185,39 @@ public class TileSetGenerator {
         textureSet.addAllCollisionGroups(tileSet.getCollisionGroupsList());
     }
 
+    private static void buildConvexHulls(TileSet tileSet, BufferedImage image, TextureSet.Builder textureSet, int hullVertexCount) {
+        textureSet.setConvexHullSize(hullVertexCount);
+
+        if (hullVertexCount == 0) {
+            System.out.println("Hull generation is disabled. Skipping");
+            return;
+        }
+        if (image == null) {
+            System.out.println("No input image for hull generation. Skipping");
+            return;
+        }
+
+        ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(image.getAlphaRaster(), 16,
+                image.getWidth(), image.getHeight(), tileSet.getTileWidth(),
+                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), hullVertexCount);
+
+        float tileSizeXRecip = 1.0f / tileSet.getTileWidth();
+        float tileSizeYRecip = 1.0f / tileSet.getTileHeight();
+
+System.out.print(String.format("recip: %.2f, %.2f", tileSizeXRecip, tileSizeYRecip));
+
+
+        for (int i = 0; i < convexHulls.points.length; i += 2) {
+            float x = convexHulls.points[i+0];
+            float y = convexHulls.points[i+1];
+            x = (x * tileSizeXRecip) - 0.5f;
+            y = (y * tileSizeYRecip) - 0.5f;
+
+//System.out.print(String.format("%.2f, %.2f", convexHulls.points[i+0], convexHulls.points[i+1], x, y));
+
+            textureSet.addConvexHullPoints(x);
+            textureSet.addConvexHullPoints(y);
+        }
+
+    }
 }

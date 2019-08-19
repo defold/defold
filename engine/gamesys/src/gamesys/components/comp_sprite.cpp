@@ -95,6 +95,63 @@ namespace dmGameSystem
     static float GetPlaybackRate(SpriteComponent* component);
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
 
+    template<typename T>
+    void fillIndices(T* index, uint32_t indices_count, int num_verts_per_sprite) {
+        int num_tris = num_verts_per_sprite - 2;
+        if (num_verts_per_sprite == 4) {
+            for(uint32_t i = 0, v = 0; i < indices_count; i += num_tris*3, v += num_verts_per_sprite)
+            {
+                *index++ = v+0;
+                *index++ = v+1;
+                *index++ = v+2;
+                *index++ = v+2;
+                *index++ = v+3;
+                *index++ = v+0;
+            }
+        }
+        else if (num_verts_per_sprite == 6) {
+            for(uint32_t i = 0, v = 0; i < indices_count; i += num_tris*3, v += num_verts_per_sprite)
+            {
+                *index++ = v+0;
+                *index++ = v+1;
+                *index++ = v+2;
+                *index++ = v+2;
+                *index++ = v+3;
+                *index++ = v+0;
+                *index++ = v+3;
+                *index++ = v+5;
+                *index++ = v+0;
+                *index++ = v+3;
+                *index++ = v+4;
+                *index++ = v+5;
+            }
+        }
+        else if (num_verts_per_sprite == 8) {
+            for(uint32_t i = 0, v = 0; i < indices_count; i += num_tris*3, v += num_verts_per_sprite)
+            {
+                *index++ = v+0;
+                *index++ = v+1;
+                *index++ = v+2;
+                *index++ = v+2;
+                *index++ = v+7;
+                *index++ = v+0;
+                *index++ = v+2;
+                *index++ = v+3;
+                *index++ = v+7;
+                *index++ = v+3;
+                *index++ = v+6;
+                *index++ = v+7;
+                *index++ = v+3;
+                *index++ = v+4;
+                *index++ = v+6;
+                *index++ = v+4;
+                *index++ = v+5;
+                *index++ = v+6;
+            }
+        }
+
+    }
+
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
@@ -116,35 +173,22 @@ namespace dmGameSystem
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 4 * sprite_world->m_Components.Capacity());
         {
-            uint32_t vertex_count = 4*sprite_context->m_MaxSpriteCount;
+            // TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+            // uint32_t num_vertices_per_sprite = texture_set_ddf->m_ConvexHullSize != 0 ? texture_set_ddf->m_ConvexHullSize : 4;
+            uint32_t num_vertices_per_sprite = 6;
+            uint32_t tri_count = num_vertices_per_sprite - 2;
+
+            uint32_t vertex_count = num_vertices_per_sprite*sprite_context->m_MaxSpriteCount;
             uint32_t size_type = vertex_count <= 65536 ? sizeof(uint16_t) : sizeof(uint32_t);
             sprite_world->m_Is16BitIndex = size_type == sizeof(uint16_t) ? 1 : 0;
 
-            uint32_t indices_count = 6*sprite_context->m_MaxSpriteCount;
+            uint32_t indices_count = (tri_count*3)*sprite_context->m_MaxSpriteCount;
             size_t indices_size = indices_count * size_type;
             void* indices = (void*)malloc(indices_count * size_type);
             if (sprite_world->m_Is16BitIndex) {
-                uint16_t* index = (uint16_t*)indices;
-                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
-                {
-                    *index++ = v;
-                    *index++ = v+1;
-                    *index++ = v+2;
-                    *index++ = v+2;
-                    *index++ = v+3;
-                    *index++ = v;
-                }
+                fillIndices<uint16_t>((uint16_t*)indices, indices_count, num_vertices_per_sprite);
             } else {
-                uint32_t* index = (uint32_t*)indices;
-                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
-                {
-                    *index++ = v;
-                    *index++ = v+1;
-                    *index++ = v+2;
-                    *index++ = v+2;
-                    *index++ = v+3;
-                    *index++ = v;
-                }
+                fillIndices<uint32_t>((uint32_t*)indices, indices_count, num_vertices_per_sprite);
             }
 
             sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
@@ -291,8 +335,14 @@ namespace dmGameSystem
             2,3,0,0,1,2     //hv
         };
 
+        uint16_t texture_width = dmGraphics::GetOriginalTextureWidth(texture_set->m_Texture);
+        uint16_t texture_height = dmGraphics::GetOriginalTextureHeight(texture_set->m_Texture);
+
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
+
+        uint32_t convex_hull_size = texture_set_ddf->m_ConvexHullSize;
+        const float* hull_points = texture_set_ddf->m_ConvexHullPoints.m_Data;
 
         for (uint32_t *i = begin;i != end; ++i)
         {
@@ -300,7 +350,8 @@ namespace dmGameSystem
 
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
-            const float* tc = &tex_coords[(animation_ddf->m_Start + component->m_CurrentAnimationFrame) * 8];
+            uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
+            const float* tc = &tex_coords[frame_index * convex_hull_size * 2];
             uint32_t flip_flag = 0;
 
             // ddf values are guaranteed to be 0 or 1 when saved by the editor
@@ -318,33 +369,75 @@ namespace dmGameSystem
 
             const Matrix4& w = component->m_World;
 
-            Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
-            where[0].x = p0.getX();
-            where[0].y = p0.getY();
-            where[0].z = p0.getZ();
-            where[0].u = tc[tex_lookup[0] * 2];
-            where[0].v = tc[tex_lookup[0] * 2 + 1];
+            // TODO: precalculate these and put in the texture set!
+            float min_u = tc[tex_lookup[0] * 2] / texture_width;
+            float min_v = tc[tex_lookup[0] * 2 + 1] / texture_height;
+            float max_u = tc[tex_lookup[2] * 2] / texture_width;
+            float max_v = tc[tex_lookup[2] * 2 + 1] / texture_height;
 
-            Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
-            where[1].x = p1.getX();
-            where[1].y = p1.getY();
-            where[1].z = p1.getZ();
-            where[1].u = tc[tex_lookup[1] * 2];
-            where[1].v = tc[tex_lookup[1] * 2 + 1];
+            const float* sprite_hull_vertices = &hull_points[(frame_index - 1) * convex_hull_size * 2]; // the frameindex is 1 based ??
+            for (uint32_t vert = 0; vert < convex_hull_size; ++vert, ++where, sprite_hull_vertices += 2)
+            {
+                float x = sprite_hull_vertices[0]; // range -0.5,+0.5
+                float y = sprite_hull_vertices[1];
+                float u = min_u + (x + 0.5f) * (max_u - min_u);
+                float v = 1.0f - (max_v + (y + 0.5f) * (min_v - max_v));
 
-            Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
-            where[2].x = p2.getX();
-            where[2].y = p2.getY();
-            where[2].z = p2.getZ();
-            where[2].u = tc[tex_lookup[2] * 2];
-            where[2].v = tc[tex_lookup[2] * 2 + 1];
+                Vector4 p0 = w * Point3(x, y, 0.0f);
+                where[0].x = p0.getX();
+                where[0].y = p0.getY();
+                where[0].z = p0.getZ();
+                where[0].u = u;
+                where[0].v = v;
+            }
 
-            Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
-            where[3].x = p3.getX();
-            where[3].y = p3.getY();
-            where[3].z = p3.getZ();
-            where[3].u = tc[tex_lookup[4] * 2];
-            where[3].v = tc[tex_lookup[4] * 2 + 1];
+            static int first = 1;
+            if (first) {
+                first = 0;
+
+                dmLogWarning("minUV: %f, %f   maxUV: %f, %f", min_u, min_v, max_u, max_v);
+                dmLogWarning("minUV: %f, %f   maxUV: %f, %f", min_u, min_v, max_u, max_v);
+
+
+                const float* sprite_hull_vertices = &hull_points[(frame_index - 1) * convex_hull_size * 2]; // the frameindex is 1 based ??
+                for (uint32_t vert = 0; vert < convex_hull_size; ++vert, sprite_hull_vertices += 2)
+                {
+                    float x = sprite_hull_vertices[0]; // range -0.5,+0.5
+                    float y = sprite_hull_vertices[1];
+                    float u = min_u + (x + 0.5f) * (max_u - min_u);
+                    float v = min_v + (y + 0.5f) * (max_v - min_v);
+
+                    dmLogWarning("XY: %f, %f   UV: %f, %f", x, y, u, v);
+                }
+            }
+
+            // Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
+            // where[0].x = p0.getX();
+            // where[0].y = p0.getY();
+            // where[0].z = p0.getZ();
+            // where[0].u = tc[tex_lookup[0] * 2];
+            // where[0].v = tc[tex_lookup[0] * 2 + 1];
+
+            // Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
+            // where[1].x = p1.getX();
+            // where[1].y = p1.getY();
+            // where[1].z = p1.getZ();
+            // where[1].u = tc[tex_lookup[1] * 2];
+            // where[1].v = tc[tex_lookup[1] * 2 + 1];
+
+            // Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
+            // where[2].x = p2.getX();
+            // where[2].y = p2.getY();
+            // where[2].z = p2.getZ();
+            // where[2].u = tc[tex_lookup[2] * 2];
+            // where[2].v = tc[tex_lookup[2] * 2 + 1];
+
+            // Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
+            // where[3].x = p3.getX();
+            // where[3].y = p3.getY();
+            // where[3].z = p3.getZ();
+            // where[3].u = tc[tex_lookup[4] * 2];
+            // where[3].v = tc[tex_lookup[4] * 2 + 1];
 
             where += 4;
         }

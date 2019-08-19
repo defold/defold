@@ -66,10 +66,43 @@ public class TileSetUtil {
         public float[]   points;
     }
 
+    private static ConvexHull2D.Point[] simplifyHull(ConvexHull2D.Point[] points, int width, int height, int hullTargetVertexCount) {
+        if (hullTargetVertexCount != 0) {
+            points = ConvexHull2D.simplifyHull(points, hullTargetVertexCount, width, height);
+
+            if (points.length > hullTargetVertexCount) {
+                // Fallback to the tight rect
+                points = ConvexHull2D.calcRect(points);
+            }
+            else if (points.length < hullTargetVertexCount) {
+                // Add degenerate triangles at the end
+                ConvexHull2D.Point arr[] = new ConvexHull2D.Point[hullTargetVertexCount];
+                for (int i = 0; i < points.length; ++i) {
+                    arr[i] = points[i];
+                }
+                for (int i = points.length; i < hullTargetVertexCount; ++i) {
+                    arr[i] = points[points.length-1]; // copy the last vertex, to make degenerate triangles
+                }
+                points = arr;
+            }
+        }
+        return points;
+    }
+
+    public static ConvexHull2D.Point[] calculateConvexHulls(Raster alphaRaster, int planeCount, int hullTargetVertexCount) {
+        int width = alphaRaster.getWidth();
+        int height = alphaRaster.getHeight();
+        int[] mask = new int[width * height];
+        mask = alphaRaster.getPixels(0, 0, width, height, mask);
+
+        ConvexHull2D.Point[] points = ConvexHull2D.imageConvexHull(mask, width, height, planeCount);
+        return simplifyHull(points, width, height, hullTargetVertexCount);
+    }
+
     public static ConvexHulls calculateConvexHulls(
             Raster alphaRaster, int planeCount,
             int width, int height, int tileWidth, int tileHeight,
-            int tileMargin, int tileSpacing) {
+            int tileMargin, int tileSpacing, int hullTargetVertexCount) {
 
         int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
         int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
@@ -86,6 +119,11 @@ public class TileSetUtil {
                 mask = alphaRaster.getPixels(x, y, tileWidth, tileHeight, mask);
                 int index = col + row * tilesPerRow;
                 points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, planeCount);
+
+                if (hullTargetVertexCount != 0) {
+                    points[index] = simplifyHull(points[index], tileWidth, tileHeight, hullTargetVertexCount);
+                }
+
                 ConvexHull convexHull = new ConvexHull(null, pointCount, points[index].length);
                 convexHulls[index] = convexHull;
                 pointCount += points[index].length;

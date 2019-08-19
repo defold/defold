@@ -47,6 +47,7 @@ public class AtlasBuilder extends Builder<Void>  {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
+        System.out.println("ATLAS: " + task.output(1).getPath());
         TextureSetResult result = AtlasUtil.genereateTextureSet(project, task.input(0));
 
         int buildDirLen = project.getBuildDirectory().length();
