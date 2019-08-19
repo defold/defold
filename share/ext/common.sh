@@ -7,6 +7,7 @@ IOS_SIMULATOR_SDK_VERSION=12.1
 
 IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
+OSX_SDK_VERSION=10.13
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -185,11 +186,14 @@ function cmi_set_compilers() {
     case $1 in
         armv7-darwin)
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
+            export SYSROOT=$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
+            export FRAMEWORKS="${ARM_DARWIN_ROOT}/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/Developer/Library/Frameworks"
+
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CPPFLAGS="-arch armv7 -isysroot $SYSROOT"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch armv7 -isysroot $SYSROOT"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -204,6 +208,9 @@ function cmi_set_compilers() {
             # Essentially the same environment vars as armv7-darwin but with "-arch arm64".
 
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
+            export SYSROOT=$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
+            export FRAMEWORKS="${ARM_DARWIN_ROOT}/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/Developer/Library/Frameworks"
+
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
@@ -223,10 +230,13 @@ function cmi_set_compilers() {
 
         x86_64-ios)
             [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk" && exit 1
+            export SYSROOT="$ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
+            export FRAMEWORKS="${ARM_DARWIN_ROOT}/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/Developer/Library/Frameworks"
+
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
+            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin12 -isysroot $SYSROOT"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
@@ -286,6 +296,9 @@ function cmi_set_compilers() {
             ;;
 
         darwin)
+            export SYSROOT="$ARM_DARWIN_ROOT/SDKs/MacOSX${OSX_SDK_VERSION}.sdk"
+            export FRAMEWORKS="${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/Developer/Library/Frameworks"
+
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CPPFLAGS="-m32"
@@ -295,6 +308,9 @@ function cmi_set_compilers() {
             ;;
 
         x86_64-darwin)
+            export SYSROOT="$ARM_DARWIN_ROOT/SDKs/MacOSX${OSX_SDK_VERSION}.sdk"
+            export FRAMEWORKS="${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX${OSX_SDK_VERSION}.sdk/Developer/Library/Frameworks"
+
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "

@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
 readonly PRODUCT=bullet3
 readonly VERSION=2.88
@@ -24,19 +24,6 @@ function convert_line_endings() {
 
     find $folder -type f -name "*.*" -exec $DOS2UNIX {} \;
 }
-
-# function cmi_unpack() {
-#     tar xf ../../download/$FILE_URL
-
-#     pushd ${PRODUCT}-${VERSION}
-
-#     rm -rf examples test
-
-#     # Convert line endings to unix style
-#     #convert_line_endings $CONF_TARGET .
-
-#     popd
-# }
 
 function cmi_configure() {
 
@@ -72,10 +59,10 @@ function cmi_configure() {
             cmake -G "Unix Makefiles" $OPTIONS $COMPILERS -DCMAKE_OSX_SYSROOT=
             ;;
          x86_64-ios)
-            cmake -G "Unix Makefiles" $OPTIONS $COMPILERS -DCMAKE_OSX_SYSROOT="$ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"  -DCMAKE_FRAMEWORK_PATH="${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/Developer/Library/Frameworks"
+            cmake -G "Unix Makefiles" $OPTIONS $COMPILERS -DCMAKE_OSX_SYSROOT=$SYSROOT -DCMAKE_FRAMEWORK_PATH=$FRAMEWORKS
             ;;
-         x86_64-darwin)
-            cmake -G "Unix Makefiles" -DCMAKE_OSX_SYSROOT=$ARM_DARWIN_ROOT/SDKs/MacOSX10.13.sdk -DCMAKE_C_COMPILER=$CC  -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR  -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_PYBULLET=OFF -DBUILD_BULLET2_DEMOS=OFF -DBUILD_UNIT_TESTS=OFF -DBUILD_EXTRAS=OFF
+         *-darwin)
+            cmake -G "Unix Makefiles" $OPTIONS $COMPILERS -DCMAKE_OSX_SYSROOT=$SYSROOT -DCMAKE_FRAMEWORK_PATH=$FRAMEWORKS
             ;;
          *)
             # tested with cmake 3.7.1
