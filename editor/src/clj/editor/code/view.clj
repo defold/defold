@@ -36,7 +36,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button CheckBox PopupControl Tab TextField]
-           [javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
@@ -2388,6 +2388,12 @@
                        (= "¨" (.getCharacter new-event)))
           (.handle handler event))))))
 
+(defn handle-input-method-changed! [view-node ^InputMethodEvent e]
+  (let [x (.getCommitted e)]
+    (when (seq x)
+      (insert-text! view-node x))
+    (prn :input-method e)))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         app-view (:app-view opts)
@@ -2435,6 +2441,16 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
+      (.setInputMethodRequests (reify InputMethodRequests
+                                 (getTextLocation [this offset]
+                                   (prn 'getTextLocation offset))
+                                 (getLocationOffset [this x y]
+                                   (prn 'getLocationOffset x y))
+                                 (cancelLatestCommittedText [this]
+                                   (prn 'cancelLatestCommittedText))
+                                 (getSelectedText [this]
+                                   (prn 'getSelectedText))))
+      (.setOnInputMethodTextChanged (ui/event-handler e (handle-input-method-changed! view-node e)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
       (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
                                              (ui/event-handler event (handle-key-typed! view-node event))))
