@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2017, Cameron Rich
+ * Copyright (c) 2007-2019, Cameron Rich
  *
  * All rights reserved.
  *
@@ -36,8 +36,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <axtls/ssl/os_port.h>
-#include <axtls/ssl/ssl.h>
+#include "os_port.h"
+#include "ssl.h"
+
 
 namespace dmAxTls {
 
@@ -1060,7 +1061,7 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
     while (sent < pkt_size)
     {
         ret = SOCKET_WRITE(ssl->client_fd,
-                        (const char*)&ssl->bm_all_data[sent], pkt_size-sent);
+                        &ssl->bm_all_data[sent], pkt_size-sent);
 
         if (ret >= 0)
             sent += ret;
@@ -1088,7 +1089,6 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
         }
     }
 
-    SET_SSL_FLAG(SSL_NEED_RECORD);  /* reset for next time */
     ssl->bm_index = 0;
 
     if (protocol != PT_APP_PROTOCOL_DATA)
@@ -1106,12 +1106,6 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
 int send_packet(SSL *ssl, uint8_t protocol, const uint8_t *in, int length)
 {
     int ret, msg_length = 0;
-
-    // Defold change for case 2284
-    if (IS_SET_SSL_FLAG(SSL_TX_ENCRYPTED) && ssl->cipher_info == 0) {
-        fprintf(stderr, "Unable to send encrypted packet. ssl->cipher_info is null. Bug in axTls\n");
-        return SSL_ERROR_CONN_LOST;
-    }
 
     /* if our state is bad, don't bother */
     if (ssl->hs_status == SSL_ERROR_DEAD)
@@ -1175,7 +1169,7 @@ int send_packet(SSL *ssl, uint8_t protocol, const uint8_t *in, int length)
         if (ssl->version >= SSL_PROTOCOL_VERSION_TLS1_1)
         {
             uint8_t iv_size = ssl->cipher_info->iv_size;
-            uint8_t *t_buf = (uint8_t*)alloca(msg_length + iv_size);
+            uint8_t *t_buf = (uint8_t *)alloca(msg_length + iv_size);
             memcpy(t_buf + iv_size, ssl->bm_data, msg_length);
             if (get_random(iv_size, t_buf) < 0)
                 return SSL_NOT_OK;
@@ -1304,7 +1298,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
     if (IS_SET_SSL_FLAG(SSL_SENT_CLOSE_NOTIFY))
         return SSL_CLOSE_NOTIFY;
 
-    read_len = SOCKET_READ(ssl->client_fd, (char*)&buf[ssl->bm_read_index],
+    read_len = SOCKET_READ(ssl->client_fd, &buf[ssl->bm_read_index],
                             ssl->need_bytes-ssl->got_bytes);
 
     if (read_len < 0)
@@ -1355,6 +1349,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
         /* do we violate the spec with the message size?  */
         if (ssl->need_bytes > RT_MAX_PLAIN_LENGTH+RT_EXTRA-BM_RECORD_OFFSET)
         {
+            ssl->need_bytes = SSL_RECORD_SIZE;
             ret = SSL_ERROR_RECORD_OVERFLOW;
             goto error;
         }
@@ -1402,13 +1397,6 @@ int basic_read(SSL *ssl, uint8_t **in_data)
             {
                 ssl->dc->bm_proc_index = 0;
                 ret = do_handshake(ssl, buf, read_len);
-                // Defold change
-                if( ret < 0 )
-                {
-                    fprintf(stderr, "AXTLS: Handshake failed: %d\n", ret);
-                    ssl->hs_status = SSL_ERROR_DEAD;  /* make sure it stays dead */
-                    goto error;
-                }
             }
             else /* no client renegotiation allowed */
             {
@@ -2430,8 +2418,9 @@ EXP_FUNC void STDCALL ssl_display_error(int error_code) {}
 
 #ifdef CONFIG_BINDINGS
 #if !defined(CONFIG_SSL_ENABLE_CLIENT)
-EXP_FUNC SSL * STDCALL ssl_client_new(SSL_CTX *ssl_ctx, int client_fd, const
-        uint8_t *session_id, uint8_t sess_id_size)
+EXP_FUNC SSL * STDCALL ssl_client_new(SSL_CTX *ssl_ctx, int client_fd,
+        const uint8_t *session_id, uint8_t sess_id_size,
+        SSL_EXTENSIONS* ssl_ext)
 {
     printf("%s", unsupported_str);
     return NULL;
@@ -2463,3 +2452,4 @@ EXP_FUNC const char * STDCALL ssl_get_cert_subject_alt_dnsname(const SSL *ssl, i
 #endif /* CONFIG_BINDINGS */
 
 } // namespace
+

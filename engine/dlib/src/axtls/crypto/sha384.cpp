@@ -30,7 +30,7 @@
 
 #include <string.h>
 #include <axtls/ssl/os_port.h>
-#include <axtls/crypto/crypto.h>
+#include "crypto.h"
 
 namespace dmAxTls {
 
@@ -78,3 +78,4 @@ void SHA384_Final(uint8_t *digest, SHA384_CTX *ctx)
 }
 
 } // namespace
+

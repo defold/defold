@@ -30,7 +30,9 @@
 
 #include <string.h>
 #include <axtls/ssl/os_port.h>
-#include <axtls/crypto/crypto.h>
+#include "crypto.h"
+
+namespace dmAxTls {
 
 #define SHR64(a, n) ((a) >> (n))
 #define ROR64(a, n) (((a) >> (n)) | ((a) << (64 - (n))))
@@ -41,8 +43,6 @@
 #define SIGMA3(x) (ROR64(x, 1) ^ ROR64(x, 8) ^ SHR64(x, 7))
 #define SIGMA4(x) (ROR64(x, 19) ^ ROR64(x, 61) ^ SHR64(x, 6))
 #define MIN(x, y) ((x) < (y) ? x : y)
-
-namespace dmAxTls {
 
 static const uint8_t padding[128] =
 {
@@ -218,6 +218,6 @@ void SHA512_Final(uint8_t *digest, SHA512_CTX *ctx)
     // Copy the resulting digest
     if (digest != NULL)
        memcpy(digest, ctx->h_dig.digest, SHA512_SIZE);
- }
+}
 
 } // namespace

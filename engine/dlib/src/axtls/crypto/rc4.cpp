@@ -35,7 +35,7 @@
 
 #include <string.h>
 #include <axtls/ssl/os_port.h>
-#include <axtls/crypto/crypto.h>
+#include "crypto.h"
 
 namespace dmAxTls {
 
@@ -99,4 +99,3 @@ void RC4_crypt(RC4_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
 #endif
 
 } // namespace
-

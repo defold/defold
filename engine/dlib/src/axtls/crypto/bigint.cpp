@@ -66,14 +66,14 @@
 #include <stdio.h>
 #include <time.h>
 #include <axtls/ssl/os_port.h>
-#include <axtls/crypto/bigint.h>
+#include "bigint.h"
+
+namespace dmAxTls {
 
 #define V1      v->comps[v->size-1]                 /**< v1 for division */
 #define V2      v->comps[v->size-2]                 /**< v2 for division */
 #define U(j)    tmp_u->comps[tmp_u->size-j-1]       /**< uj for division */
 #define Q(j)    quotient->comps[quotient->size-j-1] /**< qj for division */
-
-namespace dmAxTls {
 
 static bigint *bi_int_multiply(BI_CTX *ctx, bigint *bi, comp i);
 static bigint *bi_int_divide(BI_CTX *ctx, bigint *biR, comp denom);

@@ -68,7 +68,7 @@
 /* need to predefine before ssl_lib.h gets to it */
 #define SSL_SESSION_ID_SIZE                     32
 
-#include <axtls/ssl/tls1.h>
+#include "tls1.h"
 
 namespace dmAxTls {
 

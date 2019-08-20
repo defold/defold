@@ -35,7 +35,7 @@
 
 #include <string.h>
 #include <axtls/ssl/os_port.h>
-#include <axtls/crypto/crypto.h>
+#include "crypto.h"
 
 namespace dmAxTls {
 

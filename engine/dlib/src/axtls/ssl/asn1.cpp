@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2016, Cameron Rich
+ * Copyright (c) 2007-2019, Cameron Rich
  *
  * All rights reserved.
  *
@@ -38,7 +38,8 @@
 #include <time.h>
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
-#include <axtls/ssl/crypto_misc.h>
+#include "crypto_misc.h"
+
 
 namespace dmAxTls {
 
@@ -285,12 +286,8 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     pub_len = asn1_get_big_int(buf, &offset, &pub_exp);
     priv_len = asn1_get_big_int(buf, &offset, &priv_exp);
 
-    if (mod_len <= 0 || pub_len <= 0 || priv_len <= 0) {
-        free(modulus);
-        free(pub_exp);
-        free(priv_exp);
+    if (mod_len <= 0 || pub_len <= 0 || priv_len <= 0)
         return X509_INVALID_PRIV_KEY;
-    }
 
 #ifdef CONFIG_BIGINT_CRT
     p_len = asn1_get_big_int(buf, &offset, &p);
@@ -299,17 +296,8 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     dQ_len = asn1_get_big_int(buf, &offset, &dQ);
     qInv_len = asn1_get_big_int(buf, &offset, &qInv);
 
-    if (p_len <= 0 || q_len <= 0 || dP_len <= 0 || dQ_len <= 0 || qInv_len <= 0) {
-        free(p);
-        free(q);
-        free(dP);
-        free(dQ);
-        free(qInv);
-        free(modulus);
-        free(pub_exp);
-        free(priv_exp);
+    if (p_len <= 0 || q_len <= 0 || dP_len <= 0 || dQ_len <= 0 || qInv_len <= 0)
         return X509_INVALID_PRIV_KEY;
-    }
 
     RSA_priv_key_new(rsa_ctx,
             modulus, mod_len, pub_exp, pub_len, priv_exp, priv_len,
@@ -332,14 +320,14 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
 }
 
 /**
- * Get the time of a certificate. Ignore hours/minutes/seconds.
+ * Get the time of a certificate.
  */
 static int asn1_get_utc_time(const uint8_t *buf, int *offset, time_t *t)
 {
     int ret = X509_NOT_OK, len, t_offset, abs_year;
     struct tm tm;
 
-    /* see http://tools.ietf.org/html/rfc5280#section-4.1.2.5 */
+    /* see http://tools.ietf.org/html/rfc5280#section-4.1.2.5.1 */
     if (buf[*offset] == ASN1_UTC_TIME)
     {
         (*offset)++;
@@ -350,7 +338,7 @@ static int asn1_get_utc_time(const uint8_t *buf, int *offset, time_t *t)
         memset(&tm, 0, sizeof(struct tm));
         tm.tm_year = (buf[t_offset] - '0')*10 + (buf[t_offset+1] - '0');
 
-        if (tm.tm_year < 50)    /* 1951-2050 thing */
+        /*if (tm.tm_year < 50) */  /* ignore 1951-2050 part of spec */
         {
             tm.tm_year += 100;
         }
@@ -540,6 +528,7 @@ end_name:
 }
 
 /**
+ * DEFOLD:
  * Get the public key specifics from an ASN.1 encoded file
  * A function lacking in the axTLS API
  */

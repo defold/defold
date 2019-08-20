@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, Cameron Rich
+ * Copyright (c) 2007-2016, Cameron Rich
  *
  * All rights reserved.
  *
@@ -37,19 +37,14 @@
 #ifndef HEADER_OS_PORT_H
 #define HEADER_OS_PORT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace dmAxTls {
 
 #include <axtls/crypto/os_int.h>
 #include <axtls/config/config.h>
 #include <stdio.h>
 
 #if defined(WIN32)
-// Defold change
-// Remove __stdcall as it didn't seem to be consistently defined
-#define STDCALL
-//#define STDCALL                 __stdcall
+#define STDCALL                 __stdcall
 #define EXP_FUNC                __declspec(dllexport)
 #else
 #define STDCALL
@@ -76,7 +71,6 @@ extern "C" {
 
 #include <winsock.h>
 #include <direct.h>
-#include <malloc.h>
 #undef getpid
 #undef open
 #undef close
@@ -103,6 +97,7 @@ extern "C" {
 #define strdup(A)               _strdup(A)
 #define chroot(A)               _chdir(A)
 #define chdir(A)                _chdir(A)
+#define alloca(A)               _alloca(A)
 #ifndef lseek
 #define lseek(A,B,C)            _lseek(A,B,C)
 #endif
@@ -139,16 +134,12 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+//#include <asm/byteorder.h>
 
 #define SOCKET_READ(A,B,C)      read(A,B,C)
 #define SOCKET_WRITE(A,B,C)     write(A,B,C)
 #define SOCKET_CLOSE(A)         if (A >= 0) close(A)
 #define TTY_FLUSH()
-
-#endif  /* Not Win32 */
-
-/* some functions to mutate the way these work */
-EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
 #if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
@@ -162,8 +153,17 @@ EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 	#if !defined(be64toh)
 		#define be64toh(x) ((((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32))
 	#endif
+#endif
+
+#endif  /* Not Win32 */
+
+/* some functions to mutate the way these work */
+EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
+
+#ifdef CONFIG_PLATFORM_LINUX
+void exit_now(const char *format, ...) __attribute((noreturn));
 #else
-	#define be64toh(x) (x)
+void exit_now(const char *format, ...);
 #endif
 
 /* Mutexing definitions */
@@ -189,8 +189,6 @@ EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 #define SSL_CTX_UNLOCK(A)
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace
 
 #endif

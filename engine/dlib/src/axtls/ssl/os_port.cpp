@@ -37,7 +37,9 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <axtls/ssl/os_port.h>
+#include "os_port.h"
+
+namespace dmAxTls {
 
 #ifdef WIN32
 /**
@@ -84,8 +86,10 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size)
                         0, KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS)
         return -1;
 
-    RegQueryValueEx(hKey, "Domain", NULL, &datatype, (LPBYTE)buf, &bufferlength);
+    RegQueryValueEx(hKey, "Domain", NULL, &datatype, buf, &bufferlength);
     RegCloseKey(hKey);
     return 0;
 }
 #endif
+
+} // namespace

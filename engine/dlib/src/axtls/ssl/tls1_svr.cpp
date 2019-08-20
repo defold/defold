@@ -31,8 +31,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <axtls/ssl/os_port.h>
-#include <axtls/ssl/ssl.h>
+#include "os_port.h"
+#include "ssl.h"
 
 namespace dmAxTls {
 

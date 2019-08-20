@@ -221,7 +221,7 @@ static int pem_decrypt(const char *where, const char *end,
 {
     int ret = -1;
     int is_aes_256 = 0;
-    const char *start = NULL;
+    char *start = NULL;
     uint8_t iv[IV_SIZE];
     int i, pem_size;
     MD5_CTX md5_ctx;

@@ -35,8 +35,8 @@
  */
 
 #include <string.h>
-#include <axtls/ssl/os_port.h>
-#include <axtls/crypto/crypto.h>
+#include <axtls//ssl/os_port.h>
+#include "crypto.h"
 
 namespace dmAxTls {
 
@@ -140,3 +140,4 @@ void hmac_sha256(const uint8_t *msg, int length, const uint8_t *key,
 }
 
 } // namespace
+

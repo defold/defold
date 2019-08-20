@@ -38,7 +38,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <axtls/ssl/os_port.h>
-#include <axtls/crypto/crypto.h>
+#include "crypto.h"
 
 namespace dmAxTls {
 
@@ -152,6 +152,7 @@ void RSA_free(RSA_CTX *rsa_ctx)
 }
 
 /**
+ * DEFOLD:
  * Decrypts the buffer using the raw rsa public key loaded
  */
 int RSA_decrypt_public(RSA_CTX *rsa, uint8_t *buffer_in, uint8_t *buffer_out, int out_len)
@@ -160,7 +161,7 @@ int RSA_decrypt_public(RSA_CTX *rsa, uint8_t *buffer_in, uint8_t *buffer_out, in
     bigint *decrypted_bi;
     int byte_size;
 
-    byte_size = rsa->num_octets; 
+    byte_size = rsa->num_octets;
     if (out_len < byte_size)
         return 1;
     dat_bi = bi_import(rsa->bi_ctx, buffer_in, byte_size);

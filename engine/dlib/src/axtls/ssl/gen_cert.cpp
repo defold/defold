@@ -40,6 +40,8 @@
  * Generate a basic X.509 certificate
  */
 
+namespace dmAxTls {
+
 static uint8_t set_gen_length(int len, uint8_t *buf, int *offset)
 {
     if (len < 0x80) /* short form */
@@ -366,4 +368,7 @@ error:
     return ret < 0 ? ret : offset;
 }
 
+} // namespace
+
 #endif
+

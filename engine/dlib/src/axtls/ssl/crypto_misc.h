@@ -39,6 +39,8 @@
 #include <axtls/crypto/crypto.h>
 #include <axtls/crypto/bigint.h>
 
+namespace dmAxTls {
+
 /**************************************************************************
  * X509 declarations
  **************************************************************************/
@@ -80,8 +82,6 @@
 #define KEY_USAGE_CRL_SIGN                  0x0002
 #define KEY_USAGE_ENCIPHER_ONLY             0x0001
 #define KEY_USAGE_DECIPHER_ONLY             0x8000
-
-namespace dmAxTls {
 
 struct _x509_ctx
 {
@@ -160,6 +160,7 @@ const char * x509_display_error(int error);
 #define SIG_TYPE_SHA512         0x0d
 
 uint32_t get_asn1_length(const uint8_t *buf, int *offset);
+int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters);
 int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx);
 int asn1_next_obj(const uint8_t *buf, int *offset, int obj_type);
 int asn1_skip_obj(const uint8_t *buf, int *offset, int obj_type);
@@ -170,7 +171,6 @@ int asn1_get_bit_string_as_int(const uint8_t *buf, int *offset, uint32_t *val);
 int asn1_version(const uint8_t *cert, int *offset, int *val);
 int asn1_validity(const uint8_t *cert, int *offset, X509_CTX *x509_ctx);
 int asn1_name(const uint8_t *cert, int *offset, char *dn[]);
-int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters);
 int asn1_public_key(const uint8_t *cert, int *offset, X509_CTX *x509_ctx);
 #ifdef CONFIG_SSL_CERT_VERIFICATION
 int asn1_signature(const uint8_t *cert, int *offset, X509_CTX *x509_ctx);
@@ -205,6 +205,6 @@ EXP_FUNC void STDCALL print_blob(const char *format, const uint8_t *data, int si
 EXP_FUNC int STDCALL base64_decode(const char *in,  int len,
                     uint8_t *out, int *outlen);
 
-} //namespace
+} // namespace
 
 #endif

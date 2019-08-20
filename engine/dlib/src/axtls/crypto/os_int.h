@@ -1,18 +1,18 @@
 /*
- * Copyright (c) 2012, Cameron Rich
- * 
+ * Copyright (c) 2012-2016, Cameron Rich
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -31,14 +31,37 @@
 /**
  * @file os_int.h
  *
- * Ensure a consistent bit size 
+ * Ensure a consistent bit size
  */
 
 #ifndef HEADER_OS_INT_H
 #define HEADER_OS_INT_H
 
-// Defold change
-// Replaced with #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if defined(WIN32)
+typedef UINT8 uint8_t;
+typedef INT8 int8_t;
+typedef UINT16 uint16_t;
+typedef INT16 int16_t;
+typedef UINT32 uint32_t;
+typedef INT32 int32_t;
+typedef UINT64 uint64_t;
+typedef INT64 int64_t;
+#else   /* Not Win32 */
+
+#ifdef CONFIG_PLATFORM_SOLARIS
+#include <inttypes.h>
+#else
 #include <stdint.h>
+#endif /* Not Solaris */
+
+#endif /* Not Win32 */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

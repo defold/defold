@@ -38,8 +38,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <axtls/ssl/os_port.h>
-#include <axtls/ssl/crypto_misc.h>
+#include "os_port.h"
+#include "crypto_misc.h"
 
 namespace dmAxTls {
 
@@ -50,28 +50,6 @@ static int x509_v3_basic_constraints(const uint8_t *cert, int offset,
         X509_CTX *x509_ctx);
 static int x509_v3_key_usage(const uint8_t *cert, int offset,
         X509_CTX *x509_ctx);
-
-/**
- * Retrieve the signature from a certificate.
- */
-static const uint8_t *get_signature(const uint8_t *asn1_sig, int *len)
-{
-    int offset = 0;
-    const uint8_t *ptr = NULL;
-
-    if (asn1_next_obj(asn1_sig, &offset, ASN1_SEQUENCE) < 0 ||
-            asn1_skip_obj(asn1_sig, &offset, ASN1_SEQUENCE))
-        goto end_get_sig;
-
-    if (asn1_sig[offset++] != ASN1_OCTET_STRING)
-        goto end_get_sig;
-    *len = get_asn1_length(asn1_sig, &offset);
-    ptr = &asn1_sig[offset];          /* all ok */
-
-end_get_sig:
-    return ptr;
-}
-
 #endif
 
 /**
@@ -248,6 +226,15 @@ static int x509_v3_subject_alt_name(const uint8_t *cert, int offset,
 
                     if (type == ASN1_CONTEXT_DNSNAME)
                     {
+                        /* sanity check the hostname due to
+https://tools.cisco.com/security/center/viewAlert.x?alertId=18852
+                         */
+                        if (strnlen((const char *)&cert[offset], dnslen) !=
+                                    dnslen)
+                        {
+                            return X509_VFY_ERROR_NO_TRUSTED_CERT;
+                        }
+
                         x509_ctx->subject_alt_dnsnames = (char**)
                                 realloc(x509_ctx->subject_alt_dnsnames,
                                    (totalnames + 2) * sizeof(char*));
@@ -384,16 +371,57 @@ void x509_free(X509_CTX *x509_ctx)
 }
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION
+
+static const uint8_t sig_prefix_md5[] = {0x30, 0x20, 0x30, 0x0C, 0x06, 0x08, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10};
+static const uint8_t sig_prefix_sha1[] = {0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0E, 0x03, 0x02, 0x1A, 0x05, 0x00, 0x04, 0x14};
+static const uint8_t sig_prefix_sha256[] = {0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20};
+static const uint8_t sig_prefix_sha384[] = {0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30};
+static const uint8_t sig_prefix_sha512[] = {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40};
+
 /**
  * Take a signature and decrypt it.
  */
 static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
-        bigint *modulus, bigint *pub_exp)
+        uint8_t sig_type, bigint *modulus, bigint *pub_exp)
 {
-    int i, size;
+    int i;
     bigint *decrypted_bi, *dat_bi;
     bigint *bir = NULL;
     uint8_t *block = (uint8_t *)alloca(sig_len);
+
+    const uint8_t *sig_prefix = NULL;
+    uint8_t sig_prefix_size = 0, hash_len = 0;
+    /* adjust our expections */
+    switch (sig_type)
+    {
+        case SIG_TYPE_MD5:
+            sig_prefix = sig_prefix_md5;
+            sig_prefix_size = sizeof(sig_prefix_md5);
+        break;
+        case SIG_TYPE_SHA1:
+            sig_prefix = sig_prefix_sha1;
+            sig_prefix_size = sizeof(sig_prefix_sha1);
+        break;
+        case SIG_TYPE_SHA256:
+            sig_prefix = sig_prefix_sha256;
+            sig_prefix_size = sizeof(sig_prefix_sha256);
+        break;
+        case SIG_TYPE_SHA384:
+            sig_prefix = sig_prefix_sha384;
+            sig_prefix_size = sizeof(sig_prefix_sha384);
+        break;
+        case SIG_TYPE_SHA512:
+            sig_prefix = sig_prefix_sha512;
+            sig_prefix_size = sizeof(sig_prefix_sha512);
+        break;
+    }
+
+    if (sig_prefix)
+        hash_len = sig_prefix[sig_prefix_size - 1];
+
+    /* check length (#A) */
+    if (sig_len < 2 + 8 + 1 + sig_prefix_size + hash_len)
+        goto err;
 
     /* decrypt */
     dat_bi = bi_import(ctx, sig, sig_len);
@@ -405,22 +433,30 @@ static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
     bi_export(ctx, decrypted_bi, block, sig_len);
     ctx->mod_offset = BIGINT_M_OFFSET;
 
-    i = 10; /* start at the first possible non-padded byte */
-    while (block[i++] && i < sig_len);
-    size = sig_len - i;
+    /* check the first 2 bytes */
+    if (block[0] != 0 || block[1] != 1)
+        goto err;
 
-    /* get only the bit we want */
-    if (size > 0)
-    {
-        int len;
-        const uint8_t *sig_ptr = get_signature(&block[i], &len);
-
-        if (sig_ptr)
-        {
-            bir = bi_import(ctx, sig_ptr, len);
-        }
+    /* check the padding */
+    i = 2; /* start at the first padding byte */
+    while (i < sig_len - 1 - sig_prefix_size - hash_len)
+    { /* together with (#A), we require at least 8 bytes of padding */
+        if (block[i++] != 0xFF)
+            goto err;
     }
 
+    /* check end of padding */
+    if (block[i++] != 0)
+        goto err;
+
+    /* check the ASN.1 metadata */
+    if (memcmp(block+i, sig_prefix, sig_prefix_size))
+        goto err;
+
+    /* now we can get the hash we need */
+    bir = bi_import(ctx, block + i + sig_prefix_size, hash_len);
+
+err:
     /* save a few bytes of memory */
     bi_clear_cache(ctx);
     return bir;
@@ -524,7 +560,10 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert,
                    to verify certificate signatures. */
                 if (cert->basic_constraint_present &&
                         !ca_cert_ctx->cert[i]->basic_constraint_cA)
+                {
+                    i++;
                     continue;
+                }
 
                 if (asn1_compare_dn(cert->ca_cert_dn,
                                             ca_cert_ctx->cert[i]->cert_dn) == 0)
@@ -572,7 +611,7 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert,
     }
 
     /* check the signature */
-    cert_sig = sig_verify(ctx, cert->signature, cert->sig_len,
+    cert_sig = sig_verify(ctx, cert->signature, cert->sig_len, cert->sig_type,
                         bi_clone(ctx, mod), bi_clone(ctx, expn));
 
     if (cert_sig && cert->digest)

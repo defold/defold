@@ -36,12 +36,12 @@
 #ifndef HEADER_SSL_LIB_H
 #define HEADER_SSL_LIB_H
 
-#include <axtls/ssl/version.h>
+#include "version.h"
 #include <axtls/config/config.h>
 #include <axtls/crypto/os_int.h>
-#include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
-#include <axtls/ssl/crypto_misc.h>
+#include "crypto_misc.h"
+#include "os_port.h"
 
 namespace dmAxTls {
 

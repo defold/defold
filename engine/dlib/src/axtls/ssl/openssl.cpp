@@ -45,6 +45,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/ssl/ssl.h>
 
+namespace dmAxTls {
+
 #define OPENSSL_CTX_ATTR  ((OPENSSL_CTX *)ssl_ctx->bonus_attr)
 
 static char *key_password = NULL;
@@ -313,6 +315,6 @@ FILE *BIO_new(bio_func_type_t func)
 FILE *BIO_new_fp(FILE *stream, int close_flag) { return stream; }
 int BIO_free(FILE *a) { if (a != stdout && a != stderr) fclose(a); return 1; }
 
-
+} // namespace
 
 #endif

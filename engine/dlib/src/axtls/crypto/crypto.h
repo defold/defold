@@ -35,8 +35,8 @@
 #ifndef HEADER_CRYPTO_H
 #define HEADER_CRYPTO_H
 
-#include <axtls/crypto/bigint_impl.h>
-#include <axtls/crypto/bigint.h>
+#include "bigint_impl.h"
+#include "bigint.h"
 
 namespace dmAxTls {
 

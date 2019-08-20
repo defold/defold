@@ -31,7 +31,7 @@
 #ifndef BIGINT_HEADER
 #define BIGINT_HEADER
 
-#include <axtls/crypto/crypto.h>
+#include "crypto.h"
 
 namespace dmAxTls {
 
