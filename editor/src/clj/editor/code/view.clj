@@ -2390,9 +2390,21 @@
 
 (defn handle-input-method-changed! [view-node ^InputMethodEvent e]
   (let [x (.getCommitted e)]
-    (when (seq x)
-      (insert-text! view-node x))
-    (prn :input-method e)))
+    (when-not (.isEmpty x)
+      (insert-text! view-node ({"≃" "~="} x x)))))
+
+(defn- setup-input-method-requests! [^Canvas canvas view-node]
+  (when (eutil/is-linux?)
+    (doto canvas
+      (.setInputMethodRequests
+        (reify InputMethodRequests
+          (getTextLocation [_this _offset] Point2D/ZERO)
+          (getLocationOffset [_this _x _y] 0)
+          (cancelLatestCommittedText [_this] "")
+          (getSelectedText [_this] "")))
+      (.setOnInputMethodTextChanged
+        (ui/event-handler e
+          (handle-input-method-changed! view-node e))))))
 
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
@@ -2441,16 +2453,7 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
-      (.setInputMethodRequests (reify InputMethodRequests
-                                 (getTextLocation [this offset]
-                                   (prn 'getTextLocation offset))
-                                 (getLocationOffset [this x y]
-                                   (prn 'getLocationOffset x y))
-                                 (cancelLatestCommittedText [this]
-                                   (prn 'cancelLatestCommittedText))
-                                 (getSelectedText [this]
-                                   (prn 'getSelectedText))))
-      (.setOnInputMethodTextChanged (ui/event-handler e (handle-input-method-changed! view-node e)))
+      (setup-input-method-requests! view-node)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
       (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
                                              (ui/event-handler event (handle-key-typed! view-node event))))
