@@ -854,20 +854,6 @@ namespace dmSys
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
 
-        jclass def_activity_class = env->GetObjectClass(g_AndroidApp->activity->clazz);
-        jmethodID getAdId = env->GetMethodID(def_activity_class, "getAdId", "()Ljava/lang/String;");
-        jstring val = (jstring) env->CallObjectMethod(g_AndroidApp->activity->clazz, getAdId);
-        if (val)
-        {
-            const char *id = env->GetStringUTFChars(val, NULL);
-            dmStrlCpy(info->m_AdIdentifier, id, sizeof(info->m_AdIdentifier));
-            env->ReleaseStringUTFChars(val, id);
-            env->DeleteLocalRef(val);
-        }
-
-        jmethodID get_limit_ad_tracking = env->GetMethodID(def_activity_class, "getLimitAdTracking", "()Z");
-        info->m_AdTrackingEnabled = !env->CallBooleanMethod(g_AndroidApp->activity->clazz, get_limit_ad_tracking);
-
         activity->vm->DetachCurrentThread();
     }
 #elif defined(_WIN32)
