@@ -619,11 +619,11 @@
    :path ["android" "version_code"]}
   {:type :integer,
    :help "minimum API Level required for the application to run (android:minSdkVersion)",
-   :default 9,
+   :default 16,
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 26,
+   :default 28,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",

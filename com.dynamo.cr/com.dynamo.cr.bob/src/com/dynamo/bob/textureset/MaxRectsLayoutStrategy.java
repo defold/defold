@@ -146,7 +146,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     /** @param fully If true, the only results that pack all rects will be considered. If false, all results are considered, not all
      *           rects may be packed.
      **/
-    private Page packAtSize (boolean fully, int width, int height, ArrayList<RectNode> inputRects) {
+    private Page packAtSize(boolean fully, int width, int height, ArrayList<RectNode> inputRects) {
         Page bestResult = null;
         for (int i = 0, n = methods.length; i < n; i++) {
             maxRects.init(width, height);
