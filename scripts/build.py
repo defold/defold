@@ -827,7 +827,6 @@ class Configuration(object):
             self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
 
         env = self._form_env()
-        self._set_java_8(env)
         self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
@@ -986,7 +985,6 @@ class Configuration(object):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
-        self._set_java_8(env)
         self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = cwd, shell = True, env = env)
 
@@ -1136,20 +1134,9 @@ instructions.configure=\
                     return os.path.join(root, d, 'bin')
         return ''
 
-    def _set_java_8(self, env):
-        if 'linux' in self.host2:
-            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
-        elif 'darwin' in self.host2:
-            env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
-        elif 'win32' in self.host2:
-            env['JAVA_HOME'] = self._find_jdk8_folder('C:\\Program Files\\Java')
-            env['PATH'] = env['JAVA_HOME'] + os.path.pathsep + env['PATH']
-        self._log("Setting JAVA to 1.8: " + env['JAVA_HOME'])
-
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
-        self._set_java_8(env)
         self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):
