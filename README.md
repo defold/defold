@@ -33,7 +33,7 @@ Verify with:
 
 #### Python
 
-* OSX: On OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
+* macOS: On macOS you must run the python version shipped with macOS, eg no homebrew installed python versions)
 
 Make sure you have python2 installed by running `which python2`.
 If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
@@ -105,7 +105,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 
 	If this won't work, you can try cloning using Github Desktop.
 
-#### OSX
+#### macOS
 
     - [Homebrew](http://brew.sh/)
         Install with Terminal: `ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
@@ -115,7 +115,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 ### Optional Software
 
 Quick and easy install:
-* OSX: `$ brew install wget curl p7zip ccache`
+* macOS: `$ brew install wget curl p7zip ccache`
 * Linux: `$ sudo apt-get install wget curl p7zip ccache`
 * Windows: `$ pip install cmake patch`
 
@@ -441,7 +441,7 @@ used if available in order to speed up the cache-validation process. See dlib, *
 Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the
 extension library and set "exported_symbols" in the wscript, see note below.
 
-*NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
+*NOTE:* In order to avoid a dead-stripping bug with static libraries on macOS/iOS a constructor symbol must be explicitly exported with "exported_symbols"
 in the wscript-target. See extension-test.
 
 ## Energy Consumption

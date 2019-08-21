@@ -2,7 +2,6 @@
 
 ## Requirements
 * [Java 11](https://jdk.java.net/11/)
-* [Leiningen](http://leiningen.org/) (Note: latest lein 2.9.0 does not work on this project, you should run `lein downgrade 2.8.3`) after installing
 
 ## Windows
 
@@ -29,7 +28,7 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
 * Follow the OS X/Linux instructions!
 
-## OS X/Linux
+## macOS/Linux
 
 * `cd` to the `defold` directory
 * run `./scripts/build.py shell --platform=...`
@@ -39,9 +38,9 @@ Consider putting it in an alias in your bash profile.
 
 ## Updating jdk to JDK11
 
-### OS X
+### macOS
 
-* Download the [OSX](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
+* Download the [macOS](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
 * Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
 * Verify that the jdk version is available by running `/usr/libexec/java_home -V`
 * Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
