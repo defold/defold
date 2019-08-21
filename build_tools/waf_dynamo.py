@@ -881,17 +881,6 @@ def android_package(task):
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    # DEF-3873
-    # Previously we looped over all subfolders in ext/share/java/res and added them to this list.
-    # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
-    # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
-    # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home]
-
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
     r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
@@ -913,39 +902,15 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
 
-    res_args = ""
-    for d in res_dirs:
-        res_args += ' -S %s' % d
-
-    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt'), res_args))
-    if ret != 0:
-        error('Error running aapt')
-        return 1
-
     if task.extra_packages:
         extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, ap_))
     if ret != 0:
         error('Error running aapt')
         return 1
-
-    r_java_files = []
-    for root, dirs, files in os.walk(r_java_gen_dir):
-        for f in files:
-            if f.endswith(".java"):
-                p = os.path.join(root, f)
-                r_java_files.append(p)
-
-    ret = bld.exec_command('%s %s %s' % (task.env['JAVAC'][0], '-source 1.6 -target 1.6', ' '.join(r_java_files)))
-    if ret != 0:
-        error('Error compiling R.java files')
-        return 1
-
-    for p in r_java_files:
-        os.unlink(p)
 
     ret = bld.exec_command('%s cf %s -C %s .' % (task.env['JAR'][0], r_jar, r_java_gen_dir))
     if ret != 0:
@@ -968,14 +933,6 @@ def android_package(task):
             return 1
     else:
         dex_input = dx_jars
-
-    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
-    if ret != 0:
-        error('Error running dx')
-        return 1
-
-    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-        zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
@@ -1084,8 +1041,6 @@ def create_android_package(self):
 
     apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
     android_package_task.apk = apk
-
-    android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
 
     android_package_task.r_java_gen_dir = self.path.exclusive_build_node("%s.android/gen" % (exe_name))
     android_package_task.r_jar = self.path.exclusive_build_node("%s.android/r.jar" % (exe_name))
