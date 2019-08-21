@@ -2,6 +2,7 @@
 
 ## Requirements
 * [Java 11](https://jdk.java.net/11/)
+Note that we do not yet officially support development with a newer version of Java than 11.
 
 ## Windows
 
@@ -58,10 +59,11 @@ If you are using IntelliJ for lein tasks, you will need to first add the new SDK
 and then set the project SDK setting (file->project structure/Project) to the new version.
 
 ## Setup
+* Run install_ext for the correct platform `scripts/build.py install_ext --platform=...`
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
 * Build builtins with `scripts/build.py build_builtins`
-* Build Bob with `scripts/build.py build_bob --skip-sync-archive`
+* Build Bob with `scripts/build.py build_bob`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
@@ -171,5 +173,5 @@ In order to setup bob locally, you need to:
 
 - Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
   - For android, you also need to build_go through build.py to obtain apkc
-- Build bob with local artifacts, python scripts/build.py build_bob --skip-sync-archive
+- Build bob with local artifacts, python scripts/build.py build_bob
 - lein init, which will install bob.jar as a local maven package
