@@ -50,9 +50,9 @@
 
 (defn- digest-sequence! [^String begin digest-entry! ^String end sequence ^Writer writer]
   (digest-raw! begin writer)
-  (loop [sequence sequence]
-    (when-some [entry (first sequence)]
-      (digest-entry! entry writer)
+  (when-some [sequence (seq sequence)]
+    (loop [sequence sequence]
+      (digest-entry! (first sequence) writer)
       (when-some [remaining (next sequence)]
         (digest-raw! ", " writer)
         (recur remaining))))

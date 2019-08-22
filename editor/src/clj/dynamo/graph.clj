@@ -1191,6 +1191,60 @@
      (property-overridden? basis node-id prop-kw)
      true)))
 
+(defmulti node-key
+  (fn [node-id evaluation-context]
+    (:key @(node-type* (:basis evaluation-context) node-id))))
+
+(defmethod node-key :default [_node-id _evaluation-context] nil)
+
+(defn- overridden-properties [node-id evaluation-context]
+  (into {}
+        (map (fn [prop-kw]
+               [prop-kw (node-value node-id prop-kw evaluation-context)]))
+        (keys ; We want to evaluate the property value function, so only need the key.
+          (node-value node-id :_overridden-properties evaluation-context))))
+
+(defn collect-overridden-properties
+  ([source-node-id]
+   (with-auto-evaluation-context evaluation-context
+     (collect-overridden-properties source-node-id evaluation-context)))
+  ([source-node-id {:keys [basis] :as evaluation-context}]
+   (persistent!
+     (reduce
+       (fn [properties-by-override-node-key override-node-id]
+         (or (when-some [override-id (override-id basis override-node-id)]
+               (when-some [node-key (node-key override-node-id evaluation-context)]
+                 (let [override-node-key [override-id node-key]
+                       overridden-properties (overridden-properties override-node-id evaluation-context)]
+                   (if (contains? properties-by-override-node-key override-node-key)
+                     (let [node-type-kw (:key @(node-type* basis override-node-id))]
+                       (throw
+                         (ex-info
+                           (format "Duplicate node key `%s` from %s"
+                                   node-key
+                                   node-type-kw)
+                           {:node-key node-key
+                            :node-type node-type-kw})))
+                     (when (seq overridden-properties)
+                       (assoc! properties-by-override-node-key
+                               override-node-key overridden-properties))))))
+             properties-by-override-node-key))
+       (transient {})
+       (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources)))))
+
+(defn restore-overridden-properties
+  ([target-node-id collected-properties]
+   (with-auto-evaluation-context evaluation-context
+     (restore-overridden-properties target-node-id collected-properties evaluation-context)))
+  ([target-node-id collected-properties {:keys [basis] :as evaluation-context}]
+   (for [node-id (ig/pre-traverse basis [target-node-id] ig/cascade-delete-sources)]
+     (when-some [override-id (override-id basis node-id)]
+       (when-some [node-key (node-key node-id evaluation-context)]
+         (let [override-node-key [override-id node-key]
+               overridden-properties (collected-properties override-node-key)]
+           (for [[prop-kw prop-value] overridden-properties]
+             (set-property node-id prop-kw prop-value))))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------

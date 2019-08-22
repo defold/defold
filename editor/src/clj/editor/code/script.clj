@@ -256,6 +256,9 @@
   (output name+node-id NameNodeIDPair (g/fnk [_node-id name] [name _node-id]))
   (output property-entries ScriptPropertyEntries :cached produce-script-property-entries))
 
+(defmethod g/node-key ::ScriptPropertyNode [node-id evaluation-context]
+  (g/node-value node-id :name evaluation-context))
+
 (defn- detect-edits [old-info-by-name new-info-by-name]
   (into {}
         (filter (fn [[name new-info]]

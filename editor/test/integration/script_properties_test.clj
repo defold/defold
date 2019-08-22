@@ -17,7 +17,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as tu]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.murmur :as murmur])
   (:import (com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc)
            (com.dynamo.lua.proto Lua$LuaModule)
@@ -71,6 +71,13 @@
 (defn- make-fake-file-resource [workspace proj-path text]
   (let [root-dir (workspace/project-path workspace)]
     (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8"))))
+
+(defn- write-file! [workspace name content]
+  (let [root-dir (workspace/project-path workspace)
+        file (io/file root-dir name)]
+    (fs/create-parent-directories! file)
+    (spit-until-new-mtime file content))
+  (workspace/resource-sync! workspace))
 
 (deftest script-properties-source
   (tu/with-loaded-project
@@ -1443,3 +1450,63 @@
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
                            (error-item-open-info-without-opts error-item-of-faulty-node)))))))))))))
+
+(deftest overrides-remain-after-script-reload-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          make-atlas! (partial make-atlas! project)
+          make-resource-node! (partial tu/make-resource-node! project)
+          edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
+          assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
+          overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas! "/from-props-script.atlas")
+        (make-atlas! "/from-props-game-object.atlas")
+        (make-atlas! "/from-props-collection.atlas")
+        (make-atlas! "/from-sub-props-collection.atlas")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+              props-game-object (make-resource-node! "/props.go")
+              props-script-component (add-component! props-game-object props-script)
+              props-collection (make-resource-node! "/props.collection")
+              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
+              sub-props-collection (make-resource-node! "/sub-props.collection")
+              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
+              ov-ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
+              ov-ov-props-script-component (ffirst (g/sources-of ov-ov-props-game-object :ref-ddf))]
+          (is (g/node-instance? game-object/ReferencedComponent props-script-component))
+          (is (g/node-instance? game-object/ReferencedComponent ov-props-script-component))
+          (is (g/node-instance? game-object/ReferencedComponent ov-ov-props-script-component))
+          (is (not (g/override? props-script-component)))
+          (is (= props-script-component (g/override-original ov-props-script-component)))
+          (is (= ov-props-script-component (g/override-original ov-ov-props-script-component)))
+
+          ;; Override properties.
+          (edit-property! props-script-component               "/from-props-game-object.atlas")
+          (edit-property! ov-props-script-component            "/from-props-collection.atlas")
+          (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
+
+          ;; Verify overrides before resource sync.
+          (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
+          (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
+          (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
+          (is (overridden-property? props-script-component))
+          (is (overridden-property? ov-props-script-component))
+          (is (overridden-property? ov-ov-props-script-component))
+
+          ;; Simulate an external edit to the script, triggering resource sync.
+          (write-file! workspace "props.script"
+                       (string/join (System/getProperty "line.separator")
+                                    ["-- Adding a comment using an external editor."
+                                     "go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+
+          ;; Verify overrides remain after resource sync.
+          (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
+          (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
+          (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
+          (is (overridden-property? props-script-component))
+          (is (overridden-property? ov-props-script-component))
+          (is (overridden-property? ov-ov-props-script-component)))))))

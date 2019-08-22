@@ -1,23 +1,24 @@
 (ns integration.reload-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
-            [clojure.set :as set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
+            [editor.asset-browser :as asset-browser]
+            [editor.atlas :as atlas]
+            [editor.code.script :as script]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.fs :as fs]
-            [editor.library :as library]
-            [editor.dialogs :as dialogs]
-            [editor.game-project :as game-project]
             [editor.game-object :as game-object]
-            [editor.asset-browser :as asset-browser]
+            [editor.game-project :as game-project]
+            [editor.library :as library]
             [editor.progress :as progress]
-            [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [service.log :as log])
+            [service.log :as log]
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system write-until-new-mtime]])
   (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
@@ -59,6 +60,11 @@
 ;; │   └── props.script
 ;; ├── sprite
 ;; │   └── test.sprite
+;; ├── standalone
+;; │   ├── main.go
+;; │   ├── main.script
+;; │   ├── props.go
+;; │   └── props.script
 ;; └── test.particlefx
 
 (def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
@@ -411,50 +417,92 @@
       (is (= (atlas-image-resources atlas>pow) [(resource graphics>ball)]))
       (is (= (atlas-image-resources atlas>ball) atlas>ball-image-resources)))))
 
-(defn game-object-script-nodes [game-object-node-id]
-  (keep (fn [node-id]
-          (when (and (= game-object/ReferencedComponent (g/node-type* node-id))
-                     (= "script" (:ext (resource/resource-type (g/node-value node-id :source-resource)))))
-            (g/node-value node-id :source-id)))
+(defn- game-object-script-nodes [game-object-node-id]
+  (into []
+        (keep (fn [node-id]
+                (when (and (g/node-instance? game-object/ReferencedComponent node-id)
+                           (= "script" (:ext (resource/resource-type (g/node-value node-id :source-resource)))))
+                  (g/node-value node-id :source-id))))
         (g/node-value game-object-node-id :nodes)))
 
+(defn- script-property-nodes [script-node-id]
+  (filterv #(g/node-instance? script/ScriptPropertyNode %)
+           (g/node-value script-node-id :nodes)))
+
 (deftest move-internal-removed-changed
-  ;; /game_object/props.go has a script component /script/props.script
-  ;; /main/main.go has a script component /main/main.script
+  ;; /standalone/props.go has a script component /standalone/props.script
+  ;; /standalone/main.go has a script component /standalone/main.script
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
-          game_object>props (project/get-resource-node project "/game_object/props.go")
-          game_object>props-scripts (game-object-script-nodes game_object>props)
-          script>props (project/get-resource-node project "/script/props.script")
-          main>main-go (project/get-resource-node project "/main/main.go")
-          main>main-go-scripts (game-object-script-nodes main>main-go)
-          main>main-script (project/get-resource-node project "/main/main.script")
+          props-go (project/get-resource-node project "/standalone/props.go")
+          props-go-scripts (game-object-script-nodes props-go)
+          props-go-script-properties (into [] (mapcat script-property-nodes) props-go-scripts)
+          props-script (project/get-resource-node project "/standalone/props.script")
+          props-script-properties (script-property-nodes props-script)
+          main-go (project/get-resource-node project "/standalone/main.go")
+          main-go-scripts (game-object-script-nodes main-go)
+          main-go-script-properties (into [] (mapcat script-property-nodes) main-go-scripts)
+          main-script (project/get-resource-node project "/standalone/main.script")
+          main-script-properties (script-property-nodes main-script)
           initial-graph-nodes (graph-nodes project)]
-      (is (= (map g/override-original game_object>props-scripts) [script>props]))
-      (is (= (map g/override-original main>main-go-scripts) [main>main-script]))
+      (is (= (map g/override-original props-go-scripts) [props-script]))
+      (is (= (map g/override-original props-go-script-properties) props-script-properties))
+      (is (= (map g/override-original main-go-scripts) [main-script]))
+      (is (= (map g/override-original main-go-script-properties) main-script-properties))
 
-      (move-file workspace "/script/props.script" "/main/main.script")
+      (move-file workspace "/standalone/props.script" "/standalone/main.script")
 
-      ;; resource /script/props.script removed
-      (is (nil? (project/get-resource-node project "/script/props.script")))
-      ;; old resource node for /main/main.script is removed (but has been replaced/reloaded as below)
-      (is (nil? (g/node-by-id main>main-script)))
-      (let [game_object>props-scripts2 (game-object-script-nodes game_object>props)
-            main>main-script2 (project/get-resource-node project "/main/main.script")
-            main>main-go-scripts2 (game-object-script-nodes main>main-go)]
-        ;; override-nodes remain, we change their override-original to reflect the move
-        (is (= game_object>props-scripts game_object>props-scripts2))
-        (is (= (map g/override-original game_object>props-scripts2) [main>main-script2]))
-        (is (= main>main-go-scripts main>main-go-scripts2))
-        (is (= (map g/override-original main>main-go-scripts2) [main>main-script2]))
-        ;; new version of /main/main.script added, /script/props.script and old version of /main/main.script removed
-        ;; TODO: Fails because ScriptPropertyNodes are not taken into account.
-        ;; TODO: Like override-nodes above, these should remain and have their override-originals updated.
-        (is (= (graph-nodes project)
-               (set/union
-                 (set/difference initial-graph-nodes
-                                 #{script>props main>main-script})
-                 #{main>main-script2})))))))
+      ;; resource /standalone/props.script removed
+      (is (nil? (project/get-resource-node project "/standalone/props.script")))
+
+      ;; old resource node for /standalone/main.script is removed (but has been
+      ;; replaced/reloaded as below)
+      (is (nil? (g/node-by-id main-script)))
+      (let [props-go-scripts2 (game-object-script-nodes props-go)
+            props-go-script-properties2 (into [] (mapcat script-property-nodes) props-go-scripts2)
+            main-script2 (project/get-resource-node project "/standalone/main.script")
+            main-script-properties2 (script-property-nodes main-script2)
+            main-go-scripts2 (game-object-script-nodes main-go)
+            main-go-script-properties2 (into [] (mapcat script-property-nodes) main-go-scripts2)]
+
+        ;; override-nodes for the resources themselves remain, we change their
+        ;; override-original to reflect the move
+        (is (= props-go-scripts props-go-scripts2))
+        (is (= (map g/override-original props-go-scripts2) [main-script2]))
+        (is (= main-go-scripts main-go-scripts2))
+        (is (= (map g/override-original main-go-scripts2) [main-script2]))
+
+        ;; nodes created by resource load-fns are deleted
+        (is (not-any? g/node-by-id props-script-properties))
+        (is (not-any? g/node-by-id main-script-properties))
+
+        ;; override-nodes for nodes created by resource load-fns are deleted
+        (is (not-any? g/node-by-id props-go-script-properties))
+        (is (not-any? g/node-by-id main-go-script-properties))
+
+        ;; new override-nodes are created by resource load-fns
+        (is (= (map g/override-original props-go-script-properties2) main-script-properties2))
+        (is (= (map g/override-original main-go-script-properties2) main-script-properties2))
+
+        ;; new version of /standalone/main.script added, /standalone/props.script
+        ;; and old version of /standalone/main.script removed, with the resulting
+        ;; cascade-delete recreations of ScriptPropertyNodes
+        (let [added-nodes (set/union
+                            #{main-script2}
+                            (set main-script-properties2)
+                            (set main-go-script-properties2)
+                            (set props-go-script-properties2))
+              removed-nodes (set/union
+                              #{main-script
+                                props-script}
+                              (set props-script-properties)
+                              (set main-script-properties)
+                              (set main-go-script-properties)
+                              (set props-go-script-properties))]
+          (is (= (graph-nodes project)
+                 (set/union
+                   (set/difference initial-graph-nodes removed-nodes)
+                   added-nodes))))))))
 
 (deftest move-external-changed-added
   ;; imagelib1 contains /images/{pow,paddle}.png, setup moves reload_project's
