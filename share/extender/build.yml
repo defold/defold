@@ -108,7 +108,7 @@ platforms:
         PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
-        weakFrameworks: ["Foundation", "AdSupport"]
+        weakFrameworks: ["Foundation"]
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "cares", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_64"]
@@ -139,7 +139,7 @@ platforms:
         PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
-        weakFrameworks: ["Foundation", "AdSupport"]
+        weakFrameworks: ["Foundation"]
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "cares", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
@@ -170,7 +170,7 @@ platforms:
         PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
-        weakFrameworks: ["Foundation", "AdSupport"]
+        weakFrameworks: ["Foundation"]
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "cares", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios"]
         defines:    ["IOS_SIMULATOR", "DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]

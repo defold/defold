@@ -11,7 +11,6 @@
 #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
-#import <AdSupport/AdSupport.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #else
 #import <AppKit/NSWorkspace.h>
