@@ -58,6 +58,12 @@ namespace dmDNS
     void DeleteChannel(HChannel channel);
 
     /**
+     * Refreshes the channel configuration so that the latest DNS servers are used.
+     * @param channel Handle to the channel
+     */
+    Result RefreshChannel(HChannel channel);
+
+    /**
      * Get host by name. Note that this function is not entirely thread-safe, even though it is used in a threaded environment.
      * @param name  Hostname to resolve
      * @param address Host address result

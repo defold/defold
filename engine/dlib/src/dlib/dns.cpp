@@ -232,6 +232,16 @@ namespace dmDNS
         }
     }
 
+    Result RefreshChannel(HChannel channel)
+    {
+        if (channel && ares_init(&((Channel*)channel)->m_Handle) == ARES_SUCCESS)
+        {
+            return RESULT_OK;
+        }
+
+        return RESULT_INIT_ERROR;
+    }
+
     // Note: This function should ultimately replace the dmSocket::GetHostByName, but there's a few places
     //       left in the engine where the old version is still used. This is because we need to pass along a
     //       dns channel to this function, which needs to be stored somewhere that's easily reachable by
