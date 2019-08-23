@@ -40,11 +40,11 @@ namespace dmGraphics
             return false;
         }
 
-        uint8_t extensions_found = 0;
+        uint16_t extensions_found = 0;
 
         for (uint32_t req_ext = 0; req_ext < extensionCount; req_ext++)
         {
-            uint8_t extensions_found_save = extensions_found;
+            uint16_t extensions_found_save = extensions_found;
             const char* req_ext_name = extensionNames[req_ext];
             for (uint32_t vk_ext = 0; vk_ext < vk_extension_count; vk_ext++)
             {
@@ -80,14 +80,9 @@ namespace dmGraphics
 
         bool all_layers_found = true;
 
-        for(uint8_t ext=0; ext < validationLayersCount; ext++)
+        for(uint8_t ext=0; ext < validationLayersCount && validationLayers[ext] != NULL; ext++)
         {
             bool layer_found = false;
-
-            if (validationLayers[ext] == NULL)
-            {
-                break;
-            }
 
             for(uint32_t layer_index=0; layer_index < vk_layer_count; ++layer_index)
             {
@@ -110,7 +105,7 @@ namespace dmGraphics
          return all_layers_found;
     }
 
-    VkResult CreateVkInstance(VkInstance* vkInstanceOut, bool enableValidation)
+    VkResult VKCreateInstance(VkInstance* vkInstanceOut, bool enableValidation)
     {
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};

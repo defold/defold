@@ -27,7 +27,7 @@ namespace dmGraphics
             }
 
             VkInstance vk_instance;
-            if (CreateVkInstance(&vk_instance, g_enable_validation) != VK_SUCCESS)
+            if (VKCreateInstance(&vk_instance, g_enable_validation) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
@@ -67,6 +67,9 @@ namespace dmGraphics
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
     {
+        assert(context);
+        assert(context->m_WindowSurface == VK_NULL_HANDLE);
+
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
 
@@ -77,13 +80,45 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        if (CreateVKWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI) != VK_SUCCESS)
+        if (VKCreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI) != VK_SUCCESS)
         {
-            dmLogError("Could not create vulkan surface.");
+            dmLogError("Could not create window surface for Vulkan.");
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        uint32_t device_count           = 0;
+        PhysicalDevice* device_list     = NULL;
+        PhysicalDevice* selected_device = NULL;
+
+        if (VKGetPhysicalDevices(context->m_Instance, &device_list, &device_count) != VK_SUCCESS)
+        {
+            dmLogError("Could not get any Vulkan devices.");
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        for (uint32_t i = 0; i < device_count; ++i)
+        {
+            PhysicalDevice* device = &device_list[i];
+            if (VKIsPhysicalDeviceSuitable(device, context->m_WindowSurface))
+            {
+                selected_device = device;
+            }
+            else
+            {
+                VKResetPhysicalDevice(device);
+            }
+        }
+
+        if (selected_device == NULL)
+        {
+            dmLogError("Could not select a suitable Vulkan device.");
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
         context->m_WindowOpened = 1;
+        context->m_PhysicalDevice = *selected_device;
+
+        delete[] device_list;
 
         return WINDOW_RESULT_OK;
     }
@@ -94,6 +129,9 @@ namespace dmGraphics
         if (context->m_WindowOpened)
         {
             glfwCloseWindow();
+
+            VKResetPhysicalDevice(&context->m_PhysicalDevice);
+
             context->m_WindowOpened = 0;
         }
     }

@@ -5,14 +5,6 @@
 
 namespace dmGraphics
 {
-    struct Context
-    {
-        VkInstance   m_Instance;
-        VkSurfaceKHR m_WindowSurface;
-        uint32_t     m_Padding      : 31;
-        uint32_t     m_WindowOpened : 1;
-    };
-
     struct Texture
     {
         uint32_t dummy;
@@ -28,10 +20,46 @@ namespace dmGraphics
         uint32_t dummy;
     };
 
-    VkResult CreateVkInstance(VkInstance* vkInstanceOut, bool enableValidation);
+    struct PhysicalDevice
+    {
+        VkQueueFamilyProperties*         m_QueueFamilyProperties;
+        VkExtensionProperties*           m_DeviceExtensions;
+        VkPhysicalDevice                 m_Device;
+        VkPhysicalDeviceProperties       m_Properties;
+        VkPhysicalDeviceFeatures         m_Features;
+        VkPhysicalDeviceMemoryProperties m_MemoryProperties;
+        uint16_t                         m_QueueFamilyCount;
+        uint16_t                         m_DeviceExtensionCount;
+    };
+
+    struct QueueFamily
+    {
+        uint16_t m_GraphicsQueueIx;
+        uint16_t m_PresentQueueIx;
+
+        bool IsValid() { return m_GraphicsQueueIx == 0xffff && m_PresentQueueIx == 0xffff; }
+    };
+
+    struct Context
+    {
+        VkInstance     m_Instance;
+        VkSurfaceKHR   m_WindowSurface;
+        PhysicalDevice m_PhysicalDevice;
+        uint32_t       m_WindowOpened : 1;
+        uint32_t       : 31;
+    };
+
+    // Implemented in graphics_vulkan_context.cpp
+    VkResult VKCreateInstance(VkInstance* vkInstanceOut, bool enableValidation);
+
+    // Implemented in graphics_vulkan_device.cpp
+    VkResult    VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** devicesOut, uint32_t* deviceCountOut);
+    void        VKResetPhysicalDevice(PhysicalDevice* device);
+    bool        VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface);
+    QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
 
     // Implemented per supported platform
-    VkResult CreateVKWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
+    VkResult VKCreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__
 
