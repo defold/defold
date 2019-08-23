@@ -294,7 +294,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/cipher_internal.h')
     bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/cmac.h')
     bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/compat-1.3.h')
-    bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/config.h')
     bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/ctr_drbg.h')
     bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/des.h')
     bld.install_files('${PREFIX}/include/mbedtls', 'mbedtls/crypto/include/mbedtls/dhm.h')
