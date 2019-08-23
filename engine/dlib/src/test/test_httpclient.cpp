@@ -419,7 +419,7 @@ TEST_P(dmHttpClientTest, ThreadStress)
 {
     // Shut down and reopen the connection pool so we can use it to it's full extent
     // on each pass
-    ASSERT_EQ(0, dmHttpClient::ShutdownConnectionPool());
+    ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
     const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
@@ -494,7 +494,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // The TCP + SSL connection handshake take up a considerable amount of time on linux (peaks of 60+ ms), and
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 130 * 1000); // microseconds
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 175 * 1000); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)

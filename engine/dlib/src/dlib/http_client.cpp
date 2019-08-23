@@ -400,8 +400,6 @@ namespace dmHttpClient
     {
         if (response->m_SSLConnection != 0) {
 
-            uint64_t start = dmTime::GetTime();
-
             int ret = 0;
             do
             {
@@ -415,48 +413,20 @@ namespace dmHttpClient
                     continue;
                 }
 
-                uint64_t end = dmTime::GetTime();
-                if (response->m_Client->m_RequestTimeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
-                    //printf("  ssl_read  r == %d  wouldblock  timeout: %d  socket_timeout: %d actual: %llu\n", ret, response->m_Client->m_RequestTimeout, SOCKET_TIMEOUT, (end-start));
+                if (HasRequestTimedOut(response->m_Client)) {
                     return dmSocket::RESULT_WOULDBLOCK;
                 }
 
                 if( ret <= 0 )
                 {
-                    //return SSLToSocket(ret);
-                    switch( ret )
-                    {
-                        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-                            dmLogError( " connection was closed gracefully\n" );
-                            ret = 0;
-                            return dmSocket::RESULT_CONNRESET;
-
-                        case MBEDTLS_ERR_NET_CONN_RESET:
-                            dmLogError( " connection was reset by peer\n" );
-                            ret = 0;
-                            return dmSocket::RESULT_CONNRESET;
-
-                        case MBEDTLS_ERR_SSL_TIMEOUT:
-                            dmLogError("  ssl_read wouldblock  socket_timeout: %d \n", SOCKET_TIMEOUT);
-                            ret = 0;
-                            return dmSocket::RESULT_WOULDBLOCK;
-
-                        default:
-                            dmLogError( " mbedtls_ssl_read returned -0x%x\n", -ret );
-                            return dmSocket::RESULT_CONNABORTED;
-                    }
+                    return SSLToSocket(ret);
                 }
 
                 ((uint8_t*)buffer)[ret] = 0;
-                dmLogWarning( " %d bytes read\n\n%s\n", ret, (char *) buffer );
+                //dmLogWarning( " %d bytes read\n\n%s\n", ret, (char *) buffer );
 
-                // End of message should be detected according to the syntax of the
-                // application protocol (eg HTTP), just use a dummy test here.
-                //if( ret > 0 && buffer[len-1] == '\n' )
-                {
-                    *received_bytes = ret;
-                    return dmSocket::RESULT_OK;
-                }
+                *received_bytes = ret;
+                return dmSocket::RESULT_OK;
             }
             while( 1 );
         } else {
