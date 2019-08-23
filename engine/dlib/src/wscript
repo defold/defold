@@ -98,7 +98,10 @@ def build(bld):
     if opt_level in ['3','2']:
         remove_flags['CCFLAGS'] = []
         remove_flags['CCFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        #remove_flags['CCFLAGS'].append( ('-g', 0) )
+        # if in release mode we'll only keep a (non verbose) print function
+        extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
+    else:
+        extra_defines += ['MBEDTLS_ERROR_C']
 
     mbedtls = bld.new_task_gen(features = 'cc cstaticlib remove_flags',
                             includes = '. ./mbedtls/include ./mbedtls/crypto/include',
