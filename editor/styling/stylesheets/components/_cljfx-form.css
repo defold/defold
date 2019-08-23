@@ -1,82 +1,112 @@
-.cljfx-form {
-  -fx-padding: 24px;
-  .title {
-    -fx-text-fill: $defold-white;
-    -fx-font-family: "Source Sans Pro Light";
-    -fx-font-size: 24px;
+.cljfx-form-title {
+  -fx-text-fill: $defold-white;
+  -fx-font-family: "Source Sans Pro Light";
+  -fx-font-size: 24px;
+}
+
+.cljfx-form-separator {
+  -fx-padding: 30 0;
+  -fx-background-color: transparent;
+  > .line {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+    -fx-border-color: transparent;
   }
-  .separator {
-    -fx-padding: 30 0;
-    -fx-background-color: transparent;
-    > .line {
-      -fx-background-color: rgba(255, 255, 255, 0.1);
-      -fx-border-color: transparent;
-    }
+  &:horizontal .line {
+    -fx-border-width: 1 0 0;
   }
-  .fields {
-    -fx-padding: 16px;
-    -fx-hgap: 3px;
-    -fx-vgap: 12px;
+  &:vertical .line {
+    -fx-border-width: 0 1 0 0;
   }
-  .icon-button {
-    -fx-background-radius: 2px;
-    -fx-border-radius: 2px;
-    -fx-background-color: $mid-grey !important;
-    -fx-padding: 0;
-    -fx-min-width: 27px;
-    -fx-max-width: 27px;
-    -fx-pref-width: 27px;
-    -fx-min-height: 27px;
-    -fx-max-height: 27px;
-    -fx-pref-height: 27px;
-    -fx-focus-traversable: false;
-    -fx-border-width: 0;
-    &:hover {
-        -fx-background-color: $grey !important;
-    }
-    &:armed {
-        -fx-background-color: $dark-grey-header !important;
-    }
+}
+.cljfx-form-fields {
+  -fx-padding: 16px;
+  -fx-hgap: 3px;
+  -fx-vgap: 12px;
+}
+
+.cljfx-form-icon-button {
+  -fx-background-radius: 2px;
+  -fx-border-radius: 2px;
+  -fx-background-color: $mid-grey !important;
+  -fx-padding: 0;
+  -fx-min-width: 27px;
+  -fx-max-width: 27px;
+  -fx-pref-width: 27px;
+  -fx-min-height: 27px;
+  -fx-max-height: 27px;
+  -fx-pref-height: 27px;
+  -fx-focus-traversable: false;
+  -fx-border-width: 0;
+  &:hover {
+    -fx-background-color: $grey !important;
   }
-  .list-view {
-    -fx-border-radius: 2px;
-    -fx-padding: 0 0 1px 0;
-    -fx-border-color: $input-border;
-    -fx-background-color: $input-background;
-    -fx-background-radius: 20px;
-    .list-cell {
-      .text-field {
-        -fx-border-width: 0;
-      }
-    }
+  &:armed {
+    -fx-background-color: $dark-grey-header !important;
   }
-  .text-field {
-    -fx-border-radius: 2px;
-    -fx-background-radius: 2px;
-  }
-  .check-box > .box {
-    -fx-border-radius: 2px;
-    -fx-background-radius: 2px;
-    -fx-pref-width: 22px;
-    -fx-pref-height: 22px;
-  }
-  .combo-box {
-    -fx-border-radius: 2px;
-    -fx-background-radius: 2px;
-    > .text-field {
+}
+
+.cljfx-form-list-view {
+  -fx-border-radius: 2px;
+  -fx-padding: 0 0 1px 0;
+  -fx-border-color: $input-border;
+  -fx-background-color: $input-background;
+  -fx-background-radius: 20px;
+  .list-cell {
+    .text-field {
       -fx-border-width: 0;
     }
   }
-  .cljfx-form-error {
-    .combo-box, .list-view, .text-field, .check-box > .box {
-      -fx-border-color: $error-severity-fatal;
-    }
-  }
+}
 
-  .cljfx-form-warning {
-    .combo-box, .list-view, .text-field, .check-box > .box {
-      -fx-border-color: $error-severity-warning;
-    }
+.cljfx-form-text-field {
+  -fx-border-radius: 2px !important;
+  -fx-background-radius: 2px  !important;
+}
+
+.cljfx-form-check-box > .box {
+  -fx-border-radius: 2px;
+  -fx-background-radius: 2px;
+  -fx-pref-width: 22px;
+  -fx-pref-height: 22px;
+}
+
+.cljfx-form {
+  -fx-padding: 24px;
+}
+
+.cljfx-form-combo-box {
+  -fx-border-radius: 2px;
+  -fx-background-radius: 2px;
+  > .text-field {
+    -fx-border-width: 0 !important;
+  }
+}
+.cljfx-table-view-wrapper {
+  -fx-border-width: 1px;
+  -fx-border-radius: 2px;
+  -fx-border-color: $input-border;
+}
+.cljfx-table-view {
+  & > .virtual-flow > .scroll-bar:vertical {
+      -fx-opacity: 0;
+      -fx-padding: -7;
+  }
+  .table-column:last-visible { -fx-border-width: 0; }
+
+  &:focused {
+    -fx-border-insets: 0 0 -1 0;
+  }
+}
+
+.cljfx-form-error {
+  .combo-box, .list-view, .text-field, .check-box > .box {
+    -fx-border-color: $error-severity-fatal;
+  }
+}
+
+.cljfx-form-warning {
+  .combo-box, .list-view, .text-field, .check-box > .box {
+    -fx-border-color: $error-severity-warning;
   }
 }
 

@@ -342,6 +342,79 @@
                       :let [component (.getComponent comp)]]
                 (is (contains? target-paths component))))))))))
 
+(deftest merge-textures
+  (with-loaded-project "test/resources/build_resource_merging"
+    (let [main-collection (test-util/resource-node project "/main/main.collection")
+          build-artifacts (project-build-artifacts project main-collection (g/make-evaluation-context))
+          textures-by-texture-set (into {}
+                                        (keep (fn [{:keys [resource] :as artifact}]
+                                                (when (= "texturesetc" (resource/ext resource))
+                                                  [(resource/proj-path resource)
+                                                   (:texture
+                                                     (protobuf/bytes->map TextureSetProto$TextureSet
+                                                                          (content-bytes artifact)))])))
+                                        build-artifacts)]
+
+      (is (= 16 (count textures-by-texture-set)))
+      (is (every? (comp string? val) textures-by-texture-set))
+
+      ;; The project contains "red1/image.png" and "red2/image.png", which are
+      ;; identical. These images are referenced by both atlases and tile sources.
+      ;; Among these, files with the "_copy" suffix are duplicates in different
+      ;; locations. Files with the "_luma" suffix are also copies, but configured
+      ;; to use a different texture profile. Files with the "_padded" suffix
+      ;; specify a padding that will affect how the source images are packed in
+      ;; the image generated for the texture set.
+
+      (is (= (textures-by-texture-set "/atlases/red1.texturesetc")
+             (textures-by-texture-set "/atlases/red1_copy.texturesetc")))
+      (is (= (textures-by-texture-set "/atlases/red2.texturesetc")
+             (textures-by-texture-set "/atlases/red2_copy.texturesetc")))
+
+      (is (= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+             (textures-by-texture-set "/tilemaps/red1_copy.texturesetc")))
+      (is (= (textures-by-texture-set "/tilemaps/red2.texturesetc")
+             (textures-by-texture-set "/tilemaps/red2_copy.texturesetc")))
+
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/atlases/red1_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/atlases/red1_padded.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/atlases/red2.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2.texturesetc")
+                (textures-by-texture-set "/atlases/red2_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2.texturesetc")
+                (textures-by-texture-set "/atlases/red2_padded.texturesetc")))
+
+      (is (not= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_padded.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red2.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red2.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_padded.texturesetc")))
+
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1_copy.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_copy.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1_luma.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1_padded.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_padded.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2_copy.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_copy.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2_luma.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2_padded.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_padded.texturesetc"))))))
+
 (deftest embed-raw-sound
   (testing "Verify raw sound components (.wav or .ogg) are converted to embedded sounds (.sound)"
     (with-build-results "/main/raw_sound.go"

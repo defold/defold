@@ -1,24 +1,20 @@
 (ns editor.outline-view
-  (:require
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.error-reporting :as error-reporting]
-   [editor.handler :as handler]
-   [editor.jfx :as jfx]
-   [editor.outline :as outline]
-   [editor.resource :as resource]
-   [editor.types :as types]
-   [editor.ui :as ui])
-  (:import
-   (com.defold.control TreeCell)
-   (editor.outline ItemIterator)
-   (javafx.collections FXCollections ObservableList ListChangeListener ListChangeListener$Change)
-   (javafx.event Event)
-   (javafx.scene Scene Node Parent)
-   (javafx.scene.control Button Cell ColorPicker Label TextField TitledPane TextArea TreeView TreeItem Menu MenuItem MenuBar Tab ProgressBar SelectionMode)
-   (javafx.scene.input Clipboard ClipboardContent DragEvent TransferMode DataFormat)
-   (javafx.scene.input MouseEvent)
-   (javafx.util Callback)))
+  (:require [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.error-reporting :as error-reporting]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.outline :as outline]
+            [editor.resource :as resource]
+            [editor.types :as types]
+            [editor.ui :as ui])
+  (:import [com.defold.control TreeCell]
+           [javafx.collections FXCollections ObservableList]
+           [javafx.event Event]
+           [javafx.scene Node]
+           [javafx.scene.control SelectionMode TreeItem TreeView]
+           [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -502,8 +498,8 @@
   (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
+      (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setEventDispatcher (ui/make-shortcut-dispatcher tree-view [(ui/key-combo "Space")]))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped proj-graph app-view outline-view e))))

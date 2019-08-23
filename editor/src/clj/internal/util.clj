@@ -289,6 +289,23 @@
       (and (= (first coll) (first subcoll))
            (recur (next coll) (next subcoll))))))
 
+(defn count-where
+  "Count the number of elements in coll where pred returns true. If max-counted
+  is specified, will stop and return max-counted once the specified number of
+  elements have passed the predicate."
+  (^long [pred coll]
+   (count-where Long/MAX_VALUE pred coll))
+  (^long [^long max-counted pred coll]
+   (assert (not (neg? max-counted)))
+   (reduce (fn [^long num-counted elem]
+             (if (= max-counted num-counted)
+               (reduced max-counted)
+               (if (pred elem)
+                 (inc num-counted)
+                 num-counted)))
+           0
+           coll)))
+
 (defn first-where
   "Returns the first element in coll where pred returns true, or nil if there was
   no matching element. If coll is a map, key-value pairs are passed to pred."

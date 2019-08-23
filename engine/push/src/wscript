@@ -7,41 +7,18 @@ def configure(conf):
     pass
 
 def build(bld):
-    embed_source = ''
+    source = 'push_null.cpp'
 
-    source = []
+    platforms = ['arm.*?darwin', 'arm.*?android', 'x86_64-ios']
+    for p in platforms:
+        if re.match(p, bld.env.PLATFORM):
+            source = 'push_stub.cpp'
+            break
 
+    bld.new_task_gen(features = 'cxx cstaticlib',
+                    includes = '.',
+                    source = source,
+                    target = 'pushext')
 
-    if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-        source += ['push_ios.mm', 'push_utils.cpp']
-    elif re.match('arm.*?android', bld.env.PLATFORM):
-        source += ['push_android.cpp', 'push_utils.cpp']
-
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
-                     '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME,
-                     '%s/share/java/glfw_android.jar' % bld.env.DYNAMO_HOME]
-        classpath = os.pathsep.join(classpath)
-
-        bld.new_task_gen(features='javac seq',
-                         classpath=classpath,
-                         source_root='java')
-
-        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
-
-        bld.new_task_gen(features='jar seq dex',
-                         basedir='java',
-                         destfile='push_android.jar')
-
-        bld.install_files('${PREFIX}/share/java', 'push_android.jar')
-
-    else:
-        source += ['push_null.cpp']
-
-    push = bld.new_task_gen(features = 'cxx cstaticlib',
-                            includes = '.',
-                            source = source,
-                            target = 'pushext')
-
-    apidoc_extract_task(bld, ['push_ios.mm'])
+    apidoc_extract_task(bld, ['push_doc.h'])
 

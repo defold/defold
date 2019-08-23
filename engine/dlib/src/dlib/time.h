@@ -2,7 +2,7 @@
 #define DM_TIME_H
 
 #include <stdint.h>
-
+#include <dmsdk/dlib/time.h>
 
 namespace dmTime
 {
@@ -11,12 +11,6 @@ namespace dmTime
      * @param useconds Time to sleep in microseconds
      */
     void Sleep(uint32_t useconds);
-
-    /**
-     * Get current time in microseconds since since Jan. 1, 1970.
-     * @return
-     */
-    uint64_t GetTime();
 
     /**
      * Busy wait thread with high precision (~10 microseconds).

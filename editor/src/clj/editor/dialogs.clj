@@ -363,7 +363,7 @@
                         :ex-map ex-map})
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (if sentry-id
-                   {"Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
+                   {"Error" (format "<a href='https://sentry.io/organizations/defold/issues/?query=id%%3A\"%s\"'>%s</a>"
                                     sentry-id sentry-id)}
                    {})]
       (ui/open-url (github/new-issue-link fields)))))
@@ -966,3 +966,47 @@
                                       (format "The destination has %d entries with conflicting names." conflict-count))))
     (ui/show-and-wait! stage)
     (ui/user-data stage ::file-conflict-resolution-strategy)))
+
+(def ext-with-selection-props
+  (fx/make-ext-with-props
+    {:selection fxui/text-input-selection-prop}))
+
+(defn make-target-log-dialog [log-atom clear! restart!]
+  (let [renderer-ref (volatile! nil)
+        renderer (fx/create-renderer
+                   :error-handler error-reporting/report-exception!
+                   :opts {:fx.opt/map-event-handler
+                          #(case (:event-type %)
+                             :clear (clear!)
+                             :restart (restart!)
+                             :cancel (fx/unmount-renderer log-atom @renderer-ref))}
+                   :middleware
+                   (fx/wrap-map-desc
+                     (fn [log]
+                       {:fx/type dialog-stage
+                        :title "Target Discovery Log"
+                        :modality :none
+                        :showing true
+                        :size :large
+                        :header {:fx/type fxui/label
+                                 :variant :header
+                                 :text "Target discovery log"}
+                        :content (let [str (string/join "\n" log)]
+                                   {:fx/type ext-with-selection-props
+                                    :props {:selection [(count str) (count str)]}
+                                    :desc {:fx/type info-dialog-text-area
+                                           :pref-row-count 20
+                                           :text str}})
+                        :footer {:fx/type dialog-buttons
+                                 :children [{:fx/type fxui/button
+                                             :text "Close"
+                                             :cancel-button true
+                                             :on-action {:event-type :cancel}}
+                                            {:fx/type fxui/button
+                                             :text "Clear Log"
+                                             :on-action {:event-type :clear}}
+                                            {:fx/type fxui/button
+                                             :text "Restart Discovery"
+                                             :on-action {:event-type :restart}}]}})))]
+    (vreset! renderer-ref renderer)
+    (fx/mount-renderer log-atom renderer)))

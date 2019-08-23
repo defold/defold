@@ -619,11 +619,11 @@
    :path ["android" "version_code"]}
   {:type :integer,
    :help "minimum API Level required for the application to run (android:minSdkVersion)",
-   :default 9,
+   :default 16,
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 26,
+   :default 28,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",
@@ -691,24 +691,24 @@
    :preserve-extension true,
    :help "executable icon file (.ico)",
    :path ["windows" "app_icon"]}
-  {:type :string,
-   :help
-   "In-app purchase provider to use. Supported options are 'Gameroom' or empty string",
-   :default "",
-   :path ["windows" "iap_provider"]
-   :options [["" "None"] ["Gameroom" "Gameroom"]]}
   {:type :boolean,
-   :help "set to true if you wish to adjust the application heap memory size",
+   :help "This setting is deprecated. Set to true if you wish to adjust the application heap memory size",
    :default false,
+   :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
    :path ["html5" "set_custom_heap_size"]}
   {:type :integer,
-   :help "the size, in bytes, of the application's heap",
+   :help "This setting is deprecated. The size, in bytes, of the application's heap",
    :default 0,
+   :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
    :path ["html5" "custom_heap_size"]}
-  {:type :boolean,
-   :help "add html dev tool to application",
-   :default false,
-   :path ["html5" "include_dev_tool"]}
+  {:type :integer,
+   :help "The size, in megabytes, of the application's heap",
+   :default 256,
+   :path ["html5" "heap_size"]}
   {:type :resource,
    :filter "html",
    :preserve-extension true,
@@ -719,7 +719,8 @@
   {:type :resource,
    :filter "css",
    :preserve-extension true,
-   :help "css detail for html shell",
+   :help "css will be inlined into index.html template",
+   :default "/builtins/manifests/web/light_theme.css",
    :label "Custom .css"
    :path ["html5" "cssfile"]}
   {:type :resource,
@@ -740,6 +741,19 @@
    :help "comma separated list of engine arguments",
    :default "",
    :path ["html5" "engine_arguments"]}
+   {:type :boolean,
+   :help "set to true if you want to have the fullscreen button",
+   :default true
+   :path ["html5" "show_fullscreen_button"]}
+  {:type :boolean,
+   :help "set to true if you want to have the 'Made with Defold' link",
+   :default true
+   :path ["html5" "show_made_with_defold"]}
+  {:type :string,
+   :help "scale mode for canvas, by default 'Downscale Fit'",
+   :default "downscale_fit",
+   :path ["html5" "scale_mode"]
+   :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale" ]]}
   {:type :string,
    :help "the application id as issued by Facebook",
    :default "",

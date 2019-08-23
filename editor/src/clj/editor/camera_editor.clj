@@ -30,6 +30,7 @@
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
+   :navigation false
    :sections [{:title "Camera"
                :fields [{:path [:aspect-ratio]
                          :label "Aspect Ratio"
@@ -110,7 +111,7 @@
                                     :ddf-type Camera$CameraDesc
                                     :load-fn load-camera
                                     :icon camera-icon
-                                    :view-types [:form-view :text]
+                                    :view-types [:cljfx-form-view :text]
                                     :view-opts {}
                                     :tags #{:component}
                                     :tag-opts {:component {:transform-properties #{}}}

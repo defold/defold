@@ -249,6 +249,8 @@
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
+;; Note: When we do bundling for Android via the editor, we need add
+;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
  (let [project-settings (g/node-value project :settings evaluation-context)]
    (into {}
@@ -260,8 +262,7 @@
                        (throw (engine-build-errors/missing-resource-error "Missing Native Extension Resource"
                                                                           (resource/proj-path resource)
                                                                           (project/get-resource-node project "/game.project" evaluation-context)))))))
-               [[["native_extension" "app_manifest"] "_app/app.manifest"]
-                [["android" "proguard"] "_app/app.pro"]]))))
+               [[["native_extension" "app_manifest"] "_app/app.manifest"]]))))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))

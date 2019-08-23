@@ -404,7 +404,6 @@ public class BundlerTest {
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("splash_image.png");
                 expectedFiles.add("defold_sound.swf");
                 break;
             case Armv7Android:

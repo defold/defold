@@ -213,6 +213,7 @@
 (defn- setup-variables-view!
   [^TreeView debugger-variables]
   (doto debugger-variables
+    (ui/customize-tree-view! {:double-click-expand? true})
     (.setShowRoot false)
     (ui/cell-factory! (fn [{:keys [display-name display-value]}]
                         {:graphic (doto (HBox.)

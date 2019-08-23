@@ -133,7 +133,10 @@ public class HTML5Bundler implements IBundler {
                 throw new RuntimeException(e);
             }
         } else {
-            return getClass().getResource(String.format("resources/jsweb/%s", defaultValue));
+            if (defaultValue != null) {
+                return getClass().getResource(String.format("resources/jsweb/%s", defaultValue));
+            }
+            return null;
         }
     }
 
@@ -194,25 +197,34 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
-        URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
+
+        URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", null);
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
-        int customHeapSize = -1;
-        if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
-            Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
-            if (null != size) {
-                customHeapSize = size.intValue();
+        // Same value as engine is compiled with; 268435456
+        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+        
+        {// Deprecated method of setting the heap sie. For backwards compatibility
+            if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
+                Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
+                if (null != size) {
+                    customHeapSize = size.intValue();
+                }
             }
-        }
-        if (customHeapSize < 0) {
-            customHeapSize = 256*1024*1024; // Same value as engine is compiled with; 268435456
         }
 
         BundleHelper.throwIfCanceled(canceled);
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("exe-name", enginePrefix);
-        infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
+
+        if (splashImage != null) {
+            infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
+        } else {
+            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
+            // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
+            infoData.put("DEFOLD_SPLASH_IMAGE", false);
+        }
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
 
         // Check if game has configured a Facebook App ID
@@ -235,18 +247,9 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
 
         BundleHelper.throwIfCanceled(canceled);
-        String devInit = "";
-        String devHead = "";
-        String inlineHtml = "";
-        boolean includeDevTool = projectProperties.getBooleanValue("html5", "include_dev_tool", false);
-        if (includeDevTool) {
-            devInit = "MemoryStats.Initialise()";
-            devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
-            inlineHtml = IOUtils.toString(getResource("development.inl"));
-        }
-        infoData.put("DEFOLD_DEV_INIT", devInit);
-        infoData.put("DEFOLD_DEV_HEAD", devHead);
-        infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
+
+        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
+        infoData.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
 
         /// Legacy properties for backwards compatibility
         {
@@ -297,17 +300,18 @@ public class HTML5Bundler implements IBundler {
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
         BundleHelper helper = new BundleHelper(project, Platform.JsWeb, appDir, "", variant);
+
+        IResource customCSS = helper.getResource("html5", "cssfile");
+        infoData.put("DEFOLD_CUSTOM_CSS_INLINE", helper.formatResource(infoData, customCSS));
+
         File manifestFile = new File(appDir, "index.html");
         IResource sourceManifestFile = helper.getResource("html5", "htmlfile");
         helper.mergeManifests(infoData, sourceManifestFile, manifestFile);
 
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
-        FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
-
-        if (includeDevTool) {
-            FileUtils.copyURLToFile(getResource("development.css"), new File(appDir, "development.css"));
-            FileUtils.copyURLToFile(getResource("development.js"), new File(appDir, "development.js"));
+        if (splashImage != null) {
+            FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
         }
     }
 
