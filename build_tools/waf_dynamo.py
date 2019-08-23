@@ -354,7 +354,7 @@ def default_flags(self):
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
     libpath = build_util.get_library_path()
@@ -1468,20 +1468,28 @@ def get_msvc_version(conf, platform):
     msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
                 os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
 
+    # Since the programs(Windows!) can update, we do this dynamically
+    ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
+    ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
+    ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
+    ucrt_version = ucrt_dirs[-1]
+    if not ucrt_version.startswith('10.0'):
+        conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
+
     includes = [os.path.join(msvcdir,'VC','include'),
                 os.path.join(msvcdir,'VC','atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include','10.0.10240.0','ucrt'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
                 os.path.join(windowskitsdir,'8.1','Include','winrt'),
                 os.path.join(windowskitsdir,'8.1','Include','um'),
                 os.path.join(windowskitsdir,'8.1','Include','shared')]
     libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
                 os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
-                os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x64'),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x64'),
                 os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
     if platform == 'win32':
         libdirs = [os.path.join(msvcdir,'VC','lib'),
                     os.path.join(msvcdir,'VC','atlmfc','lib'),
-                    os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x86'),
+                    os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x86'),
                     os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
 
     return msvc_path, includes, libdirs
