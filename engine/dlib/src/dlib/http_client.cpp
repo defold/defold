@@ -231,7 +231,14 @@ namespace dmHttpClient
         {
             if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
             {
-                return 0;
+                // If the DNS request failed, we refresh the DNS configuration and try again.
+                // This is needed if we first perform an HTTP request when there's no network available,
+                // and then later on do more requests once we have gained connectivity.
+                dmDNS::RefreshChannel(params->m_DNSChannel);
+                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+                {
+                    return 0;
+                }
             }
         }
         else
