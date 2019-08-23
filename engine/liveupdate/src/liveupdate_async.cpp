@@ -7,7 +7,6 @@
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
-#include <axtls/crypto/crypto.h>
 #include <dlib/array.h>
 
 

@@ -13,10 +13,6 @@
 #include <sys/param.h>
 #endif
 
-// #include <axtls/config/config.h>
-// #include <axtls/crypto/os_int.h>
-// #include <axtls/ssl/crypto_misc.h>
-
 #if defined(_WIN32)
 #include <malloc.h>
 #define alloca(_SIZE) _alloca(_SIZE)
