@@ -2041,7 +2041,7 @@
  *            it, and considering stronger ciphers instead.
  *
  */
-#define MBEDTLS_ARC4_C
+//#define MBEDTLS_ARC4_C
 
 /**
  * \def MBEDTLS_ASN1_PARSE_C

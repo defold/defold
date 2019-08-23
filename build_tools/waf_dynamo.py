@@ -1687,7 +1687,7 @@ def detect(conf):
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif platform == 'win32':
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
