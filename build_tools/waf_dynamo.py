@@ -883,8 +883,6 @@ def android_package(task):
 
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
-    r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
-    r_jar = task.r_jar.abspath(task.env)
 
     libs = os.path.join(dme_and, 'libs')
     bin = os.path.join(dme_and, 'bin')
@@ -899,7 +897,6 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (bin_cls))
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
-    bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
 
     if task.extra_packages:
@@ -907,20 +904,14 @@ def android_package(task):
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, ap_))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, ap_))
     if ret != 0:
         error('Error running aapt')
-        return 1
-
-    ret = bld.exec_command('%s cf %s -C %s .' % (task.env['JAR'][0], r_jar, r_java_gen_dir))
-    if ret != 0:
-        error('Error creating jar of compiled R.java files')
         return 1
 
     dx_jars = []
     for jar in task.jars:
         dx_jars.append(jar)
-    dx_jars.append(r_jar)
 
     if getattr(task, 'proguard', None):
         proguardtxt = task.proguard[0]
@@ -933,6 +924,16 @@ def android_package(task):
             return 1
     else:
         dex_input = dx_jars
+    
+    if dex_input and len(dex_input) > 0:
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+        if ret != 0:
+            error('Error running dx')
+            return 1
+    
+    if os.path.exists(task.classes_dex.abspath(task.env)):
+        with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+            zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
@@ -1042,8 +1043,7 @@ def create_android_package(self):
     apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
     android_package_task.apk = apk
 
-    android_package_task.r_java_gen_dir = self.path.exclusive_build_node("%s.android/gen" % (exe_name))
-    android_package_task.r_jar = self.path.exclusive_build_node("%s.android/r.jar" % (exe_name))
+    android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))

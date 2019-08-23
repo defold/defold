@@ -123,7 +123,7 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
     if 'android' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/share/java', 'dmengine.android/r.jar')
+        bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
