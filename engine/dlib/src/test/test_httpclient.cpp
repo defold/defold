@@ -16,6 +16,14 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
+    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
+}
+
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
+    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
+}
+
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
 int g_HttpPortSSLTest = -1;

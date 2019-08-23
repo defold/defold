@@ -13,9 +13,9 @@
 #include <sys/param.h>
 #endif
 
-#include <axtls/config/config.h>
-#include <axtls/crypto/os_int.h>
-#include <axtls/ssl/crypto_misc.h>
+// #include <axtls/config/config.h>
+// #include <axtls/crypto/os_int.h>
+// #include <axtls/ssl/crypto_misc.h>
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -492,35 +492,36 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
 
 Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len)
 {
-    dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
-    uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
-    out_digest_len = 0;
+    return RESULT_INVALID_DATA;
+    // dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
+    // uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+    // uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+    // uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
+    // out_digest_len = 0;
 
-    dmAxTls::RSA_CTX* rsa_parameters = 0x0;
-    int ret = dmAxTls::asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
-    if (ret != 0) {
-        dmLogError("Failed to parse public key during manifest verification.");
-        RSA_free(rsa_parameters);
-        return RESULT_INVALID_DATA;
-    }
+    // dmAxTls::RSA_CTX* rsa_parameters = 0x0;
+    // int ret = dmAxTls::asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
+    // if (ret != 0) {
+    //     dmLogError("Failed to parse public key during manifest verification.");
+    //     RSA_free(rsa_parameters);
+    //     return RESULT_INVALID_DATA;
+    // }
 
-    uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
-    ret = dmAxTls::RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
-    if(ret != 0) {
-        dmLogError("Failed to decrypt manifest signature for verification");
-        free(hash_decrypted);
-        return RESULT_INVALID_DATA;
-    }
-    uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
-    memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
+    // uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
+    // ret = dmAxTls::RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
+    // if(ret != 0) {
+    //     dmLogError("Failed to decrypt manifest signature for verification");
+    //     free(hash_decrypted);
+    //     return RESULT_INVALID_DATA;
+    // }
+    // uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
+    // memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
 
-    out_digest_len = signature_hash_len;
-    out_digest = (char*)hash;
+    // out_digest_len = signature_hash_len;
+    // out_digest = (char*)hash;
 
-    free(hash_decrypted);
-    return RESULT_OK;
+    // free(hash_decrypted);
+    // return RESULT_OK;
 }
 
 Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)

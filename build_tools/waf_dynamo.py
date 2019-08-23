@@ -163,7 +163,7 @@ def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
     apidoc_extract_task(bld, source)
 
-# Add dmsdk files from 'source' recusrively.
+# Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
 # * 'source' files are added to documentation pipeline
 def dmsdk_add_files(bld, target, source):
@@ -370,6 +370,17 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+# Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
+@feature('remove_flags')
+@before('apply_core')
+@after('cc')
+@after('cxx')
+def remove_flags_fn(self):
+    lookup = getattr(self, 'remove_flags', [])
+    for name, values in lookup.iteritems():
+        for flag, argcount in values:
+            remove_flag(self.env[name], flag, argcount)
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
@@ -794,7 +805,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />
         <meta-data android:name="android.notch_support" android:value="true"/>
-        
+
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -1475,6 +1486,15 @@ def get_msvc_version(conf, platform):
 
     return msvc_path, includes, libdirs
 
+def remove_flag(arr, flag, nargs):
+    if not flag in arr:
+        return
+    index = arr.index(flag)
+    if index >= 0:
+        del arr[index]
+        for i in range(nargs):
+            del arr[index]
+
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
@@ -1599,15 +1619,6 @@ def detect(conf):
     conf.check_tool('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
-    def remove_flag(arr, flag, nargs):
-        if not flag in arr:
-            return
-        index = arr.index(flag)
-        if index >= 0:
-            del arr[index]
-            for i in range(nargs):
-                del arr[index]
-
     remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)

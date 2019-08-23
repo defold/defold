@@ -7,8 +7,30 @@
 #include "log.h"
 #include "mutex.h"
 #include "hash.h"
-#include "../axtls/ssl/os_port.h"
-#include "../axtls/ssl/ssl.h"
+
+#include <mbedtls/net_sockets.h>
+#include <mbedtls/debug.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/error.h>
+#include <mbedtls/certs.h>
+
+#define MBED_DEBUG_LEVEL 1
+
+const int SOCKET_TIMEOUT = 500 * 1000;
+
+#if defined(MBEDTLS_DEBUG_C)
+static void mbedtls_debug( void* ctx, int level, const char* file, int line, const char* str )
+{
+    switch (level) {
+    case 0: dmLogError("%s:%d: %s", file, line, str); return;
+    case 1: dmLogWarning("%s:%d: %s", file, line, str); return;
+    case 2: dmLogDebug("%s:%d: %s", file, line, str); return;
+    }
+    dmLogInfo("%s:%d: %s", file, line, str);
+}
+#endif
 
 namespace dmConnectionPool
 {
@@ -33,16 +55,18 @@ namespace dmConnectionPool
             m_State = STATE_FREE;
         }
 
-        uint16_t            m_Version;
-        uint16_t            m_ReuseCount;
-        dmhash_t            m_ID;
-        dmSocket::Address   m_Address;
-        uint16_t            m_Port;
-        uint64_t            m_Expires;
-        dmSocket::Socket    m_Socket;
-        dmAxTls::SSL*       m_SSLConnection;
-        State               m_State;
-        uint16_t            m_WasShutdown:1;
+        uint16_t                m_Version;
+        uint16_t                m_ReuseCount;
+        dmhash_t                m_ID;
+        dmSocket::Address       m_Address;
+        uint16_t                m_Port;
+        uint64_t                m_Expires;
+        dmSocket::Socket        m_Socket;
+        mbedtls_net_context*    m_SSLNetContext;
+        mbedtls_ssl_context*    m_SSLContext;
+
+        State                   m_State;
+        uint16_t                m_WasShutdown:1;
     };
 
     static void DoClose(HPool pool, Connection* c);
@@ -52,7 +76,11 @@ namespace dmConnectionPool
         uint64_t            m_MaxKeepAlive;
         dmArray<Connection> m_Connections;
         uint16_t            m_NextVersion;
-        dmAxTls::SSL_CTX*   m_SSLContext;
+
+        mbedtls_entropy_context     m_MbedEntropy;
+        mbedtls_ctr_drbg_context    m_MbedCtrDrbg;
+        mbedtls_ssl_config          m_MbedConf;
+
         dmMutex::HMutex     m_Mutex;
 
         uint16_t            m_AllowNewConnections:1;
@@ -72,22 +100,44 @@ namespace dmConnectionPool
 
             m_NextVersion = 0;
 
-            // We set SSL_SERVER_VERIFY_LATER to handle self-signed certificates
             // We should manually and optionally verify certificates
-            // with ssl_verify_cert() but it require that root-certs
+            // but it require that root-certs
             // are bundled in the engine and some kind of lazy loading
             // mechanism as we can't load every possible certificate for
             // every connections. It's possible to introspect the SSL object
             // to find out which certificates to load.
 
-            // We set SSL_CONNECT_IN_PARTS to make the socket non blocking during the ssl handshake
-            int options = SSL_SERVER_VERIFY_LATER | SSL_CONNECT_IN_PARTS;
+            mbedtls_ssl_config_init( &m_MbedConf );
+            mbedtls_ctr_drbg_init( &m_MbedCtrDrbg );
+            mbedtls_entropy_init( &m_MbedEntropy );
+            mbedtls_ssl_conf_read_timeout( &m_MbedConf, SOCKET_TIMEOUT );
 
-            // NOTE: CONFIG_SSL_CTX_MUTEXING must be configured as the
-            // ssl-context is shared among all threads
-            // 0 is number of sessions to cache and currently arbitrary.
-            // Since we don't use sessions (see Connect) we don't need any.
-            m_SSLContext = dmAxTls::ssl_ctx_new(options, 0);
+#if defined(MBEDTLS_DEBUG_C)
+            mbedtls_debug_set_threshold( MBED_DEBUG_LEVEL );
+            mbedtls_ssl_conf_dbg( &m_MbedConf, mbedtls_debug, 0 );
+#endif
+            int ret = 0;
+
+            const char* pers = "defold_ssl_client";
+            if( ( ret = mbedtls_ctr_drbg_seed( &m_MbedCtrDrbg, mbedtls_entropy_func, &m_MbedEntropy,
+                                       (const unsigned char *) pers,
+                                       strlen( pers ) ) ) != 0 )
+            {
+                dmLogError("mbedtls_ctr_drbg_seed failed: %d", ret);
+                return;
+            }
+
+            if( ( ret = mbedtls_ssl_config_defaults( &m_MbedConf,
+                            MBEDTLS_SSL_IS_CLIENT,
+                            MBEDTLS_SSL_TRANSPORT_STREAM,
+                            MBEDTLS_SSL_PRESET_DEFAULT ) ) != 0 )
+            {
+                dmLogError("mbedtls_ssl_config_defaults failed: %d", ret);
+                return;
+            }
+
+            mbedtls_ssl_conf_rng( &m_MbedConf, mbedtls_ctr_drbg_random, &m_MbedCtrDrbg );
+            mbedtls_ssl_conf_authmode( &m_MbedConf, MBEDTLS_SSL_VERIFY_NONE );
 
             // This is to block new connections when shutting down the pool.
             m_AllowNewConnections = 1;
@@ -110,7 +160,9 @@ namespace dmConnectionPool
                 dmLogError("Leaking %d connections from connection pool", in_use);
             }
 
-            dmAxTls::ssl_ctx_free(m_SSLContext);
+            mbedtls_ssl_config_free( &m_MbedConf );
+            mbedtls_ctr_drbg_free( &m_MbedCtrDrbg );
+            mbedtls_entropy_free( &m_MbedEntropy );
 
             dmMutex::Delete(m_Mutex);
         }
@@ -216,8 +268,12 @@ namespace dmConnectionPool
             dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
             dmSocket::Delete(c->m_Socket);
         }
-        if (c->m_SSLConnection) {
-            ssl_free(c->m_SSLConnection);
+        if (c->m_SSLContext) {
+            mbedtls_ssl_close_notify( c->m_SSLContext );
+            mbedtls_net_free( c->m_SSLNetContext );
+            mbedtls_ssl_free( c->m_SSLContext );
+            free(c->m_SSLNetContext);
+            free(c->m_SSLContext);
         }
         c->Clear();
     }
@@ -329,47 +385,71 @@ namespace dmConnectionPool
                 dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
                 dmSocket::SetReceiveTimeout(c->m_Socket, (int)ssl_handshake_timeout);
 
-                dmAxTls::SSL_EXTENSIONS *ext = dmAxTls::ssl_ext_new();
-                ext->host_name = host;
-                // NOTE: No session resume support. We would require a pool of session-id's or similar.
-                dmAxTls::SSL* ssl = dmAxTls::ssl_client_new(pool->m_SSLContext,
-                                          dmSocket::GetFD(c->m_Socket),
-                                          0,
-                                          0,
-                                          ext);
+                c->m_SSLContext     = (mbedtls_ssl_context*)malloc(sizeof(mbedtls_ssl_context));
+                c->m_SSLNetContext  = (mbedtls_net_context*)malloc(sizeof(mbedtls_net_context));
 
-                *sr = dmSocket::RESULT_UNKNOWN;
+                mbedtls_ssl_init( c->m_SSLContext );
 
-                // Since the socket is non blocking (and the way axtls is implemented)
-                // we need do the hand shake ourselves
-                while( ssl_handshake_status(ssl) == SSL_NOT_OK )
+                int ret = 0;
+                if( ( ret = mbedtls_ssl_setup( c->m_SSLContext, &pool->m_MbedConf ) ) != 0 )
                 {
-                    int ret = ssl_read(ssl, 0);
-                    if( ret < 0 )
-                        break;
+                    dmLogError("mbedtls_ssl_setup returned %d\n", ret );
+                    return RESULT_SOCKET_ERROR;
+                }
 
+                if( ( ret = mbedtls_ssl_set_hostname( c->m_SSLContext, host) ) != 0 )
+                {
+                    dmLogError("mbedtls_ssl_set_hostname returned %d\n", ret );
+                    return RESULT_SOCKET_ERROR;
+                }
+
+                // Normally, in mbedtls, you'd call mbedtls_net_connect
+                // but we already have our socket created and setup
+                mbedtls_net_init( c->m_SSLNetContext );
+                c->m_SSLNetContext->fd = dmSocket::GetFD(c->m_Socket);
+
+                mbedtls_ssl_set_bio( c->m_SSLContext, c->m_SSLNetContext, mbedtls_net_send, mbedtls_net_recv, NULL );
+
+                while( ( ret = mbedtls_ssl_handshake( c->m_SSLContext ) ) != 0 )
+                {
                     uint64_t currenttime = dmTime::GetTime();
+
                     if( ssl_handshake_timeout > 0 && int(currenttime - handshakestart) > ssl_handshake_timeout )
                     {
+                        dmLogError("mbedtls_ssl_handshake timed out\n");
                         *sr = dmSocket::RESULT_WOULDBLOCK;
-                        break;
+                        DoClose(pool, c);
+                        return RESULT_HANDSHAKE_FAILED;
+                    }
+
+                    if( ret != MBEDTLS_ERR_SSL_WANT_READ &&
+                        ret != MBEDTLS_ERR_SSL_WANT_WRITE &&
+                        ret != MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS )
+                    {
+                        dmLogError("mbedtls_ssl_handshake returned -0x%x\n", -ret );
+                        if( ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED )
+                            dmLogError( "    Unable to verify the server's certificate. "
+                                            "Either it is invalid,\n"
+                                        "    or you didn't set ca_file or ca_path "
+                                            "to an appropriate value.\n"
+                                        "    Alternatively, you may want to use "
+                                            "auth_mode=optional for testing purposes.\n" );
+
+                        DoClose(pool, c);
+                        return RESULT_HANDSHAKE_FAILED;
                     }
                 }
 
-                int hs = ssl_handshake_status(ssl);
-                if (hs != SSL_OK) {
-                    r = RESULT_HANDSHAKE_FAILED;
-                    dmLogWarning("SSL handshake failed (%d)", hs);
-                    dmAxTls::ssl_free(ssl);
-                    ssl = 0;
-                    dmSocket::Delete(c->m_Socket);
-                    c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                }
-                else
+                /* In real life, we probably want to bail out when ret != 0 */
+                int flags = 0;
+                if( ( flags = mbedtls_ssl_get_verify_result( c->m_SSLContext ) ) != 0 )
                 {
-                    *sr = dmSocket::RESULT_OK;
+                    char vrfy_buf[512];
+                    mbedtls_x509_crt_verify_info( vrfy_buf, sizeof( vrfy_buf ), "  ! ", flags );
+                    dmLogError("mbedtls_ssl_get_verify_result failed:\n    %s\n", vrfy_buf );
                 }
-                c->m_SSLConnection = ssl;
+
+                //dmLogDebug("SSL connection ok\n    [ Protocol is %s ]\n    [ Ciphersuite is %s ]\n", mbedtls_ssl_get_version( c->m_SSLContext ), mbedtls_ssl_get_ciphersuite( c->m_SSLContext ) );
             }
         }
         return r;
@@ -493,15 +573,14 @@ namespace dmConnectionPool
         return c->m_Socket;
     }
 
-    // NOTE: void* in order to avoid exposing axTLS headers from dlib
-    // dmConnectionPool is regarded as private but used from tests
+    // NOTE: void* in order to avoid exposing ssl headers from dlib
     void* GetSSLConnection(HPool pool, HConnection connection)
     {
         DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
 
         Connection* c = GetConnection(pool, connection);
         assert(c->m_State == STATE_INUSE);
-        return c->m_SSLConnection;
+        return c->m_SSLContext;
     }
 
     uint32_t GetReuseCount(HPool pool, HConnection connection)
@@ -547,8 +626,12 @@ namespace dmConnectionPool
             if (c->m_State == STATE_CONNECTED)
             {
                 dmSocket::Delete(c->m_Socket);
-                if (c->m_SSLConnection) {
-                    ssl_free(c->m_SSLConnection);
+                if (c->m_SSLNetContext) {
+                    mbedtls_ssl_close_notify( c->m_SSLContext );
+                    mbedtls_net_free( c->m_SSLNetContext );
+                    mbedtls_ssl_free( c->m_SSLContext );
+                    free(c->m_SSLNetContext);
+                    free(c->m_SSLContext);
                 }
                 c->Clear();
             }

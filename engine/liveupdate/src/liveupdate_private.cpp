@@ -4,7 +4,7 @@
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
 #include <dlib/log.h>
-#include <axtls/crypto/crypto.h>
+//#include <axtls/crypto/crypto.h>
 
 namespace dmLiveUpdate
 {
@@ -74,31 +74,31 @@ namespace dmLiveUpdate
 
     void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest)
     {
-        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
-        {
-            dmAxTls::MD5_CTX context;
+        // if (algorithm == dmLiveUpdateDDF::HASH_MD5)
+        // {
+        //     dmAxTls::MD5_CTX context;
 
-            dmAxTls::MD5_Init(&context);
-            dmAxTls::MD5_Update(&context, (const uint8_t*) buf, buflen);
-            dmAxTls::MD5_Final(digest, &context);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        {
-            dmAxTls::SHA1_CTX context;
+        //     dmAxTls::MD5_Init(&context);
+        //     dmAxTls::MD5_Update(&context, (const uint8_t*) buf, buflen);
+        //     dmAxTls::MD5_Final(digest, &context);
+        // }
+        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        // {
+        //     dmAxTls::SHA1_CTX context;
 
-            dmAxTls::SHA1_Init(&context);
-            dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
-            dmAxTls::SHA1_Final(digest, &context);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
-        {
-            dmLogError("The algorithm SHA256 specified for resource hashing is currently not supported");
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
-        {
-            dmLogError("The algorithm SHA512 specified for resource hashing is currently not supported");
-        }
-        else
+        //     dmAxTls::SHA1_Init(&context);
+        //     dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
+        //     dmAxTls::SHA1_Final(digest, &context);
+        // }
+        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        // {
+        //     dmLogError("The algorithm SHA256 specified for resource hashing is currently not supported");
+        // }
+        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        // {
+        //     dmLogError("The algorithm SHA512 specified for resource hashing is currently not supported");
+        // }
+        // else
         {
             dmLogError("The algorithm specified for resource hashing is not supported");
         }
@@ -106,30 +106,30 @@ namespace dmLiveUpdate
 
     void CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
     {
-        if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        // if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        // {
+        //     dmAxTls::SHA1_CTX context;
+        //     dmAxTls::SHA1_Init(&context);
+        //     dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
+        //     dmAxTls::SHA1_Final(digest, &context);
+        // }
+        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        // {
+        //     dmAxTls::SHA256_CTX context;
+        //     dmAxTls::SHA256_Init(&context);
+        //     dmAxTls::SHA256_Update(&context, (const uint8_t*) buf, buflen);
+        //     dmAxTls::SHA256_Final(digest, &context);
+        // }
+        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        // {
+        //     dmAxTls::SHA512_CTX context;
+        //     dmAxTls::SHA512_Init(&context);
+        //     dmAxTls::SHA512_Update(&context, (const uint8_t*) buf, buflen);
+        //     dmAxTls::SHA512_Final(digest, &context);
+        // }
+        // else
         {
-            dmAxTls::SHA1_CTX context;
-            dmAxTls::SHA1_Init(&context);
-            dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
-            dmAxTls::SHA1_Final(digest, &context);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
-        {
-            dmAxTls::SHA256_CTX context;
-            dmAxTls::SHA256_Init(&context);
-            dmAxTls::SHA256_Update(&context, (const uint8_t*) buf, buflen);
-            dmAxTls::SHA256_Final(digest, &context);
-        }
-        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
-        {
-            dmAxTls::SHA512_CTX context;
-            dmAxTls::SHA512_Init(&context);
-            dmAxTls::SHA512_Update(&context, (const uint8_t*) buf, buflen);
-            dmAxTls::SHA512_Final(digest, &context);
-        }
-        else
-        {
-            dmLogError("The algorithm specified for manfiest verification hashing is not supported (%i)", algorithm);
+            dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
         }
     }
 
