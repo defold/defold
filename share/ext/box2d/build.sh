@@ -10,20 +10,24 @@ export CONF_TARGET=$1
 . ../common.sh
 
 function cmi_unpack() {
-    unzip ../../download/$FILE_URL
+    unzip -q ../../download/$FILE_URL
+
+    local tmpdir=`pwd`
 
     pushd Box2D_v${VERSION}/Box2D
-    #rm -rf Demos Demos Extras UnitTests msvc
 
-    # Convert line endings to unix style
+    # Convert line endings to unix style (to make the patch work)
     find . -type f -name "*.*" -exec dos2unix {} \;
+
+    # copy our extra files
+    cp -v -r ${tmpdir}/../extra/Box2D/ .
 
     popd
 }
 
 function cmi_configure() {
     pushd Box2D_v${VERSION}/Box2D
-    
+
     cmake -DCMAKE_BUILD_TYPE=RELEASE -DBOX2D_BUILD_STATIC=ON -DBOX2D_VERSION="${VERSION}" -DBOX2D_INSTALL=OFF
 
     popd
