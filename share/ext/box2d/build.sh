@@ -28,7 +28,7 @@ function cmi_unpack() {
 function cmi_configure() {
     pushd Box2D_v${VERSION}/Box2D
 
-    cmake -DCMAKE_BUILD_TYPE=RELEASE -DBOX2D_BUILD_STATIC=ON -DBOX2D_VERSION="${VERSION}" -DBOX2D_INSTALL=OFF
+    cmake -DCMAKE_BUILD_TYPE=Release -DBOX2D_BUILD_STATIC=ON -DBOX2D_VERSION="${VERSION}" -DBOX2D_INSTALL=OFF -DBOX2D_BUILD_EXAMPLES=OFF
 
     popd
 }
@@ -61,8 +61,6 @@ function cmi_make() {
     find . -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
     find . -name "*.h" -print0 | cpio -pmd0 $PREFIX/include/Box2D
 
-    echo "MAWE: PWD"
-    pwd
     popd
     set +e
 }
