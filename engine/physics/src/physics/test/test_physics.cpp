@@ -343,6 +343,9 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
         ASSERT_NEAR(start_rot.getElem(i), body_rot.getElem(i), 0.0000001f);
     }
 
+    // Newer bullet (2.88) needs two first frames to actually start moving
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     ASSERT_GT(start_pos.getY(), vo.m_Position.getY());
@@ -1170,6 +1173,7 @@ TYPED_TEST(PhysicsTest, GravityChange)
     data.m_Mass = 1.0f;
     data.m_Restitution = 1.0f;
     typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+    (void)box_co_a;
 
     // Verify that the default gravity is applied.
     const int steps = 10;
