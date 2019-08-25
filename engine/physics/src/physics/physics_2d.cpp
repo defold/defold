@@ -216,6 +216,71 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
+    static void FlipPolygon(b2PolygonShape* shape, float horizontal, float vertical)
+    {
+        shape->m_centroid.x *= horizontal;
+        shape->m_centroid.y *= vertical;
+        int count = shape->m_vertexCount;
+        for (int i = 0; i < count; ++i)
+        {
+            shape->m_vertices[i].x *= horizontal;
+            shape->m_vertices[i].y *= vertical;
+            shape->m_normals[i].x *= horizontal;
+            shape->m_normals[i].y *= vertical;
+        }
+        for (int i = 0; i < count/2; ++i)
+        {
+            b2Vec2 tmp;
+            tmp = shape->m_vertices[i];
+            shape->m_vertices[i] = shape->m_vertices[count-i-1];
+            shape->m_vertices[count-i-1] = tmp;
+
+            tmp = shape->m_normals[i];
+            shape->m_normals[i] = shape->m_normals[count-i-1];
+            shape->m_normals[count-i-1] = tmp;
+        }
+    }
+
+    void FlipH2D(HCollisionObject2D collision_object)
+    {
+        b2Body* body = (b2Body*) collision_object;
+        b2Fixture* fixture = body->GetFixtureList();
+        while (fixture)
+        {
+            b2Shape* shape = fixture->GetShape();
+            switch(shape->GetType()) {
+            case b2Shape::e_circle:     ((b2CircleShape*)shape)->m_p.x *= -1; break;
+            case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, -1, 1); break;
+            case b2Shape::e_edge:
+            case b2Shape::e_chain:
+            default:
+                break;
+            }
+            fixture = fixture->GetNext();
+        }
+        body->SetSleepingAllowed(false);
+    }
+
+    void FlipV2D(HCollisionObject2D collision_object)
+    {
+        b2Body* body = (b2Body*) collision_object;
+        b2Fixture* fixture = body->GetFixtureList();
+        while (fixture)
+        {
+            b2Shape* shape = fixture->GetShape();
+            switch(shape->GetType()) {
+            case b2Shape::e_circle:     ((b2CircleShape*)shape)->m_p.y *= -1; break;
+            case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, 1, -1); break;
+            case b2Shape::e_edge:
+            case b2Shape::e_chain:
+            default:
+                break;
+            }
+            fixture = fixture->GetNext();
+        }
+        body->SetSleepingAllowed(false);
+    }
+
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -234,7 +299,6 @@ namespace dmPhysics
                 if (body->GetType() == b2_kinematicBody)
                 {
                     Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
-                    Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(context, body);
                     dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
@@ -242,10 +306,12 @@ namespace dmPhysics
                     position.setZ(0.0f);
                     Vectormath::Aos::Quat rotation = world_transform.GetRotation();
                     float dp = distSqr(old_position, position);
-                    float dr = norm(rotation - old_rotation);
-                    if (dp > POS_EPSILON || dr > ROT_EPSILON)
+                    float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                    float old_angle = body->GetAngle();
+                    float da = old_angle - angle;
+
+                    if (dp > POS_EPSILON || fabsf(da) > ROT_EPSILON)
                     {
-                        float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                         b2Vec2 b2_position;
                         ToB2(position, b2_position, scale);
                         body->SetTransform(b2_position, angle);
