@@ -1569,6 +1569,25 @@ namespace dmScript
         return 1;
     }
 
+    /*# creates a translation matrix from a position vector
+     * The resulting matrix describes a translation of a point
+     * in euclidean space.
+     *
+     * @name vmath.matrix4_translation
+     * @param position [type:vector3] position vector to create matrix from
+     * @return m [type:matrix4] todo
+     * @examples
+     *
+     * ```lua
+     * todo
+     * ```
+     */
+    static int Matrix4_Translation(lua_State* L)
+    {
+        const Vectormath::Aos::Vector3* t1 = CheckVector3(L, 1);
+        PushMatrix4(L, Vectormath::Aos::Matrix4::translation(*t1));
+    }
+
     /*# calculates the inverse matrix.
      * The resulting matrix is the inverse of the supplied matrix.
      *
@@ -2236,6 +2255,7 @@ namespace dmScript
         {"matrix4_rotation_x", Matrix4_RotationX},
         {"matrix4_rotation_y", Matrix4_RotationY},
         {"matrix4_rotation_z", Matrix4_RotationZ},
+        {"matrix4_translation", Matrix4_Translation},
         {"dot", Dot},
         {"length_sqr", LengthSqr},
         {"length", Length},
