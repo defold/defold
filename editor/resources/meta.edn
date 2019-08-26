@@ -776,7 +776,15 @@
    :default "/liveupdate.settings"
    :help "liveupdate settings"
    :preserve-extension true,
-   :path ["liveupdate" "settings"]}]
+   :path ["liveupdate" "settings"]}
+  {:type :integer,
+   :help "max number of concurrent tilemaps in a collection",
+   :default 16,
+   :path ["tilemap" "max_count"]}
+  {:type :integer,
+   :help "max number of concurrent (visible) tiles in a collection",
+   :default 2048,
+   :path ["tilemap" "max_tile_count"]}]
 
  :categories
  {"sound" {:help "Sound related settings"},
@@ -800,6 +808,7 @@
   "gui" {:help "GUI related settings"
          :title "GUI"},
   "sprite" {:help "Sprite related settings"},
+  "tilemap", {:help "Tilemap related settings"},
   "facebook" {:help "Facebook related settings"},
   "windows" {:help "Windows related settings"},
   "input" {:help "Input related settings"},
