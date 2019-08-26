@@ -44,7 +44,7 @@ namespace dmGameSystem
         {
             uint16_t    m_FlipHorizontal : 1;
             uint16_t    m_FlipVertical : 1;
-            uint16_t    m_Padding : 14;
+            uint16_t    : 14;
         };
 
         TileGridComponent()
@@ -67,12 +67,11 @@ namespace dmGameSystem
         CompRenderConstants         m_RenderConstants;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
         uint16_t                    m_RegionsY; // number of regions in the y dimension
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_AddedToUpdate : 1;
+        uint8_t                     m_Enabled : 1;
+        uint8_t                     m_AddedToUpdate : 1;
         uint8_t                     m_Occupied : 1; // Does the component have any tiles set at all?
-        uint16_t                    m_Padding : 13;
+        uint8_t                     : 5;
     };
-
 
     struct TileGridVertex
     {
@@ -262,8 +261,8 @@ namespace dmGameSystem
                 {
                     for (int32_t x = min_x; x < max_x; ++x)
                     {
-                        uint32_t cell = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
-                        uint16_t tile = component->m_Cells[cell];
+                        uint32_t cell_index = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
+                        uint16_t tile = component->m_Cells[cell_index];
                         if (tile != 0xffff)
                         {
                             ++visible_tiles;
