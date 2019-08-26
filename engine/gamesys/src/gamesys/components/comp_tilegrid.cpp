@@ -50,7 +50,7 @@ namespace dmGameSystem
         {
             uint16_t    m_FlipHorizontal : 1;
             uint16_t    m_FlipVertical : 1;
-            uint16_t    m_Padding : 14;
+            uint16_t    : 14;
         };
 
         TileGridComponent()
@@ -74,12 +74,11 @@ namespace dmGameSystem
         CompRenderConstants         m_RenderConstants;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
         uint16_t                    m_RegionsY; // number of regions in the y dimension
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_AddedToUpdate : 1;
+        uint8_t                     m_Enabled : 1;
+        uint8_t                     m_AddedToUpdate : 1;
         uint8_t                     m_Occupied : 1; // Does the component have any tiles set at all?
-        uint16_t                    m_Padding : 13;
+        uint8_t                     : 5;
     };
-
 
     struct TileGridVertex
     {
