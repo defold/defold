@@ -1586,6 +1586,7 @@ namespace dmScript
     {
         const Vectormath::Aos::Vector3* t1 = CheckVector3(L, 1);
         PushMatrix4(L, Vectormath::Aos::Matrix4::translation(*t1));
+        return 1;
     }
 
     /*# calculates the inverse matrix.
