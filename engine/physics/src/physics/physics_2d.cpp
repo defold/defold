@@ -216,18 +216,22 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
+    static void FlipPoint(b2Vec2* v, float horizontal, float vertical)
+    {
+        v->x *= horizontal;
+        v->y *= vertical;
+    }
+
     static void FlipPolygon(b2PolygonShape* shape, float horizontal, float vertical)
     {
-        shape->m_centroid.x *= horizontal;
-        shape->m_centroid.y *= vertical;
+        FlipPoint(&shape->m_centroid, horizontal, vertical);
         int count = shape->m_vertexCount;
         for (int i = 0; i < count; ++i)
         {
-            shape->m_vertices[i].x *= horizontal;
-            shape->m_vertices[i].y *= vertical;
-            shape->m_normals[i].x *= horizontal;
-            shape->m_normals[i].y *= vertical;
+            FlipPoint(&shape->m_vertices[i], horizontal, vertical);
+            FlipPoint(&shape->m_normals[i], horizontal, vertical);
         }
+        // Switch the winding of the polygon
         for (int i = 0; i < count/2; ++i)
         {
             b2Vec2 tmp;
@@ -241,7 +245,7 @@ namespace dmPhysics
         }
     }
 
-    void FlipH2D(HCollisionObject2D collision_object)
+    static void FlipBody(HCollisionObject2D collision_object, float horizontal, float vertical)
     {
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = body->GetFixtureList();
@@ -249,9 +253,9 @@ namespace dmPhysics
         {
             b2Shape* shape = fixture->GetShape();
             switch(shape->GetType()) {
-            case b2Shape::e_circle:     ((b2CircleShape*)shape)->m_p.x *= -1; break;
-            case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, -1, 1); break;
-            case b2Shape::e_edge:
+            case b2Shape::e_circle:     FlipPoint(&((b2CircleShape*)shape)->m_p, horizontal, vertical); break;
+            case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, horizontal, vertical); break;
+            case b2Shape::e_edge:       // Currently unsupported by the engine
             case b2Shape::e_chain:
             default:
                 break;
@@ -261,24 +265,14 @@ namespace dmPhysics
         body->SetSleepingAllowed(false);
     }
 
+    void FlipH2D(HCollisionObject2D collision_object)
+    {
+        FlipBody(collision_object, -1, 1);
+    }
+
     void FlipV2D(HCollisionObject2D collision_object)
     {
-        b2Body* body = (b2Body*) collision_object;
-        b2Fixture* fixture = body->GetFixtureList();
-        while (fixture)
-        {
-            b2Shape* shape = fixture->GetShape();
-            switch(shape->GetType()) {
-            case b2Shape::e_circle:     ((b2CircleShape*)shape)->m_p.y *= -1; break;
-            case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, 1, -1); break;
-            case b2Shape::e_edge:
-            case b2Shape::e_chain:
-            default:
-                break;
-            }
-            fixture = fixture->GetNext();
-        }
-        body->SetSleepingAllowed(false);
+        FlipBody(collision_object, 1, -1);
     }
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
