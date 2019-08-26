@@ -3,20 +3,25 @@
 
 namespace dmGraphics
 {
-    VkResult VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** devicesOut, uint32_t* deviceCountOut)
+    uint32_t VKGetPhysicalDeviceCount(VkInstance vkInstance)
     {
-        // Get number of present devices
         uint32_t vk_device_count = 0;
         vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, 0);
+        return vk_device_count;
+    }
 
-        if (vk_device_count == 0)
+    VkResult VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    {
+        if (deviceListSize == 0)
         {
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
-        PhysicalDevice* devices_out = new PhysicalDevice[vk_device_count];
+        PhysicalDevice* device_list = *deviceListOut;
+        uint32_t vk_device_count = deviceListSize;
         VkPhysicalDevice* vk_device_list = new VkPhysicalDevice[vk_device_count];
         vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
+        assert(vk_device_count == deviceListSize);
 
         const uint8_t vk_max_extension_count = 128;
         VkExtensionProperties vk_device_extensions[vk_max_extension_count];
@@ -26,36 +31,36 @@ namespace dmGraphics
             VkPhysicalDevice vk_device = vk_device_list[i];
             uint32_t vk_device_extension_count, vk_queue_family_count;
 
-            vkGetPhysicalDeviceProperties(vk_device, &devices_out[i].m_Properties);
-            vkGetPhysicalDeviceFeatures(vk_device, &devices_out[i].m_Features);
-            vkGetPhysicalDeviceMemoryProperties(vk_device, &devices_out[i].m_MemoryProperties);
+            vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
+            vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
+            vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
-            devices_out[i].m_QueueFamilyProperties = new VkQueueFamilyProperties[vk_queue_family_count];
-            vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, devices_out[i].m_QueueFamilyProperties);
+            device_list[i].m_QueueFamilyProperties = new VkQueueFamilyProperties[vk_queue_family_count];
+            vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, device_list[i].m_QueueFamilyProperties);
 
             vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, 0);
+
+            // Note: If this is triggered, we need a higher limit for the max extension count
+            //       or simply allocate the exact memory dynamically to hold the extensions data..
             assert(vk_device_extension_count < vk_max_extension_count);
 
             if (vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, vk_device_extensions) == VK_SUCCESS)
             {
-                devices_out[i].m_DeviceExtensions = new VkExtensionProperties[vk_device_extension_count];
+                device_list[i].m_DeviceExtensions = new VkExtensionProperties[vk_device_extension_count];
 
                 for (uint8_t j = 0; j < vk_device_extension_count; ++j)
                 {
-                    devices_out[i].m_DeviceExtensions[j] = vk_device_extensions[j];
+                    device_list[i].m_DeviceExtensions[j] = vk_device_extensions[j];
                 }
             }
 
-            devices_out[i].m_Device               = vk_device;
-            devices_out[i].m_QueueFamilyCount     = (uint16_t) vk_queue_family_count;
-            devices_out[i].m_DeviceExtensionCount = (uint16_t) vk_device_extension_count;
+            device_list[i].m_Device               = vk_device;
+            device_list[i].m_QueueFamilyCount     = (uint16_t) vk_queue_family_count;
+            device_list[i].m_DeviceExtensionCount = (uint16_t) vk_device_extension_count;
         }
 
         delete[] vk_device_list;
-
-        *devicesOut = devices_out;
-        *deviceCountOut = vk_device_count;
 
         return VK_SUCCESS;
     }
@@ -87,32 +92,42 @@ namespace dmGraphics
 
         #define QUEUE_FAMILY_INVALID 0xffff
 
-        QueueFamily qf = { QUEUE_FAMILY_INVALID, QUEUE_FAMILY_INVALID };
+        QueueFamily qf;
 
         if (device->m_QueueFamilyCount == 0)
         {
             return qf;
         }
 
-        uint32_t* vk_present_queues = new uint32_t[device->m_QueueFamilyCount];
+        VkBool32* vk_present_queues = new VkBool32[device->m_QueueFamilyCount];
 
+        // Try to find a queue that has both graphics and present capabilities,
+        // and if we can't find one that has both, we take the first of each queue
+        // that we can find.
         for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
         {
+            QueueFamily candidate;
             vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
-
             VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
-
-            /*
-            QueueFamily candidate = qf;
 
             if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
             {
                 candidate.m_GraphicsQueueIx = i;
+
+                if (qf.m_GraphicsQueueIx == QUEUE_FAMILY_INVALID)
+                {
+                    qf.m_GraphicsQueueIx = i;
+                }
             }
 
             if (vk_properties.queueCount > 0 && vk_present_queues[i])
             {
                 candidate.m_PresentQueueIx = i;
+
+                if (qf.m_PresentQueueIx == QUEUE_FAMILY_INVALID)
+                {
+                    qf.m_PresentQueueIx = i;
+                }
             }
 
             if (candidate.IsValid() && candidate.m_GraphicsQueueIx == candidate.m_PresentQueueIx)
@@ -120,22 +135,12 @@ namespace dmGraphics
                 qf = candidate;
                 break;
             }
-            */
         }
-
-        /*
-        if (!qf.IsValid())
-        {
-            for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
-            {
-
-            }
-        }
-        */
 
         delete[] vk_present_queues;
-
         #undef QUEUE_FAMILY_INVALID
+
+        return qf;
     }
 
     bool VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface)
@@ -144,7 +149,7 @@ namespace dmGraphics
 
         QueueFamily queue_family = VKGetQueueFamily(device, surface);
 
-        if (device->m_QueueFamilyCount == 0)
+        if (device->m_QueueFamilyCount == 0 || !queue_family.IsValid())
         {
             return false;
         }

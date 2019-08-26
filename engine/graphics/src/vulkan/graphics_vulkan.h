@@ -34,10 +34,15 @@ namespace dmGraphics
 
     struct QueueFamily
     {
+        QueueFamily()
+        : m_GraphicsQueueIx(0xffff)
+        , m_PresentQueueIx(0xffff)
+        {}
+
         uint16_t m_GraphicsQueueIx;
         uint16_t m_PresentQueueIx;
 
-        bool IsValid() { return m_GraphicsQueueIx == 0xffff && m_PresentQueueIx == 0xffff; }
+        bool IsValid() { return m_GraphicsQueueIx != 0xffff && m_PresentQueueIx != 0xffff; }
     };
 
     struct Context
@@ -53,7 +58,8 @@ namespace dmGraphics
     VkResult VKCreateInstance(VkInstance* vkInstanceOut, bool enableValidation);
 
     // Implemented in graphics_vulkan_device.cpp
-    VkResult    VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** devicesOut, uint32_t* deviceCountOut);
+    uint32_t    VKGetPhysicalDeviceCount(VkInstance vkInstance);
+    VkResult    VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     void        VKResetPhysicalDevice(PhysicalDevice* device);
     bool        VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface);
     QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);

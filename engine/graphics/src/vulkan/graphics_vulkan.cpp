@@ -86,11 +86,11 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        uint32_t device_count           = 0;
-        PhysicalDevice* device_list     = NULL;
+        uint32_t device_count           = VKGetPhysicalDeviceCount(context->m_Instance);
+        PhysicalDevice* device_list     = new PhysicalDevice[device_count];
         PhysicalDevice* selected_device = NULL;
 
-        if (VKGetPhysicalDevices(context->m_Instance, &device_list, &device_count) != VK_SUCCESS)
+        if (VKGetPhysicalDevices(context->m_Instance, &device_list, device_count) != VK_SUCCESS)
         {
             dmLogError("Could not get any Vulkan devices.");
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
