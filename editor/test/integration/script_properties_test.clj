@@ -11,6 +11,7 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
+            [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -1510,3 +1511,42 @@
           (is (overridden-property? props-script-component))
           (is (overridden-property? ov-props-script-component))
           (is (overridden-property? ov-ov-props-script-component)))))))
+
+(deftest zip-resource-reference-remains-valid-after-script-reload-test
+  ;; It seems currently all ZipResources are recreated during resource sync.
+  ;; They contain a byte array with data from the zip file, which will not
+  ;; compare equal to old ZipResources created from the same contents. This test
+  ;; exposed an issue caused by using a ZipResource from a cached build target
+  ;; as a key inside the properties/build-target-go-props function, which would
+  ;; fail to locate the referenced resource among the build targets after a
+  ;; resource sync had occurred.
+  ;; Reported as #4370 "ZipResource equality issues" in the GitHub tracker.
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          build-target-source-path (comp resource/proj-path :resource :resource)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (doto (tu/make-resource-node! project "/props.script")
+          (edit-script! ["go.property('image', resource.atlas('/builtins/graphics/particle_blob.tilesource'))"]))
+
+        ;; Verify build-targets before resource sync.
+        (let [props-script (tu/resource-node project "/props.script")]
+          (is (= ["/props.script"
+                  "/builtins/graphics/particle_blob.tilesource"]
+                 (keep build-target-source-path
+                       (pipeline/flatten-build-targets
+                         (g/node-value props-script :build-targets))))))
+
+        ;; Simulate an external edit to the script, triggering resource sync.
+        (write-file! workspace "props.script"
+                     (string/join (System/getProperty "line.separator")
+                                  ["-- Adding a comment using an external editor."
+                                   "go.property('image', resource.atlas('/builtins/graphics/particle_blob.tilesource'))"]))
+
+        ;; Verify build-targets after resource sync.
+        (let [props-script (tu/resource-node project "/props.script")]
+          (is (= ["/props.script"
+                  "/builtins/graphics/particle_blob.tilesource"]
+                 (keep build-target-source-path
+                       (pipeline/flatten-build-targets
+                         (g/node-value props-script :build-targets))))))))))

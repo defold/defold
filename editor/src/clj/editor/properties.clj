@@ -552,9 +552,16 @@
             property-descs)))
 
 (defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]
-  (let [build-targets-by-source-resource (into {}
-                                               (map (juxt (comp :resource :resource) identity))
-                                               (flatten resource-property-build-targets))]
+  ;; Create a map that will be used to locate the build target that was produced
+  ;; from a specific resource in the project. Embedded resources (i.e. MemoryResources)
+  ;; are excluded from the map, since these have no source path in the project,
+  ;; and it should not be possible for another resource to reference them.
+  (let [build-targets-by-source-proj-path
+        (into {}
+              (keep (fn [build-target]
+                      (when-some [source-resource (-> build-target :resource :resource)]
+                        [(resource/proj-path source-resource) build-target])))
+              (flatten resource-property-build-targets))]
     (loop [go-props-with-source-resources go-props-with-source-resources
            go-props-with-build-resources (transient [])
            dep-build-targets (transient [])
@@ -563,13 +570,22 @@
         (do
           (assert (go-prop? go-prop))
           (let [clj-value (:clj-value go-prop)
-                dep-build-target (when (resource/resource? clj-value)
-                                   (or (build-targets-by-source-resource clj-value)
 
-                                       ;; If this fails, it is likely because resource-property-build-targets does not contain a referenced resource.
-                                       (throw (ex-info (str "unable to resolve build target from value " (pr-str clj-value))
-                                                       {:property (:id go-prop)
-                                                        :resource-reference clj-value}))))
+                dep-build-target
+                (when (resource/resource? clj-value)
+                  (or (build-targets-by-source-proj-path (resource/proj-path clj-value))
+
+                      ;; If this fails, it is likely because the collection of
+                      ;; resource-property-build-targets supplied to this
+                      ;; function does not include a resource that is referenced
+                      ;; by one of the properties. This typically means that
+                      ;; you've forgotten to connect a dependent build target to
+                      ;; an array input in the graph.
+                      (throw (ex-info (str "unable to resolve build target from value "
+                                           (pr-str clj-value))
+                                      {:property (:id go-prop)
+                                       :resource-reference clj-value}))))
+
                 build-resource (some-> dep-build-target :resource)
                 build-resource-path (some-> build-resource resource/proj-path)
                 go-prop (if (nil? build-resource)
@@ -580,7 +596,8 @@
             (recur (next go-props-with-source-resources)
                    (conj! go-props-with-build-resources go-prop)
                    (if (and (some? dep-build-target)
-                            (not (contains? seen-dep-build-resource-paths build-resource-path)))
+                            (not (contains? seen-dep-build-resource-paths
+                                            build-resource-path)))
                      (conj! dep-build-targets dep-build-target)
                      dep-build-targets)
                    (if (some? build-resource-path)
@@ -590,23 +607,29 @@
          (persistent! dep-build-targets)]))))
 
 (defn build-go-props [dep-resources go-props-with-build-resources]
-  (let [build-resource->fused-build-resource (fn [build-resource]
-                                               (when (some? build-resource)
-                                                 (when-not (workspace/build-resource? build-resource)
-                                                   (throw (ex-info (format ":clj-value field in resource go-prop \"%s\" should be a build resource, got " (pr-str build-resource))
-                                                                   {:resource-reference build-resource})))
-                                                 (or (dep-resources build-resource)
-                                                     (throw (ex-info (str "unable to resolve fused build resource from referenced " (pr-str build-resource))
-                                                                     {:resource-reference build-resource})))))
-        go-props-with-fused-build-resources (mapv (fn [{:keys [clj-value] :as go-prop}]
-                                                    (assert (go-prop? go-prop))
-                                                    (if-not (resource/resource? clj-value)
-                                                      go-prop
-                                                      (let [fused-build-resource (build-resource->fused-build-resource clj-value)]
-                                                        (assoc go-prop
-                                                          :clj-value fused-build-resource
-                                                          :value (resource/resource->proj-path fused-build-resource)))))
-                                                  go-props-with-build-resources)]
+  (let [build-resource->fused-build-resource
+        (fn [build-resource]
+          (when (some? build-resource)
+            (when-not (workspace/build-resource? build-resource)
+              (throw (ex-info (format ":clj-value field in resource go-prop \"%s\" should be a build resource, got "
+                                      (pr-str build-resource))
+                              {:resource-reference build-resource})))
+            (or (dep-resources build-resource)
+                (throw (ex-info (str "unable to resolve fused build resource from referenced "
+                                     (pr-str build-resource))
+                                {:resource-reference build-resource})))))
+
+        go-props-with-fused-build-resources
+        (mapv (fn [{:keys [clj-value] :as go-prop}]
+                (assert (go-prop? go-prop))
+                (if-not (resource/resource? clj-value)
+                  go-prop
+                  (let [fused-build-resource (build-resource->fused-build-resource clj-value)]
+                    (assoc go-prop
+                      :clj-value fused-build-resource
+                      :value (resource/resource->proj-path fused-build-resource)))))
+              go-props-with-build-resources)]
+
     go-props-with-fused-build-resources))
 
 (defn try-get-go-prop-proj-path
