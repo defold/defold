@@ -14,7 +14,7 @@ conventions.
 
 ### Required Software
 
-#### [Java JDK](https://www.oracle.com/technetwork/java/javase/downloads/index.html)
+#### [Java JDK 11](https://www.oracle.com/technetwork/java/javase/downloads/index.html)
 
 ##### Linux
 
