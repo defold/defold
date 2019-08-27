@@ -441,16 +441,18 @@
         local-functions-info (or (apply merge (map :local-functions info)) {})
         requires-info (vec (distinct (parse-requires (list) tree)))
         resolve-resource (partial workspace/resolve-workspace-resource workspace)
-        script-properties-info (into []
-                                     (keep (fn [entry]
-                                             (when-some [property-info (:script-properties entry)]
-                                               (case (:type property-info)
-                                                 :script-property-type-resource (cond-> (update property-info :value resolve-resource)
 
-                                                                                        (not (valid-resource-kind? (:resource-kind property-info)))
-                                                                                        (assoc :status :invalid-value))
-                                                 property-info))))
-                                     info)]
+        script-properties-info
+        (into []
+              (keep (fn [entry]
+                      (when-some [property-info (:script-properties entry)]
+                        (if (not= :script-property-type-resource (:type property-info))
+                          property-info
+                          (cond-> (update property-info :value resolve-resource)
+
+                                  (not (valid-resource-kind? (:resource-kind property-info)))
+                                  (assoc :status :invalid-value))))))
+              info)]
     {:vars vars-info
      :local-vars local-vars-info
      :functions functions-info

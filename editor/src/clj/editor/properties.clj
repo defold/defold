@@ -9,6 +9,7 @@
             [editor.resource :as resource]
             [editor.types :as t]
             [editor.workspace :as workspace]
+            [schema.core :as s]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
@@ -205,6 +206,8 @@
                        :property-type-boolean [:bool-entries :float-values]})
 
 (def ^:private go-prop-type? (partial contains? type->entry-keys))
+
+(def TGoPropType (apply s/enum (keys type->entry-keys)))
 
 (defn- go-prop? [value]
   (and (string? (:id value))
@@ -551,7 +554,24 @@
                   (apply-property-override workspace id-mapping prop-kw prop property-desc))))
             property-descs)))
 
-(defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]
+(defn build-target-go-props
+  "Convert go-props that may contain references to Resources inside the project
+  (source-resources) into go-props that instead refers to the BuildResource
+  produced from the source-resource. Returns a pair of vectors. The first is all
+  the go-props with any source-resources now replaced with BuildResources in the
+  original order. The second is a vector of dep-build-targets produced from the
+  referenced source-resources, obtained from the resource-property-build-targets
+  supplied to this function. You would typically call this function when
+  producing a build-target. The resulting vectors can later be supplied to the
+  build-go-props function inside the build-targets :build-fn in order to update
+  the go-props with the final BuildResource references once equivalent
+  build-targets have been fused.
+
+  The term `go-prop` is used to describe a protobuf PropertyDesc in map format
+  with an additional :clj-value field that contains a more sophisticated
+  representation of the :value. For example, the :value might be a string path,
+  but the :clj-value is a Resource."
+  [resource-property-build-targets go-props-with-source-resources]
   ;; Create a map that will be used to locate the build target that was produced
   ;; from a specific resource in the project. Embedded resources (i.e. MemoryResources)
   ;; are excluded from the map, since these have no source path in the project,
@@ -606,7 +626,12 @@
         [(persistent! go-props-with-build-resources)
          (persistent! dep-build-targets)]))))
 
-(defn build-go-props [dep-resources go-props-with-build-resources]
+(defn build-go-props
+  "Typically called from a :build-fn provided by a build-target. Takes a
+  collection of go-props that were obtained from the build-target-go-props
+  function and updates their BuildResource references to refer to the final
+  BuildResource that resulted from the build-target fusing process."
+  [dep-resources go-props-with-build-resources]
   (let [build-resource->fused-build-resource
         (fn [build-resource]
           (when (some? build-resource)

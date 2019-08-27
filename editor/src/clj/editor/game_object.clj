@@ -33,11 +33,11 @@
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn- gen-ref-ddf [id position rotation path ddf-properties]
+(defn- gen-ref-ddf [id position rotation source-resource ddf-properties]
   {:id id
    :position position
    :rotation rotation
-   :component (resource/resource->proj-path path)
+   :component (resource/resource->proj-path source-resource)
    :properties ddf-properties})
 
 (defn- gen-embed-ddf [id position rotation save-data]
@@ -202,6 +202,12 @@
                                    :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource :abstract)
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets resource-property-build-targets build-resource ddf-message transform]
+                                        ;; Create a build-target for the referenced
+                                        ;; or embedded component. Also tag on
+                                        ;; :instance-data with the overrides for
+                                        ;; this instance. This will later be
+                                        ;; extracted and compiled into the GameObject
+                                        ;; inside the build-game-object function.
                                         (when-some [source-build-target (first source-build-targets)]
                                           (let [go-props-with-source-resources (:properties ddf-message)]
                                             (if-some [errors (not-empty (keep :error go-props-with-source-resources))]

@@ -91,7 +91,9 @@
 
 (def ^:private lua-code-opts {:code {:grammar lua-grammar}})
 
-(defn script-property-type->property-type [script-property-type]
+(defn script-property-type->property-type
+  "Controls how script property values are represented in the graph and edited."
+  [script-property-type]
   (case script-property-type
     :script-property-type-number   g/Num
     :script-property-type-hash     g/Str
@@ -102,7 +104,9 @@
     :script-property-type-boolean  g/Bool
     :script-property-type-resource resource/Resource))
 
-(defn script-property-type->go-prop-type [script-property-type]
+(defn script-property-type->go-prop-type
+  "Controls how script property values are represented in the file formats."
+  [script-property-type]
   (case script-property-type
     :script-property-type-number   :property-type-number
     :script-property-type-hash     :property-type-hash
@@ -113,14 +117,15 @@
     :script-property-type-boolean  :property-type-boolean
     :script-property-type-resource :property-type-hash))
 
-(g/deftype ScriptPropertyType (s/enum :script-property-type-number
-                                      :script-property-type-hash
-                                      :script-property-type-url
-                                      :script-property-type-vector3
-                                      :script-property-type-vector4
-                                      :script-property-type-quat
-                                      :script-property-type-boolean
-                                      :script-property-type-resource))
+(g/deftype ScriptPropertyType
+  (s/enum :script-property-type-number
+          :script-property-type-hash
+          :script-property-type-url
+          :script-property-type-vector3
+          :script-property-type-vector4
+          :script-property-type-quat
+          :script-property-type-boolean
+          :script-property-type-resource))
 
 (def script-defs [{:ext "script"
                    :label "Script"
@@ -157,6 +162,8 @@
   (-> p :name properties/user-name->key))
 
 (def resource-kind->ext
+  "Declares which file extensions are valid for different kinds of resource
+  properties. This affects the Property Editor, but is also used for validation."
   {"atlas"       ["atlas" "tilesource"]
    "font"        font/font-file-extensions
    "material"    "material"
@@ -204,6 +211,13 @@
           overridden? (g/property-overridden? _basis _node-id :value)
           read-only? (nil? (g/override-original _basis _node-id))
           visible? (not deleted?)]
+      ;; NOTE: :assoc-original-value? here tells the node internals that it
+      ;; needs to assoc in the :original-value from the overridden node when
+      ;; evaluating :_properties or :_declared-properties. This happens
+      ;; automatically when the overridden property is in the properties map of
+      ;; the OverrideNode, but in our case the ScriptNode is presenting a
+      ;; property that resides on the ScriptPropertyNode, so there won't be an
+      ;; entry in the properties map of the ScriptNode OverrideNode.
       {prop-kw {:assoc-original-value? overridden?
                 :edit-type edit-type
                 :error error
@@ -216,15 +230,22 @@
                 :visible visible?}})))
 
 (g/deftype NameNodeIDPair [(s/one s/Str "name") (s/one s/Int "node-id")])
+
 (g/deftype NameNodeIDMap {s/Str s/Int})
+
 (g/deftype ResourceKind (apply s/enum (keys resource-kind->ext)))
-(g/deftype ScriptPropertyEntries {s/Keyword {:node-id s/Int
-                                             :go-prop-type (apply s/enum (keys properties/type->entry-keys))
-                                             :type s/Any
-                                             :value s/Any
-                                             s/Keyword s/Any}})
+
+(g/deftype ScriptPropertyEntries
+  {s/Keyword {:node-id s/Int
+              :go-prop-type properties/TGoPropType
+              :type s/Any
+              :value s/Any
+              s/Keyword s/Any}})
 
 (g/defnode ScriptPropertyNode
+  ;; The deleted? property is used instead of deleting the ScriptPropertyNode so
+  ;; that overrides in collections and game objects survive cut-paste operations
+  ;; on the go.property declarations in the script code.
   (property deleted? g/Bool)
   (property edit-type g/Any)
   (property name g/Str)
@@ -232,10 +253,14 @@
   (property type ScriptPropertyType)
   (property value g/Any
             (value (g/fnk [type resource value]
+                     ;; For resource properties we use the Resource from the
+                     ;; connected ResourceNode in order to track renames, etc.
                      (case type
                        :script-property-type-resource resource
                        value)))
             (set (fn [evaluation-context self _old-value new-value]
+                   ;; When assigning a resource property, we must make sure the
+                   ;; assigned resource is built and included in the game.
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
@@ -251,12 +276,16 @@
   (input resource-build-targets g/Any)
 
   (output build-targets g/Any (g/fnk [deleted? resource-build-targets type]
-                                (when (and (= :script-property-type-resource type) (not deleted?))
+                                (when (and (not deleted?)
+                                           (= :script-property-type-resource type))
                                   resource-build-targets)))
   (output name+node-id NameNodeIDPair (g/fnk [_node-id name] [name _node-id]))
   (output property-entries ScriptPropertyEntries :cached produce-script-property-entries))
 
 (defmethod g/node-key ::ScriptPropertyNode [node-id evaluation-context]
+  ;; By implementing this multi-method, overridden property values will be
+  ;; restored on OverrideNode ScriptPropertyNodes when a script is reloaded from
+  ;; disk during resource-sync. The node-key must be unique within the script.
   (g/node-value node-id :name evaluation-context))
 
 (defn- detect-edits [old-info-by-name new-info-by-name]
@@ -399,7 +428,7 @@
 
 (defn- build-script [resource dep-resources user-data]
   ;; We always compile the full source code in order to find syntax errors.
-  ;; We then strip out go.property() declarations and compile again if needed.
+  ;; We then strip go.property() declarations and recompile if there were any.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
         bytecode-or-error (script->bytecode lines proj-path :32-bit)]
@@ -415,34 +444,41 @@
         (assert (not (g/error? bytecode)))
         (assert (not (g/error? bytecode-64)))
         {:resource resource
-         :content (protobuf/map->bytes Lua$LuaModule
-                                       {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader lines)))
-                                                 :filename (resource/proj-path (:resource resource))
-                                                 :bytecode (ByteString/copyFrom ^bytes bytecode)
-                                                 :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
-                                        :modules modules
-                                        :resources (mapv lua/lua-module->build-path modules)
-                                        :properties (properties/go-props->decls go-props true)
-                                        :property-resources (into (sorted-set)
-                                                                  (keep properties/try-get-go-prop-proj-path)
-                                                                  go-props)})}))))
+         :content (protobuf/map->bytes
+                    Lua$LuaModule
+                    {:source {:script (ByteString/copyFromUtf8
+                                        (slurp (data/lines-reader cleaned-lines)))
+                              :filename (resource/proj-path (:resource resource))
+                              :bytecode (ByteString/copyFrom ^bytes bytecode)
+                              :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
+                     :modules modules
+                     :resources (mapv lua/lua-module->build-path modules)
+                     :properties (properties/go-props->decls go-props true)
+                     :property-resources (into (sorted-set)
+                                               (keep properties/try-get-go-prop-proj-path)
+                                               go-props)})}))))
 
 (g/defnk produce-build-targets [_node-id resource lines script-properties modules module-build-targets original-resource-property-build-targets]
-  (if-some [errors (not-empty (keep (fn [{:keys [name resource-kind type value]}]
-                                      (let [prop-type (script-property-type->property-type type)
-                                            edit-type (script-property-edit-type prop-type resource-kind)]
-                                        (validate-value-against-edit-type _node-id :lines name value edit-type)))
-                                    script-properties))]
+  (if-some [errors
+            (not-empty
+              (keep (fn [{:keys [name resource-kind type value]}]
+                      (let [prop-type (script-property-type->property-type type)
+                            edit-type (script-property-edit-type prop-type resource-kind)]
+                        (validate-value-against-edit-type _node-id :lines name value edit-type)))
+                    script-properties))]
     (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-    (let [go-props-with-source-resources (map (fn [{:keys [name type value]}]
-                                                (let [go-prop-type (script-property-type->go-prop-type type)
-                                                      go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
-                                                  {:id name
-                                                   :type go-prop-type
-                                                   :value go-prop-value
-                                                   :clj-value value}))
-                                              script-properties)
-          [go-props go-prop-dep-build-targets] (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
+    (let [go-props-with-source-resources
+          (map (fn [{:keys [name type value]}]
+                 (let [go-prop-type (script-property-type->go-prop-type type)
+                       go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                   {:id name
+                    :type go-prop-type
+                    :value go-prop-value
+                    :clj-value value}))
+               script-properties)
+
+          [go-props go-prop-dep-build-targets]
+          (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
       ;; NOTE: The user-data must not contain any overridden data. If it does,
       ;; the build targets won't be fused and the script will be recompiled
       ;; for every instance of the script component.

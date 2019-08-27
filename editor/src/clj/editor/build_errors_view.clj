@@ -46,7 +46,14 @@
       (when-some [remaining-errors (next errors)]
         (recur evaluation-context remaining-errors origin-override-depth origin-override-id))))
 
-(defn- error-outline-node-id [basis errors origin-override-depth origin-override-id]
+(defn- error-outline-node-id
+  "This deals with the fact that the Property Editor can display properties from
+  other nodes than the actually selected node so that they appear to belong to
+  the selected node. An example of this is the :value property of the
+  ScriptPropertyNode type, which appear in the Property Editor for the owning
+  ScriptNode. When focusing on such an error, we want to select the OutlineNode
+  that displays the property."
+  [basis errors origin-override-depth origin-override-id]
   (or (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
         (when (g/node-instance? basis outline/OutlineNode node-id)
           node-id))
@@ -191,7 +198,10 @@
                     :children
                     (g/node-value resource-node-id :node-outline)))))
 
-(defn error-item-open-info [error-item]
+(defn error-item-open-info
+  "Returns data describing how an error should be opened when double-clicked.
+  Having this as data simplifies writing unit tests."
+  [error-item]
   (if (= :resource (:type error-item))
     (let [{resource :resource resource-node-id :node-id} (:value error-item)]
       (when (and (resource/openable-resource? resource)
@@ -202,7 +212,7 @@
                  (resource/exists? resource))
         (let [error-node-id (:node-id error-item)
               outline-node-id (find-outline-node resource-node-id error-node-id)
-              opts (if-some [line (:line error-item)] {:line line} {})]
+              opts (select-keys error-item [:cursor-range])]
           [resource outline-node-id opts])))))
 
 (defn- error-line-for-clipboard [error-item]

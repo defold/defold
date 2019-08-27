@@ -1584,8 +1584,9 @@
 
                   ;; Assoc :original-value from original property entries.
                   ;; If your produced property does not make use of the
-                  ;; properties map, it must set :assoc-original-value? to true
-                  ;; in the produced property to set the :original-value here.
+                  ;; properties map of the node you're evaluating :_properties
+                  ;; on, it must set :assoc-original-value? to true in the
+                  ;; produced property to set the :original-value here.
                   props-with-overrides-and-original-values
                   (reduce-kv (fn [props prop-kw orig-prop]
                                (let [original-value (:value orig-prop)]

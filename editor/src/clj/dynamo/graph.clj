@@ -1192,19 +1192,37 @@
      true)))
 
 (defmulti node-key
+  "Used to identify a node uniquely within a scope. This has various uses,
+  among them is that we will restore overridden properties during resource sync
+  for nodes that return a non-nil node-key. Usually this only happens for
+  ResourceNodes, but this also enables us to restore overridden properties on
+  nodes produced by the resource :load-fn."
   (fn [node-id evaluation-context]
     (:key @(node-type* (:basis evaluation-context) node-id))))
 
 (defmethod node-key :default [_node-id _evaluation-context] nil)
 
-(defn- overridden-properties [node-id evaluation-context]
-  (into {}
-        (map (fn [prop-kw]
-               [prop-kw (node-value node-id prop-kw evaluation-context)]))
-        (keys ; We want to evaluate the property value function, so only need the key.
+(defn overridden-properties
+  "Returns a map of overridden prop-keywords to property values. Values will be
+  produced by property value functions if possible."
+  [node-id {:keys [basis] :as evaluation-context}]
+  (let [node-type (node-type* basis node-id)]
+    (into {}
+          (map (fn [[prop-kw raw-prop-value]]
+                 [prop-kw (if (has-property? node-type prop-kw)
+                            (node-value node-id prop-kw evaluation-context)
+                            raw-prop-value)]))
           (node-value node-id :_overridden-properties evaluation-context))))
 
 (defn collect-overridden-properties
+  "Collects overridden property values from override nodes originating from the
+  scope of the specified source-node-id. The idea is that one should be able to
+  delete source-node-id, recreate it from disk, and re-apply the collected
+  property values to the freshly created override nodes resulting from the
+  resource :load-fn. Overridden properties will be collected from nodes whose
+  node-key multi-method implementation returns a non-nil value. This will be
+  used as a key along with the override-id to uniquely identify the node among
+  the new set of nodes created by the :load-fn."
   ([source-node-id]
    (with-auto-evaluation-context evaluation-context
      (collect-overridden-properties source-node-id evaluation-context)))
@@ -1233,6 +1251,11 @@
        (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources)))))
 
 (defn restore-overridden-properties
+  "Restores collected-properties obtained from the collect-overridden-properties
+  function to override nodes originating from the scope of the specified
+  target-node-id. Returns a sequence of transaction steps. Target nodes are
+  identified by the value returned from their node-key multi-method
+  implementation along with the override-id that produced them."
   ([target-node-id collected-properties]
    (with-auto-evaluation-context evaluation-context
      (restore-overridden-properties target-node-id collected-properties evaluation-context)))
