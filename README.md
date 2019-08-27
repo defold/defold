@@ -10,159 +10,30 @@ with trailing white-spaces.
 API documentation is generated from source comments. See README_DOCS.md for help on style and
 conventions.
 
-For Eclipse:
-
-* Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
-* Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
-
 ## Setup
 
 ### Required Software
 
-#### [Java 8 JDK](https://drive.google.com/open?id=1bYgm9IVNNskLovbzlqq1_FMlBQ0QxG5q)
-
-*NOTE*: Currently the editor does not work with the latest Java SDK, use 1.8.0_144 as it is known to work.
-
-It can be downloaded from our [Google Drive](https://drive.google.com/open?id=1bYgm9IVNNskLovbzlqq1_FMlBQ0QxG5q).
-
-*NOTE*: If a to old update of the JDK/JRE is used, the SSL root certificates has
-expired and you need to replace the file `cacerts` in the JRE with a newer one
-without expired certificates, otherwise SSL communication will fail. This has
-been done in the JRE:s used when bundling the editor (located on S3).
-
-##### MacOS
-
-If you have multiple versions of Java installed you can disable any unwanted versions, open a command prompt and type:
-
-    $>/usr/libexec/java_home -V
-    Matching Java Virtual Machines (2):
-    1.8.0_161, x86_64:	"Java SE 8"	/Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Home
-    1.8.0_144, x86_64:	"Java SE 8"	/Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home
-    /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Home
-
-To disable a JDK version so it will not be picked up as the default you can rename the Info.plist file in the Contents folder of the corresponding jdk folder.
-
-    $>sudo mv /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Info.plist /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Info.plist.disabled
+#### [Java JDK 11](https://www.oracle.com/technetwork/java/javase/downloads/index.html)
 
 ##### Linux
 
 See the [General Setup](#general-setup) Section below
 
-Download the **.rpm** package first and then install it using the instructions from [here](https://www.java.com/en/download/help/linux_x64rpm_install.xml):
-
-    $> sudo mkdir /usr/java
-    $> cd /usr/java
-    $> rpm -ivh jdk-8u144-linux-x64.rpm
-
-    (can try with "--nodeps" if it complains on not finding a bunch of common tools like "ls" etc)
-
 Set PATH and JAVA_HOME:
 
     $> nano ~/.bashrc
 
-    export PATH=/usr/java/jdk1.8.0_144/bin:$PATH
-    export JAVA_HOME=/usr/java/jdk1.8.0_144
+    export PATH=<JAVA_INSTALL_DIR>:$PATH
+    export JAVA_HOME=<JAVA_INSTALL_DIR>
 
 Verify with:
 
     $> javac -version
-    javac 1.8.0_144
-
-#### [Eclipse SDK 3.8.2]((***REMOVED***)/view?usp=sharing)
-
-##### Eclipse Plugins
-
-<table>
-<tr>
-<th>Plugin</th>
-<th>Link</th>
-<th>Install</th>
-</tr>
-
-<tr>
-<td>CDT</td>
-<td>http://download.eclipse.org/tools/cdt/releases/juno</td>
-<td>`C/C++ Development Tools`</td>
-</tr>
-
-<tr>
-<td>EclipseLink</td>
-<td>http://download.eclipse.org/rt/eclipselink/updates ([Alternative URL, usually faster download](http://ftp.gnome.org/mirror/eclipse.org/rt/eclipselink/updates/))</td>
-<td>`EclipseLink Target Components` v2.5.2 (for javax components)</td>
-</tr>
-
-<tr>
-<td>Google Plugin</td>
-<td>https://dl.google.com/eclipse/plugin/4.2</td>
-<td>
-`<del>Google Plugin for Eclipse</del>`<br/>
-`Google App Engine Java`<br/>
-`Google Web Toolkit SDK`
-</td>
-</tr>
-
-<tr>
-<td>PyDev</td>
-<td>http://pydev.org/updates</td>
-<td>`PyDev for Eclipse`</td>
-</tr>
-
-<tr>
-<td>AnyEditTools (optional)</td>
-<td>http://andrei.gmxhome.de/eclipse/ <br> (manual install) <br> http://andrei.gmxhome.de/anyedit/index.html </td>
-<td>`AnyEditTools`</td>
-</tr>
-
-</table>
-
-Always launch Eclipse from the **command line** with a development environment
-setup. See `build.py` and the `shell` command below.
-
-##### Set up Eclipse
-
-Before importing the Java projects make sure you have globally set the correct Compiler compliance level and JDK in `Eclipse > Preferences`
-
-* Start Eclipse and open the Preferences panel.
-* Navigate to `Java > Compiler` and set the `Compiler Compliance Level` to 1.7
-* Navigate to `Java > Installed JREs` and verify that it points to the correct JRE version
-
-##### Import Java Projects
-
-* Import Java projects with `File > Import`
-* Select `General > Existing Projects into Workspace`,
-* Set root directory to `defold/com.dynamo.cr`
-* Select everything apart from `com.dynamo.cr.web`, `com.dynamo.cr.web2`, `com.dynamo.cr.webcrawler`, `com.dynamo.cr.webmanage` and `com.dynamo.cr.webrlog`.
-* Ensure that `Copy projects into workspace` is **not** selected
-
-##### Import Engine Project
-
-* Create a new C/C++ project
-* Makefile project
-    - `Empty Project`
-    - `-- Other Toolchain --`
-    - Do **not** select `MacOSX GCC` on OS X. Results in out of memory in Eclipse 3.8
-* Use custom project location
-     - `defold/engine`
-* Add `${DYNAMO_HOME}/include`, `${DYNAMO_HOME}/ext/include` and `/usr/include` to project include.
-    - `$DYNAMO_HOME` defaults to `defold/tmp/dynamo_home`
-    - `Project Properties > C/C++ General > Paths and Symbols`
-* Disable `Invalid arguments` in `Preferences > C/C++ > Code Analysis`
-
-##### Troubleshooting
-
-#### JRE not set up correctly
-
-If eclipse doesn’t get the JDK setup automatically:
-
-* Preferences -> Java -> Installed JRE’s:
-* Click Add
-* JRE Home: /Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home
-* JRE Name: 1.8 (Or some other name)
-* Finish
 
 #### Python
 
-* OSX: On OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
+* macOS: On macOS you must run the python version shipped with macOS, eg no homebrew installed python versions)
 
 Make sure you have python2 installed by running `which python2`.
 If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
@@ -219,10 +90,6 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 
 		mingw-get install msys-wget-bin msys-zip msys-unzip
 
-- [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download]((***REMOVED***)/view?usp=sharing)
-
-	This time the x64 version works fine. Make sure to set the `JAVA_HOME` env variable to the JDK path (for instance `C:\Program Files\Java\jdk1.8.0_112`) and also add the JDK path and JDK path/bin to PATH. If other JRE's appear in your path, make sure they come after the JDK or be brutal and remove them. For instance `C:\ProgramData\Oracle\Java\javapath` needs to be after the JDK path.
-
 - [Git](https://git-scm.com/download/win) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzseQ0JfX2todndWZmM/view?usp=sharing)
 
 	During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access github then:
@@ -238,7 +105,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 
 	If this won't work, you can try cloning using Github Desktop.
 
-#### OSX
+#### macOS
 
     - [Homebrew](http://brew.sh/)
         Install with Terminal: `ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
@@ -248,7 +115,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 ### Optional Software
 
 Quick and easy install:
-* OSX: `$ brew install wget curl p7zip ccache`
+* macOS: `$ brew install wget curl p7zip ccache`
 * Linux: `$ sudo apt-get install wget curl p7zip ccache`
 * Windows: `$ pip install cmake patch`
 
@@ -339,115 +206,7 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 
 ## Build and Run Editor
 
-* Ensure that `Java > Compiler > Compiler Compliance Level` is set to ´1.7´.
-* In the workspace, invoke `Project > Build All`
-     - Generates Google Protocol Buffers etc
-* Refresh entire workspace
-* In `com.dynamo.cr.editor-product`, double click on template/cr.product
-* Press `Launch an Eclipse application`
-* Speed up launch
-    - Go to `Preferences > Run/Debug`
-    - Deselect `Build` in `General Options`
-    - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
-
-Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
-
-## Running JUnit test in Eclipse
-* Run the tests with JUnit Plug-in Test
-	- Some test may fail due in com.dynamo.bob.bundle.test.BundlerTest due to missing engine builds for some platforms
-
-**Notes for building the editor under Linux:**
-* Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
-* Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
-* Make sure that the [protobuf-compiler](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html) version used is 2.3, latest (2.4) does not work.
-* `.deb` files can be installed by running:
-
-        $ sudo dpkg -i <filename>.deb
-
-        # If dpkg complains about dependencies, run this directly afterwards:
-        $ sudo apt-get install -f
-
-### Troubleshooting
-
-#### Compilation errors related to com.amazonaws.* packages
-
-These errors can safely be ignored when building the editor.
-
-#### Risk of stable and beta editor builds overwriting on release
-
-We use git SHA1 hashes as filenames/paths when we upload editor builds on S3, this means if a merge from beta into stable channel/branch result in the same SHA1, they might overwrite each other. To avoid this, make sure you have an unique git commit before pushing any of the channel branches (currently `master`, `beta` and `dev`). As a last resort, to differentiate, you can add/remove an empty row in a file triggering a new git commit.
-
-#### If you run the editor and get the following error while launching:
-
-```
-1) Error injecting constructor, java.net.SocketException: Can't assign requested address
-  at com.dynamo.upnp.SSDP.<init>(SSDP.java:62)
-  while locating com.dynamo.upnp.SSDP
-  at com.dynamo.cr.target.core.TargetPlugin$Module.configure(TargetPlugin.java:42)
-  while locating com.dynamo.upnp.ISSDP
-    for parameter 0 at com.dynamo.cr.target.core.TargetService.<init>(TargetService.java:95)
-  while locating com.dynamo.cr.target.core.TargetService
-  at com.dynamo.cr.target.core.TargetPlugin$Module.configure(TargetPlugin.java:40)
-  while locating com.dynamo.cr.target.core.ITargetService
-
-1 error
-    at com.google.inject.internal.InjectorImpl$4.get(InjectorImpl.java:987)
-    at com.google.inject.internal.InjectorImpl.getInstance(InjectorImpl.java:1013)
-    at com.dynamo.cr.target.core.TargetPlugin.start(TargetPlugin.java:54)
-    at org.eclipse.osgi.framework.internal.core.BundleContextImpl$1.run(BundleContextImpl.java:711)
-    at java.security.AccessController.doPrivileged(Native Method)
-    at org.eclipse.osgi.framework.internal.core.BundleContextImpl.startActivator(BundleContextImpl.java:702)
-    ... 65 more
-Caused by: java.net.SocketException: Can't assign requested address
-    at java.net.PlainDatagramSocketImpl.join(Native Method)
-    at java.net.AbstractPlainDatagramSocketImpl.join(AbstractPlainDatagramSocketImpl.java:179)
-    at java.net.MulticastSocket.joinGroup(MulticastSocket.java:323)
-```
-
-And the editor starts with:
-
-```
-Plug-in com.dynamo.cr.target was unable to load class com.dynamo.cr.target.TargetContributionFactory.
-An error occurred while automatically activating bundle com.dynamo.cr.target (23).
-```
-
-Then add the following to the VM args in your Run Configuration:
-
-```
--Djava.net.preferIPv4Stack=true
-```
-
-#### When running `test_cr` on OS X and you get errors like
-
-```
-...
-com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
-[ERROR] return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
-[ERROR] ^^^^
-[ERROR] The method getX() is undefined for the type Point3d
-...
-```
-
-This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
-If you are using El Capitan, the "rootless" feature will not allow you to move that file, as it is under the `/System` directory. To move, you need to reboot into Recovery Mode (hold down Cmd+R while booting), enter a terminal (Utilities > Terminal) and run `csrutil disable`. After this, you can reboot again normally and move the file. After that, you should consider rebooting into Recovery Mode again and run `csrutil enable`.
-
-#### When opening a .collection in the editor you get this
-
-```
-org.osgi.framework.BundleException: Exception in com.dynamo.cr.parted.ParticleEditorPlugin.start() of bundle com.dynamo.cr.parted.
-at org.eclipse.osgi.framework.internal.core.BundleContextImpl.startActivator(BundleContextImpl.java:734)
-at org.eclipse.osgi.framework.internal.core.BundleContextImpl.start(BundleContextImpl.java:683)
-at org.eclipse.osgi.framework.internal.core.BundleHost.startWorker(BundleHost.java:381)
-at org.eclipse.osgi.framework.internal.core.AbstractBundle.start(AbstractBundle.java:300)
-at org.eclipse.osgi.framework.util.SecureAction.start(SecureAction.java:440)
-```
-
-If you get this error message, it’s most likely from not having the 64 bit binaries, did you build the engine with 64 bit support? E.g. “--platform=x86_64-darwin”
-To fix, rebuild engine in 64 bit, and in Eclipse, do a clean projects, refresh and rebuild them again
-
-#### If the editor starts but is unresponsive to input
-
-You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 does not and makes the editor start but non-responsive to input. There are no error messages at all in this case.
+See [README.md](editor/README.md) in the editor folder.
 
 ## Licenses
 
@@ -491,9 +250,11 @@ Push tags
 
 **ci** - Continious integration related files
 
-**com.dynamo.cr** - _Content repository_. Editor and server
+**com.dynamo.cr** - _Content repository_. Old Editor, Bob and server
 
 **engine** - Engine
+
+**editor** - Editor
 
 **packages** - External packages
 
@@ -513,7 +274,7 @@ is pretty hard as waf 1.5.x is very restrictive where source and built content i
 
 ## Byte order/endian
 
-By convention all graphics resources are expliticly in little-ending and specifically ByteOrder.LITTLE_ENDIAN in Java. Currently we support
+By convention all graphics resources are expliticly in little-endian and specifically ByteOrder.LITTLE_ENDIAN in Java. Currently we support
 only little endian architectures. If this is about to change we would have to byte-swap at run-time or similar.
 As run-time editor code and pipeline code often is shared little-endian applies to both. For specific editor-code ByteOrder.nativeOrder() is
 the correct order to use.
@@ -523,20 +284,6 @@ the correct order to use.
 
 * [iOS](README_IOS.md)
 * [Android](README_ANDROID.md)
-
-
-## OpenGL and jogl
-
-Prior to GLCanvas#setCurrent the GLDrawableFactory must be created on OSX. This might be a bug but the following code works:
-
-        GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2ES1());
-        this.canvas.setCurrent();
-        this.context = factory.createExternalGLContext();
-
-Typically the getFactory and createExternalGLContext are in the same statement. The exception thrown is "Error: current Context (CGL) null, no Context (NS)" and might be related to loading of shared libraries that seems to triggered when the factory is
-created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
-are unknown though.
-
 
 ## Updating "Build Report" template
 
@@ -694,7 +441,7 @@ used if available in order to speed up the cache-validation process. See dlib, *
 Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the
 extension library and set "exported_symbols" in the wscript, see note below.
 
-*NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
+*NOTE:* In order to avoid a dead-stripping bug with static libraries on macOS/iOS a constructor symbol must be explicitly exported with "exported_symbols"
 in the wscript-target. See extension-test.
 
 ## Energy Consumption
@@ -702,14 +449,6 @@ in the wscript-target. See extension-test.
 ### Android
 
       adb shell dumpsys cpuinfo
-
-## Eclipse 4.4 issues
-
-* ApplicationWorkbenchWindowAdvisor#createWindowContents isn't invoked
-* Shortcuts doens't work in pfx-editor
-* No editor tips
-* Splash-monitor invoked after startup. See SplashHandler.java.
-  Currently protected by if (splashShell == null) ...
 
 ## Debugging
 
