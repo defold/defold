@@ -870,6 +870,10 @@ namespace dmEngine
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
         engine->m_LabelContext.m_Subpixels          = dmConfigFile::GetInt(engine->m_Config, "label.subpixels", 1);
 
+        engine->m_TilemapContext.m_RenderContext    = engine->m_RenderContext;
+        engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
+        engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
+
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
 
@@ -901,7 +905,7 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 

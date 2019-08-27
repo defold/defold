@@ -54,6 +54,10 @@ namespace dmGameSystem
 
     void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
     Vectormath::Aos::Vector3 GetGravity(void* _world);
+
+    bool IsCollision2D(void* _world);
+    void SetCollisionFlipH(void* _component, bool flip);
+    void SetCollisionFlipV(void* _component, bool flip);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
