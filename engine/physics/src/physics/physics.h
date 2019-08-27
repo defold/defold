@@ -1247,6 +1247,9 @@ namespace dmPhysics
     void DeleteJoint2D(HWorld2D world, HJoint joint);
     bool GetJointReactionForce2D(HWorld2D world, HJoint joint, Vectormath::Aos::Vector3& force, float inv_dt);
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
+    void FlipH2D(HCollisionObject2D collision_object);
+    void FlipV2D(HCollisionObject2D collision_object);
+
 }
 
 #endif // PHYSICS_H

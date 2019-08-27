@@ -55,7 +55,7 @@ public:
             for (int i = 0; i < n; ++i)
             {
                 int c = (n + i*97) % ('z' - 'a');
-                char s[2] = { 'a' + (char)c, '\0' };
+                char s[2] = { (char)('a' + (char)c), '\0' };
                 buf.append(s, 1);
             }
 
