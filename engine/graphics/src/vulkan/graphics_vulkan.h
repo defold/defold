@@ -61,7 +61,7 @@ namespace dmGraphics
     uint32_t    VKGetPhysicalDeviceCount(VkInstance vkInstance);
     VkResult    VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     void        VKResetPhysicalDevice(PhysicalDevice* device);
-    bool        VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface);
+    bool        VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface, const char** requiredDeviceExtensions, uint32_t requiredDeviceExtensionCount);
     QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
 
     // Implemented per supported platform

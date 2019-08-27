@@ -1,3 +1,5 @@
+#include <dlib/dstrings.h>
+
 #include "../graphics.h"
 #include "graphics_vulkan.h"
 
@@ -143,15 +145,33 @@ namespace dmGraphics
         return qf;
     }
 
-    bool VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface)
+    bool VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface, const char** requiredDeviceExtensions, uint32_t requiredDeviceExtensionCount)
     {
         assert(device);
 
         QueueFamily queue_family = VKGetQueueFamily(device, surface);
 
-        if (device->m_QueueFamilyCount == 0 || !queue_family.IsValid())
+        if (!queue_family.IsValid())
         {
             return false;
+        }
+
+        for (uint32_t i=0; i < requiredDeviceExtensionCount; ++i)
+        {
+            bool found = false;
+            for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
+            {
+                if (dmStrCaseCmp(device->m_DeviceExtensions[j].extensionName, requiredDeviceExtensions[i]) == 0)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                return false;
+            }
         }
 
         return true;

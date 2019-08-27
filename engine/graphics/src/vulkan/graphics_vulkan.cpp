@@ -96,10 +96,20 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        const char* required_device_extensions[] = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            // From spec:
+            // "Allow negative height to be specified in the VkViewport::height field to
+            // perform y-inversion of the clip-space to framebuffer-space transform.
+            // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
+            // in shaders also targeting other APIs."
+            "VK_KHR_maintenance1",
+        };
+
         for (uint32_t i = 0; i < device_count; ++i)
         {
             PhysicalDevice* device = &device_list[i];
-            if (VKIsPhysicalDeviceSuitable(device, context->m_WindowSurface))
+            if (VKIsPhysicalDeviceSuitable(device, context->m_WindowSurface, required_device_extensions, 2))
             {
                 selected_device = device;
             }
