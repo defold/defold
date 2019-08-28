@@ -4,31 +4,25 @@
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.collision-groups :as collision-groups]
-            [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.geom :as geom]
-            [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
-            [editor.scene-picking :as scene-picking]
+            [editor.scene-shapes :as scene-shapes]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [schema.core :as s])
   (:import [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
-           [com.jogamp.opengl GL2]
-           [javax.vecmath Matrix4d Point4d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -92,231 +86,6 @@
                                                       :label (shape-type-label shape-type)
                                                       :icon (shape-type-icon shape-type)})))
 
-;;--------------------------------------------------------------------
-;; rendering
-
-;; We cannot batch-render the collision shapes, since we need to cancel out non-
-;; uniform scaling on the individual shape transforms. Thus, we are free to use
-;; shared object-space vertex buffers and transform them in the vertex shader.
-
-(vtx/defvertex pos-vtx
-  ;; The W component is multiplied with the point_offset_by_w uniform, which is
-  ;; used to offset the point in local space. We use this to offset the caps of
-  ;; the capsule shape.
-  (vec4 position))
-
-(shader/defshader vertex-shader
-  (uniform mat4 world_view_proj)
-  (uniform vec4 point_scale)
-  (uniform vec4 point_offset_by_w)
-  (attribute vec4 position)
-  (defn void main []
-    (setq vec3 point
-          (+ (* position.xyz
-                point_scale.xyz)
-             (* position.w
-                point_offset_by_w.xyz)))
-    (setq gl_Position
-          (* world_view_proj
-             (vec4 point 1.0)))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"world_view_proj" :world-view-proj}))
-
-(def ^:private box-lines
-  {:primitive-type GL2/GL_LINES
-   :vbuf (-> (->pos-vtx 24 :static)
-
-             ;; Pos Z
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-
-             ;; Neg Z
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-
-             ;; Connecting lines
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-
-             (vtx/flip!))})
-
-(def ^:private box-triangles
-  {:primitive-type GL2/GL_TRIANGLES
-   :vbuf (-> (->pos-vtx 36 :static)
-
-             ;; We start with the camera-facing face so that we can render just
-             ;; the first face in case we are rendering a 2D box.
-
-             ;; Neg Z
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-
-             ;; Pos Z
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-
-             ;; Neg Y
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-
-             ;; Pos Y
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-
-             ;; Neg X
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! -1.0 1.0 1.0 0.0)
-
-             ;; Pos X
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
-             (pos-vtx-put! 1.0 1.0 1.0 0.0)
-
-             (vtx/flip!))})
-
-(def ^:private disc-perimeter
-  (->> geom/origin-geom
-       (geom/transl [0.0 1.0 0.0])
-       (geom/circling 32)))
-
-(def ^:private disc-lines
-  {:primitive-type GL2/GL_LINE_LOOP
-   :vbuf (vtx/flip!
-           (reduce
-             (fn [vbuf [x y _]]
-               (pos-vtx-put! vbuf x y 0.0 0.0))
-             (->pos-vtx (count disc-perimeter) :static)
-             disc-perimeter))})
-
-(def ^:private disc-triangles
-  {:primitive-type GL2/GL_TRIANGLE_FAN
-   :vbuf (-> (reduce
-               (fn [vbuf [x y _]]
-                 (pos-vtx-put! vbuf x y 0.0 0.0))
-               (pos-vtx-put!
-                 (->pos-vtx (+ 2 (count disc-perimeter)) :static)
-                 0.0 0.0 0.0 0.0)
-               disc-perimeter)
-             (pos-vtx-put! 0.0 1.0 0.0 0.0)
-             (vtx/flip!))})
-
-(defn- pos-nrm->quad-point
-  ^Point4d [[^double x ^double y ^double z] ^double w]
-  (Point4d. x y z w))
-
-(defn- pos-nrm-face->quad [[v0 v1 v2 _ v4] ^double w]
-  [(pos-nrm->quad-point v0 w)
-   (pos-nrm->quad-point v1 w)
-   (pos-nrm->quad-point v4 w)
-   (pos-nrm->quad-point v2 w)])
-
-(defn- pos-nrm-face->waist-quad [[v0 v1]]
-  [(pos-nrm->quad-point v0 1.0)
-   (pos-nrm->quad-point v1 1.0)
-   (pos-nrm->quad-point v1 -1.0)
-   (pos-nrm->quad-point v0 -1.0)])
-
-(def ^:private capsule-quads
-  (let [capsule-cap-lats 16
-        capsule-cap-longs 32
-        sphere-faces (geom/unit-sphere-pos-nrm capsule-cap-lats capsule-cap-longs)
-        hemisphere-face-count (/ (* capsule-cap-lats capsule-cap-longs) 2)]
-    (concat
-      ;; Top cap
-      (sequence (comp (take hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % 1.0)))
-                sphere-faces)
-
-      ;; Waist
-      (sequence (comp (drop hemisphere-face-count)
-                      (take capsule-cap-longs)
-                      (map pos-nrm-face->waist-quad))
-                sphere-faces)
-
-      ;; Bottom cap
-      (sequence (comp (drop hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % -1.0)))
-                sphere-faces))))
-
-(defn- pos-vtx-put-point! [vbuf ^Point4d point]
-  (pos-vtx-put! vbuf (.x point) (.y point) (.z point) (.w point)))
-
-(def ^:private capsule-lines
-  {:primitive-type GL2/GL_LINES
-   :vbuf (vtx/flip!
-           (reduce
-             (fn [vbuf [quad]]
-               (-> vbuf
-                   (pos-vtx-put-point! (quad 0))
-                   (pos-vtx-put-point! (quad 3))))
-             (->pos-vtx (* 2 (/ (count capsule-quads) 4)) :static)
-             (partition 4 capsule-quads)))})
-
-(def ^:private capsule-triangles
-  {:primitive-type GL2/GL_TRIANGLES
-   :vbuf (vtx/flip!
-           (reduce
-             (fn [vbuf quad]
-               (-> vbuf
-                   (pos-vtx-put-point! (quad 0))
-                   (pos-vtx-put-point! (quad 1))
-                   (pos-vtx-put-point! (quad 2))
-                   (pos-vtx-put-point! (quad 2))
-                   (pos-vtx-put-point! (quad 3))
-                   (pos-vtx-put-point! (quad 0))))
-             (->pos-vtx (* 6 (count capsule-quads)) :static)
-             capsule-quads))})
-
-(def shape-alpha 0.1)
-
-(def selected-shape-alpha 0.3)
-
 (defn unify-scale [renderable]
   (let [{:keys [^Quat4d world-rotation
                 ^Vector3d world-scale
@@ -333,75 +102,13 @@
   (fn [gl render-args renderables n]
     (render-fn gl render-args (map unify-scale renderables) n)))
 
-(def ^:private no-point-scale (float-array 4 1.0))
+;; We cannot batch-render the collision shapes, since we need to cancel out non-
+;; uniform scaling on the individual shape transforms. Thus, we are free to use
+;; shared object-space vertex buffers and transform them in the vertex shader.
 
-(def ^:private no-point-offset-by-w (float-array 4 0.0))
+(def ^:private render-lines-uniform-scale (wrap-uniform-scale scene-shapes/render-lines))
 
-(defn render-lines [^GL2 gl render-args renderables _num-renderables]
-  (assert (not= pass/selection (:pass render-args)) "color not intended for picking")
-  (let [{:keys [selected user-data world-transform]} (first renderables)
-        {:keys [color geometry]} user-data
-        {:keys [primitive-type vbuf]} geometry
-        color (float-array (if selected
-                             colors/selected-outline-color
-                             (colors/alpha color 1.0)))
-        render-args (merge render-args
-                           (math/derive-render-transforms
-                             world-transform
-                             (:view render-args)
-                             (:projection render-args)
-                             (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
-        point-scale (:point-scale user-data no-point-scale)
-        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
-    (gl/with-gl-bindings gl render-args [shader vertex-binding]
-      (shader/set-uniform shader gl "point_scale" point-scale)
-      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
-      (shader/set-uniform shader gl "color" color)
-      (gl/gl-draw-arrays gl primitive-type 0 point-count))))
-
-(defn render-triangles [^GL2 gl render-args renderables _num-renderables]
-  (let [renderable (first renderables)
-        {:keys [selected user-data world-transform]} renderable
-        {:keys [color double-sided geometry]} user-data
-        {:keys [primitive-type vbuf]} geometry
-        color (float-array
-                (cond
-                  (= pass/selection (:pass render-args))
-                  (scene-picking/renderable-picking-id-uniform renderable)
-
-                  selected
-                  (colors/alpha color selected-shape-alpha)
-
-                  :else
-                  (colors/alpha color shape-alpha)))
-        render-args (merge render-args
-                           (math/derive-render-transforms
-                             world-transform
-                             (:view render-args)
-                             (:projection render-args)
-                             (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
-        point-scale (:point-scale user-data no-point-scale)
-        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
-    (gl/with-gl-bindings gl render-args [shader vertex-binding]
-      (when-not double-sided
-        (gl/gl-enable gl GL2/GL_CULL_FACE)
-        (gl/gl-cull-face gl GL2/GL_BACK))
-      (shader/set-uniform shader gl "point_scale" point-scale)
-      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
-      (shader/set-uniform shader gl "color" color)
-      (gl/gl-draw-arrays gl primitive-type 0 point-count)
-      (when-not double-sided
-        (gl/gl-disable gl GL2/GL_CULL_FACE)))))
-
-(def ^:private render-lines-uniform-scale (wrap-uniform-scale render-lines))
-
-(def ^:private render-triangles-uniform-scale (wrap-uniform-scale render-triangles))
+(def ^:private render-triangles-uniform-scale (wrap-uniform-scale scene-shapes/render-triangles))
 
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
@@ -422,7 +129,9 @@
                   :user-data {:color color
                               :double-sided is-2d
                               :point-scale point-scale
-                              :geometry (if is-2d disc-triangles capsule-triangles)}}
+                              :geometry (if is-2d
+                                          scene-shapes/disc-triangles
+                                          scene-shapes/capsule-triangles)}}
      :children [{:node-id _node-id
                  :aabb aabb
                  :renderable {:render-fn render-lines-uniform-scale
@@ -430,7 +139,9 @@
                               :passes [pass/outline]
                               :user-data {:color color
                                           :point-scale point-scale
-                                          :geometry (if is-2d disc-lines capsule-lines)}}}]}))
+                                          :geometry (if is-2d
+                                                      scene-shapes/disc-lines
+                                                      scene-shapes/capsule-lines)}}}]}))
 
 (g/defnk produce-box-shape-scene
   [_node-id transform dimensions color node-outline-key project-physics-type]
@@ -451,20 +162,24 @@
      :renderable {:render-fn render-triangles-uniform-scale
                   :tags #{:collision-shape}
                   :passes [pass/transparent pass/selection]
-                  :user-data {:color color
-                              :double-sided (zero? ext-z)
-                              :point-count (if (zero? ext-z) 6 (count (:vbuf box-triangles)))
-                              :point-scale point-scale
-                              :geometry box-triangles}}
+                  :user-data (cond-> {:color color
+                                      :point-scale point-scale
+                                      :geometry scene-shapes/box-triangles}
+
+                                     (zero? ext-z)
+                                     (assoc :double-sided true
+                                            :point-count 6))}
      :children [{:node-id _node-id
                  :aabb aabb
                  :renderable {:render-fn render-lines-uniform-scale
                               :tags #{:collision-shape :outline}
                               :passes [pass/outline]
-                              :user-data {:color color
-                                          :point-count (if (zero? ext-z) 8 (count (:vbuf box-lines)))
-                                          :point-scale point-scale
-                                          :geometry box-lines}}}]}))
+                              :user-data (cond-> {:color color
+                                                  :point-scale point-scale
+                                                  :geometry scene-shapes/box-lines}
+
+                                                 (zero? ext-z)
+                                                 (assoc :point-count 8))}}]}))
 
 (g/defnk produce-capsule-shape-scene
   [_node-id transform diameter height color node-outline-key project-physics-type]
@@ -490,7 +205,7 @@
                   :user-data {:color color
                               :point-scale point-scale
                               :point-offset-by-w point-offset-by-w
-                              :geometry capsule-triangles}}
+                              :geometry scene-shapes/capsule-triangles}}
      :children [{:node-id _node-id
                  :aabb aabb
                  :renderable {:render-fn render-lines-uniform-scale
@@ -499,7 +214,7 @@
                               :user-data {:color color
                                           :point-scale point-scale
                                           :point-offset-by-w point-offset-by-w
-                                          :geometry capsule-lines}}}]}))
+                                          :geometry scene-shapes/capsule-lines}}}]}))
 
 (g/defnode SphereShape
   (inherits Shape)

@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
+            [editor.colors :as colors]
             [editor.error-reporting :as error-reporting]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -20,6 +21,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-selection :as selection]
+            [editor.scene-shapes :as scene-shapes]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.system :as system]
@@ -450,8 +452,37 @@
     {:renderables scene-renderables-by-pass
      :selected-renderables selected-renderables}))
 
-(g/defnk produce-aux-render-data [aux-renderables hidden-renderable-tags]
-  (let [aux-renderables-by-pass (apply merge-with concat aux-renderables)
+(g/defnk produce-debug-renderables [^AABB scene-aabb]
+  (let [aabb-min (.min scene-aabb)
+        aabb-max (.max scene-aabb)
+        aabb-mid (-> aabb-min
+                     (math/add-vector aabb-max)
+                     (math/scale-vector 0.5))
+        world-transform (doto (Matrix4d.)
+                          (.setIdentity)
+                          (.setTranslation aabb-mid))
+        color colors/defold-orange
+        aabb-ext [(- (.x aabb-max) (.x aabb-mid))
+                  (- (.y aabb-max) (.y aabb-mid))
+                  (- (.z aabb-max) (.z aabb-mid))]
+        point-scale (float-array aabb-ext)]
+    {pass/transparent
+     [{:world-transform world-transform
+       :render-fn scene-shapes/render-triangles
+       :user-data {:color color
+                   :point-scale point-scale
+                   :geometry scene-shapes/box-triangles}}]
+
+     pass/outline
+     [{:world-transform world-transform
+       :render-fn scene-shapes/render-lines
+       :user-data {:color color
+                   :point-scale point-scale
+                   :geometry scene-shapes/box-lines}}]}))
+
+(g/defnk produce-aux-render-data [aux-renderables debug-renderables hidden-renderable-tags]
+  (assert (map? debug-renderables))
+  (let [aux-renderables-by-pass (apply merge-with concat debug-renderables aux-renderables)
         filtered-aux-renderables-by-pass (into {}
                                                (map (fn [[pass renderables]]
                                                       [pass (remove #(not-empty (set/intersection hidden-renderable-tags (:tags %))) renderables)]))
@@ -482,9 +513,11 @@
                           parent-world-transform
                           (doto (Matrix4d. parent-world-transform)
                             (.mul local-transform)))
-        local-aabb (:aabb scene)
+        local-aabb (or (:visibility-aabb scene)
+                       (:aabb scene))
         union-aabb (if (or (nil? local-aabb)
-                           (geom/null-aabb? local-aabb))
+                           (geom/null-aabb? local-aabb)
+                           (geom/empty-aabb? local-aabb))
                      union-aabb
                      (-> local-aabb
                          (geom/aabb-transform world-transform)
@@ -509,6 +542,7 @@
   (output all-renderables g/Any :abstract)
 
   (output camera-type g/Keyword (g/fnk [camera] (:type camera)))
+  (output debug-renderables g/Any :cached produce-debug-renderables)
   (output scene-render-data g/Any :cached produce-scene-render-data)
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
@@ -522,8 +556,7 @@
                                            (reduce geom/aabb-union geom/null-aabb selected-aabbs)
                                            scene-aabb))))
   (output scene-aabb AABB :cached (g/fnk [scene]
-                                    (or (:default-aabb scene)
-                                        (calculate-scene-aabb geom/null-aabb geom/Identity4d scene))))
+                                    (calculate-scene-aabb geom/null-aabb geom/Identity4d scene)))
   (output renderables-aabb+picking-node-id g/Any :cached produce-renderables-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
@@ -894,17 +927,19 @@
       (g/set-property camera-node :local-camera end-camera)))
   nil)
 
-(defn- fudge-empty-aabb [^AABB aabb]
-  (if-not (geom/empty-aabb? aabb)
-    aabb
-    (let [min-p ^Point3d (.min aabb)
-          max-p ^Point3d (.max aabb)]
-      (geom/coords->aabb [(- (.x min-p) 1.0)
-                          (- (.y min-p) 1.0)
-                          (- (.z min-p) 1.0)]
-                         [(+ (.x max-p) 1.0)
-                          (+ (.y max-p) 1.0)
-                          (+ (.z max-p) 1.0)]))))
+(defn- fudge-empty-aabb
+  ^AABB [^AABB aabb]
+  (let [min-p ^Point3d (.min aabb)
+        max-p ^Point3d (.max aabb)
+        zero-x (= (.x min-p) (.x max-p))
+        zero-y (= (.y min-p) (.y max-p))
+        zero-z (= (.z min-p) (.z max-p))]
+    (geom/coords->aabb [(cond-> (.x min-p) zero-x dec)
+                        (cond-> (.y min-p) zero-y dec)
+                        (cond-> (.z min-p) zero-z dec)]
+                       [(cond-> (.x max-p) zero-x inc)
+                        (cond-> (.y max-p) zero-y inc)
+                        (cond-> (.z max-p) zero-z inc)])))
 
 (defn frame-selection [view animate?]
   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))

@@ -389,8 +389,92 @@
       pass/selection (render-lines gl render-args renderables count)
       pass/transparent (render-emitters-sim gl render-args renderables count))))
 
+(g/defnk produce-emitter-aabb [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
+  (case type
+    (:emitter-type-2dcone :emitter-type-cone)
+    (let [+bx (/ (props/sample emitter-key-size-x) 2.0)
+          +by (props/sample emitter-key-size-y)
+          -bx (- +bx)]
+      (geom/coords->aabb [-bx 0.0 (case type :emitter-type-2dcone 0.0 -bx)]
+                         [+bx +by (case type :emitter-type-2dcone 0.0 +bx)]))
+
+    :emitter-type-box
+    (let [+bx (/ (props/sample emitter-key-size-x) 2.0)
+          +by (/ (props/sample emitter-key-size-y) 2.0)
+          +bz (/ (props/sample emitter-key-size-z) 2.0)
+          -bx (- +bx)
+          -by (- +by)
+          -bz (- +bz)]
+      (geom/coords->aabb [-bx -by -bz]
+                         [+bx +by +bz]))
+
+    (:emitter-type-circle :emitter-type-sphere)
+    (let [+bx (/ (props/sample emitter-key-size-x) 2.0)
+          -bx (- +bx)]
+      (geom/coords->aabb [-bx -bx (case type :emitter-type-circle 0.0 -bx)]
+                         [+bx +bx (case type :emitter-type-circle 0.0 +bx)]))))
+
+(g/defnk produce-emitter-visibility-aabb
+  [type
+   emitter-key-size-x
+   emitter-key-size-y
+   emitter-key-size-z
+   emitter-key-particle-life-time
+   emitter-key-particle-size
+   emitter-key-particle-speed
+   emitter-key-particle-stretch-factor-x
+   emitter-key-particle-stretch-factor-y
+   particle-key-scale
+   particle-key-stretch-factor-x
+   particle-key-stretch-factor-y]
+  ;; Crude approximation of the farthest bounds reached by the particles.
+  (let [particle-speed (props/sample emitter-key-particle-speed)
+        particle-life-time (props/sample emitter-key-particle-life-time)
+        particle-travel-distance (* particle-speed particle-life-time)
+        particle-radius (* (props/sample particle-key-scale)
+                           (props/sample emitter-key-particle-size)
+                           0.5
+                           (+ 1.0
+                              (max (props/sample particle-key-stretch-factor-x)
+                                   (props/sample particle-key-stretch-factor-y)))
+                           (+ 1.0
+                              (max (props/sample emitter-key-particle-stretch-factor-x)
+                                   (props/sample emitter-key-particle-stretch-factor-y))))]
+    (case type
+      (:emitter-type-2dcone :emitter-type-cone)
+      (let [emitter-radius (/ (props/sample emitter-key-size-x) 2.0)
+            emitter-height (props/sample emitter-key-size-y)
+            radians (Math/atan (/ emitter-radius emitter-height))
+            padding (+ particle-radius particle-travel-distance)
+            +bx (+ emitter-radius (* padding (Math/sin radians)))
+            +by (+ emitter-height padding)
+            -bx (- +bx)
+            -by (- particle-radius)]
+        (geom/coords->aabb [-bx -by (case type :emitter-type-2dcone 0.0 -bx)]
+                           [+bx +by (case type :emitter-type-2dcone 0.0 +bx)]))
+
+      :emitter-type-box
+      (let [emitter-radius-x (/ (props/sample emitter-key-size-x) 2.0)
+            emitter-radius-y (/ (props/sample emitter-key-size-y) 2.0)
+            emitter-radius-z (/ (props/sample emitter-key-size-z) 2.0)
+            +bx (+ emitter-radius-x particle-radius)
+            +by (+ emitter-radius-y particle-radius particle-travel-distance)
+            +bz (+ emitter-radius-z particle-radius)
+            -bx (- +bx)
+            -by (- 0.0 emitter-radius-y particle-radius)
+            -bz (- +bz)]
+        (geom/coords->aabb [-bx -by -bz]
+                           [+bx +by +bz]))
+
+      (:emitter-type-circle :emitter-type-sphere)
+      (let [emitter-radius (/ (props/sample emitter-key-size-x) 2.0)
+            +bx (+ emitter-radius particle-radius particle-travel-distance)
+            -bx (- +bx)]
+        (geom/coords->aabb [-bx -bx (case type :emitter-type-circle 0.0 -bx)]
+                           [+bx +bx (case type :emitter-type-circle 0.0 +bx)])))))
+
 (g/defnk produce-emitter-scene
-  [_node-id id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
@@ -402,6 +486,7 @@
      :node-outline-key id
      :transform transform
      :aabb aabb
+     :visibility-aabb visibility-aabb
      :renderable {:render-fn render-emitters
                   :batch-key nil
                   :tags #{:particlefx}
@@ -620,20 +705,8 @@
                                                                     :tx-attach-fn (fn [self-id child-id]
                                                                                     (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
                                                                                       (attach-modifier pfx-id self-id child-id true)))}]}))
-  (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
-                           (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])]
-                             (case type
-                               (:emitter-type-circle :emitter-type-sphere)
-                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ x 2.0)) 0.0]
-                                                  [   (/ x 2.0)     (/ x 2.0)  0.0])
-
-                               :emitter-type-box
-                               (geom/coords->aabb [(- (/ x 2.0)) (- (/ y 2.0)) 0.0]
-                                                  [   (/ x 2.0)     (/ y 2.0)  0.0])
-
-                               (:emitter-type-2dcone :emitter-type-cone)
-                               (geom/coords->aabb [(- (/ x 2.0)) 0.0 0.0]
-                                                  [   (/ x 2.0)    y 0.0])))))
+  (output aabb AABB produce-emitter-aabb)
+  (output visibility-aabb AABB produce-emitter-visibility-aabb)
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
