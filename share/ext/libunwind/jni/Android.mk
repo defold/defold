@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := libunwind
+LOCAL_MODULE := libunwind_defold
 
 LOCAL_ARM_MODE := arm
 
