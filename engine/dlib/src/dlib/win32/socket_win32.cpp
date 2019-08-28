@@ -58,13 +58,15 @@ namespace dmSocket
                             }
                             else {
                                 a->m_Flags |= FLAGS_LINK;
-                                a->m_MacAddress[0] = pcurraddresses->PhysicalAddress[0];
-                                a->m_MacAddress[1] = pcurraddresses->PhysicalAddress[1];
-                                a->m_MacAddress[2] = pcurraddresses->PhysicalAddress[2];
-                                a->m_MacAddress[3] = pcurraddresses->PhysicalAddress[3];
-                                a->m_MacAddress[4] = pcurraddresses->PhysicalAddress[4];
-                                a->m_MacAddress[5] = pcurraddresses->PhysicalAddress[5];
                             }
+
+                            a->m_MacAddress[0] = pcurraddresses->PhysicalAddress[0];
+                            a->m_MacAddress[1] = pcurraddresses->PhysicalAddress[1];
+                            a->m_MacAddress[2] = pcurraddresses->PhysicalAddress[2];
+                            a->m_MacAddress[3] = pcurraddresses->PhysicalAddress[3];
+                            a->m_MacAddress[4] = pcurraddresses->PhysicalAddress[4];
+                            a->m_MacAddress[5] = pcurraddresses->PhysicalAddress[5];
+
                             punicast = punicast->Next;
                             *count = *count + 1;
                         }
