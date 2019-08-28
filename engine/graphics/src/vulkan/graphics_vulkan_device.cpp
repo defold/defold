@@ -1,5 +1,3 @@
-#include <dlib/dstrings.h>
-
 #include "../graphics.h"
 #include "graphics_vulkan.h"
 
@@ -145,35 +143,30 @@ namespace dmGraphics
         return qf;
     }
 
-    bool VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface, const char** requiredDeviceExtensions, uint32_t requiredDeviceExtensionCount)
+    void VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
     {
         assert(device);
 
-        QueueFamily queue_family = VKGetQueueFamily(device, surface);
+        VkPhysicalDevice vk_device = device->m_Device;
+        uint32_t format_count        = 0;
+        uint32_t present_modes_count = 0;
 
-        if (!queue_family.IsValid())
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_device, surface, &capabilities.m_SurfaceCapabilities);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
+
+        if (format_count > 0)
         {
-            return false;
+            capabilities.m_SurfaceFormats.SetCapacity(format_count);
+            capabilities.m_SurfaceFormats.SetSize(format_count);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, capabilities.m_SurfaceFormats.Begin());
         }
 
-        for (uint32_t i=0; i < requiredDeviceExtensionCount; ++i)
+        if (present_modes_count > 0)
         {
-            bool found = false;
-            for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
-            {
-                if (dmStrCaseCmp(device->m_DeviceExtensions[j].extensionName, requiredDeviceExtensions[i]) == 0)
-                {
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                return false;
-            }
+            capabilities.m_PresentModes.SetCapacity(present_modes_count);
+            capabilities.m_PresentModes.SetSize(present_modes_count);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, capabilities.m_PresentModes.Begin());
         }
-
-        return true;
     }
 }

@@ -2,6 +2,7 @@
 #include "graphics_vulkan.h"
 
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
@@ -104,19 +105,53 @@ namespace dmGraphics
             // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
             // in shaders also targeting other APIs."
             "VK_KHR_maintenance1",
+            NULL
         };
 
         for (uint32_t i = 0; i < device_count; ++i)
         {
             PhysicalDevice* device = &device_list[i];
-            if (VKIsPhysicalDeviceSuitable(device, context->m_WindowSurface, required_device_extensions, 2))
-            {
-                selected_device = device;
-            }
-            else
+
+            // Make sure we have a graphics and present queue available
+            QueueFamily queue_family = VKGetQueueFamily(device, context->m_WindowSurface);
+            if (!queue_family.IsValid())
             {
                 VKResetPhysicalDevice(device);
+                continue;
             }
+
+            // Make sure all device extensions are supported
+            int32_t ext_i = -1;
+            while(required_device_extensions[++ext_i])
+            {
+                bool found = false;
+                for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
+                {
+                    if (dmStrCaseCmp(device->m_DeviceExtensions[j].extensionName, required_device_extensions[ext_i]) == 0)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    VKResetPhysicalDevice(device);
+                    continue;
+                }
+            }
+
+            // Make sure device has swap chain support
+            SwapChainCapabilities sc_capabilities;
+            VKGetSwapChainCapabilities(device, context->m_WindowSurface, sc_capabilities);
+
+            if (sc_capabilities.m_SurfaceFormats.Size() == 0 || sc_capabilities.m_PresentModes.Size() == 0)
+            {
+                VKResetPhysicalDevice(device);
+                continue;
+            }
+
+            selected_device = device;
         }
 
         if (selected_device == NULL)

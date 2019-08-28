@@ -1,6 +1,7 @@
 #ifndef __GRAPHICS_DEVICE_VULKAN__
 #define __GRAPHICS_DEVICE_VULKAN__
 
+#include <dlib/array.h>
 #include <vulkan/vulkan.h>
 
 namespace dmGraphics
@@ -32,6 +33,13 @@ namespace dmGraphics
         uint16_t                         m_DeviceExtensionCount;
     };
 
+    struct SwapChainCapabilities
+    {
+        VkSurfaceCapabilitiesKHR    m_SurfaceCapabilities;
+        dmArray<VkSurfaceFormatKHR> m_SurfaceFormats;
+        dmArray<VkPresentModeKHR>   m_PresentModes;
+    };
+
     struct QueueFamily
     {
         QueueFamily()
@@ -61,8 +69,8 @@ namespace dmGraphics
     uint32_t    VKGetPhysicalDeviceCount(VkInstance vkInstance);
     VkResult    VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     void        VKResetPhysicalDevice(PhysicalDevice* device);
-    bool        VKIsPhysicalDeviceSuitable(PhysicalDevice* device, VkSurfaceKHR surface, const char** requiredDeviceExtensions, uint32_t requiredDeviceExtensionCount);
     QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
+    void        VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
     // Implemented per supported platform
     VkResult VKCreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
