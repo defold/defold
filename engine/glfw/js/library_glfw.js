@@ -379,26 +379,16 @@ var LibraryGLFW = {
     },
 
     onFullScreenEventChange: function(event) {
-      var width;
-      var height;
       GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
-      if (GLFW.isFullscreen) {
-        // size multiplied in glfwSwapBuffers() function.
-        // if we don't divide here size will be x2 every time when we exit fullscreen
-        GLFW.prevNonFSWidth = GLFW.prevWidth / GLFW.dpi;
-        GLFW.prevNonFSHeight = GLFW.prevHeight / GLFW.dpi;
-        width = window.innerWidth;
-        height = window.innerHeight;
-      } else {
-        width = GLFW.prevNonFSWidth;
-        height = GLFW.prevNonFSHeight;
+      if (!GLFW.isFullscreen) {
         document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
       }
-      Module["canvas"].width = width;
-      Module["canvas"].height = height;
+      //reset previous values for updating size in glfwSwapBuffers()
+      GLFW.prevWidth = 0;
+      GLFW.prevHeight = 0;
     },
 
     requestFullScreen: function() {
@@ -665,15 +655,11 @@ var LibraryGLFW = {
     var width = Module['canvas'].width;
     var height = Module['canvas'].height;
 
-    if (GLFW.isFullscreen) {
-      // We don't want to call _glfwSetWindowSize every frame, 
-      // that's why for the fullscreen mode we take into account dpi separately
-      width = window.innerWidth * GLFW.dpi;
-      height = window.innerHeight * GLFW.dpi;
-    }
-
     if (GLFW.prevWidth != width || GLFW.prevHeight != height) {
-      if (!GLFW.isFullscreen) {
+      if (GLFW.isFullscreen) {
+        width = window.innerWidth * GLFW.dpi;
+        height = window.innerHeight * GLFW.dpi;
+      } else {
         width = width * GLFW.dpi;
         height = height * GLFW.dpi;
       }
