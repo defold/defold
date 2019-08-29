@@ -88,13 +88,31 @@ IAP g_IAP;
         lua_pushstring(L, [p.productIdentifier UTF8String]);
         lua_newtable(L);
 
-        lua_pushstring(L, "ident");
-        lua_pushstring(L, [p.productIdentifier UTF8String]);
-        lua_rawset(L, -3);
+        const char* str;
 
-        lua_pushstring(L, "title");
-        lua_pushstring(L, [p.localizedTitle UTF8String]);
-        lua_rawset(L, -3);
+        #define PUSH_VALUE_STR(STR, IDENT)              \
+            {                                           \
+                const char* str = STR;                  \
+                if (str) {                              \
+                    lua_pushstring(L, IDENT);           \
+                    lua_pushstring(L, str);             \
+                    lua_rawset(L, -3);                  \
+                } else {                                \
+                    dmLogError("%s was NULL", IDENT);   \
+                }                                       \
+            }
+
+        #define PUSH_VALUE_NUMBER(VALUE, IDENT)         \
+            {                                           \
+                lua_pushstring(L, IDENT);               \
+                lua_pushnumber(L, VALUE);               \
+                lua_rawset(L, -3);                      \
+            }
+
+        PUSH_VALUE_STR([p.productIdentifier UTF8String], "ident");
+        PUSH_VALUE_STR([p.localizedTitle UTF8String], "title");
+        PUSH_VALUE_STR([p.localizedDescription UTF8String], "description");
+        PUSH_VALUE_NUMBER(p.price.floatValue, "price");
 
         lua_pushstring(L, "description");
         lua_pushstring(L, [p.localizedDescription  UTF8String]);
@@ -109,13 +127,8 @@ IAP g_IAP;
         [formatter setLocale: p.priceLocale];
         NSString *price_string = [formatter stringFromNumber: p.price];
 
-        lua_pushstring(L, "price_string");
-        lua_pushstring(L, [price_string UTF8String]);
-        lua_rawset(L, -3);
-
-        lua_pushstring(L, "currency_code");
-        lua_pushstring(L, [[p.priceLocale objectForKey:NSLocaleCurrencyCode] UTF8String]);
-        lua_rawset(L, -3);
+        PUSH_VALUE_STR([price_string UTF8String], "price_string");
+        PUSH_VALUE_STR([[p.priceLocale objectForKey:NSLocaleCurrencyCode] UTF8String], "currency_code");
 
         lua_rawset(L, -3);
     }
@@ -310,7 +323,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
 /*# list in-app products
  *
- * Get a list of all avaliable iap products. Products are described as a [type:table] 
+ * Get a list of all avaliable iap products. Products are described as a [type:table]
  * with the following fields:
  *
  * `ident`
@@ -318,7 +331,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  *
  * `title`
  * : The product title.
- * 
+ *
  * `description`
  * : The product description.
  *
@@ -331,8 +344,8 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  * `currency_code` [icon:ios] [icon:googleplay] [icon:facebook]
  * : The currency code. On Google Play, this reflects the merchant's locale, instead of the user's.
  *
- * [icon:attention] Nested calls, that is calling `iap.list()` from within the callback is 
- * not supported. Doing so will result in call being ignored with the engine reporting 
+ * [icon:attention] Nested calls, that is calling `iap.list()` from within the callback is
+ * not supported. Doing so will result in call being ignored with the engine reporting
  * "Unexpected callback set".
  *
  * @name iap.list
@@ -412,14 +425,14 @@ int IAP_List(lua_State* L)
  *
  * Perform a product purchase.
  *
- * [icon:attention] Calling `iap.finish()` is required on a successful transaction if 
+ * [icon:attention] Calling `iap.finish()` is required on a successful transaction if
  * `auto_finish_transactions` is disabled in project settings.
  *
  * @name iap.buy
  * @param id [type:string] product to buy
  * @param [options] [type:table] optional parameters as properties. The following parameters can be set:
  *
- * - `request_id` ([icon:facebook] Facebook only. Optional custom unique request id to 
+ * - `request_id` ([icon:facebook] Facebook only. Optional custom unique request id to
  * set for this transaction. The id becomes attached to the payment within the Graph API.)
  *
  * @examples
@@ -523,11 +536,11 @@ int IAP_Finish(lua_State* L)
 }
 
 /*# restore products (non-consumable)
- * 
+ *
  * Restore previously purchased products.
  *
  * @name iap.restore
- * @return success [type:boolean] `true` if current store supports handling 
+ * @return success [type:boolean] `true` if current store supports handling
  * restored transactions, otherwise `false`.
  */
 int IAP_Restore(lua_State* L)
@@ -544,7 +557,7 @@ int IAP_Restore(lua_State* L)
 
 /*# set purchase transaction listener
  *
- * Set the callback function to receive purchase transaction events. Transactions are 
+ * Set the callback function to receive purchase transaction events. Transactions are
  * described as a [type:table] with the following fields:
  *
  * `ident`
@@ -561,15 +574,15 @@ int IAP_Restore(lua_State* L)
  * TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED.
  *
  * `receipt`
- * : The transaction receipt. This field is only set when `state` is TRANS_STATE_PURCHASED 
+ * : The transaction receipt. This field is only set when `state` is TRANS_STATE_PURCHASED
  * or TRANS_STATE_UNVERIFIED.
  *
  * `original_trans` [icon:apple]
- * : Apple only. The original transaction. This field is only set when `state` is 
+ * : Apple only. The original transaction. This field is only set when `state` is
  * TRANS_STATE_RESTORED.
  *
  * `signature` [icon:googleplay]
- * : Google Play only. A string containing the signature of the purchase data that was signed 
+ * : Google Play only. A string containing the signature of the purchase data that was signed
  * with the private key of the developer.
  *
  * `request_id` [icon:facebook]
@@ -583,7 +596,7 @@ int IAP_Restore(lua_State* L)
  * : Facebook Gameroom only. The currency used for the purchase.
  *
  * `amount` [icon:gameroom]
- * : Facebook Gameroom only. The amount the player will be charged for a single unit 
+ * : Facebook Gameroom only. The amount the player will be charged for a single unit
  * of this product.
  *
  * `quantity` [icon:gameroom]
@@ -593,15 +606,15 @@ int IAP_Restore(lua_State* L)
  * : Amazon Pay only. The user ID.
  *
  * `is_sandbox_mode` [icon:amazon]
- * : Amazon Pay only. If `true`, the SDK is running in Sandbox mode. This only allows 
+ * : Amazon Pay only. If `true`, the SDK is running in Sandbox mode. This only allows
  * interactions with the Amazon AppTester. Use this mode only for testing locally.
  *
  * `cancel_date` [icon:amazon]
- * : Amazon Pay only. The cancel date for the purchase. This field is only set if the 
+ * : Amazon Pay only. The cancel date for the purchase. This field is only set if the
  * purchase is canceled.
  *
  * `canceled` [icon:amazon]
- * : Amazon Pay only. Is set to `true` if the receipt was canceled or has expired; 
+ * : Amazon Pay only. Is set to `true` if the receipt was canceled or has expired;
  * otherwise `false`.
  *
  * @name iap.set_listener
