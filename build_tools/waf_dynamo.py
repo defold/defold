@@ -13,16 +13,17 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Also defined in build.py _strip_engine
+# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
+#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
-ANDROID_NDK_VERSION='10e'
-ANDROID_NDK_API_VERSION='14' # Android 4.0
-ANDROID_TARGET_API_LEVEL='23'
-ANDROID_MIN_API_LEVEL='9'
-ANDROID_GCC_VERSION='4.8'
+ANDROID_NDK_VERSION='20'
+ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+ANDROID_TARGET_API_LEVEL='28' # Android 9.0
+ANDROID_MIN_API_LEVEL='14'
+ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
-ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 IOS_SDK_VERSION="12.1"
@@ -187,8 +188,11 @@ def getAndroidArch(target_arch):
 def getAndroidBuildtoolName(target_arch):
     return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
 
-def getAndroidGCCVersion(target_arch):
-    return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
+def getAndroidCompilerName(target_arch, api_version):
+    if target_arch == 'arm64':
+        return 'aarch64-linux-android%s-clang' % (api_version)
+    else:
+        return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
     return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
@@ -197,11 +201,11 @@ def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:
     # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
     if 'arm64' == target_arch:
-        return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden']
+        return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv8-a', '-fvisibility=hidden']
     # NOTE:
     # -fno-exceptions added
     else:
-        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
 
 def getAndroidLinkFlags(target_arch):
     if 'arm64' == target_arch:
@@ -297,31 +301,26 @@ def default_flags(self):
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-%s' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch))
-        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch))
-        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/%s" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch), getAndroidArch(target_arch))
-        stl_arch="%s/include" % stl_lib
+
+        sysroot='%s/toolchains/llvm/prebuilt/%s-x86_64/sysroot' % (ANDROID_NDK_ROOT, self.env['BUILD_PLATFORM'])
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
-                                      '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
-                                      '-I%s' % stl,
-                                      '-I%s' % stl_arch,
-                                      '--sysroot=%s' % sysroot,
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
+                                      '-I%s/sources/android/native_app_glue' % (ANDROID_NDK_ROOT),
+                                      '-I%s/sources/android/cpufeatures' % (ANDROID_NDK_ROOT),
+                                      '-isysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
-        # -lgnustl_static -lsupc++
+        # -lsupc++
         self.env.append_value('LINKFLAGS', [
-                '--sysroot=%s' % sysroot,
-                '-L%s' % stl_lib] + getAndroidLinkFlags(target_arch))
+                '-isysroot=%s' % sysroot,
+                '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
         # Default to asmjs output
@@ -376,7 +375,7 @@ def default_flags(self):
 def android_link_flags(self):
     build_util = create_build_utility(self.env)
     if 'android' == build_util.get_target_os():
-        self.link_task.env.append_value('LINKFLAGS', ['-lgnustl_static', '-lm', '-llog', '-lc'])
+        self.link_task.env.append_value('LINKFLAGS', ['-lm', '-llog', '-lc'])
         self.link_task.env.append_value('LINKFLAGS', '-Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now'.split())
 
         if 'apk' in self.features:
@@ -689,7 +688,7 @@ def _strip_executable(bld, platform, target_arch, path):
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
         build_tool = getAndroidBuildtoolName(target_arch)
-        strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
+        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, ANDROID_GCC_VERSION, ANDROID_HOST, build_tool)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -792,18 +791,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
-        <!-- For Local Notifications -->
-        <receiver android:name="com.defold.push.LocalNotificationReceiver" >
-        </receiver>
-
-        <!-- For GCM (push) -->
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version" />
-
-        <!-- Disable Firebase Analytics -->
-        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
-
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
+        
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -823,38 +813,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
           android:label="IAP">
         </activity>
 
-        <!-- For local and Firebase notifications -->
-        <activity android:name="com.defold.push.PushDispatchActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-                <action android:name="com.defold.push.FORWARD" />
-                <category android:name="com.defold.push" />
-            </intent-filter>
-        </activity>
-
-        <!-- For Firebase Cloud Messaging -->
-        <service android:enabled="true" android:exported="true" android:name="com.defold.push.FirebaseMessagingService">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-        <service android:exported="true" android:name="com.google.firebase.messaging.FirebaseMessagingService">
-            <intent-filter android:priority="-500">
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-        <service android:exported="false" android:name="com.google.firebase.components.ComponentDiscoveryService">
-            <meta-data android:name="com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
-            <meta-data android:name="com.google.firebase.components:com.google.firebase.iid.Registrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
-        </service>
-        <receiver android:exported="true" android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:permission="com.google.android.c2dm.permission.SEND">
-            <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
-            </intent-filter>
-        </receiver>
-
         <!-- For IAC Invocations -->
         <activity android:name="com.defold.iac.IACActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
@@ -864,7 +822,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                <action android:name="android.intent.action.VIEW" />
                <category android:name="android.intent.category.DEFAULT" />
                <category android:name="android.intent.category.BROWSABLE" />
-               <data android:scheme="{{android.package}}" />
+               <data android:scheme="%(package)s" />
             </intent-filter>
         </activity>
 
@@ -881,13 +839,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- For GCM (push) -->
-    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
-    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->
@@ -938,8 +889,7 @@ def android_package(task):
                 "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
                 "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.firebase.firebase-messaging-17.3.4" % dynamo_home]
+                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home]
 
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
@@ -1619,18 +1569,21 @@ def detect(conf):
         conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        arch = 'x86_64'
+        arch        = 'x86_64'
         target_arch = build_util.get_target_architecture()
-        bin='%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidBuildtoolName(target_arch), getAndroidGCCVersion(target_arch), build_platform, arch)
-        conf.env['CC'] = '%s/%s-gcc' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['LINK_CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['CPP'] = '%s/%s-cpp' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['AR'] = '%s/%s-ar' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['RANLIB'] = '%s/%s-ranlib' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['LD'] = '%s/%s-ld' % (bin, getAndroidBuildtoolName(target_arch))
+        tool_name   = getAndroidBuildtoolName(target_arch)
+        api_version = getAndroidNDKAPIVersion(target_arch)
+        clang_name  = getAndroidCompilerName(target_arch, api_version)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
-        conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+        conf.env['CC']       = '%s/%s' % (bintools, clang_name)
+        conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
+        conf.env['LINK_CXX'] = '%s/%s++' % (bintools, clang_name)
+        conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
+        conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
+        conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
+        conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
+        conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     elif 'linux' == build_util.get_target_os():
         conf.find_program('gcc-5', var='GCC5', mandatory = False)
         if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:

@@ -471,6 +471,11 @@ namespace dmGameSystem
         metrics.m_MaxDescent = metrics.m_MaxDescent;
     }
 
+    const char* CompLabelGetText(const LabelComponent* component)
+    {
+        return component->m_Text;
+    }
+
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;

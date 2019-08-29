@@ -589,19 +589,6 @@ int IAP_Restore(lua_State* L)
  * : Facebook only. This field is set to the optional custom unique request id `request_id`
  * if set in the `iap.buy()` call parameters.
  *
- * `purchase_token` [icon:gameroom]
- * : Facebook Gameroom only. The purchase token.
- *
- * `currency` [icon:gameroom]
- * : Facebook Gameroom only. The currency used for the purchase.
- *
- * `amount` [icon:gameroom]
- * : Facebook Gameroom only. The amount the player will be charged for a single unit
- * of this product.
- *
- * `quantity` [icon:gameroom]
- * : Facebook Gameroom only. The quantity of this item the user is purchasing.
- *
  * `user_id` [icon:amazon]
  * : Amazon Pay only. The user ID.
  *
@@ -674,7 +661,6 @@ int IAP_SetListener(lua_State* L)
  * - `iap.PROVIDER_ID_AMAZON`
  * - `iap.PROVIDER_ID_APPLE`
  * - `iap.PROVIDER_ID_FACEBOOK`
- * - `iap.PROVIDER_ID_GAMEROOM`
  *
  */
 int IAP_GetProviderId(lua_State* L)
@@ -763,12 +749,6 @@ static const luaL_reg IAP_methods[] =
 /*# provider id for Facebook
  *
  * @name iap.PROVIDER_ID_FACEBOOK
- * @variable
- */
-
-/*# provider id for Facebook Gameroom
- *
- * @name iap.PROVIDER_ID_GAMEROOM
  * @variable
  */
 

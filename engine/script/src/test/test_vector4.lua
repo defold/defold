@@ -72,6 +72,13 @@ assert(v.y == 4, "v.y is not 4")
 assert(v.z == 6, "v.z is not 6")
 assert(v.w == 8, "v.w is not 8")
 
+-- div
+v = vmath.vector4(4, 6, 8, 10) / 2
+assert(v.x == 2, "v.x is not 2")
+assert(v.y == 3, "v.y is not 3")
+assert(v.z == 4, "v.z is not 4")
+assert(v.w == 5, "v.z is not 5")
+
 -- unm
 v = -vmath.vector4(1, 2, 3, 4)
 assert(v.x == -1, "v.x is not -1")

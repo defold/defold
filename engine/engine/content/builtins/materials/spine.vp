@@ -1,4 +1,4 @@
-uniform mediump mat4 view_proj;
+uniform highp mat4 view_proj;
 
 // positions are in world space
 attribute highp vec4 position;

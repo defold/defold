@@ -1,7 +1,7 @@
 .list-view {
     -fx-padding: 1px;
     -fx-background-insets: 0;
-    .list-cell {
+    & > .virtual-flow > .clipped-container > .sheet > .list-cell {
         -fx-background-color: $dark-grey-light;
         -fx-font-weight: normal;
         -fx-padding: 5;
@@ -17,7 +17,7 @@
             -fx-text-fill: $defold-white;
             -fx-background-color: $dark-grey-selected;
             &:hover {
-                -fx-text-fill: $defold-white; 
+                -fx-text-fill: $defold-white;
             }
             .image-view {
                 @include effect-bright-grey();

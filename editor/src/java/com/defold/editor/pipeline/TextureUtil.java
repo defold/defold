@@ -127,7 +127,7 @@ public class TextureUtil {
 
     public static BufferedImage depalettiseImage(BufferedImage src) {
         BufferedImage result = null;
-        if (BufferedImage.TYPE_BYTE_INDEXED == src.getType()) {
+        if (BufferedImage.TYPE_BYTE_INDEXED == src.getType() || BufferedImage.TYPE_BYTE_BINARY == src.getType() || src.getColorModel().getNumColorComponents() < 3 || src.getColorModel().getComponentSize(0) > 8) {
             int width = src.getWidth();
             int height = src.getHeight();
             Color clear = new Color(255,255,255,0);

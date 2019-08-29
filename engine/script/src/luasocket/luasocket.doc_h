@@ -202,7 +202,7 @@
  * Creates and returns an unconnected IPv4 UDP object. Unconnected objects support the `sendto`, `receive`, `receivefrom`, `getoption`, `getsockname`, `setoption`, `settimeout`, `setpeername`, `setsockname`, and `close` methods. The `setpeername` method is used to connect the object.
  *
  * @name socket.udp
- * @return upd_unconnected [type:unconnected] a new unconnected IPv4 UDP object, or `nil` in case of error.
+ * @return udp_unconnected [type:unconnected] a new unconnected IPv4 UDP object, or `nil` in case of error.
  * @return error [type:string] the error message, or `nil` if no error occurred.
  *
  */

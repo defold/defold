@@ -189,6 +189,22 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
+(defn- tab-title
+  ^String [resource is-dirty]
+  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
+  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
+  ;; control is internal. We also cannot replace them with double underscores to
+  ;; escape them, as they will show up in the Tab labels and there appears to be
+  ;; no way to enable mnemonic parsing for them. Attempts were made to call
+  ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
+  ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
+  ;; underscores with the a unicode character that looks somewhat similar.
+  (let [resource-name (resource/resource-name resource)
+        escaped-resource-name (string/replace resource-name "_" "\u02CD")]
+    (if is-dirty
+      (str "*" escaped-resource-name)
+      escaped-resource-name)))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -241,10 +257,9 @@
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
-                                                            resource-name (resource/resource-name (:resource (get open-views view)))
-                                                            title (if (contains? open-dirty-views view)
-                                                                    (str "*" resource-name)
-                                                                    resource-name)]]
+                                                            resource (:resource (get open-views view))
+                                                            is-dirty (contains? open-dirty-views view)
+                                                            title (tab-title resource is-dirty)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
@@ -335,13 +350,21 @@
           (ui/remove-style! btn "filters-active")))
       (scene-visibility/settings-visible? btn))))
 
-(def ^:private eye-icon-template (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+(def ^:private eye-icon-svg-path
+  (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+
+(def ^:private perspective-icon-svg-path
+  (ui/load-svg-path "scene/images/perspective_icon.svg"))
+
+(defn make-svg-icon-graphic
+  ^SVGPath [^SVGPath icon-template]
+  (doto (SVGPath.)
+    (.setContent (.getContent icon-template))))
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
-    (ui/children! [(doto (SVGPath.)
-                     (.setId "eye-icon")
-                     (.setContent (.getContent ^SVGPath eye-icon-template)))
+    (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
+                     (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
@@ -358,6 +381,9 @@
                  {:id :scale
                   :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}
+                 {:id :perspective-camera
+                  :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+                  :command :toggle-perspective-camera}
                  {:id :visibility-settings
                   :graphic-fn make-visibility-settings-graphic
                   :command :show-visibility-settings}])
@@ -1282,7 +1308,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- make-title
   ([] "Defold Editor 2.0")
-  ([project-title] (str (make-title) " - " project-title)))
+  ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
   (let [settings      (g/node-value project :settings)
@@ -1411,7 +1437,7 @@ If you do not specifically require different script states, consider changing th
 (defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
-        tab        (doto (Tab. (resource/resource-name resource))
+        tab        (doto (Tab. (tab-title resource false))
                      (.setContent parent)
                      (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
                      (ui/user-data! ::view-type view-type))

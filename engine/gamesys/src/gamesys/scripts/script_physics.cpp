@@ -41,9 +41,9 @@ namespace dmGameSystem
     /*# spring joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
-     * - [type:number] `length`: The natural length between the anchor points.
-     * - [type:number] `frequency`: The mass-spring-damper frequency in Hertz. A value of 0 disables softness.
-     * - [type:number] `damping`: The damping ratio. 0 = no damping, 1 = critical damping.
+     * @param length [type:number] The natural length between the anchor points.
+     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. A value of 0 disables softness.
+     * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
      *
      * @name physics.JOINT_TYPE_SPRING
      * @variable
@@ -52,7 +52,7 @@ namespace dmGameSystem
     /*# fixed joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_FIXED` type:
-     * - [type:number] `max_length`: The maximum length of the rope.
+     * @param max_length [type:number] The maximum length of the rope.
      *
      * @name physics.JOINT_TYPE_FIXED
      * @variable
@@ -61,17 +61,17 @@ namespace dmGameSystem
     /*# hinge joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_HINGE` type:
-     * - [type:number] `reference_angle`: The bodyB angle minus bodyA angle in the reference state (radians).
-     * - [type:number] `lower_angle`: The lower angle for the joint limit (radians).
-     * - [type:number] `upper_angle`: The upper angle for the joint limit (radians).
-     * - [type:number] `max_motor_torque`: The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
-     * - [type:number] `motor_speed`: The desired motor speed. Usually in radians per second.
-     * - [type:boolean] `enable_limit`: A flag to enable joint limits.
-     * - [type:boolean] `enable_motor`: A flag to enable the joint motor.
-     *
-     * Read only fields, available from `physics.get_joint_properties()`:
-     * - [type:number] `joint_angle`: Current joint angle in radians.
-     * - [type:number] `joint_speed`: Current joint angle speed in radians per second.
+     * @param reference_angle [type:number] The bodyB angle minus bodyA angle in the reference state (radians).
+     * @param lower_angle [type:number] The lower angle for the joint limit (radians).
+     * @param upper_angle [type:number] The upper angle for the joint limit (radians).
+     * @param max_motor_torque [type:number] The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
+     * @param motor_speed [type:number] The desired motor speed. Usually in radians per second.
+     * @param enable_limit [type:boolean] A flag to enable joint limits.
+     * @param enable_motor [type:boolean] A flag to enable the joint motor.
+     * @param joint_angle [type:number] [mark:READ ONLY]Current joint angle in radians.
+     * (Read only field, available from `physics.get_joint_properties()`)
+     * @param joint_speed [type:number] [mark:READ ONLY]Current joint angle speed in radians per second.
+     * (Read only field, available from `physics.get_joint_properties()`)
      *
      * @name physics.JOINT_TYPE_HINGE
      * @variable
@@ -80,18 +80,18 @@ namespace dmGameSystem
     /*# hinge joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SLIDER` type:
-     * - [type:vector3] `local_axis_a`: The local translation unit axis in bodyA.
-     * - [type:number] `reference_angle`: The constrained angle between the bodies: bodyB_angle - bodyA_angle.
-     * - [type:boolean] `enable_limit`: Enable/disable the joint limit.
-     * - [type:number] `lower_translation`: The lower translation limit, usually in meters.
-     * - [type:number] `upper_translation`: The upper translation limit, usually in meters.
-     * - [type:boolean] `enable_motor`: Enable/disable the joint motor.
-     * - [type:number] `max_motor_force`: The maximum motor torque, usually in N-m.
-     * - [type:number] `motor_speed`: The desired motor speed in radians per second.
-     *
-     * Read only fields, available from `physics.get_joint_properties()`:
-     * - [type:number] `joint_translation`: Current joint translation, usually in meters.
-     * - [type:number] `joint_speed`: Current joint translation speed, usually in meters per second.
+     * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
+     * @param reference_angle [type:number] The constrained angle between the bodies: bodyB_angle - bodyA_angle.
+     * @param enable_limit [type:boolean] Enable/disable the joint limit.
+     * @param lower_translation [type:number] The lower translation limit, usually in meters.
+     * @param upper_translation [type:number] The upper translation limit, usually in meters.
+     * @param enable_motor [type:boolean] Enable/disable the joint motor.
+     * @param max_motor_force [type:number] The maximum motor torque, usually in N-m.
+     * @param motor_speed [type:number] The desired motor speed in radians per second.
+     * @param joint_translation [type:number] [mark:READ ONLY]Current joint translation, usually in meters.
+     * (Read only field, available from `physics.get_joint_properties()`)
+     * @param joint_speed [type:number] [mark:READ ONLY]Current joint translation speed, usually in meters per second.
+     * (Read only field, available from `physics.get_joint_properties()`)
      *
      * @name physics.JOINT_TYPE_SLIDER
      * @variable
@@ -860,7 +860,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.set_gravity");
+            return DM_LUA_ERROR("could not find a requesting instance for physics.set_gravity");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
@@ -904,7 +904,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.get_gravity");
+            return DM_LUA_ERROR("could not find a requesting instance for physics.get_gravity");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
@@ -919,6 +919,44 @@ namespace dmGameSystem
         dmScript::PushVector3(L, gravity);
 
         return 1;
+    }
+
+    static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flip = lua_toboolean(L, 2);
+
+        if (horizontal)
+            SetCollisionFlipH(comp, flip);
+        else
+            SetCollisionFlipV(comp, flip);
+
+        return 0;
+    }
+
+    static int Physics_SetFlipH(lua_State* L)
+    {
+        return Physics_SetFlipInternal(L, true);
+    }
+
+    static int Physics_SetFlipV(lua_State* L)
+    {
+        return Physics_SetFlipInternal(L, false);
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
@@ -936,6 +974,9 @@ namespace dmGameSystem
 
         {"set_gravity",     Physics_SetGravity},
         {"get_gravity",     Physics_GetGravity},
+
+        {"set_hflip",       Physics_SetFlipH},
+        {"set_vflip",       Physics_SetFlipV},
         {0, 0}
     };
 
