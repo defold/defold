@@ -51,6 +51,9 @@ RUN \
     tofrodos \
     cmake \
     curl \
+    wget \
+    zip \
+    unzip \
     tree \
     silversearcher-ag \
     valgrind \
@@ -63,6 +66,13 @@ RUN \
   sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install" && \
   chmod +x /usr/local/bin/easy_install
 
+RUN wget https://download.java.net/java/GA/jdk10/10.0.2/19aef61b38124481863b1413dce1855f/13/openjdk-10.0.2_linux-x64_bin.tar.gz && \
+  tar -xf openjdk-10.0.2_linux-x64_bin.tar.gz && \
+  mkdir -p /usr/lib/jdk && \
+  mv jdk-10.0.2 /usr/lib/jdk && \
+  update-alternatives --install "/usr/bin/java" "java" "/usr/lib/jdk/jdk-10.0.2/bin/java" 1  && \
+  update-alternatives --install "/usr/bin/java" "java" "/usr/lib/jdk/jdk-10.0.2/bin/javac" 1 && \
+  rm *.tar.gz
 RUN apt-get autoremove
 
 
