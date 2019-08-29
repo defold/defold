@@ -860,7 +860,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.set_gravity");
+            return DM_LUA_ERROR("could not find a requesting instance for physics.set_gravity");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
@@ -904,7 +904,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.get_gravity");
+            return DM_LUA_ERROR("could not find a requesting instance for physics.get_gravity");
         }
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
@@ -919,6 +919,44 @@ namespace dmGameSystem
         dmScript::PushVector3(L, gravity);
 
         return 1;
+    }
+
+    static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flip = lua_toboolean(L, 2);
+
+        if (horizontal)
+            SetCollisionFlipH(comp, flip);
+        else
+            SetCollisionFlipV(comp, flip);
+
+        return 0;
+    }
+
+    static int Physics_SetFlipH(lua_State* L)
+    {
+        return Physics_SetFlipInternal(L, true);
+    }
+
+    static int Physics_SetFlipV(lua_State* L)
+    {
+        return Physics_SetFlipInternal(L, false);
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
@@ -936,6 +974,9 @@ namespace dmGameSystem
 
         {"set_gravity",     Physics_SetGravity},
         {"get_gravity",     Physics_GetGravity},
+
+        {"set_hflip",       Physics_SetFlipH},
+        {"set_vflip",       Physics_SetFlipV},
         {0, 0}
     };
 

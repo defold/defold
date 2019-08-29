@@ -45,6 +45,7 @@ PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 PACKAGES_NODE_MODULE_XHR2="xhr2-0.1.0-common"
+PACKAGES_ANDROID_NDK="android-ndk-r20"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -473,6 +474,10 @@ class Configuration(object):
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
+        if target_platform in ('armv7-android', 'arm64-android'):
+            # Android NDK
+            download_sdk('%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, self.host2), join(sdkfolder, PACKAGES_ANDROID_NDK))
+
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)
         return path
@@ -682,18 +687,16 @@ class Configuration(object):
 
         strip = "strip"
         if 'android' in self.target_platform:
-            HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-            ANDROID_ROOT = os.path.join(HOME, 'android')
-            ANDROID_NDK_VERSION = '10e'
+            ANDROID_NDK_VERSION = '20'
+            ANDROID_NDK_ROOT = os.path.join(self.dynamo_home, 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+            ANDROID_GCC_VERSION = '4.9'
             if target_platform == 'armv7-android':
                 ANDROID_PLATFORM = 'arm-linux-androideabi'
-                ANDROID_GCC_VERSION = '4.8'
             elif target_platform == 'arm64-android':
                 ANDROID_PLATFORM = 'aarch64-linux-android'
-                ANDROID_GCC_VERSION = '4.9'
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
-            strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
+            strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
         self.exec_shell_command("%s %s" % (strip, path))
         return True
