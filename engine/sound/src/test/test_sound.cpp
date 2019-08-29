@@ -4,6 +4,7 @@
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -449,7 +450,7 @@ const TestParams params_verify_test[] = {
             44100,
             2048),
 };
-const TestParams params_verify_test__[] = {
+const TestParams params_verify_test_[] = {
 TestParams("loopback",
             MONO_TONE_440_22050_44100_WAV,
             MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -730,7 +731,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    
+
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
@@ -747,11 +748,27 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float a = 0;
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        a += M_PI / 20000000.0f;
+        if (a > M_PI*2) {
+            a-= M_PI*2;
+        }
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
     } while (dmSound::IsPlaying(instance));
 
     r = dmSound::DeleteSoundInstance(instance);

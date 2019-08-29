@@ -37,17 +37,17 @@ namespace dmGameSystem
      *
      * [icon:macOS][icon:windows][icon:linux][icon:html5] On non mobile platforms,
      * this function always return `false`.
-     * 
+     *
      * [icon:attention][icon:android] On Android you can only get a correct reading
      * of this state if your game is not playing any sounds itself. This is a limitation
      * in the Android SDK. If your game is playing any sounds, *even with a gain of zero*, this
      * function will return `false`.
-     * 
+     *
      * The best time to call this function is:
-     * 
+     *
      * - In the `init` function of your main collection script before any sounds are triggered
      * - In a window listener callback when the window.WINDOW_EVENT_FOCUS_GAINED event is received
-     * 
+     *
      * Both those times will give you a correct reading of the state even when your application is
      * swapped out and in while playing sounds and it works equally well on Android and iOS.
      *
@@ -64,7 +64,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Sound_IsMusicPlaying(lua_State* L)
+    static int Sound_IsMusicPlaying(lua_State* L)
     {
         lua_pushboolean(L, (int) dmSound::IsMusicPlaying());
         return 1;
@@ -105,7 +105,7 @@ namespace dmGameSystem
      * print(rms) --> 0.56555819511414
      * ```
      */
-    int Sound_GetRMS(lua_State* L)
+    static int Sound_GetRMS(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -149,7 +149,7 @@ namespace dmGameSystem
      * right_p_db = 20 * log(right_p)
      * ```
      */
-    int Sound_GetPeak(lua_State* L)
+    static int Sound_GetPeak(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -189,7 +189,7 @@ namespace dmGameSystem
      * sound.set_group_gain("soundfx", gain)
      * ```
      */
-    int Sound_SetGroupGain(lua_State* L)
+    static int Sound_SetGroupGain(lua_State* L)
     {
         int top = lua_gettop(L);
         dmhash_t group_hash = CheckGroupName(L, 1);
@@ -224,7 +224,7 @@ namespace dmGameSystem
      * local gain_db = 20 * log(gain)
      * ```
      */
-    int Sound_GetGroupGain(lua_State* L)
+    static int Sound_GetGroupGain(lua_State* L)
     {
         int top = lua_gettop(L);
         dmhash_t group_hash = CheckGroupName(L, 1);
@@ -260,7 +260,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Sound_GetGroups(lua_State* L)
+    static int Sound_GetGroups(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -300,7 +300,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Sound_GetGroupName(lua_State* L)
+    static int Sound_GetGroupName(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -335,7 +335,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Sound_IsPhoneCallActive(lua_State* L)
+    static int Sound_IsPhoneCallActive(lua_State* L)
     {
         int top = lua_gettop(L);
         lua_pushboolean(L, (int) dmSound::IsPhoneCallActive());
@@ -361,7 +361,7 @@ namespace dmGameSystem
      *
      * `gain`
      * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
-     * 
+     *
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
@@ -370,14 +370,14 @@ namespace dmGameSystem
      * sound.play("#sound", { delay = 1, gain = 0.5 } )
      * ```
      */
-    int Sound_Play(lua_State* L)
+    static int Sound_Play(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        float delay = 0.0f, gain = 1.0f;
+        float delay = 0.0f, gain = 1.0f, pan = 0.0f;
 
         if (top > 1) // table with args
         {
@@ -392,12 +392,17 @@ namespace dmGameSystem
             gain = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "pan");
+            pan = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
         dmGameSystemDDF::PlaySound msg;
         msg.m_Delay = delay;
         msg.m_Gain = gain;
+        msg.m_Pan = pan;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -412,7 +417,7 @@ namespace dmGameSystem
      *
      * @name sound.stop
      * @param url [type:string|hash|url] the sound that should stop
-     * 
+     *
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:
@@ -421,7 +426,7 @@ namespace dmGameSystem
      * sound.stop("#sound")
      * ```
      */
-    int Sound_Stop(lua_State* L)
+    static int Sound_Stop(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -455,7 +460,7 @@ namespace dmGameSystem
      * sound.set_gain("#sound", 0.5)
      * ```
      */
-    int Sound_SetGain(lua_State* L)
+    static int Sound_SetGain(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -474,6 +479,41 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# set sound pan
+     * Set panning on all active playing voices of a sound.
+     *
+     * The valid range is from -1.0 to 1.0, representing -45 degrees left, to +45 degrees right.
+     *
+     * @name sound.set_pan
+     * @param url [type:string|hash|url] the sound to set the panning value to
+     * @param [pan] [type:number] sound panning between -1.0 and 1.0
+     * @examples
+     *
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
+     *
+     * ```lua
+     * sound.set_pan("#sound", 0.5) -- pan to the right
+     * ```
+     */
+    static int Sound_SetPan(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        float pan = luaL_checknumber(L, 2);
+
+        dmGameSystemDDF::SetPan msg;
+        msg.m_Pan = pan;
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        return 0;
+    }
+
     static const luaL_reg SOUND_FUNCTIONS[] =
     {
         {"is_music_playing", Sound_IsMusicPlaying},
@@ -487,6 +527,7 @@ namespace dmGameSystem
         {"play", Sound_Play},
         {"stop", Sound_Stop},
         {"set_gain", Sound_SetGain},
+        {"set_pan", Sound_SetPan},
         {0, 0}
     };
 

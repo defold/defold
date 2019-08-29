@@ -19,8 +19,8 @@ namespace dmGameSystem
         dmResource::HFactory    m_Factory;
         Sound*                  m_Sound;
         dmSound::HSoundInstance m_SoundInstance;
-        float                   m_Delay;
         dmGameObject::HInstance m_Instance;
+        float                   m_Delay;
         uint32_t                m_StopRequested : 1;
     };
 
@@ -235,7 +235,9 @@ namespace dmGameSystem
                     }
 
                     float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
+                    float pan = play_sound->m_Pan;
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
                 }
                 else
