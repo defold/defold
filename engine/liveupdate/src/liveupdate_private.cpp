@@ -4,6 +4,7 @@
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
 #include <dlib/log.h>
+#include <dlib/crypt.h>
 
 namespace dmLiveUpdate
 {
@@ -73,63 +74,37 @@ namespace dmLiveUpdate
 
     void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest)
     {
-        // if (algorithm == dmLiveUpdateDDF::HASH_MD5)
-        // {
-        //     dmAxTls::MD5_CTX context;
-
-        //     dmAxTls::MD5_Init(&context);
-        //     dmAxTls::MD5_Update(&context, (const uint8_t*) buf, buflen);
-        //     dmAxTls::MD5_Final(digest, &context);
-        // }
-        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        // {
-        //     dmAxTls::SHA1_CTX context;
-
-        //     dmAxTls::SHA1_Init(&context);
-        //     dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
-        //     dmAxTls::SHA1_Final(digest, &context);
-        // }
-        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
-        // {
-        //     dmLogError("The algorithm SHA256 specified for resource hashing is currently not supported");
-        // }
-        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
-        // {
-        //     dmLogError("The algorithm SHA512 specified for resource hashing is currently not supported");
-        // }
-        // else
+        if (algorithm == dmLiveUpdateDDF::HASH_MD5)
         {
-            dmLogError("The algorithm specified for resource hashing is not supported");
+            dmCrypt::HashMd5((const uint8_t*)buf, buflen, digest);
         }
-    }
-
-    void CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
-    {
-        // if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        // {
-        //     dmAxTls::SHA1_CTX context;
-        //     dmAxTls::SHA1_Init(&context);
-        //     dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
-        //     dmAxTls::SHA1_Final(digest, &context);
-        // }
-        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
-        // {
-        //     dmAxTls::SHA256_CTX context;
-        //     dmAxTls::SHA256_Init(&context);
-        //     dmAxTls::SHA256_Update(&context, (const uint8_t*) buf, buflen);
-        //     dmAxTls::SHA256_Final(digest, &context);
-        // }
-        // else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
-        // {
-        //     dmAxTls::SHA512_CTX context;
-        //     dmAxTls::SHA512_Init(&context);
-        //     dmAxTls::SHA512_Update(&context, (const uint8_t*) buf, buflen);
-        //     dmAxTls::SHA512_Final(digest, &context);
-        // }
-        // else
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        {
+            dmCrypt::HashSha1((const uint8_t*)buf, buflen, digest);
+        }
+        else
         {
             dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
         }
     }
 
+    void CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
+    {
+        if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        {
+            dmCrypt::HashSha1(buf, buflen, digest);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        {
+            dmCrypt::HashSha256(buf, buflen, digest);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        {
+            dmCrypt::HashSha512(buf, buflen, digest);
+        }
+        else
+        {
+            dmLogError("The algorithm specified for manifest verification hashing is not supported (%i)", algorithm);
+        }
+    }
 };
