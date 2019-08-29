@@ -792,17 +792,8 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
-        <!-- For Local Notifications -->
-        <receiver android:name="com.defold.push.LocalNotificationReceiver" >
-        </receiver>
-
-        <!-- For GCM (push) -->
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version" />
-
-        <!-- Disable Firebase Analytics -->
-        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+        <meta-data android:name="android.notch_support" android:value="true"/>
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
@@ -1729,8 +1720,11 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
-    use_vanilla = getattr(Options.options, 'use_vanilla_lua', True)
+    use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
+        use_vanilla = True
+
+    if not 'win' in build_util.get_target_os():
         use_vanilla = True
 
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
@@ -1775,7 +1769,7 @@ def set_options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
-    opt.add_option('--use-vanilla-lua', action="store_true", default=True, dest='use_vanilla_lua', help='use luajit')
+    opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="0", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
