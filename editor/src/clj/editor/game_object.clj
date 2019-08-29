@@ -135,6 +135,28 @@
       (update :display-order (fn [display-order]
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
+(g/defnk produce-component-build-targets [_node-id build-resource ddf-message transform resource-property-build-targets source-build-targets]
+  ;; Create a build-target for the referenced or embedded component. Also tag on
+  ;; :instance-data with the overrides for this instance. This will later be
+  ;; extracted and compiled into the GameObject - the overrides do not end up in
+  ;; the resulting component binary.
+  (when-some [source-build-target (first source-build-targets)]
+    (let [go-props-with-source-resources (:properties ddf-message)]
+      (if-some [errors (not-empty (keep :error go-props-with-source-resources))]
+        (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+        (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets go-props-with-source-resources)
+              build-target (-> source-build-target
+                               (assoc :resource build-resource)
+                               (wrap-if-raw-sound _node-id))
+              build-target (assoc build-target
+                             :instance-data {:resource (:resource build-target)
+                                             :transform transform
+                                             :property-deps go-prop-dep-build-targets
+                                             :instance-msg (if (seq go-props)
+                                                             (assoc ddf-message :properties go-props)
+                                                             ddf-message)})]
+          [(bt/with-content-hash build-target)])))))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -201,29 +223,7 @@
                                    :aabb geom/empty-bounding-box
                                    :renderable {:passes [pass/selection]}})))
   (output build-resource resource/Resource :abstract)
-  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets resource-property-build-targets build-resource ddf-message transform]
-                                        ;; Create a build-target for the referenced
-                                        ;; or embedded component. Also tag on
-                                        ;; :instance-data with the overrides for
-                                        ;; this instance. This will later be
-                                        ;; extracted and compiled into the GameObject
-                                        ;; inside the build-game-object function.
-                                        (when-some [source-build-target (first source-build-targets)]
-                                          (let [go-props-with-source-resources (:properties ddf-message)]
-                                            (if-some [errors (not-empty (keep :error go-props-with-source-resources))]
-                                              (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-                                              (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets go-props-with-source-resources)
-                                                    build-target (-> source-build-target
-                                                                     (assoc :resource build-resource)
-                                                                     (wrap-if-raw-sound _node-id))
-                                                    build-target (assoc build-target
-                                                                   :instance-data {:resource (:resource build-target)
-                                                                                   :transform transform
-                                                                                   :property-deps go-prop-dep-build-targets
-                                                                                   :instance-msg (if (seq go-props)
-                                                                                                   (assoc ddf-message :properties go-props)
-                                                                                                   ddf-message)})]
-                                                [(bt/with-content-hash build-target)]))))))
+  (output build-targets g/Any :cached produce-component-build-targets)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output _properties g/Properties :cached produce-component-properties))
 
@@ -339,6 +339,19 @@
    :embedded-components embed-ddf})
 
 (defn- build-game-object [resource dep-resources user-data]
+  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
+  ;; when reading this. It will clear up how the output binaries are structured.
+  ;; Be aware that these structures are also used to store the saved project
+  ;; data. Sometimes a field will only be used by the editor *or* the runtime.
+  ;; At this point, all referenced and embedded components will have emitted
+  ;; BuildResources. The engine does not have a concept of an EmbeddedComponent.
+  ;; They are written as separate binaries and referenced just like any other
+  ;; ReferencedComponent. However, embedded components from different sources
+  ;; might have been fused into one BuildResource if they had the same contents.
+  ;; We must update any references to these BuildResources to instead point to
+  ;; the resulting fused BuildResource. We also extract :instance-data from the
+  ;; component build targets and embed these as ComponentDesc instances in the
+  ;; PrototypeDesc that represents the game object.
   (let [build-go-props (partial properties/build-go-props dep-resources)
         instance-data (:instance-data user-data)
         component-msgs (map :instance-msg instance-data)
@@ -346,8 +359,8 @@
         component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
         component-descs (map (fn [component-msg fused-build-resource-path go-props]
                                (cond-> component-msg
-                                       true (dissoc :data :properties :type)
-                                       true (assoc :component fused-build-resource-path) ; Runtime uses :property-decls, not :properties
+                                       true (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
+                                       true (assoc :component fused-build-resource-path)
                                        (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
                              component-msgs
                              component-build-resource-paths
@@ -363,13 +376,18 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      (let [instance-data (map :instance-data (flatten dep-build-targets))]
+      ;; Extract the :instance-data from the component build targets so that
+      ;; overrides can be embedded in the resulting game object binary. We also
+      ;; establish dependencies to build-targets from any resources referenced
+      ;; by script property overrides.
+      (let [flat-dep-build-targets (flatten dep-build-targets)
+            instance-data (mapv :instance-data flat-dep-build-targets)]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-game-object
             :user-data {:proto-msg proto-msg :instance-data instance-data}
-            :deps (into (vec (flatten dep-build-targets))
+            :deps (into (vec flat-dep-build-targets)
                         (comp (mapcat :property-deps)
                               (util/distinct-by (comp resource/proj-path :resource)))
                         instance-data)})])))

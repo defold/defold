@@ -131,49 +131,6 @@
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
 
-(defn node-desc
-  ([node-id]
-   (g/with-auto-evaluation-context evaluation-context
-     (node-desc evaluation-context node-id)))
-  ([evaluation-context node-id]
-   (let [basis (:basis evaluation-context)
-         node-type (g/node-type* basis node-id)
-         override-original (g/override-original basis node-id)
-         override-node-ids (g/overrides basis node-id)
-         node-key (g/node-key node-id evaluation-context)
-
-         node-outline-key
-         (when (g/has-output? node-type :node-outline)
-           (:node-outline-key (g/node-value node-id :node-outline evaluation-context)))
-
-         overridden-properties
-         (into {}
-               (map (fn [prop-kw]
-                      [prop-kw (g/node-value node-id prop-kw evaluation-context)]))
-               (keys ; We want to evaluate the property value function, so only need the key.
-                 (g/node-value node-id :_overridden-properties evaluation-context)))]
-     (cond-> {:node-id node-id
-              :node-type (:k node-type)}
-
-             (some? node-key)
-             (assoc :node-key node-key)
-
-             (some? node-outline-key)
-             (assoc :node-outline-key node-outline-key)
-
-             (some? override-original)
-             (assoc :override-original override-original
-                    :override-id (g/override-id basis node-id)
-                    :override-root-id (:root-id (ig/override-by-id basis (g/override-id basis node-id))))
-
-             (not-empty overridden-properties)
-             (assoc :overridden-properties overridden-properties)
-
-             (seq override-node-ids)
-             (assoc :overrides
-                    (mapv (partial node-desc evaluation-context)
-                          override-node-ids))))))
-
 (def ^:private node-type-key (comp :k g/node-type*))
 
 (defn- class-symbol [^Class class]

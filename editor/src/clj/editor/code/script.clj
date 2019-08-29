@@ -242,6 +242,12 @@
               :value s/Any
               s/Keyword s/Any}})
 
+;; Every declared `go.property("name", 0.0)` in the script code gets a
+;; corresponding ScriptPropertyNode. This started as a workaround for the fact
+;; that dynamic properties couldn't host the property setter required for
+;; resource properties, but it turns out to have other benefits. Like the fact
+;; you can edit a property name in the script and have the rename propagate to
+;; all usages of the script.
 (g/defnode ScriptPropertyNode
   ;; The deleted? property is used instead of deleting the ScriptPropertyNode so
   ;; that overrides in collections and game objects survive cut-paste operations
@@ -342,7 +348,7 @@
             (edit-script-property node-id type resource-kind value))
           (create-script-property script-node-id name type resource-kind value)))
 
-      ;; Edited properties.
+      ;; Edited properties (i.e. the default value or property type changed).
       (for [[name {:keys [resource-kind type value]}] edited-info-by-name
             :let [node-id (node-ids-by-name name)]]
         (edit-script-property node-id type resource-kind value))
@@ -360,6 +366,8 @@
 
 (g/defnk produce-properties [_declared-properties _node-id script-properties script-property-entries]
   ;; TODO - fix this when corresponding graph issue has been fixed
+  ;; NOTE: Sadly, what the "corresponding graph issue" that this comment refers
+  ;; to actually is have been lost to time. I'm tempted to remove the comment.
   (cond
     (g/error? _declared-properties) _declared-properties
     (g/error? script-property-entries) script-property-entries
@@ -367,7 +375,11 @@
               (update :properties into (map (partial lift-error _node-id)) script-property-entries)
               (update :display-order into (map prop->key) script-properties))))
 
-(defn- go-property-declaration-cursor-ranges [lines]
+(defn- go-property-declaration-cursor-ranges
+  "Find the CursorRanges that encompass each `go.property('name', ...)`
+  declaration among the specified lines. These will be replaced with whitespace
+  before the script is compiled for the engine."
+  [lines]
   (loop [cursor-ranges (transient [])
          tokens (lua-parser/tokens (data/lines-reader lines))
          paren-count 0
@@ -428,7 +440,7 @@
 
 (defn- build-script [resource dep-resources user-data]
   ;; We always compile the full source code in order to find syntax errors.
-  ;; We then strip go.property() declarations and recompile if there were any.
+  ;; We then strip go.property() declarations and recompile if needed.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
         bytecode-or-error (script->bytecode lines proj-path :32-bit)]
@@ -479,9 +491,10 @@
 
           [go-props go-prop-dep-build-targets]
           (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
-      ;; NOTE: The user-data must not contain any overridden data. If it does,
+      ;; NOTE: The :user-data must not contain any overridden data. If it does,
       ;; the build targets won't be fused and the script will be recompiled
-      ;; for every instance of the script component.
+      ;; for every instance of the script component. The :go-props here describe
+      ;; the original property values from the script, never overridden values.
       [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)

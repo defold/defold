@@ -411,8 +411,8 @@ This must be submitted to the driver for compilation before you can use it. See
         (gl/gl-get-attrib-location ^GL2 gl program name))))
 
   (set-uniform [this gl name val]
-     (assert (string? (not-empty name)))
-     (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags (into #{} (map first) uniforms)])]
+    (assert (string? (not-empty name)))
+    (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags (into #{} (map first) uniforms)])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
           (try

@@ -1,45 +1,31 @@
 (ns editor.collection
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
-            [editor.core :as core]
-            [schema.core :as s]
+  (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
-            [editor.protobuf :as protobuf]
-            [editor.graph-util :as gu]
+            [editor.code.script :as script]
+            [editor.core :as core]
+            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
+            [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.math :as math]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
-            [editor.scene-tools :as scene-tools]
-            [editor.code.script :as script]
             [editor.outline :as outline]
-            [editor.types :as types]
-            [editor.workspace :as workspace]
-            [editor.outline :as outline]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass]
-            [editor.progress :as progress]
-            [editor.properties :as properties]
+            [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log])
-  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
-           [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io StringReader PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
-           [org.apache.commons.io FilenameUtils]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [java.io StringReader]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -165,6 +151,46 @@
    :icon ""
    :label ""})
 
+(g/defnk produce-go-build-targets [_node-id build-error build-resource ddf-message resource-property-build-targets source-build-targets transform]
+  ;; Create a build-target for the referenced or embedded game object. Also tag
+  ;; on :instance-data with the overrides for this instance. This will later be
+  ;; extracted and compiled into the Collection - the overrides do not end up in
+  ;; the resulting game object binary.
+  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
+  ;; when reading this. It describes how the ddf-message map is structured.
+  ;; You might also want to familiarize yourself with how this process works in
+  ;; `game_object.clj`, since it is similar but less complicated there.
+  (if-some [errors
+            (not-empty
+              (sequence (comp (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
+                              (keep :error))
+                        (:component-properties ddf-message)))]
+    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+    ;; NOTE: A `go-prop` is basically a PropertyDesc in map form with an
+    ;; additional :clj-value entry. See `properties/build-target-go-props`
+    ;; for more info.
+    (let [build-target-go-props (partial properties/build-target-go-props
+                                         resource-property-build-targets)
+          component-property-infos (map (comp build-target-go-props :properties)
+                                        (:component-properties ddf-message))
+          component-go-props (map first component-property-infos)
+          component-property-descs (map #(assoc %1 :properties %2)
+                                        (:component-properties ddf-message)
+                                        component-go-props)
+          go-prop-dep-build-targets (into []
+                                          (comp (mapcat second)
+                                                (util/distinct-by (comp resource/proj-path :resource)))
+                                          component-property-infos)
+          build-target (assoc (first source-build-targets)
+                         :resource build-resource
+                         :instance-data {:resource build-resource
+                                         :transform transform
+                                         :property-deps go-prop-dep-build-targets
+                                         :instance-msg (if (seq component-property-descs)
+                                                         (assoc ddf-message :component-properties component-property-descs)
+                                                         ddf-message)})]
+      [(bt/with-content-hash build-target)])))
+
 (g/defnode GameObjectInstanceNode
   (inherits scene/SceneNode)
   (inherits InstanceNode)
@@ -185,30 +211,7 @@
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any (g/fnk [_node-id build-resource source-build-targets resource-property-build-targets build-error ddf-message transform]
-                                (if-some [errors (not-empty (sequence (comp (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
-                                                                            (keep :error))
-                                                                      (:component-properties ddf-message)))]
-                                  (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-                                  (let [build-target-go-props (partial properties/build-target-go-props resource-property-build-targets)
-                                        component-property-infos (map (comp build-target-go-props :properties) (:component-properties ddf-message))
-                                        component-go-props (map first component-property-infos)
-                                        component-property-descs (map #(assoc %1 :properties %2)
-                                                                      (:component-properties ddf-message)
-                                                                      component-go-props)
-                                        go-prop-dep-build-targets (into []
-                                                                        (comp (mapcat second)
-                                                                              (util/distinct-by (comp resource/proj-path :resource)))
-                                                                        component-property-infos)
-                                        build-target (assoc (first source-build-targets)
-                                                       :resource build-resource
-                                                       :instance-data {:resource build-resource
-                                                                       :transform transform
-                                                                       :property-deps go-prop-dep-build-targets
-                                                                       :instance-msg (if (seq component-property-descs)
-                                                                                       (assoc ddf-message :component-properties component-property-descs)
-                                                                                       ddf-message)})]
-                                    [(bt/with-content-hash build-target)]))))
+  (output build-targets g/Any produce-go-build-targets)
   (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
@@ -338,6 +341,20 @@
      :scale3 (math/vecmath->clj scale)}))
 
 (defn build-collection [resource dep-resources user-data]
+  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
+  ;; when reading this. It will clear up how the output binaries are structured.
+  ;; Be aware that these structures are also used to store the saved project
+  ;; data. Sometimes a field will only be used by the editor *or* the runtime.
+  ;; In the case of CollectionDesc, neither the `collection_instances` or the
+  ;; `embedded_instances` fields are read by the runtime. Instead, all the game
+  ;; objects brought in from these two fields are recursively collected into a
+  ;; flat list of InstanceDesc under the `instances` field, each referencing a
+  ;; BuildResource of a PrototypeDesc binary produced from the referenced or
+  ;; embedded game objects. However, embedded game objects from different
+  ;; collections might have been fused into a single BuildResource if they are
+  ;; equivalent. We must update any references to these BuildResources
+  ;; to instead point to the resulting fused BuildResource. The same goes for
+  ;; resource property overrides inside the InstanceDescs.
   (let [{:keys [name instance-data scale-along-z]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
         go-instance-msgs (map :instance-msg instance-data)
@@ -377,6 +394,10 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
+      ;; Extract the :instance-data from the game object instance build targets
+      ;; so that overrides can be embedded in the resulting collection binary.
+      ;; We also establish dependencies to build-targets from any resources
+      ;; referenced by script property overrides.
       (let [sub-build-targets (flatten sub-build-targets)
             dep-build-targets (flatten dep-build-targets)
             instance-data (map :instance-data dep-build-targets)
@@ -495,13 +516,16 @@
     {:resource resource :instance-msg instance-msg :transform transform :property-deps go-prop-dep-build-targets}))
 
 (g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets resource-property-build-targets ddf-properties]
-  (if-some [errors (not-empty (concat (some-> (path-error _node-id source-resource) vector)
-                                      (sequence (comp (mapcat :properties) ; Extract ComponentPropertyDescs from InstancePropertyDescs
-                                                      (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
-                                                      (keep :error))
-                                                ddf-properties)))]
+  (if-some [errors
+            (not-empty
+              (concat
+                (some-> (path-error _node-id source-resource) vector)
+                (sequence (comp (mapcat :properties) ; Extract ComponentPropertyDescs from InstancePropertyDescs
+                                (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
+                                (keep :error))
+                          ddf-properties)))]
     (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-    (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
+    (let [ddf-properties (into {} (map (juxt :id :properties)) ddf-properties)
           base-id (str id path-sep)
           instance-data (get-in build-targets [0 :user-data :instance-data])
           child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
@@ -511,7 +535,6 @@
                   (assoc-in build-target [:user-data :instance-data]
                             (map #(flatten-instance-data % base-id transform child-ids ddf-properties resource-property-build-targets)
                                  instance-data))))))))
-
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id

@@ -232,8 +232,8 @@
     ["go.property('name', hash())"]
     ["                           "]
 
-    ["go.property('name', texture('/image.png'))"]
-    ["                                          "]
+    ["go.property('name', resource.texture('/image.png'))"]
+    ["                                                   "]
 
     ["go.property('name', 1) -- comment"]
     ["                       -- comment"]
@@ -252,4 +252,3 @@
     ["do"
      "                          "
      "end"]))
-

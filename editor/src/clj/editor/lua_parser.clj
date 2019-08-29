@@ -4,9 +4,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.math :as math]
-            [editor.workspace :as workspace]
-            [util.murmur :as murmur])
-  (:import (org.antlr.v4.runtime BufferedTokenStream Token)))
+            [editor.workspace :as workspace])
+  (:import [org.antlr.v4.runtime BufferedTokenStream Token]))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
 
@@ -461,6 +460,10 @@
      :script-properties script-properties-info}))
 
 (defn tokens [code]
-  (map (fn [^Token token]
-         [(.getText token) (dec (.getLine token)) (.getCharPositionInLine token)])
-       (.getTokens ^BufferedTokenStream (:tokens (antlr/parse real-lua-parser {:format :raw} code)))))
+  (let [result (antlr/parse real-lua-parser {:format :raw} code)
+        token-stream ^BufferedTokenStream (:tokens result)]
+    (map (fn [^Token token]
+           [(.getText token)
+            (dec (.getLine token))
+            (.getCharPositionInLine token)])
+         (.getTokens token-stream))))
