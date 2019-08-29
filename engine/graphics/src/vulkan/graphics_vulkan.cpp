@@ -155,16 +155,25 @@ namespace dmGraphics
         };
 
         QueueFamily selected_queue_family;
+        SwapChainCapabilities selected_swap_chain_capabilities;
         for (uint32_t i = 0; i < device_count; ++i)
         {
+            #define RESET_AND_CONTINUE(d) \
+                VKResetPhysicalDevice(d); \
+                continue;
+
             PhysicalDevice* device = &device_list[i];
+
+            if (selected_device)
+            {
+                RESET_AND_CONTINUE(device)
+            }
 
             // Make sure we have a graphics and present queue available
             QueueFamily queue_family = VKGetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
-                VKResetPhysicalDevice(device);
-                continue;
+                RESET_AND_CONTINUE(device)
             }
 
             // Make sure all device extensions are supported
@@ -182,24 +191,23 @@ namespace dmGraphics
 
                 if (!found)
                 {
-                    VKResetPhysicalDevice(device);
-                    continue;
+                    RESET_AND_CONTINUE(device)
                 }
             }
 
             // Make sure device has swap chain support
-            SwapChainCapabilities sc_capabilities;
-            VKGetSwapChainCapabilities(device, context->m_WindowSurface, sc_capabilities);
+            VKGetSwapChainCapabilities(device, context->m_WindowSurface, selected_swap_chain_capabilities);
 
-            if (sc_capabilities.m_SurfaceFormats.Size() == 0 || sc_capabilities.m_PresentModes.Size() == 0)
+            if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
+                selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
             {
-                VKResetPhysicalDevice(device);
-                continue;
+                RESET_AND_CONTINUE(device)
             }
 
             selected_device = device;
             selected_queue_family = queue_family;
-            break;
+
+            #undef RESET_AND_CONTINUE
         }
 
         if (selected_device == NULL)
@@ -208,17 +216,34 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        LogicalDevice logical_device;
         res = VKCreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             required_device_extensions, required_device_extension_count,
-            g_validation_layers, g_validation_layer_count, &context->m_LogicalDevice);
+            g_validation_layers, g_validation_layer_count, &logical_device);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        context->m_WindowOpened = 1;
+        context->m_WindowOpened   = 1;
         context->m_PhysicalDevice = *selected_device;
+        context->m_LogicalDevice  = logical_device;
+
+        // Create swap chain
+        uint32_t created_width  = params->m_Width;
+        uint32_t created_height = params->m_Height;
+        const bool want_vsync   = true;
+        context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
+        context->m_SwapChain    = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
+
+        res = VKUpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
+        if (res != VK_SUCCESS)
+        {
+            delete context->m_SwapChain;
+            dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
 
         delete[] device_list;
 
@@ -232,6 +257,8 @@ namespace dmGraphics
         {
             glfwCloseWindow();
 
+            VkResetSwapChain(context->m_SwapChain);
+
             VKResetPhysicalDevice(&context->m_PhysicalDevice);
 
             vkDestroyDevice(context->m_LogicalDevice.m_Device, 0);
@@ -241,6 +268,8 @@ namespace dmGraphics
             VKDestroyInstance(&context->m_Instance);
 
             context->m_WindowOpened = 0;
+
+            delete context->m_SwapChain;
         }
     }
 

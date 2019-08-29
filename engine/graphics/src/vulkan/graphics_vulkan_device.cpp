@@ -1,4 +1,3 @@
-#include "../graphics.h"
 #include "graphics_vulkan.h"
 
 namespace dmGraphics
@@ -199,31 +198,4 @@ namespace dmGraphics
     }
 
     #undef QUEUE_FAMILY_INVALID
-
-    void VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
-    {
-        assert(device);
-
-        VkPhysicalDevice vk_device = device->m_Device;
-        uint32_t format_count        = 0;
-        uint32_t present_modes_count = 0;
-
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_device, surface, &capabilities.m_SurfaceCapabilities);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
-
-        if (format_count > 0)
-        {
-            capabilities.m_SurfaceFormats.SetCapacity(format_count);
-            capabilities.m_SurfaceFormats.SetSize(format_count);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, capabilities.m_SurfaceFormats.Begin());
-        }
-
-        if (present_modes_count > 0)
-        {
-            capabilities.m_PresentModes.SetCapacity(present_modes_count);
-            capabilities.m_PresentModes.SetSize(present_modes_count);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, capabilities.m_PresentModes.Begin());
-        }
-    }
 }

@@ -21,6 +21,19 @@ namespace dmGraphics
         uint32_t dummy;
     };
 
+    struct QueueFamily
+    {
+        QueueFamily()
+        : m_GraphicsQueueIx(0xffff)
+        , m_PresentQueueIx(0xffff)
+        {}
+
+        uint16_t m_GraphicsQueueIx;
+        uint16_t m_PresentQueueIx;
+
+        bool IsValid() { return m_GraphicsQueueIx != 0xffff && m_PresentQueueIx != 0xffff; }
+    };
+
     struct PhysicalDevice
     {
         VkQueueFamilyProperties*         m_QueueFamilyProperties;
@@ -42,32 +55,45 @@ namespace dmGraphics
 
     struct SwapChainCapabilities
     {
-        VkSurfaceCapabilitiesKHR    m_SurfaceCapabilities;
         dmArray<VkSurfaceFormatKHR> m_SurfaceFormats;
         dmArray<VkPresentModeKHR>   m_PresentModes;
+        VkSurfaceCapabilitiesKHR    m_SurfaceCapabilities;
+
+        void Swap(SwapChainCapabilities& rhs)
+        {
+            VkSurfaceCapabilitiesKHR tmp = rhs.m_SurfaceCapabilities;
+            rhs.m_SurfaceCapabilities    = m_SurfaceCapabilities;
+            m_SurfaceCapabilities        = tmp;
+
+            m_PresentModes.Swap(rhs.m_PresentModes);
+            m_SurfaceFormats.Swap(rhs.m_SurfaceFormats);
+        }
     };
 
-    struct QueueFamily
+    struct SwapChain
     {
-        QueueFamily()
-        : m_GraphicsQueueIx(0xffff)
-        , m_PresentQueueIx(0xffff)
-        {}
+        dmArray<VkImage>     m_Images;
+        const LogicalDevice* m_LogicalDevice;
+        const VkSurfaceKHR   m_Surface;
+        const QueueFamily    m_QueueFamily;
+        VkSurfaceFormatKHR   m_SurfaceFormat;
+        VkSwapchainKHR       m_SwapChain;
+        VkExtent2D           m_ImageExtent;
 
-        uint16_t m_GraphicsQueueIx;
-        uint16_t m_PresentQueueIx;
-
-        bool IsValid() { return m_GraphicsQueueIx != 0xffff && m_PresentQueueIx != 0xffff; }
+        SwapChain(const LogicalDevice* logicalDevice, const VkSurfaceKHR surface,
+            const SwapChainCapabilities& capabilities, const QueueFamily queueFamily);
     };
 
     struct Context
     {
-        VkInstance     m_Instance;
-        VkSurfaceKHR   m_WindowSurface;
-        PhysicalDevice m_PhysicalDevice;
-        LogicalDevice  m_LogicalDevice;
-        uint32_t       m_WindowOpened : 1;
-        uint32_t       : 31;
+        SwapChain*            m_SwapChain;
+        SwapChainCapabilities m_SwapChainCapabilities;
+        VkInstance            m_Instance;
+        VkSurfaceKHR          m_WindowSurface;
+        PhysicalDevice        m_PhysicalDevice;
+        LogicalDevice         m_LogicalDevice;
+        uint32_t              m_WindowOpened : 1;
+        uint32_t              : 31;
     };
 
     // Implemented in graphics_vulkan_context.cpp
@@ -79,14 +105,20 @@ namespace dmGraphics
     bool        VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     void        VKResetPhysicalDevice(PhysicalDevice* device);
     QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
-    void        VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
     VkResult    VKCreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
 
+    // Implemented in graphics_vulkan_swap_chain.cpp
+    //   wantedWidth and wantedHeight might be written to, we might not get the
+    //   dimensions we wanted from Vulkan.
+    VkResult VKUpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
+        const bool wantVSync, SwapChainCapabilities& capabilities);
+    void     VkResetSwapChain(SwapChain* swapChain);
+    void     VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
+
     // Implemented per supported platform
     VkResult VKCreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__
-
