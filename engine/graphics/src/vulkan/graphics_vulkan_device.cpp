@@ -10,11 +10,11 @@ namespace dmGraphics
         return vk_device_count;
     }
 
-    VkResult VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    bool VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
     {
         if (deviceListSize == 0)
         {
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return false;
         }
 
         PhysicalDevice* device_list = *deviceListOut;
@@ -62,7 +62,7 @@ namespace dmGraphics
 
         delete[] vk_device_list;
 
-        return VK_SUCCESS;
+        return true;
     }
 
     void VKResetPhysicalDevice(PhysicalDevice* device)
@@ -82,6 +82,8 @@ namespace dmGraphics
         memset((void*)device, 0, sizeof(*device));
     }
 
+    #define QUEUE_FAMILY_INVALID 0xffff
+
     // All GPU operations are pushed to various queues. The physical device can have multiple
     // queues with different properties supported, so we need to find a combination of queues
     // that will work for our needs. Note that the present queue might not be the same queue as the
@@ -89,8 +91,6 @@ namespace dmGraphics
     QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface)
     {
         assert(device);
-
-        #define QUEUE_FAMILY_INVALID 0xffff
 
         QueueFamily qf;
 
@@ -138,10 +138,67 @@ namespace dmGraphics
         }
 
         delete[] vk_present_queues;
-        #undef QUEUE_FAMILY_INVALID
-
         return qf;
     }
+
+    VkResult VKCreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
+        const char** deviceExtensions, const uint8_t deviceExtensionCount,
+        const char** validationLayers, const uint8_t validationLayerCount,
+        LogicalDevice* logicalDeviceOut)
+    {
+        assert(device);
+
+        // NOTE: Different queues can have different priority from [0..1], but
+        //       we only have a single queue right now so set to 1.0f
+        float queue_priority        = 1.0f;
+        int32_t queue_family_set[2] = { queueFamily.m_PresentQueueIx, QUEUE_FAMILY_INVALID };
+        int32_t queue_family_c      = 0;
+
+        VkDeviceQueueCreateInfo vk_device_queue_create_info[2];
+        memset(vk_device_queue_create_info, 0, sizeof(vk_device_queue_create_info));
+
+        if (queueFamily.m_PresentQueueIx != queueFamily.m_GraphicsQueueIx)
+        {
+            queue_family_set[1] = queueFamily.m_GraphicsQueueIx;
+        }
+
+        while(queue_family_set[queue_family_c] != QUEUE_FAMILY_INVALID)
+        {
+            int queue_family_index = queue_family_set[queue_family_c];
+            VkDeviceQueueCreateInfo& vk_queue_create_info = vk_device_queue_create_info[queue_family_c];
+
+            vk_queue_create_info.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            vk_queue_create_info.queueFamilyIndex = queue_family_index;
+            vk_queue_create_info.queueCount       = 1;
+            vk_queue_create_info.pQueuePriorities = &queue_priority;
+
+            queue_family_c++;
+        }
+
+        VkDeviceCreateInfo vk_device_create_info;
+        memset(&vk_device_create_info, 0, sizeof(vk_device_create_info));
+
+        vk_device_create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        vk_device_create_info.pQueueCreateInfos       = vk_device_queue_create_info;
+        vk_device_create_info.queueCreateInfoCount    = queue_family_c;
+        vk_device_create_info.pEnabledFeatures        = 0;
+        vk_device_create_info.enabledExtensionCount   = deviceExtensionCount;
+        vk_device_create_info.ppEnabledExtensionNames = deviceExtensions;
+        vk_device_create_info.enabledLayerCount       = validationLayerCount;
+        vk_device_create_info.ppEnabledLayerNames     = validationLayers;
+
+        VkResult res = vkCreateDevice(device->m_Device, &vk_device_create_info, 0, &logicalDeviceOut->m_Device);
+
+        if (res == VK_SUCCESS)
+        {
+            vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_GraphicsQueueIx, 0, &logicalDeviceOut->m_GraphicsQueue);
+            vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_PresentQueueIx, 0, &logicalDeviceOut->m_PresentQueue);
+        }
+
+        return res;
+    }
+
+    #undef QUEUE_FAMILY_INVALID
 
     void VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
     {

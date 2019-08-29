@@ -9,13 +9,58 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-// TODO: This should probably be configurable, or defined by
-//       build system somehow.
-static bool g_enable_validation = true;
-
 namespace dmGraphics
 {
+    // TODO: Validation layers should probably be configurable,
+    //       or defined by the build system.
+    static bool g_enable_validation               = true;
+    static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
+    static const uint8_t g_validation_layer_count = 1;
+
     static Context* g_Context = 0;
+
+    static const char* VkResultToStr(VkResult res)
+    {
+        switch(res)
+        {
+            case VK_SUCCESS: return "VK_SUCCESS";
+            case VK_NOT_READY: return "VK_NOT_READY";
+            case VK_TIMEOUT: return "VK_TIMEOUT";
+            case VK_EVENT_SET: return "VK_EVENT_SET";
+            case VK_EVENT_RESET: return "VK_EVENT_RESET";
+            case VK_INCOMPLETE: return "VK_INCOMPLETE";
+            case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+            case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+            case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+            case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+            case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+            case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+            case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+            case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+            case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+            case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+            case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+            case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+            case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
+            case VK_ERROR_INVALID_EXTERNAL_HANDLE: return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+            case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
+            case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+            case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
+            case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
+            case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+            case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
+            case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
+            case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT: return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+            case VK_ERROR_FRAGMENTATION_EXT: return "VK_ERROR_FRAGMENTATION_EXT";
+            case VK_ERROR_NOT_PERMITTED_EXT: return "VK_ERROR_NOT_PERMITTED_EXT";
+            case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT: return "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT";
+            case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+            case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
+            default: break;
+        }
+
+        return "UNKNOWN_ERROR";
+    }
 
     HContext NewContext(const ContextParams& params)
     {
@@ -28,7 +73,7 @@ namespace dmGraphics
             }
 
             VkInstance vk_instance;
-            if (VKCreateInstance(&vk_instance, g_enable_validation) != VK_SUCCESS)
+            if (VKCreateInstance(&vk_instance, g_validation_layers, g_enable_validation ? 1 : 0) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
@@ -81,9 +126,10 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        if (VKCreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI) != VK_SUCCESS)
+        VkResult res = VKCreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
+        if (res != VK_SUCCESS)
         {
-            dmLogError("Could not create window surface for Vulkan.");
+            dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
@@ -91,12 +137,13 @@ namespace dmGraphics
         PhysicalDevice* device_list     = new PhysicalDevice[device_count];
         PhysicalDevice* selected_device = NULL;
 
-        if (VKGetPhysicalDevices(context->m_Instance, &device_list, device_count) != VK_SUCCESS)
+        if (!VKGetPhysicalDevices(context->m_Instance, &device_list, device_count))
         {
             dmLogError("Could not get any Vulkan devices.");
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        const uint8_t required_device_extension_count = 2;
         const char* required_device_extensions[] = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             // From spec:
@@ -104,10 +151,10 @@ namespace dmGraphics
             // perform y-inversion of the clip-space to framebuffer-space transform.
             // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
             // in shaders also targeting other APIs."
-            "VK_KHR_maintenance1",
-            NULL
+            "VK_KHR_maintenance1"
         };
 
+        QueueFamily selected_queue_family;
         for (uint32_t i = 0; i < device_count; ++i)
         {
             PhysicalDevice* device = &device_list[i];
@@ -121,8 +168,7 @@ namespace dmGraphics
             }
 
             // Make sure all device extensions are supported
-            int32_t ext_i = -1;
-            while(required_device_extensions[++ext_i])
+            for (int32_t ext_i = 0; ext_i < required_device_extension_count; ++ext_i)
             {
                 bool found = false;
                 for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
@@ -152,11 +198,22 @@ namespace dmGraphics
             }
 
             selected_device = device;
+            selected_queue_family = queue_family;
+            break;
         }
 
         if (selected_device == NULL)
         {
             dmLogError("Could not select a suitable Vulkan device.");
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        res = VKCreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
+            required_device_extensions, required_device_extension_count,
+            g_validation_layers, g_validation_layer_count, &context->m_LogicalDevice);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 

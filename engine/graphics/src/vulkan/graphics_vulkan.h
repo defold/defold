@@ -33,6 +33,13 @@ namespace dmGraphics
         uint16_t                         m_DeviceExtensionCount;
     };
 
+    struct LogicalDevice
+    {
+        VkDevice m_Device;
+        VkQueue  m_GraphicsQueue;
+        VkQueue  m_PresentQueue;
+    };
+
     struct SwapChainCapabilities
     {
         VkSurfaceCapabilitiesKHR    m_SurfaceCapabilities;
@@ -58,19 +65,24 @@ namespace dmGraphics
         VkInstance     m_Instance;
         VkSurfaceKHR   m_WindowSurface;
         PhysicalDevice m_PhysicalDevice;
+        LogicalDevice  m_LogicalDevice;
         uint32_t       m_WindowOpened : 1;
         uint32_t       : 31;
     };
 
     // Implemented in graphics_vulkan_context.cpp
-    VkResult VKCreateInstance(VkInstance* vkInstanceOut, bool enableValidation);
+    VkResult VKCreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
 
     // Implemented in graphics_vulkan_device.cpp
     uint32_t    VKGetPhysicalDeviceCount(VkInstance vkInstance);
-    VkResult    VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
+    bool        VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     void        VKResetPhysicalDevice(PhysicalDevice* device);
     QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
     void        VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
+    VkResult    VKCreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
+        const char** deviceExtensions, const uint8_t deviceExtensionCount,
+        const char** validationLayers, const uint8_t validationLayerCount,
+        LogicalDevice* logicalDeviceOut);
 
     // Implemented per supported platform
     VkResult VKCreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);

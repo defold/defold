@@ -23,7 +23,7 @@ namespace dmGraphics
         return VK_FALSE;
     }
 
-    static bool ValidateRequiredExtensions(const char** extensionNames, uint8_t extensionCount)
+    static bool ValidateRequiredExtensions(const char** extensionNames, const uint8_t extensionCount)
     {
         uint32_t vk_extension_count              = 0;
         VkExtensionProperties* vk_extension_list = 0;
@@ -67,8 +67,13 @@ namespace dmGraphics
         return extensions_found == extensionCount;
     }
 
-    static bool GetValidationSupport(const char** validationLayers, uint8_t validationLayersCount)
+    static bool GetValidationSupport(const char** validationLayers, const uint8_t validationLayersCount)
     {
+        if (validationLayersCount == 0)
+        {
+            return false;
+        }
+
         uint32_t vk_layer_count                = 0;
         VkLayerProperties* vk_layer_properties = 0;
 
@@ -105,7 +110,7 @@ namespace dmGraphics
          return all_layers_found;
     }
 
-    VkResult VKCreateInstance(VkInstance* vkInstanceOut, bool enableValidation)
+    VkResult VKCreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount)
     {
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};
@@ -135,16 +140,15 @@ namespace dmGraphics
     #endif
 
         int enabled_layer_count = 0;
-        const char* enabled_layer_names = 0;
 
-        if (enableValidation)
+        if (validationLayerCount > 0)
         {
-            enabled_layer_names = "VK_LAYER_LUNARG_standard_validation";
-
-            if (GetValidationSupport(&enabled_layer_names, 1))
+            if (GetValidationSupport(validationLayers, validationLayerCount))
             {
-                enabled_layer_count = 1;
-                vk_required_extensions.Push(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+                for (; enabled_layer_count < validationLayerCount; ++enabled_layer_count)
+                {
+                    vk_required_extensions.Push(validationLayers[enabled_layer_count]);
+                }
             }
         }
 
@@ -159,7 +163,7 @@ namespace dmGraphics
         vk_instance_create_info.enabledExtensionCount   = (uint32_t) vk_required_extensions.Size();
         vk_instance_create_info.ppEnabledExtensionNames = vk_required_extensions.Begin();
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
-        vk_instance_create_info.ppEnabledLayerNames     = &enabled_layer_names;
+        vk_instance_create_info.ppEnabledLayerNames     = validationLayers;
 
         VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)
@@ -167,7 +171,7 @@ namespace dmGraphics
             return res;
         }
 
-        if (enableValidation && enabled_layer_count > 0)
+        if (enabled_layer_count > 0)
         {
             assert(g_vk_debug_callback_handle == 0);
             VkDebugUtilsMessengerCreateInfoEXT vk_debug_messenger_create_info = {};
