@@ -1729,7 +1729,7 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
-    use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
+    use_vanilla = getattr(Options.options, 'use_vanilla_lua', True)
     if build_util.get_target_os() == 'web':
         use_vanilla = True
 
@@ -1775,9 +1775,9 @@ def set_options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
-    opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
+    opt.add_option('--use-vanilla-lua', action="store_true", default=True, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
-    opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
+    opt.add_option('--opt-level', default="0", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
