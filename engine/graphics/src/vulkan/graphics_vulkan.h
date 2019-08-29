@@ -72,6 +72,7 @@ namespace dmGraphics
 
     // Implemented in graphics_vulkan_context.cpp
     VkResult VKCreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
+    void     VKDestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan_device.cpp
     uint32_t    VKGetPhysicalDeviceCount(VkInstance vkInstance);

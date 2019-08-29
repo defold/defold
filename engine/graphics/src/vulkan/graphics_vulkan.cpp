@@ -234,6 +234,12 @@ namespace dmGraphics
 
             VKResetPhysicalDevice(&context->m_PhysicalDevice);
 
+            vkDestroyDevice(context->m_LogicalDevice.m_Device, 0);
+
+            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+
+            VKDestroyInstance(&context->m_Instance);
+
             context->m_WindowOpened = 0;
         }
     }

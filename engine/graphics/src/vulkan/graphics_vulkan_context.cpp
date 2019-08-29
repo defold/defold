@@ -110,6 +110,25 @@ namespace dmGraphics
          return all_layers_found;
     }
 
+    void VKDestroyInstance(VkInstance* vkInstance)
+    {
+        assert(vkInstance);
+
+        if (g_vk_debug_callback_handle != NULL)
+        {
+            PFN_vkDestroyDebugUtilsMessengerEXT func_ptr =
+                (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(*vkInstance, "vkDestroyDebugUtilsMessengerEXT");
+
+            if (func_ptr != NULL)
+            {
+                func_ptr(*vkInstance, g_vk_debug_callback_handle, 0);
+            }
+        }
+
+        vkDestroyInstance(*vkInstance, 0);
+        *vkInstance = VK_NULL_HANDLE;
+    }
+
     VkResult VKCreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount)
     {
         VkApplicationInfo    vk_application_info     = {};
