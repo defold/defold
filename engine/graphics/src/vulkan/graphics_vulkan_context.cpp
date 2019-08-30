@@ -142,7 +142,8 @@ namespace dmGraphics
         vk_application_info.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
         vk_application_info.apiVersion         = VK_API_VERSION_1_0;
 
-        vk_required_extensions.SetCapacity(2);
+        vk_required_extensions.SetCapacity(3);
+        vk_required_extensions.Push(VK_KHR_SURFACE_EXTENSION_NAME);
 
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
         vk_required_extensions.Push(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);

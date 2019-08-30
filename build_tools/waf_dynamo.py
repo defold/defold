@@ -24,6 +24,8 @@ ANDROID_TARGET_API_LEVEL='28' # Android 9.0
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
+ANDROID_64_NDK_API_VERSION_VULKAN='24'
+
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 IOS_SDK_VERSION="12.1"
@@ -195,7 +197,10 @@ def getAndroidCompilerName(target_arch, api_version):
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+    if Options.options.with_vulkan:
+        return ANDROID_64_NDK_API_VERSION_VULKAN
+    else:
+        return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
 
 def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:

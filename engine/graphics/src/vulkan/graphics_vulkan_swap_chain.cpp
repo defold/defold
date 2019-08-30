@@ -135,7 +135,7 @@ namespace dmGraphics
         {
             // This mode is best for performance and can be used with no penality
             // if we are using the same queue for everything.
-            vk_swap_chain_create_info.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
+            vk_swap_chain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         }
 
          // The preTransform field can be used to rotate the swap chain when presenting
