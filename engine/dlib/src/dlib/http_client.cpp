@@ -344,18 +344,14 @@ namespace dmHttpClient
         k++;
         if (response->m_SSLConnection != 0) {
             int r = 0;
-
-            //printf("ssl_write %d  msg:\n'%s'\n", k, (const char*) buffer);
             while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) <= 0 )
             {
-                //printf("  ssl_write %d  retry...\n", k);
                 if (r == MBEDTLS_ERR_SSL_WANT_WRITE ||
                     r == MBEDTLS_ERR_SSL_WANT_READ) {
                     return dmSocket::RESULT_TRY_AGAIN;
                 }
 
                 if (r < 0) {
-                    //printf("  ssl_write %d  aborted...\n", k);
                     return SSLToSocket(r);
                 }
             }
@@ -363,15 +359,12 @@ namespace dmHttpClient
             // In order to mimic the http code path, we return the same error number
             if( (r == length) && HasRequestTimedOut(response->m_Client) )
             {
-                //printf("  ssl_write %d  r == length and timeout!\n", k);
                 return dmSocket::RESULT_WOULDBLOCK;
             }
 
             if (r != length) {
-                //printf("  ssl_write %d  r != length\n", k);
                 return SSLToSocket(r);
             }
-            //printf("  ssl_write %d  ok\n", k);
 
             return dmSocket::RESULT_OK;
         } else {
@@ -430,7 +423,6 @@ namespace dmHttpClient
                 }
 
                 ((uint8_t*)buffer)[ret] = 0;
-                //dmLogWarning( " %d bytes read\n\n%s\n", ret, (char *) buffer );
 
                 *received_bytes = ret;
                 return dmSocket::RESULT_OK;

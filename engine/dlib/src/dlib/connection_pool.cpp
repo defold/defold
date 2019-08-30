@@ -5,6 +5,7 @@
 #include "array.h"
 #include "time.h"
 #include "log.h"
+#include "math.h"
 #include "mutex.h"
 #include "hash.h"
 
@@ -384,6 +385,7 @@ namespace dmConnectionPool
                 // In order to not have it block (unless timeout == 0)
                 dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
                 dmSocket::SetReceiveTimeout(c->m_Socket, (int)ssl_handshake_timeout);
+                mbedtls_ssl_conf_handshake_timeout(&pool->m_MbedConf, (int)ssl_handshake_timeout, dmMath::Max(ssl_handshake_timeout, SOCKET_TIMEOUT));
 
                 c->m_SSLContext     = (mbedtls_ssl_context*)malloc(sizeof(mbedtls_ssl_context));
                 c->m_SSLNetContext  = (mbedtls_net_context*)malloc(sizeof(mbedtls_net_context));
@@ -413,10 +415,8 @@ namespace dmConnectionPool
                 while( ( ret = mbedtls_ssl_handshake( c->m_SSLContext ) ) != 0 )
                 {
                     uint64_t currenttime = dmTime::GetTime();
-
                     if( ssl_handshake_timeout > 0 && int(currenttime - handshakestart) > ssl_handshake_timeout )
                     {
-                        dmLogError("mbedtls_ssl_handshake timed out\n");
                         *sr = dmSocket::RESULT_WOULDBLOCK;
                         DoClose(pool, c);
                         return RESULT_HANDSHAKE_FAILED;
@@ -426,21 +426,17 @@ namespace dmConnectionPool
                         ret != MBEDTLS_ERR_SSL_WANT_WRITE &&
                         ret != MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS )
                     {
-                        dmLogError("mbedtls_ssl_handshake returned -0x%x\n", -ret );
+                        // see net_sockets.h, ssl.h and x509.h for error codes
+                        dmLogError("mbedtls_ssl_handshake returned -0x%04X\n", -ret );
                         if( ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED )
-                            dmLogError( "    Unable to verify the server's certificate. "
-                                            "Either it is invalid,\n"
-                                        "    or you didn't set ca_file or ca_path "
-                                            "to an appropriate value.\n"
-                                        "    Alternatively, you may want to use "
-                                            "auth_mode=optional for testing purposes.\n" );
-
+                        {
+                            dmLogError("Unable to verify the server's certificate.");
+                        }
                         DoClose(pool, c);
                         return RESULT_HANDSHAKE_FAILED;
                     }
                 }
 
-                /* In real life, we probably want to bail out when ret != 0 */
                 int flags = 0;
                 if( ( flags = mbedtls_ssl_get_verify_result( c->m_SSLContext ) ) != 0 )
                 {
@@ -448,8 +444,6 @@ namespace dmConnectionPool
                     mbedtls_x509_crt_verify_info( vrfy_buf, sizeof( vrfy_buf ), "  ! ", flags );
                     dmLogError("mbedtls_ssl_get_verify_result failed:\n    %s\n", vrfy_buf );
                 }
-
-                //dmLogDebug("SSL connection ok\n    [ Protocol is %s ]\n    [ Ciphersuite is %s ]\n", mbedtls_ssl_get_version( c->m_SSLContext ), mbedtls_ssl_get_ciphersuite( c->m_SSLContext ) );
             }
         }
         return r;
