@@ -91,7 +91,6 @@ namespace dmCrypt
     Result Decrypt(const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t datalen, uint8_t** output, uint32_t* outputlen)
     {
         // https://tls.mbed.org/discussions/generic/parsing-public-key-from-memory
-
         Result result = RESULT_OK;
 
         const char* pers = "defold_pk_decrypt";
@@ -107,20 +106,15 @@ namespace dmCrypt
         int ret;
         if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen(pers) ) ) != 0 )
         {
-            printf( " failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret );
             result = RESULT_ERROR;
             goto exit;
         }
 
         if ((ret = mbedtls_pk_parse_public_key(&pk, key, keylen) != 0))
         {
-            printf( " failed\n  ! mbedtls_pk_parse_public_key returned %d\n", ret );
             result = RESULT_ERROR;
             goto exit;
         }
-
-        //signature_hash_len = mbedtls_pk_get_len(&pk);
-        printf("signature_hash_len: %u\n", signature_hash_len);
 
         *output = (uint8_t*)malloc(signature_hash_len);
         size_t _outputlen;
@@ -129,14 +123,12 @@ namespace dmCrypt
                     (uint8_t*)*output, &_outputlen, signature_hash_len,
                     mbedtls_ctr_drbg_random, &ctr_drbg )) != 0)
         {
-            printf( " failed\n  ! rsa_alt_decrypt_public_wrap returned -0x%04x\n", -ret );
             free(*output);
             result = RESULT_ERROR;
             goto exit;
         }
 
         *outputlen = (uint32_t)_outputlen;
-        printf("outputlen: %u", *outputlen);
 
     exit:
         mbedtls_ctr_drbg_free( &ctr_drbg );

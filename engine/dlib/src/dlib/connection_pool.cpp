@@ -412,29 +412,34 @@ namespace dmConnectionPool
 
                 mbedtls_ssl_set_bio( c->m_SSLContext, c->m_SSLNetContext, mbedtls_net_send, mbedtls_net_recv, NULL );
 
-                while( ( ret = mbedtls_ssl_handshake( c->m_SSLContext ) ) != 0 )
+                do
                 {
-                    uint64_t currenttime = dmTime::GetTime();
-                    if( ssl_handshake_timeout > 0 && int(currenttime - handshakestart) > ssl_handshake_timeout )
-                    {
-                        *sr = dmSocket::RESULT_WOULDBLOCK;
-                        DoClose(pool, c);
-                        return RESULT_HANDSHAKE_FAILED;
-                    }
+                    ret = mbedtls_ssl_handshake( c->m_SSLContext );
+                } while (ret == MBEDTLS_ERR_SSL_WANT_READ ||
+                         ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
-                    if( ret != MBEDTLS_ERR_SSL_WANT_READ &&
-                        ret != MBEDTLS_ERR_SSL_WANT_WRITE &&
-                        ret != MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS )
+                uint64_t currenttime = dmTime::GetTime();
+                if( ssl_handshake_timeout > 0 && int(currenttime - handshakestart) > ssl_handshake_timeout )
+                {
+                    ret = MBEDTLS_ERR_SSL_TIMEOUT;
+                }
+
+                if (ret != 0)
+                {
+                    // see net_sockets.h, ssl.h and x509.h for error codes
+                    dmLogError("mbedtls_ssl_handshake returned -0x%04X\n", -ret );
+                    if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
                     {
-                        // see net_sockets.h, ssl.h and x509.h for error codes
-                        dmLogError("mbedtls_ssl_handshake returned -0x%04X\n", -ret );
-                        if( ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED )
-                        {
-                            dmLogError("Unable to verify the server's certificate.");
-                        }
-                        DoClose(pool, c);
-                        return RESULT_HANDSHAKE_FAILED;
+                        dmLogError("Unable to verify the server's certificate.");
+                        *sr = dmSocket::RESULT_CONNREFUSED;
                     }
+                    else if (ret == MBEDTLS_ERR_SSL_TIMEOUT)
+                    {
+                        dmLogError("SSL handshake timeout");
+                        *sr = dmSocket::RESULT_WOULDBLOCK;
+                    }
+                    DoClose(pool, c);
+                    return RESULT_HANDSHAKE_FAILED;
                 }
 
                 int flags = 0;
