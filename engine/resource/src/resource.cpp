@@ -491,24 +491,14 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
 
 Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
 {
-    Result result = RESULT_OK;
-
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
     uint32_t signature_hash_len = HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
 
-    printf("EXPECTED signature_len: %u\n", signature_hash_len);
-    printf("EXPECTED signature_hash_len: %u\n", signature_hash_len);
-
     dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
-
-    printf("dmCrypt::Decrypt returned: %u\n", r);
-
     if (r != dmCrypt::RESULT_OK) {
-    printf("DecryptSignatureHash returned: RESULT_INVALID_DATA\n");
         return RESULT_INVALID_DATA;
     }
-    printf("DecryptSignatureHash returned: RESULT_OK\n");
     return RESULT_OK;
 }
 
