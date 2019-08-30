@@ -47,7 +47,7 @@
 (def ^:private layer-mask-outline 0x2)
 (def ^:private layer-mask-shadow 0x4)
 
-(def font-file-extensions ["ttf" "otf" "fnt"])
+(def ^:private font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private resource-fields #{:font :material})
 

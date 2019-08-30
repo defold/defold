@@ -7,7 +7,6 @@
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
-            [editor.font :as font]
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.lua :as lua]
@@ -19,6 +18,7 @@
             [editor.types :as t]
             [editor.workspace :as workspace]
             [editor.validation :as validation]
+            [internal.util :as util]
             [schema.core :as s])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
@@ -165,7 +165,7 @@
   "Declares which file extensions are valid for different kinds of resource
   properties. This affects the Property Editor, but is also used for validation."
   {"atlas"       ["atlas" "tilesource"]
-   "font"        font/font-file-extensions
+   "font"        "font"
    "material"    "material"
    "texture"     (conj image/exts "cubemap")
    "tile_source" "tilesource"})
@@ -537,7 +537,10 @@
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
                          modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))
-                         script-properties (filterv #(= :ok (:status %)) (:script-properties completion-info))]
+                         script-properties (into []
+                                                 (comp (filter #(= :ok (:status %)))
+                                                       (util/distinct-by :name))
+                                                 (:script-properties completion-info))]
                      (concat
                        (g/set-property self :completion-info completion-info)
                        (g/set-property self :modules modules)

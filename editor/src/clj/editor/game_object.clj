@@ -314,7 +314,6 @@
                          (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
-                                                  [:user-properties :user-properties]
                                                   [:scene :scene]
                                                   [:build-targets :source-build-targets]))))))
             (dynamic error (g/fnk [_node-id source-resource]

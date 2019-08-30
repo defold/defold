@@ -20,9 +20,9 @@
             [integration.test-util :as tu]
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.murmur :as murmur])
-  (:import (com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc)
-           (com.dynamo.lua.proto Lua$LuaModule)
-           (java.io ByteArrayOutputStream StringReader)))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [com.dynamo.lua.proto Lua$LuaModule]
+           [java.io ByteArrayOutputStream StringReader]))
 
 (defn- unpack-property-declarations [property-declarations]
   (assert (map? property-declarations))
