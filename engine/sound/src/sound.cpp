@@ -143,7 +143,7 @@ namespace dmSound
         dmhash_t    m_Group;
 
         Value       m_Gain;
-        Value       m_Pan;      // -1 = -45deg left, 1 = 45 deg right
+        Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
         uint32_t    m_FrameCount;
         uint32_t    m_FrameFraction;
 
@@ -483,6 +483,7 @@ namespace dmSound
         si->m_SoundDataIndex = sound_data->m_Index;
         si->m_Index = index;
         si->m_Gain.Reset(1.0f);
+        si->m_Pan.Reset(0.5f);
         si->m_Looping = 0;
         si->m_EndOfStream = 0;
         si->m_Playing = 0;
@@ -698,8 +699,11 @@ namespace dmSound
                 sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
                 break;
             case PARAMETER_PAN:
-                //sound_instance->m_Pan.Set(dmMath::Max(-1.0f, dmMath::Min(1.0f, value.getX())), reset);
-                sound_instance->m_Pan.Set(value.getX(), reset);
+                {
+                    float pan = dmMath::Max(-1.0f, dmMath::Min(1.0f, value.getX()));
+                    pan = (pan + 1.0f) * 0.5f; // map [-1,1] to [0,1] for easier calculations later
+                    sound_instance->m_Pan.Set(pan, reset);
+                }
                 break;
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
@@ -710,14 +714,10 @@ namespace dmSound
 
     static inline void GetPanScale(float pan, float* left_scale, float* right_scale)
     {
-        // From Curtis Roads book:
-        // https://dsp.stackexchange.com/a/21736
-        const float k = M_SQRT2 / 2.0f;
-        const float t = pan * M_PI_4; // from -45 to +45 deg
-        const float c = cosf(t);
-        const float s = sinf(t);
-        *left_scale = k * (c - s);
-        *right_scale = k * (c + s);
+        // Constant power panning: https://www.cs.cmu.edu/~music/icm-online/readings/panlaws/index.html
+        const float theta = pan * M_PI_2;
+        *left_scale = cosf(theta);
+        *right_scale = sinf(theta);
     }
 
     template <typename T, int offset, int scale>

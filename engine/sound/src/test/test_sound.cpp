@@ -387,8 +387,8 @@ TEST_P(dmSoundVerifyTest, Mix)
         double frac = fmod(i * mix_rate / 44100.0, 1.0);
         double a = a1 * (1.0 - frac) + a2 * frac;
         int16_t as = (int16_t) a;
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 24);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 24);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * 0.707107f, 24);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * 0.707107f, 24);
     }
 
     ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
@@ -400,13 +400,13 @@ TEST_P(dmSoundVerifyTest, Mix)
     float rms_left, rms_right;
     dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
-    ASSERT_NEAR(rms_left, 0.8f / sqrtf(2.0f), 0.02f);
-    ASSERT_NEAR(rms_right, 0.8f / sqrtf(2.0f), 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_left, 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_right, 0.02f);
 
     float peak_left, peak_right;
     dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &peak_left, &peak_right);
-    ASSERT_NEAR(peak_left, 0.8f, 0.01f);
-    ASSERT_NEAR(peak_right, 0.8f, 0.01f);
+    ASSERT_NEAR(0.8f* 0.707107f, peak_left, 0.01f);
+    ASSERT_NEAR(0.8f* 0.707107f, peak_right, 0.01f);
 
     int expected_queued = (frame_count * 44100) / ((int) mix_rate * params.m_BufferFrameCount)
                             + dmMath::Min(1U, (frame_count * 44100) % ((int) mix_rate * params.m_BufferFrameCount));
@@ -625,7 +625,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
                 float mix = (i - prev_frames) / (float) (frames - prev_frames);
                 float expectedf = (32768.0f * 0.8f * ((1.0f - mix) * prev_g + g * mix));
                 int16_t expected = (int16_t) expectedf ;
-                ASSERT_NEAR(expected, actual, 2U);
+                ASSERT_NEAR(expected * 0.707107f, actual, 2U);
             }
             prev_g = g;
         }
@@ -985,8 +985,8 @@ TEST_P(dmSoundMixerTest, Mixer)
 
         const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain, abs_error);
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain * 0.707107f, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain * 0.707107f, abs_error);
         }
     }
     last_rms /= 32767.0f;
