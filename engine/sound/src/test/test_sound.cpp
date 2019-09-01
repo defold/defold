@@ -73,8 +73,12 @@ struct TestParams
     uint32_t    m_ToneRate;
     uint32_t    m_MixRate;
     uint32_t    m_BufferFrameCount;
+    float       m_Pan;
+    float       m_Pitch;
 
     TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
+    : m_Pan(0.0f)
+    , m_Pitch(1.0f)
     {
         m_DeviceName = device_name;
         m_Sound = sound;
@@ -85,6 +89,22 @@ struct TestParams
         m_MixRate = mix_rate;
         m_BufferFrameCount = buffer_frame_count;
     }
+
+    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate,
+                uint32_t frame_count, uint32_t buffer_frame_count, float pan, float pitch)
+    : m_Pan(pan)
+    , m_Pitch(pitch)
+    {
+        m_DeviceName = device_name;
+        m_Sound = sound;
+        m_SoundSize = sound_size;
+        m_Type = type;
+        m_FrameCount = frame_count;
+        m_ToneRate = tone_rate;
+        m_MixRate = mix_rate;
+        m_BufferFrameCount = buffer_frame_count;
+    }
+
 };
 
 struct TestParams2
@@ -215,6 +235,10 @@ class dmSoundVerifyOggTest : public dmSoundTest
 };
 
 class dmSoundTestPlayTest : public dmSoundTest
+{
+};
+
+class dmSoundTestPlayPitchTest : public dmSoundTest
 {
 };
 
@@ -440,41 +464,41 @@ TEST_P(dmSoundVerifyTest, NoEarlyBailOnSoundInstances)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+// const TestParams params_verify_test[] = {
+//     TestParams("loopback",
+//             MONO_TONE_440_22050_44100_WAV,
+//             MONO_TONE_440_22050_44100_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             22050,
+//             44100,
+//             2048),
+// };
 const TestParams params_verify_test[] = {
-    TestParams("loopback",
-            MONO_TONE_440_22050_44100_WAV,
-            MONO_TONE_440_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            22050,
-            44100,
-            2048),
-};
-const TestParams params_verify_test_[] = {
-TestParams("loopback",
-            MONO_TONE_440_22050_44100_WAV,
-            MONO_TONE_440_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            22050,
-            44100,
-            2048),
-TestParams("loopback",
-            MONO_TONE_440_32000_64000_WAV,
-            MONO_TONE_440_32000_64000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            32000,
-            64000,
-            2048),
-TestParams("loopback",
-            MONO_TONE_440_44000_88000_WAV,
-            MONO_TONE_440_44000_88000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            44000,
-            88000,
-            2048),
+// TestParams("loopback",
+//             MONO_TONE_440_22050_44100_WAV,
+//             MONO_TONE_440_22050_44100_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             22050,
+//             44100,
+//             2048),
+// TestParams("loopback",
+//             MONO_TONE_440_32000_64000_WAV,
+//             MONO_TONE_440_32000_64000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             32000,
+//             64000,
+//             2048),
+// TestParams("loopback",
+//             MONO_TONE_440_44000_88000_WAV,
+//             MONO_TONE_440_44000_88000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             44000,
+//             88000,
+//             2048),
 TestParams("loopback",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -483,104 +507,104 @@ TestParams("loopback",
             44100,
             88200,
             2048),
-TestParams("loopback",
-            MONO_TONE_2000_22050_44100_WAV,
-            MONO_TONE_2000_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            22050,
-            44100,
-            2048),
-TestParams("loopback",
-            MONO_TONE_2000_32000_64000_WAV,
-            MONO_TONE_2000_32000_64000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            32000,
-            64000,
-            2048),
-TestParams("loopback",
-            MONO_TONE_2000_44000_88000_WAV,
-            MONO_TONE_2000_44000_88000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            44000,
-            88000,
-            2048),
-TestParams("loopback",
-            MONO_TONE_2000_44100_88200_WAV,
-            MONO_TONE_2000_44100_88200_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            44100,
-            88200,
-            2048),
+// TestParams("loopback",
+//             MONO_TONE_2000_22050_44100_WAV,
+//             MONO_TONE_2000_22050_44100_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             22050,
+//             44100,
+//             2048),
+// TestParams("loopback",
+//             MONO_TONE_2000_32000_64000_WAV,
+//             MONO_TONE_2000_32000_64000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             32000,
+//             64000,
+//             2048),
+// TestParams("loopback",
+//             MONO_TONE_2000_44000_88000_WAV,
+//             MONO_TONE_2000_44000_88000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             44000,
+//             88000,
+//             2048),
+// TestParams("loopback",
+//             MONO_TONE_2000_44100_88200_WAV,
+//             MONO_TONE_2000_44100_88200_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             44100,
+//             88200,
+//             2048),
 
 
-TestParams("loopback",
-            STEREO_TONE_440_22050_44100_WAV,
-            STEREO_TONE_440_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            22050,
-            44100,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_440_32000_64000_WAV,
-            STEREO_TONE_440_32000_64000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            32000,
-            64000,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_440_44000_88000_WAV,
-            STEREO_TONE_440_44000_88000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            44000,
-            88000,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_440_44100_88200_WAV,
-            STEREO_TONE_440_44100_88200_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            44100,
-            88200,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_2000_22050_44100_WAV,
-            STEREO_TONE_2000_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            22050,
-            44100,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_2000_32000_64000_WAV,
-            STEREO_TONE_2000_32000_64000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            32000,
-            64000,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_2000_44000_88000_WAV,
-            STEREO_TONE_2000_44000_88000_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            44000,
-            88000,
-            2048),
-TestParams("loopback",
-            STEREO_TONE_2000_44100_88200_WAV,
-            STEREO_TONE_2000_44100_88200_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            2000,
-            44100,
-            88200,
-            2048)
+// TestParams("loopback",
+//             STEREO_TONE_440_22050_44100_WAV,
+//             STEREO_TONE_440_22050_44100_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             22050,
+//             44100,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_440_32000_64000_WAV,
+//             STEREO_TONE_440_32000_64000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             32000,
+//             64000,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_440_44000_88000_WAV,
+//             STEREO_TONE_440_44000_88000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             44000,
+//             88000,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_440_44100_88200_WAV,
+//             STEREO_TONE_440_44100_88200_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             440,
+//             44100,
+//             88200,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_2000_22050_44100_WAV,
+//             STEREO_TONE_2000_22050_44100_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             22050,
+//             44100,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_2000_32000_64000_WAV,
+//             STEREO_TONE_2000_32000_64000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             32000,
+//             64000,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_2000_44000_88000_WAV,
+//             STEREO_TONE_2000_44000_88000_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             44000,
+//             88000,
+//             2048),
+// TestParams("loopback",
+//             STEREO_TONE_2000_44100_88200_WAV,
+//             STEREO_TONE_2000_44100_88200_WAV_SIZE,
+//             dmSound::SOUND_DATA_TYPE_WAV,
+//             2000,
+//             44100,
+//             88200,
+//             2048)
 };
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
@@ -751,9 +775,14 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    float a = 0;
+    // float a = 0;
 
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+    // r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+    // ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    //r = dmSound::SetParameter(instance, dmSound::PARAMETER_PITCH, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PITCH, Vectormath::Aos::Vector4(2.0f,0,0,0));
+    //r = dmSound::SetParameter(instance, dmSound::PARAMETER_PITCH, Vectormath::Aos::Vector4(1.0f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::Play(instance);
@@ -762,13 +791,45 @@ TEST_P(dmSoundTestPlayTest, Play)
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
-        a += M_PI / 20000000.0f;
-        if (a > M_PI*2) {
-            a-= M_PI*2;
-        }
-        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
-        ASSERT_EQ(dmSound::RESULT_OK, r);
+        // a += M_PI / 20000000.0f;
+        // if (a > M_PI*2) {
+        //     a-= M_PI*2;
+        // }
+        // r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+        // ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_P(dmSoundTestPlayPitchTest, Play)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PITCH, Vectormath::Aos::Vector4(params.m_Pitch,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
     } while (dmSound::IsPlaying(instance));
 
     r = dmSound::DeleteSoundInstance(instance);
@@ -789,40 +850,81 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 
 const TestParams params_test_play_test[] = {
+    // TestParams("default",
+    //             MONO_TONE_440_32000_64000_WAV,
+    //             MONO_TONE_440_32000_64000_WAV_SIZE,
+    //             dmSound::SOUND_DATA_TYPE_WAV,
+    //             440,
+    //             32000,
+    //             64000,
+    //             2048),
+    // TestParams("default",
+    //             MONO_TONE_440_44000_88000_WAV,
+    //             MONO_TONE_440_44000_88000_WAV_SIZE,
+    //             dmSound::SOUND_DATA_TYPE_WAV,
+    //             440,
+    //             44000,
+    //             88000,
+    //             2048),
+    // TestParams("default",
+    //             STEREO_TONE_440_32000_64000_WAV,
+    //             STEREO_TONE_440_32000_64000_WAV_SIZE,
+    //             dmSound::SOUND_DATA_TYPE_WAV,
+    //             440,
+    //             32000,
+    //             64000,
+    //             2048),
+    // TestParams("default",
+    //             STEREO_TONE_440_44000_88000_WAV,
+    //             STEREO_TONE_440_44000_88000_WAV_SIZE,
+    //             dmSound::SOUND_DATA_TYPE_WAV,
+    //             440,
+    //             44000,
+    //             88000,
+    //             2048)
+
     TestParams("default",
-                MONO_TONE_440_32000_64000_WAV,
-                MONO_TONE_440_32000_64000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                32000,
-                64000,
-                2048),
-    TestParams("default",
-                MONO_TONE_440_44000_88000_WAV,
-                MONO_TONE_440_44000_88000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                44000,
-                88000,
-                2048),
-    TestParams("default",
-                STEREO_TONE_440_32000_64000_WAV,
-                STEREO_TONE_440_32000_64000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                32000,
-                64000,
-                2048),
-    TestParams("default",
-                STEREO_TONE_440_44000_88000_WAV,
-                STEREO_TONE_440_44000_88000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                44000,
-                88000,
-                2048)
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
+
+
+#define TEST_PITCH 0.5f
+const TestParams params_test_play_pitch_test[] = {
+    TestParams("default",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            44100,
+            2048,
+            0.0f,
+            //1.0f),
+            //0.5f),
+            //2.0f),
+            TEST_PITCH),
+    TestParams("default",
+            MONO_TONE_440_32000_64000_WAV,
+            MONO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            32000,
+            2048,
+            0.0f,
+            //1.0f),
+            //0.5f),
+            //2.0f),
+            TEST_PITCH),
+};
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlayPitchTest, dmSoundTestPlayPitchTest, jc_test_values_in(params_test_play_pitch_test));
 
 TEST_P(dmSoundVerifyWavTest, Mix)
 {

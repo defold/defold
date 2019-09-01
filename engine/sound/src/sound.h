@@ -21,6 +21,7 @@ namespace dmSound
     {
         PARAMETER_GAIN  = 0,
         PARAMETER_PAN   = 1,
+        PARAMETER_PITCH = 2,
     };
 
     enum Result

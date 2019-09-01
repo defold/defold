@@ -367,7 +367,7 @@ namespace dmGameSystem
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
      *
      * ```lua
-     * sound.play("#sound", { delay = 1, gain = 0.5 } )
+     * sound.play("#sound", { delay = 1, gain = 0.5, pan = 0.0 } )
      * ```
      */
     static int Sound_Play(lua_State* L)

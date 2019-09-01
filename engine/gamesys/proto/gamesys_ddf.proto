@@ -84,9 +84,10 @@ message SetViewProjection
 /* Documented in comp_sound.cpp */
 message PlaySound
 {
-    optional float delay = 1 [default=0.0];
-    optional float gain = 2 [default=1.0];
-    optional float pan = 3 [default=0.0];
+    optional float delay    = 1 [default=0.0];
+    optional float gain     = 2 [default=1.0];
+    optional float pan      = 3 [default=0.0];
+    optional float pitch    = 4 [default=1.0];
 }
 
 message StopSound
@@ -101,6 +102,11 @@ message SetGain
 message SetPan
 {
     optional float pan = 1 [default=0.0];
+}
+
+message SetPitch
+{
+    optional float pitch = 1 [default=1.0];
 }
 
 /* Documented in scripts/script_particlefx.cpp */

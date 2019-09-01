@@ -23,6 +23,7 @@ namespace dmSound
 
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)
+    #define SOUND_MAX_PITCH (5)
 
     // TODO: How many bits?
     const uint32_t RESAMPLE_FRACTION_BITS = 31;
@@ -142,10 +143,11 @@ namespace dmSound
         void*       m_Frames;
         dmhash_t    m_Group;
 
-        Value       m_Gain;
+        Value       m_Gain;     // default: 1.0f
         Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
+        float       m_Pitch;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
         uint32_t    m_FrameCount;
-        uint32_t    m_FrameFraction;
+        uint64_t    m_FrameFraction;
 
         uint16_t    m_Index;
         uint16_t    m_SoundDataIndex;
@@ -314,7 +316,8 @@ namespace dmSound
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
             // NOTE: +1 for "over-fetch" when up-sampling
-            instance->m_Frames = malloc((params->m_FrameCount + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            // NOTE: *SOUND_MAX_PITCH for potential pitch range
+            instance->m_Frames = malloc((params->m_FrameCount * SOUND_MAX_PITCH + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
             instance->m_FrameCount = 0;
         }
 
@@ -705,6 +708,9 @@ namespace dmSound
                     sound_instance->m_Pan.Set(pan, reset);
                 }
                 break;
+            case PARAMETER_PITCH:
+                sound_instance->m_Pitch = dmMath::Max(0.1f, dmMath::Min((float)SOUND_MAX_PITCH, value.getX()));
+                break;
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
                 return RESULT_INVALID_PROPERTY;
@@ -726,11 +732,14 @@ namespace dmSound
         const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
         const float range_recip = 1.0f / mask; // TODO: Divide by (1 << RESAMPLE_FRACTION_BITS) OR (1 << RESAMPLE_FRACTION_BITS) - 1?
 
-        uint32_t frac = instance->m_FrameFraction;
+        uint64_t frac = instance->m_FrameFraction;
         uint32_t prev_index = 0;
         uint32_t index = 0;
+        //uint64_t tmp = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
+        //uint64_t delta = (uint32_t) (tmp * instance->m_Pitch);
+        //uint64_t tmp = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / (mix_rate/instance->m_Pitch);
         uint64_t tmp = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
-        uint32_t delta = (uint32_t) tmp;
+        uint64_t delta = (uint32_t) tmp;
 
         T* frames = (T*) instance->m_Frames;
 
@@ -757,13 +766,24 @@ namespace dmSound
             mix_buffer[2 * i] += s * gain * left_scale;
             mix_buffer[2 * i + 1] += s * gain * right_scale;
 
+            printf("i %d: index: %u.  mix: %f   fraq: %llu\n", i, index, mix, frac);
+
             prev_index = index;
-            frac += delta;
-            index += frac >> RESAMPLE_FRACTION_BITS;
+            //frac += delta;
+            //total += delta;
+            frac += delta * instance->m_Pitch;
+
+            printf("  frac: %llu  frac//delta: %u  \n", frac, (uint32_t)(frac >> RESAMPLE_FRACTION_BITS));
+            index += (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
 
             frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
+
+            printf("  frac: %llu  mask: %u 0x%x\n", frac, ((1U << RESAMPLE_FRACTION_BITS) - 1U), ((1U << RESAMPLE_FRACTION_BITS) - 1U));
+
         }
         instance->m_FrameFraction = frac;
+
+        //printf("total: %llu   should be delta: %llu\n", total, total/mix_buffer_count);
 
         assert(prev_index <= instance->m_FrameCount);
 
@@ -832,17 +852,33 @@ namespace dmSound
     template <typename T, int offset, int scale>
     static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
-        assert(instance->m_FrameCount == mix_buffer_count);
+        (void)rate;
+        (void)mix_rate;
+
+        //assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
 
-        for (uint32_t i = 0; i < mix_buffer_count; i++)
+        // Typically when the buffer is less than a mix-buffer we might overfetch
+        // We never overfetch for identity mixing as identity mixing is a special case
+        frames[instance->m_FrameCount] = frames[instance->m_FrameCount-1];
+
+        float frame = 0;
+        for (uint32_t i = 0; i < mix_buffer_count; i++, frame = i * instance->m_Pitch)
         {
+            int index = (int)frame;
+
             float gain = gain_ramp.GetValue(i);
             float pan = pan_ramp.GetValue(i);
-            float s = frames[i];
-            s = (s - offset) * scale * gain;
+            float mix = frame - index;
+            float s1 = frames[index+0];
+            float s2 = frames[index+1];
+            s1 = (s1 - offset) * scale * gain;
+            s2 = (s2 - offset) * scale * gain;
+            float s = (1.0f - mix) * s1 + mix * s2;
+
+            printf("%d : frame: %f  index: %d mix: %f  pitch: %f  s: %f\n", i, frame, index, mix, instance->m_Pitch, s);
 
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
@@ -850,7 +886,15 @@ namespace dmSound
             mix_buffer[2 * i]       += s * left_scale;
             mix_buffer[2 * i + 1]   += s * right_scale;
         }
-        instance->m_FrameCount -= mix_buffer_count;
+
+        uint32_t to_move = dmMath::Min(instance->m_FrameCount, (uint32_t)frame);
+
+        memmove(instance->m_Frames, (char*) instance->m_Frames + to_move * sizeof(T), (instance->m_FrameCount - to_move) * sizeof(T));
+        instance->m_FrameCount -= to_move;
+
+        static int callcount = 0;
+        printf("%s %d (%d):  %u -> %d   %u\n", __FUNCTION__, __LINE__, callcount, mix_buffer_count, (int)frame, instance->m_FrameCount);
+        callcount++;
     }
 
     template <typename T, int offset, int scale>
@@ -944,9 +988,13 @@ namespace dmSound
 
         SoundSystem* sound = g_SoundSystem;
         uint64_t delta = (uint32_t) ((((uint64_t) info->m_Rate) << RESAMPLE_FRACTION_BITS) / sound->m_MixRate);
-        uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / delta;
+        printf("delta: %llu   instance->m_FrameCount: %u\n", delta, instance->m_FrameCount);
+        //uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / delta;//(delta * instance->m_Pitch);
+        uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / (delta * instance->m_Pitch);
+        printf("mix_count: %u\n", mix_count);
         mix_count = dmMath::Min(mix_count, sound->m_FrameCount);
         assert(mix_count <= sound->m_FrameCount);
+        printf("mix_count: %u\n", mix_count);
 
         int* index = sound->m_GroupMap.Get(instance->m_Group);
         if (index) {
@@ -1006,7 +1054,7 @@ namespace dmSound
         if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
-            uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
+            uint32_t n = sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Pitch) - instance->m_FrameCount;
 
             if (!is_muted)
             {
@@ -1062,7 +1110,8 @@ namespace dmSound
             return;
         }
 
-        Mix(mix_context, instance, &info);
+        if (instance->m_FrameCount > 0)
+            Mix(mix_context, instance, &info);
 
         if (instance->m_FrameCount <= 1 && instance->m_EndOfStream) {
             // NOTE: Due to round-off errors, e.g 32000 -> 44100,
