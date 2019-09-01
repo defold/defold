@@ -287,7 +287,7 @@ namespace dmGameSystem
         {
             World* world = (World*)params.m_World;
             dmGameSystemDDF::SetPan* ddf = (dmGameSystemDDF::SetPan*)params.m_Message->m_Data;
-            float pan = ddf->m_Pan
+            float pan = ddf->m_Pan;
 
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
