@@ -1,4 +1,4 @@
-#include "comp_model.h"
+#include "comp_sound.h"
 
 #include <string.h>
 
@@ -12,6 +12,7 @@
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
 
+using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
     struct PlayEntry
