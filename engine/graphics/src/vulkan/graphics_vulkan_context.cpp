@@ -8,7 +8,7 @@
 
 namespace dmGraphics
 {
-    static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle;
+    static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = NULL;
 
     // This functions is invoked by the vulkan layer whenever
     // it has something to say, which can be info, warnings, errors and such.
@@ -110,7 +110,7 @@ namespace dmGraphics
          return all_layers_found;
     }
 
-    void VKDestroyInstance(VkInstance* vkInstance)
+    void DestroyInstance(VkInstance* vkInstance)
     {
         assert(vkInstance);
 
@@ -129,7 +129,7 @@ namespace dmGraphics
         *vkInstance = VK_NULL_HANDLE;
     }
 
-    VkResult VKCreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount)
+    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount)
     {
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};

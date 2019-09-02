@@ -2,14 +2,14 @@
 
 namespace dmGraphics
 {
-    uint32_t VKGetPhysicalDeviceCount(VkInstance vkInstance)
+    uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
     {
         uint32_t vk_device_count = 0;
         vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, 0);
         return vk_device_count;
     }
 
-    bool VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    bool GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
     {
         if (deviceListSize == 0)
         {
@@ -64,7 +64,7 @@ namespace dmGraphics
         return true;
     }
 
-    void VKResetPhysicalDevice(PhysicalDevice* device)
+    void ResetPhysicalDevice(PhysicalDevice* device)
     {
         assert(device);
 
@@ -87,7 +87,7 @@ namespace dmGraphics
     // queues with different properties supported, so we need to find a combination of queues
     // that will work for our needs. Note that the present queue might not be the same queue as the
     // graphics queue. The graphics queue support is needed to do graphics operations at all.
-    QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface)
+    QueueFamily GetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface)
     {
         assert(device);
 
@@ -140,7 +140,7 @@ namespace dmGraphics
         return qf;
     }
 
-    VkResult VKCreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
+    VkResult CreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut)

@@ -19,12 +19,12 @@ ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_NDK_API_VERSION_VULKAN='24'
 ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='28' # Android 9.0
 ANDROID_MIN_API_LEVEL='14'
 ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
-ANDROID_64_NDK_API_VERSION_VULKAN='24'
 
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
@@ -198,9 +198,11 @@ def getAndroidCompilerName(target_arch, api_version):
 
 def getAndroidNDKAPIVersion(target_arch):
     if Options.options.with_vulkan:
-        return ANDROID_64_NDK_API_VERSION_VULKAN
+        return ANDROID_NDK_API_VERSION_VULKAN
+    elif target_arch == 'arm64':
+        return ANDROID_64_NDK_API_VERSION
     else:
-        return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+        return ANDROID_NDK_API_VERSION
 
 def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:

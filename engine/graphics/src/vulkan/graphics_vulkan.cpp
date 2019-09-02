@@ -13,7 +13,7 @@ namespace dmGraphics
 {
     // TODO: Validation layers should probably be configurable,
     //       or defined by the build system.
-    static bool g_enable_validation               = true;
+    static bool g_enable_validation               = false;
     static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
     static const uint8_t g_validation_layer_count = 1;
 
@@ -73,7 +73,7 @@ namespace dmGraphics
             }
 
             VkInstance vk_instance;
-            if (VKCreateInstance(&vk_instance, g_validation_layers, g_enable_validation ? 1 : 0) != VK_SUCCESS)
+            if (CreateInstance(&vk_instance, g_validation_layers, g_enable_validation ? 1 : 0) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
@@ -126,18 +126,18 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        VkResult res = VKCreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
+        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        uint32_t device_count           = VKGetPhysicalDeviceCount(context->m_Instance);
+        uint32_t device_count           = GetPhysicalDeviceCount(context->m_Instance);
         PhysicalDevice* device_list     = new PhysicalDevice[device_count];
         PhysicalDevice* selected_device = NULL;
 
-        if (!VKGetPhysicalDevices(context->m_Instance, &device_list, device_count))
+        if (!GetPhysicalDevices(context->m_Instance, &device_list, device_count))
         {
             dmLogError("Could not get any Vulkan devices.");
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
@@ -159,7 +159,7 @@ namespace dmGraphics
         for (uint32_t i = 0; i < device_count; ++i)
         {
             #define RESET_AND_CONTINUE(d) \
-                VKResetPhysicalDevice(d); \
+                ResetPhysicalDevice(d); \
                 continue;
 
             PhysicalDevice* device = &device_list[i];
@@ -170,7 +170,7 @@ namespace dmGraphics
             }
 
             // Make sure we have a graphics and present queue available
-            QueueFamily queue_family = VKGetQueueFamily(device, context->m_WindowSurface);
+            QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
                 RESET_AND_CONTINUE(device)
@@ -196,7 +196,7 @@ namespace dmGraphics
             }
 
             // Make sure device has swap chain support
-            VKGetSwapChainCapabilities(device, context->m_WindowSurface, selected_swap_chain_capabilities);
+            GetSwapChainCapabilities(device, context->m_WindowSurface, selected_swap_chain_capabilities);
 
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
@@ -217,7 +217,7 @@ namespace dmGraphics
         }
 
         LogicalDevice logical_device;
-        res = VKCreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
+        res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             required_device_extensions, required_device_extension_count,
             g_validation_layers, g_validation_layer_count, &logical_device);
         if (res != VK_SUCCESS)
@@ -237,7 +237,7 @@ namespace dmGraphics
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
         context->m_SwapChain    = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
 
-        res = VKUpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
+        res = UpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
         if (res != VK_SUCCESS)
         {
             delete context->m_SwapChain;
@@ -257,15 +257,15 @@ namespace dmGraphics
         {
             glfwCloseWindow();
 
-            VkResetSwapChain(context->m_SwapChain);
+            ResetSwapChain(context->m_SwapChain);
 
-            VKResetPhysicalDevice(&context->m_PhysicalDevice);
+            ResetPhysicalDevice(&context->m_PhysicalDevice);
 
             vkDestroyDevice(context->m_LogicalDevice.m_Device, 0);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
-            VKDestroyInstance(&context->m_Instance);
+            DestroyInstance(&context->m_Instance);
 
             context->m_WindowOpened = 0;
 

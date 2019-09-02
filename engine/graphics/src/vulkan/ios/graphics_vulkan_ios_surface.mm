@@ -8,7 +8,7 @@
 
 namespace dmGraphics
 {
-    VkResult VKCreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI)
+    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI)
     {
         VkResult err;
         VkIOSSurfaceCreateInfoMVK sci;

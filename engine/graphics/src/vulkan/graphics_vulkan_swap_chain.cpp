@@ -4,7 +4,7 @@
 
 namespace dmGraphics
 {
-    static VkSurfaceFormatKHR VKSwapChainFindSurfaceFormat(const SwapChainCapabilities& capabilities)
+    static VkSurfaceFormatKHR SwapChainFindSurfaceFormat(const SwapChainCapabilities& capabilities)
     {
         VkSurfaceFormatKHR vk_swap_chain_format;
         vk_swap_chain_format.format     = VK_FORMAT_B8G8R8A8_UNORM;
@@ -42,11 +42,11 @@ namespace dmGraphics
         : m_LogicalDevice(logicalDevice)
         , m_Surface(surface)
         , m_QueueFamily(queueFamily)
-        , m_SurfaceFormat(VKSwapChainFindSurfaceFormat(capabilities))
+        , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
     {
     }
 
-    VkResult VKUpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
+    VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
         const bool wantVSync, SwapChainCapabilities& capabilities)
     {
         VkPresentModeKHR vk_present_mode = VK_PRESENT_MODE_FIFO_KHR;
@@ -163,13 +163,13 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    void VkResetSwapChain(SwapChain* swapChain)
+    void ResetSwapChain(SwapChain* swapChain)
     {
         assert(swapChain);
         vkDestroySwapchainKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, 0);
     }
 
-    void VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
+    void GetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
     {
         assert(device);
 

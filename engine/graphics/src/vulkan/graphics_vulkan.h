@@ -97,15 +97,15 @@ namespace dmGraphics
     };
 
     // Implemented in graphics_vulkan_context.cpp
-    VkResult VKCreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
-    void     VKDestroyInstance(VkInstance* vkInstance);
+    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
+    void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan_device.cpp
-    uint32_t    VKGetPhysicalDeviceCount(VkInstance vkInstance);
-    bool        VKGetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
-    void        VKResetPhysicalDevice(PhysicalDevice* device);
-    QueueFamily VKGetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
-    VkResult    VKCreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
+    uint32_t    GetPhysicalDeviceCount(VkInstance vkInstance);
+    bool        GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
+    void        ResetPhysicalDevice(PhysicalDevice* device);
+    QueueFamily GetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
+    VkResult    CreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
@@ -113,12 +113,12 @@ namespace dmGraphics
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
-    VkResult VKUpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
+    VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
         const bool wantVSync, SwapChainCapabilities& capabilities);
-    void     VkResetSwapChain(SwapChain* swapChain);
-    void     VKGetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
+    void     ResetSwapChain(SwapChain* swapChain);
+    void     GetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
     // Implemented per supported platform
-    VkResult VKCreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
+    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__
