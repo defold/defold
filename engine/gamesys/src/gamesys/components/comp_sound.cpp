@@ -236,7 +236,7 @@ namespace dmGameSystem
                     }
 
                     float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
-                    float pan = play_sound->m_Pan;
+                    float pan = play_sound->m_Pan + entry.m_Sound->m_Pan;
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
@@ -288,13 +288,13 @@ namespace dmGameSystem
         {
             World* world = (World*)params.m_World;
             dmGameSystemDDF::SetPan* ddf = (dmGameSystemDDF::SetPan*)params.m_Message->m_Data;
-            float pan = ddf->m_Pan;
 
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
+                    float pan = ddf->m_Pan + entry.m_Sound->m_Pan;
                     dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vector4(pan, 0, 0, 0));
                     if (r != dmSound::RESULT_OK)
                     {
