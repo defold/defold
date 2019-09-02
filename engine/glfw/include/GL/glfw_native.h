@@ -78,6 +78,7 @@ GLFWAPI android_app* glfwGetAndroidApp(void);
 
 GLFWAPI Window glfwGetX11Window(void);
 GLFWAPI GLXContext glfwGetX11GLXContext(void);
+GLFWAPI Display* glfwGetX11Display(void);
 
 #ifdef __cplusplus
 }
