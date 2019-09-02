@@ -291,6 +291,13 @@
 (defn- modifier-type-label [modifier-type]
   (:label (mod-types modifier-type)))
 
+(def ^:private modifier-visibility-aabb
+  ;; TODO: There's not really a good way to deal with modifiers unless we
+  ;; calculate the bounds from the vertex buffer of the affected emitter.
+  ;; For now, just use a fairly large :visibility-aabb for all modifiers.
+  (geom/coords->aabb [-2500.0 -2500.0 -2500.0]
+                     [2500.0 2500.0 2500.0]))
+
 (g/defnk produce-modifier-scene
   [_node-id transform type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
@@ -300,6 +307,7 @@
      :node-outline-key node-outline-key
      :transform transform
      :aabb geom/empty-bounding-box
+     :visibility-aabb modifier-visibility-aabb
      :renderable {:render-fn render-lines
                   :tags #{:particlefx :outline}
                   :batch-key nil
@@ -389,19 +397,26 @@
       pass/selection (render-lines gl render-args renderables count)
       pass/transparent (render-emitters-sim gl render-args renderables count))))
 
+(defn- property-range
+  ^double [prop ^double default]
+  (if (nil? prop)
+    default
+    (let [[^double -r ^double +r] (props/sample-range prop)]
+      (max (Math/abs -r) +r))))
+
 (g/defnk produce-emitter-aabb [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
   (case type
     (:emitter-type-2dcone :emitter-type-cone)
-    (let [+bx (/ (props/sample emitter-key-size-x) 2.0)
-          +by (props/sample emitter-key-size-y)
+    (let [+bx (* 0.5 (property-range emitter-key-size-x 0.0))
+          +by (property-range emitter-key-size-y 0.0)
           -bx (- +bx)]
       (geom/coords->aabb [-bx 0.0 (case type :emitter-type-2dcone 0.0 -bx)]
                          [+bx +by (case type :emitter-type-2dcone 0.0 +bx)]))
 
     :emitter-type-box
-    (let [+bx (/ (props/sample emitter-key-size-x) 2.0)
-          +by (/ (props/sample emitter-key-size-y) 2.0)
-          +bz (/ (props/sample emitter-key-size-z) 2.0)
+    (let [+bx (* 0.5 (property-range emitter-key-size-x 0.0))
+          +by (* 0.5 (property-range emitter-key-size-y 0.0))
+          +bz (* 0.5 (property-range emitter-key-size-z 0.0))
           -bx (- +bx)
           -by (- +by)
           -bz (- +bz)]
@@ -409,7 +424,7 @@
                          [+bx +by +bz]))
 
     (:emitter-type-circle :emitter-type-sphere)
-    (let [+bx (/ (props/sample emitter-key-size-x) 2.0)
+    (let [+bx (property-range emitter-key-size-x 0.0)
           -bx (- +bx)]
       (geom/coords->aabb [-bx -bx (case type :emitter-type-circle 0.0 -bx)]
                          [+bx +bx (case type :emitter-type-circle 0.0 +bx)]))))
@@ -428,22 +443,22 @@
    particle-key-stretch-factor-x
    particle-key-stretch-factor-y]
   ;; Crude approximation of the farthest bounds reached by the particles.
-  (let [particle-speed (props/sample emitter-key-particle-speed)
-        particle-life-time (props/sample emitter-key-particle-life-time)
+  (let [particle-speed (property-range emitter-key-particle-speed 0.0)
+        particle-life-time (property-range emitter-key-particle-life-time 0.0)
         particle-travel-distance (* particle-speed particle-life-time)
-        particle-radius (* (props/sample particle-key-scale)
-                           (props/sample emitter-key-particle-size)
+        particle-radius (* (property-range particle-key-scale 1.0)
+                           (property-range emitter-key-particle-size 0.0)
                            0.5
                            (+ 1.0
-                              (max (props/sample particle-key-stretch-factor-x)
-                                   (props/sample particle-key-stretch-factor-y)))
+                              (max (property-range particle-key-stretch-factor-x 0.0)
+                                   (property-range particle-key-stretch-factor-y 0.0)))
                            (+ 1.0
-                              (max (props/sample emitter-key-particle-stretch-factor-x)
-                                   (props/sample emitter-key-particle-stretch-factor-y))))]
+                              (max (property-range emitter-key-particle-stretch-factor-x 0.0)
+                                   (property-range emitter-key-particle-stretch-factor-y 0.0))))]
     (case type
       (:emitter-type-2dcone :emitter-type-cone)
-      (let [emitter-radius (/ (props/sample emitter-key-size-x) 2.0)
-            emitter-height (props/sample emitter-key-size-y)
+      (let [emitter-radius (* 0.5 (property-range emitter-key-size-x 0.0))
+            emitter-height (property-range emitter-key-size-y 0.0)
             radians (Math/atan (/ emitter-radius emitter-height))
             padding (+ particle-radius particle-travel-distance)
             +bx (+ emitter-radius (* padding (Math/sin radians)))
@@ -454,9 +469,9 @@
                            [+bx +by (case type :emitter-type-2dcone 0.0 +bx)]))
 
       :emitter-type-box
-      (let [emitter-radius-x (/ (props/sample emitter-key-size-x) 2.0)
-            emitter-radius-y (/ (props/sample emitter-key-size-y) 2.0)
-            emitter-radius-z (/ (props/sample emitter-key-size-z) 2.0)
+      (let [emitter-radius-x (* 0.5 (property-range emitter-key-size-x 0.0))
+            emitter-radius-y (* 0.5 (property-range emitter-key-size-y 0.0))
+            emitter-radius-z (* 0.5 (property-range emitter-key-size-z 0.0))
             +bx (+ emitter-radius-x particle-radius)
             +by (+ emitter-radius-y particle-radius particle-travel-distance)
             +bz (+ emitter-radius-z particle-radius)
@@ -467,7 +482,7 @@
                            [+bx +by +bz]))
 
       (:emitter-type-circle :emitter-type-sphere)
-      (let [emitter-radius (/ (props/sample emitter-key-size-x) 2.0)
+      (let [emitter-radius (* 0.5 (property-range emitter-key-size-x 0.0))
             +bx (+ emitter-radius particle-radius particle-travel-distance)
             -bx (- +bx)]
         (geom/coords->aabb [-bx -bx (case type :emitter-type-circle 0.0 -bx)]

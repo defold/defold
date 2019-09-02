@@ -342,12 +342,9 @@
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
-      (let [visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
-            filtered-renderable-tags (g/node-value scene-visibility :filtered-renderable-tags)
-            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags filtered-renderable-tags))]
-        (if filters-active?
-          (ui/add-style! btn "filters-active")
-          (ui/remove-style! btn "filters-active")))
+      (if (scene-visibility/filters-appear-active? scene-visibility)
+        (ui/add-style! btn "filters-active")
+        (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
 (def ^:private eye-icon-svg-path

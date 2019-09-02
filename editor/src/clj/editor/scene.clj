@@ -452,16 +452,16 @@
     {:renderables scene-renderables-by-pass
      :selected-renderables selected-renderables}))
 
-(g/defnk produce-debug-renderables [^AABB scene-aabb]
-  (let [aabb-min (.min scene-aabb)
-        aabb-max (.max scene-aabb)
-        aabb-mid (-> aabb-min
-                     (math/add-vector aabb-max)
-                     (math/scale-vector 0.5))
+(defn- make-aabb-renderables-by-pass [^AABB aabb color renderable-tag]
+  (assert (keyword? renderable-tag))
+  (let [^Point3d aabb-min (.min aabb)
+        ^Point3d aabb-max (.max aabb)
+        ^Vector3d aabb-mid (-> aabb-min
+                               (math/add-vector aabb-max)
+                               (math/scale-vector 0.5))
         world-transform (doto (Matrix4d.)
                           (.setIdentity)
                           (.setTranslation aabb-mid))
-        color colors/defold-orange
         aabb-ext [(- (.x aabb-max) (.x aabb-mid))
                   (- (.y aabb-max) (.y aabb-mid))
                   (- (.z aabb-max) (.z aabb-mid))]
@@ -469,6 +469,7 @@
     {pass/transparent
      [{:world-transform world-transform
        :render-fn scene-shapes/render-triangles
+       :tags #{renderable-tag}
        :user-data {:color color
                    :point-scale point-scale
                    :geometry scene-shapes/box-triangles}}]
@@ -476,18 +477,24 @@
      pass/outline
      [{:world-transform world-transform
        :render-fn scene-shapes/render-lines
+       :tags #{renderable-tag :outline}
        :user-data {:color color
                    :point-scale point-scale
                    :geometry scene-shapes/box-lines}}]}))
 
-(g/defnk produce-aux-render-data [aux-renderables debug-renderables hidden-renderable-tags]
-  (assert (map? debug-renderables))
-  (let [aux-renderables-by-pass (apply merge-with concat debug-renderables aux-renderables)
-        filtered-aux-renderables-by-pass (into {}
-                                               (map (fn [[pass renderables]]
-                                                      [pass (remove #(not-empty (set/intersection hidden-renderable-tags (:tags %))) renderables)]))
-                                               aux-renderables-by-pass)]
-    {:renderables filtered-aux-renderables-by-pass}))
+(g/defnk produce-internal-renderables [^AABB scene-aabb]
+  (make-aabb-renderables-by-pass scene-aabb colors/bright-grey-light :dev-visibility-bounds))
+
+(g/defnk produce-aux-render-data [aux-renderables internal-renderables hidden-renderable-tags]
+  (assert (map? internal-renderables))
+  (let [additional-renderables-by-pass (apply merge-with concat internal-renderables aux-renderables)
+        filtered-additional-renderables-by-pass
+        (into {}
+              (map (fn [[pass renderables]]
+                     [pass (remove #(not-empty (set/intersection hidden-renderable-tags (:tags %)))
+                                   renderables)]))
+              additional-renderables-by-pass)]
+    {:renderables filtered-additional-renderables-by-pass}))
 
 (g/defnk produce-pass->render-args [^Region viewport camera]
   (into {}
@@ -542,7 +549,7 @@
   (output all-renderables g/Any :abstract)
 
   (output camera-type g/Keyword (g/fnk [camera] (:type camera)))
-  (output debug-renderables g/Any :cached produce-debug-renderables)
+  (output internal-renderables g/Any :cached produce-internal-renderables)
   (output scene-render-data g/Any :cached produce-scene-render-data)
   (output aux-render-data g/Any :cached produce-aux-render-data)
 
@@ -556,7 +563,10 @@
                                            (reduce geom/aabb-union geom/null-aabb selected-aabbs)
                                            scene-aabb))))
   (output scene-aabb AABB :cached (g/fnk [scene]
-                                    (calculate-scene-aabb geom/null-aabb geom/Identity4d scene)))
+                                    (let [scene-aabb (calculate-scene-aabb geom/null-aabb geom/Identity4d scene)]
+                                      (if (geom/null-aabb? scene-aabb)
+                                        geom/empty-bounding-box
+                                        scene-aabb))))
   (output renderables-aabb+picking-node-id g/Any :cached produce-renderables-aabb+picking-node-id)
   (output selected-updatables g/Any :cached (g/fnk [selected-renderables]
                                               (into {}
