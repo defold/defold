@@ -97,6 +97,9 @@ namespace dmEngineVersion
             conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
     elif operating_sys == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+        # For Vulkan
+        if Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
     elif 'web' in operating_sys:
         pass
 
