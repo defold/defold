@@ -15,7 +15,7 @@
 
 namespace dmTime
 {
-    /**# get current time in microseconds
+    /*# get current time in microseconds
      *
      * Get current time in microseconds since Jan. 1, 1970.
      * @name dmTime::GetTime
