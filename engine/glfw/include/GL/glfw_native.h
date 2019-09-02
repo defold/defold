@@ -41,6 +41,7 @@ extern "C" {
 #else
     typedef void* Window;
     typedef void* GLXContext;
+    typedef void* Display;
 #endif
 
 #if defined(__EMSCRIPTEN__)
