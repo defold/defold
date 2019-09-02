@@ -13,5 +13,5 @@ message SoundDesc
     optional string group       = 3 [default = "master"];
     optional float  gain        = 4 [default = 1.0];
     optional float  pan         = 5 [default = 0.0];
-    optional float  pitch       = 6 [default = 1.0];
+    optional float  speed       = 6 [default = 1.0];
 }

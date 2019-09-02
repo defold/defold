@@ -377,7 +377,7 @@ namespace dmGameSystem
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        float delay = 0.0f, gain = 1.0f, pan = 0.0f;
+        float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
 
         if (top > 1) // table with args
         {
@@ -396,6 +396,10 @@ namespace dmGameSystem
             pan = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "speed");
+            speed = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
@@ -403,6 +407,7 @@ namespace dmGameSystem
         msg.m_Delay = delay;
         msg.m_Gain = gain;
         msg.m_Pan = pan;
+        msg.m_Speed = speed;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

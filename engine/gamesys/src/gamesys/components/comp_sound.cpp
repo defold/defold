@@ -237,8 +237,10 @@ namespace dmGameSystem
 
                     float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
                     float pan = play_sound->m_Pan + entry.m_Sound->m_Pan;
+                    float speed = play_sound->m_Speed * entry.m_Sound->m_Speed;
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(speed, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
                 }
                 else

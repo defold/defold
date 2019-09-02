@@ -74,11 +74,11 @@ struct TestParams
     uint32_t    m_MixRate;
     uint32_t    m_BufferFrameCount;
     float       m_Pan;
-    float       m_Pitch;
+    float       m_Speed;
 
     TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
     : m_Pan(0.0f)
-    , m_Pitch(1.0f)
+    , m_Speed(1.0f)
     {
         m_DeviceName = device_name;
         m_Sound = sound;
@@ -91,9 +91,9 @@ struct TestParams
     }
 
     TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate,
-                uint32_t frame_count, uint32_t buffer_frame_count, float pan, float pitch)
+                uint32_t frame_count, uint32_t buffer_frame_count, float pan, float speed)
     : m_Pan(pan)
-    , m_Pitch(pitch)
+    , m_Speed(speed)
     {
         m_DeviceName = device_name;
         m_Sound = sound;
@@ -238,11 +238,11 @@ class dmSoundTestPlayTest : public dmSoundTest
 {
 };
 
-class dmSoundTestPlayPitchTest : public dmSoundTest
+class dmSoundTestPlaySpeedTest : public dmSoundTest
 {
 };
 
-class dmSoundTestPitchTest : public dmSoundTest
+class dmSoundTestSpeedTest : public dmSoundTest
 {
 };
 
@@ -673,14 +673,14 @@ const TestParams params_group_ramp_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest, dmSoundTestGroupRampTest, jc_test_values_in(params_group_ramp_test));
 
 
-TEST_P(dmSoundTestPitchTest, Pitch)
+TEST_P(dmSoundTestSpeedTest, Speed)
 {
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
-    printf("tone: %d, rate: %d, frames: %d, pitch: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Pitch);
+    printf("tone: %d, rate: %d, frames: %d, speed: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Speed);
 
     dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
@@ -689,14 +689,14 @@ TEST_P(dmSoundTestPitchTest, Pitch)
 
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PITCH, Vectormath::Aos::Vector4(params.m_Pitch,0,0,0));
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     float mix_rate = params.m_MixRate / 44100.0f;
-    uint32_t buffer_count = params.m_BufferFrameCount * params.m_Pitch;
+    uint32_t buffer_count = params.m_BufferFrameCount * params.m_Speed;
     int expected_count = params.m_FrameCount / buffer_count;
     expected_count /= mix_rate;
 
@@ -721,7 +721,7 @@ TEST_P(dmSoundTestPitchTest, Pitch)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-const TestParams params_pitch_test[] = {
+const TestParams params_speed_test[] = {
     TestParams("loopback",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -773,7 +773,7 @@ const TestParams params_pitch_test[] = {
             0.0f,
             0.5f),
 };
-INSTANTIATE_TEST_CASE_P(dmSoundTestPitchTest, dmSoundTestPitchTest, jc_test_values_in(params_pitch_test));
+INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
 
 
 TEST_P(dmSoundVerifyOggTest, Mix)
@@ -904,7 +904,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-TEST_P(dmSoundTestPlayPitchTest, Play)
+TEST_P(dmSoundTestPlaySpeedTest, Play)
 {
     TestParams params = GetParam();
     dmSound::Result r;
@@ -918,7 +918,7 @@ TEST_P(dmSoundTestPlayPitchTest, Play)
 
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PITCH, Vectormath::Aos::Vector4(params.m_Pitch,0,0,0));
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::Play(instance);
@@ -997,7 +997,7 @@ const TestParams params_test_play_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
 
-const TestParams params_test_play_pitch_test[] = {
+const TestParams params_test_play_speed_test[] = {
     TestParams("default",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -1049,7 +1049,7 @@ const TestParams params_test_play_pitch_test[] = {
             0.0f,
             0.5f),
 };
-INSTANTIATE_TEST_CASE_P(dmSoundTestPlayPitchTest, dmSoundTestPlayPitchTest, jc_test_values_in(params_test_play_pitch_test));
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 
 TEST_P(dmSoundVerifyWavTest, Mix)
 {
