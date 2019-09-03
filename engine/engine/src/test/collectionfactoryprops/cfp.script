@@ -1,0 +1,18 @@
+local count = 3
+
+function init(self)
+	collectionfactory.create("#collectionfactory", vmath.vector3(), vmath.quat(), {
+		[hash("/gob")] = {
+			size = 200,
+		},
+	})
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("spawned") then
+		count = count - 1
+		if count == 0 then
+			msg.post("main:/main#script", "done")
+		end
+	end
+end

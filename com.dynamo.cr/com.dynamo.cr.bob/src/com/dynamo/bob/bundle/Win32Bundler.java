@@ -6,6 +6,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.List;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -20,25 +21,35 @@ import com.dynamo.bob.util.BobProjectProperties;
 
 public class Win32Bundler implements IBundler {
     @Override
-    public void bundleApplication(Project project, File bundleDir)
+    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
-        bundleApplicationForPlatform(Platform.X86Win32, project, bundleDir);
+        bundleApplicationForPlatform(Platform.X86Win32, project, bundleDir, canceled);
     }
 
-    public void bundleApplicationForPlatform(Platform platform, Project project, File bundleDir)
+    public void bundleApplicationForPlatform(Platform platform, Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
+        BundleHelper.throwIfCanceled(canceled);
+
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
-        if (bundleExe == null) {
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
+            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for Windows when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
@@ -48,33 +59,32 @@ public class Win32Bundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 
+        BundleHelper.throwIfCanceled(canceled);
+
         // Copy archive and game.projectc
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
         String openal_dll = Bob.getLib(platform, "OpenAL32");
         String wrap_oal_dll = Bob.getLib(platform, "wrap_oal");
 
         // Copy Executable and DLL:s
-        String exeName = String.format("%s.exe", title);
+        String exeName = String.format("%s.exe", BundleHelper.projectNameToBinaryName(title));
         File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
         FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
-        // If windows.iap_provider is set to Gameroom we need to output a "launch" file that FB Gameroom understands.
-        String iapProvider = projectProperties.getStringValue("windows", "iap_provider", "");
-        if (iapProvider.equalsIgnoreCase("Gameroom"))
-        {
-            File launchFile = new File(appDir, "launch");
-            String launchFileContent = String.format("%s $gameroom_args game.projectc", exeName);
-            FileUtils.writeStringToFile(launchFile, launchFileContent, Charset.defaultCharset());
-        }
+        BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
+        BundleHelper.throwIfCanceled(canceled);
 
         String icon = projectProperties.getStringValue("windows", "app_icon");
         if (icon != null) {

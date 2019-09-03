@@ -1,6 +1,6 @@
 #include <string.h>
 #include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -115,6 +115,12 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        return 0;
+    }
+
     void CloseWindow(HContext context)
     {
         assert(context);
@@ -202,6 +208,19 @@ namespace dmGraphics
             main.m_DepthBufferSize = buffer_size;
             main.m_StencilBuffer = new char[buffer_size];
             main.m_StencilBufferSize = buffer_size;
+            if (context->m_WindowResizeCallback)
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
+        }
+    }
+
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_WindowWidth = width;
+            context->m_WindowHeight = height;
+
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
@@ -388,6 +407,11 @@ namespace dmGraphics
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
         delete [] ib->m_Copy;
         ib->m_Copy = 0x0;
+        return true;
+    }
+
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
         return true;
     }
 
@@ -691,6 +715,11 @@ namespace dmGraphics
         delete p;
     }
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    {
+        return ShaderDesc::LANGUAGE_GLSL;
+    }
+
     void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
@@ -814,18 +843,11 @@ namespace dmGraphics
         delete rt;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget rendertarget)
+    void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
     {
+        (void) transient_buffer_types;
         assert(context);
-        assert(rendertarget);
         context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
-    }
-
-    void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
-    {
-        assert(context);
-        assert(rendertarget);
-        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
@@ -929,6 +951,9 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);
+        assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= texture->m_Width));
+        assert(!params.m_SubUpdate || (params.m_Y + params.m_Height <= texture->m_Height));
+
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;

@@ -1,5 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include "../dlib/array.h"
 #include "../dlib/thread.h"
 #include "../dlib/mutex.h"
@@ -7,9 +8,9 @@
 
 struct ThreadArg
 {
-    dmMutex::Mutex m_Mutex;
-    dmConditionVariable::ConditionVariable m_Less;
-    dmConditionVariable::ConditionVariable m_More;
+    dmMutex::HMutex m_Mutex;
+    dmConditionVariable::HConditionVariable m_Less;
+    dmConditionVariable::HConditionVariable m_More;
     dmArray<int>    m_Buffer;
     int64_t         m_Sum;
 };
@@ -82,6 +83,6 @@ TEST(dmConditionVariable, ProducerConsumer)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

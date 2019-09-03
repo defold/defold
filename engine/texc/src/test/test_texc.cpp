@@ -1,10 +1,12 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <dlib/image.h>
 #include <dlib/webp.h>
+#include <string.h> // memcmp
 
 #include "../texc.h"
 
-class TexcTest : public ::testing::Test
+class TexcTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -246,49 +248,51 @@ TEST_F(TexcTest, Transcode)
 
 TEST_F(TexcTest, TranscodeWebPLossless)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
+    static const uint32_t width = 64;
+    static const uint32_t height = 64;
+    dmTexc::HTexture texture = CreateDefaultRGBA32(width, height);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char l8[8] = {'l', 0, 0, 0, 8, 0, 0, 0};
     ASSERT_EQ(0, memcmp(l8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8A8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char l8a8[8] = {'l', 'a', 0, 0, 8, 8, 0, 0};
     ASSERT_EQ(0, memcmp(l8a8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8[8] = {'r', 'g', 'b', 0, 8, 8, 8, 0};
     ASSERT_EQ(0, memcmp(r8g8b8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r5g6b5[8] = {'r', 'g', 'b', 0, 5, 6, 5, 0};
     ASSERT_EQ(0, memcmp(r5g6b5, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r4g4b4a4[8] = {'r', 'g', 'b', 'a', 4, 4, 4, 4};
     ASSERT_EQ(0, memcmp(r4g4b4a4, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     dmTexc::Destroy(texture);
@@ -296,49 +300,51 @@ TEST_F(TexcTest, TranscodeWebPLossless)
 
 TEST_F(TexcTest, TranscodeWebPLossy)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
+    static const uint32_t width = 64;
+    static const uint32_t height = 64;
+    dmTexc::HTexture texture = CreateDefaultRGBA32(width, height);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char l8[8] = {'l', 0, 0, 0, 8, 0, 0, 0};
     ASSERT_EQ(0, memcmp(l8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8A8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char l8a8[8] = {'l', 'a', 0, 0, 8, 8, 0, 0};
     ASSERT_EQ(0, memcmp(l8a8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8[8] = {'r', 'g', 'b', 0, 8, 8, 8, 0};
     ASSERT_EQ(0, memcmp(r8g8b8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r5g6b5[8] = {'r', 'g', 'b', 0, 5, 6, 5, 0};
     ASSERT_EQ(0, memcmp(r5g6b5, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r4g4b4a4[8] = {'r', 'g', 'b', 'a', 4, 4, 4, 4};
     ASSERT_EQ(0, memcmp(r4g4b4a4, (void*)&header.m_PixelFormat, 8));
-    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(0u, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
     dmTexc::Destroy(texture);
@@ -419,10 +425,12 @@ TEST_F(TexcTest, FlipAxis)
 
 static void TranscodeWebEncodedFormat(dmTexc::PixelFormat format, dmWebP::TextureEncodeFormat encode_format)
 {
-    dmTexc::HTexture texture_default = CreateDefaultRGBA32(256, 256);
+    static const uint32_t width = 64;
+    static const uint32_t height = 64;
+    dmTexc::HTexture texture_default = CreateDefaultRGBA32(width, height);
     ASSERT_TRUE(dmTexc::PreMultiplyAlpha(texture_default));
     ASSERT_TRUE(dmTexc::Transcode(texture_default, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_DEFAULT, dmTexc::DT_NONE));
-    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
+    dmTexc::HTexture texture = CreateDefaultRGBA32(width, height);
     ASSERT_TRUE(dmTexc::PreMultiplyAlpha(texture));
     ASSERT_TRUE(dmTexc::Transcode(texture, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_NONE));
 
@@ -464,8 +472,8 @@ TEST_F(TexcTest, TranscodeWebEncodedTextureFormat)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

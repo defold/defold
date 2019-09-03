@@ -43,10 +43,16 @@ namespace dmScript
     /*# perform a HTTP/HTTPS request
      * Perform a HTTP/HTTPS request.
      *
+     * The following cipher suites are supported for HTTPS requests:
+     *
+     * - TLS_RSA_WITH_AES_128_CBC_SHA
+     * - TLS_RSA_WITH_AES_256_CBC_SHA
+     * - TLS_RSA_WITH_AES_128_CBC_SHA256
+     * - TLS_RSA_WITH_AES_256_CBC_SHA256
+     *
      * [icon:attention] If no timeout value is passed, the configuration value "network.http_timeout" is used. If that is not set, the timeout value is `0` (which blocks indefinitely).
      *
      * @name http.request
-     * @replaces facebook.me
      * @param url [type:string] target url
      * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
      * @param callback [type:function(self, id, response)] response callback function
@@ -223,10 +229,11 @@ namespace dmScript
         g_Timeout = timeout;
     }
 
-    void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
+    static void HttpInitialize(HContext context)
     {
-// TODO: Port
-#if !defined(__AVM2__)
+        lua_State* L = GetLuaState(context);
+        dmConfigFile::HConfig config_file = GetConfigFile(context);
+
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
@@ -244,18 +251,30 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
-#endif
     }
 
-    void FinalizeHttp(lua_State* L)
+    static void HttpFinalize(HContext context)
     {
-#if !defined(__AVM2__)
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
         if (g_ServiceRefCount == 0) {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
         }
-#endif
     }
+
+    void InitializeHttp(HContext context)
+    {
+        static ScriptExtension sl;
+        sl.Initialize = HttpInitialize;
+        sl.Update = 0x0;
+        sl.Finalize = HttpFinalize;
+        sl.NewScriptWorld = 0x0;
+        sl.DeleteScriptWorld = 0x0;
+        sl.UpdateScriptWorld = 0x0;
+        sl.InitializeScriptInstance = 0x0;
+        sl.FinalizeScriptInstance = 0x0;
+        RegisterScriptExtension(context, &sl);
+    }
+
 }

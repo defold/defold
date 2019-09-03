@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <stdio.h>
 #include <algorithm>
 #include <map>
@@ -15,7 +16,7 @@
 
 using namespace Vectormath::Aos;
 
-class ParticleTest : public ::testing::Test
+class ParticleTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -1138,7 +1139,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1146,7 +1147,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1154,7 +1155,7 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1221,7 +1222,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1229,7 +1230,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
@@ -1237,7 +1238,7 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+    ASSERT_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     // Updating with a full dt here will make the emitter reach its duration
@@ -1658,7 +1659,37 @@ TEST_F(ParticleTest, AccelerationWorld)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
-TEST_F(ParticleTest, AccelerationScaled)
+// DEF-3355 Parent scale should only affect simulation in EMISSION_SPACE_WORLD
+TEST_F(ParticleTest, AccelerationScaledEmitter)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_acc_em.particlefxc", &m_Prototype));
+    Vector3 delta[2];
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+        if (i == 1)
+            dmParticle::SetScale(m_Context, instance, 2.0f);
+
+        uint16_t index = instance & 0xffff;
+        dmParticle::Instance* inst = m_Context->m_Instances[index];
+
+        dmParticle::StartInstance(m_Context, instance);
+        dmParticle::Update(m_Context, dt, 0x0);
+        dmParticle::Particle* particle = &inst->m_Emitters[0].m_Particles[0];
+        delta[i] = Vector3(particle->GetPosition());
+
+        dmParticle::DestroyInstance(m_Context, instance);
+    }
+    // Set scale should not affect position in emitter space
+    ASSERT_EQ(delta[0].getX(), delta[1].getX());
+    ASSERT_EQ(delta[0].getY(), delta[1].getY());
+    ASSERT_EQ(delta[0].getZ(), delta[1].getZ());
+}
+
+TEST_F(ParticleTest, AccelerationScaledWorld)
 {
     float dt = 1.0f;
 
@@ -2043,8 +2074,8 @@ TEST_F(ParticleTest, Stats)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
+    jc_test_init(&argc, argv);
 
-    int ret = RUN_ALL_TESTS();
+    int ret = jc_test_run_all();
     return ret;
 }

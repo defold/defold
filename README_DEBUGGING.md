@@ -49,7 +49,7 @@ iOS + OSX:
 
 1. Download the engine:
 
-	$ wget http://d.defold.com/archive/a285bcf69ac6de9d1cab399768b74968c80cd864/engine/armv7-android/dmengine.apk
+	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.apk
 
 1. Alternatively, get it from your build folder
 
@@ -72,12 +72,53 @@ iOS + OSX:
     $ arm-linux-androideabi-addr2line -C -f -e dmengine_1_2_105/lib/armeabi-v7a/libdmengine.so <address>
 
 
+### iOS
+
+1. Download the symbols (.dSYM)
+
+1. If you're not using Native Extensions, download the vanilla symbols:
+
+	$ wget http://d.defold.com/archive/<sha1>/engine/arm64-darwin/dmengine.dSYM
+
+1. If you are using Native Extensions, the server can provide those for you (pass "--with-symbols" to bob.jar)
+
+	$ unzip <project>/build/arm64-darwin/build.zip
+	# it will produce a Contents/Resources/DWARF/dmengine
+
+1. Symbolicate using load address
+
+	For some reason, simply putting the address from the callstack doesn't work (i.e. load address 0x0)
+
+		$ atos -arch arm64 -o Contents/Resources/DWARF/dmengine 0x1492c4
+
+	# Neither does specifying the load address directly
+
+		$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp -l0x100000000 0x1492c4
+
+	Adding the load address to the address works:
+
+		$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp 0x1001492c4
+		dmCrash::OnCrash(int) (in MyApp) (backtrace_execinfo.cpp:27)
+
+### macOS
+
+Same as iOS, except you don't need to specify the <arch>
+
+#### Other tools
+
+UUID:
+
+	# Check the UUID of an executable
+	$ dwarfdump --uuid dmengine
+	# Check the UUID of the debug symbols
+	$ dwarfdump --uuid dmengine.dSYM/Contents/Resources/DWARF/dmengine
+
 
 ### HTML5
 
 1. Download the engine:
 
-	$ wget http://d.defold.com/archive/a285bcf69ac6de9d1cab399768b74968c80cd864/engine/armv7-android/dmengine.js
+	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.js
 
 1. Download the symbols
 

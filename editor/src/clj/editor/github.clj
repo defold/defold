@@ -1,6 +1,7 @@
 (ns editor.github
   (:require
    [clojure.string :as string]
+   [editor.connection-properties :refer [connection-properties]]
    [editor.gl :as gl]
    [editor.system :as system])
   (:import
@@ -8,7 +9,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def issue-repo "https://github.com/defold/editor2-issues")
+(def issue-repo (get-in connection-properties [:git-issues :url]))
 
 (defn- default-fields
   []
@@ -45,7 +46,7 @@
   ([]
    (new-issue-link {}))
   ([fields]
-      (let [gl-info (gl/gl-info)
+      (let [gl-info (gl/info)
             fields (cond-> fields
                      gl-info (assoc "GPU" (:renderer gl-info)
                                "GPU Driver" (:version gl-info)))]
@@ -59,3 +60,7 @@
 (defn search-issues-link
   []
   (format "%s/issues" issue-repo))
+
+(defn glgenbuffers-link
+  []
+  (format "%s/blob/master/faq/glgenbuffers.md" issue-repo))

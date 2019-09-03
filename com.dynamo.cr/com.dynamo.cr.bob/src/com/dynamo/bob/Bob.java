@@ -7,14 +7,19 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -58,7 +63,18 @@ public class Bob {
                 try {
                     FileUtils.deleteDirectory(tmpDirFile);
                 } catch (IOException e) {
-                    throw new RuntimeException("Failed to delete temp directory: " + tmpDirFile, e);
+                    // DE 20181012
+                    // DEF-3533 Building with Bob causes exception when cleaning temp directory
+                    // Failing to delete the files is not fatal, but not 100% clean.
+                    // On Win32 we fail to delete dlls that are loaded since the OS locks them and this code runs before
+                    // the dlls are unloaded.
+                    // There is no explicit API to unload DLLs in Java/JNI, to accomplish this we need to do the
+                    // class loading for the native functions differently and use a more indirect calling convention for
+                    // com.defold.libs.TexcLibrary.
+                    // See https://web.archive.org/web/20140704120535/http://www.codethesis.com/blog/unload-java-jni-dll
+                    //
+                    // For now we just issue a warning that we don't fully clean up.
+                    System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
             }
         }));
@@ -70,30 +86,59 @@ public class Bob {
         }
 
         try {
-            rootFolder = Files.createTempDirectory(null).toFile();
+            String envRootFolder = System.getenv("DM_BOB_ROOTFOLDER");
+            if (envRootFolder != null) {
+                rootFolder = new File(envRootFolder);
+                if (!rootFolder.exists()) {
+                    rootFolder.mkdirs();
+                }
+                if (!rootFolder.isDirectory()) {
+                    throw new IOException(String.format("Error when specifying DM_BOB_ROOTFOLDER: %s is not a directory!", rootFolder.getAbsolutePath()));
+                }
+                System.out.println("env DM_BOB_ROOTFOLDER=" + rootFolder);
+            } else {
+                rootFolder = Files.createTempDirectory(null).toFile();
+                // Make sure we remove the temp folder on exit
+                registerShutdownHook();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-            // Make sure we remove the temp folder on exit
-            registerShutdownHook();
+    public static void initLua() {
+        init();
+        try {
+            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
+    public static void initAndroid() {
+        init();
+        try {
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
             String libc_filename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
             URL libc_url = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libc_filename);
             if (libc_url != null) {
-                FileUtils.copyURLToFile(libc_url, new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename));
+                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libc_filename);
+                atomicCopy(libc_url, f, false);
             }
 
             extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
-            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
 
             // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
             URL android_jar = Bob.class.getResource("/lib/android.jar");
             if (android_jar != null) {
-                FileUtils.copyURLToFile(android_jar, new File(rootFolder, "lib/android.jar"));
+                File f = new File(rootFolder, "lib/android.jar");
+                atomicCopy(android_jar, f, false);
             }
             URL classes_dex = Bob.class.getResource("/lib/classes.dex");
             if (classes_dex != null) {
-                FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
+                File f = new File(rootFolder, "lib/classes.dex");
+                atomicCopy(classes_dex, f, false);
             }
 
         } catch (Exception e) {
@@ -105,35 +150,39 @@ public class Bob {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
-        ZipEntry entry = zipStream.getNextEntry();
-        while (entry != null)
-        {
-            if (!entry.isDirectory()) {
+        try{
+            ZipEntry entry = zipStream.getNextEntry();
+            while (entry != null)
+            {
+                if (!entry.isDirectory()) {
 
-                File dstFile = new File(toFolder, entry.getName());
-                dstFile.deleteOnExit();
-                dstFile.getParentFile().mkdirs();
+                    File dstFile = new File(toFolder, entry.getName());
+                    dstFile.deleteOnExit();
+                    dstFile.getParentFile().mkdirs();
 
-                OutputStream fileStream = null;
+                    OutputStream fileStream = null;
 
-                try {
-                    final byte[] buf;
-                    int i;
+                    try {
+                        final byte[] buf;
+                        int i;
 
-                    fileStream = new FileOutputStream(dstFile);
-                    buf = new byte[1024];
-                    i = 0;
+                        fileStream = new FileOutputStream(dstFile);
+                        buf = new byte[1024];
+                        i = 0;
 
-                    while((i = zipStream.read(buf)) != -1) {
-                        fileStream.write(buf, 0, i);
+                        while((i = zipStream.read(buf)) != -1) {
+                            fileStream.write(buf, 0, i);
+                        }
+                    } finally {
+                        IOUtils.closeQuietly(fileStream);
                     }
-                } finally {
-                    IOUtils.closeQuietly(fileStream);
+                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
-                verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
-            }
 
-            entry = zipStream.getNextEntry();
+                entry = zipStream.getNextEntry();
+            }
+        } finally {
+            IOUtils.closeQuietly(zipStream);
         }
     }
 
@@ -146,18 +195,74 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    public static List<String> getExes(Platform platform, String name) throws IOException {
+        String[] exeSuffixes = platform.getExeSuffixes();
+        List<String> exes = new ArrayList<String>();
+        for (String exeSuffix : exeSuffixes) {
+            exes.add(getExeWithExtension(platform, name, exeSuffix));
+        }
+        return exes;
+    }
+
     public static String getExe(Platform platform, String name) throws IOException {
+        List<String> exes = getExes(platform, name);
+        if (exes.size() > 1) {
+            throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
+        }
+        return exes.get(0);
+    }
+
+    // https://stackoverflow.com/a/30755071/468516
+    private static final String ENOTEMPTY = "Directory not empty";
+    private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {
+        try {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+
+        } catch (AccessDeniedException e) {
+            // directory move collision on Windows
+            throw new FileAlreadyExistsException(source.toString(), target.toString(), e.getMessage());
+
+        } catch (FileSystemException e) {
+            if (ENOTEMPTY.equals(e.getReason())) {
+                // directory move collision on Unix
+                throw new FileAlreadyExistsException(source.toString(), target.toString(), e.getMessage());
+            } else {
+                // other problem
+                throw e;
+            }
+        }
+    }
+
+    private static void atomicCopy(URL source, File target, boolean executable) throws IOException {
+        if (target.exists()) {
+            return;
+        }
+
+        long t = System.nanoTime();
+        File tmp = new File(target.getParent(), String.format("%s_%d", target.getName(), t));
+        FileUtils.copyURLToFile(source, tmp);
+        tmp.setExecutable(executable);
+
+        try {
+            move(tmp, target);
+        } catch (FileAlreadyExistsException e) {
+            // pass
+            tmp.delete();
+        }
+    }
+
+    public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
 
-        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
-        URL url = Bob.class.getResource("/libexec/" + exeName);
-        if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
-        }
+        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
-            FileUtils.copyURLToFile(url, f);
-            f.setExecutable(true);
+            URL url = Bob.class.getResource("/libexec/" + exeName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
+            }
+
+            atomicCopy(url, f, true);
         }
 
         return f.getAbsolutePath();
@@ -165,13 +270,14 @@ public class Bob {
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        URL url = Bob.class.getResource("/libexec/" + filename);
-        if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s not found", filename));
-        }
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
-            FileUtils.copyURLToFile(url, f);
+            URL url = Bob.class.getResource("/libexec/" + filename);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s not found", filename));
+            }
+
+            atomicCopy(url, f, false);
         }
         return f.getAbsolutePath();
     }
@@ -190,31 +296,47 @@ public class Bob {
         }
     }
 
-    public static String getDefaultDmenginePath(Platform platform, String variant) throws IOException {
-        return getExe(platform, getDefaultDmengineExeName(variant));
+    public static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
+        return getExes(platform, getDefaultDmengineExeName(variant));
     }
 
-    public static File getNativeExtensionEngine(Platform platform, String extenderExeDir) throws IOException
-    {
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        if (extenderExe.exists()) {
-            return extenderExe;
+    public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
+        List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
+        List<File> binaryFiles = new ArrayList<File>();
+        for (String path : binaryPaths) {
+            binaryFiles.add(new File(path));
         }
-        return null;
+        return binaryFiles;
+    }
+
+    public static List<File> getNativeExtensionEngineBinaries(Platform platform, String extenderExeDir) throws IOException
+    {
+        List<String> binaryNames = platform.formatBinaryName("dmengine");
+        List<File> binaryFiles = new ArrayList<File>();
+        for (String binaryName : binaryNames) {
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), binaryName)));
+
+            // All binaries must exist, otherwise return null
+            if (!extenderExe.exists()) {
+                return null;
+            }
+            binaryFiles.add(extenderExe);
+        }
+        return binaryFiles;
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
-        URL url = Bob.class.getResource("/lib/" + libName);
-        if (url == null) {
-            throw new RuntimeException(String.format("/lib/%s not found", libName));
-        }
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
-            FileUtils.copyURLToFile(url, f);
-            f.setExecutable(true);
+            URL url = Bob.class.getResource("/lib/" + libName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/lib/%s not found", libName));
+            }
+
+            atomicCopy(url, f, true);
         }
         return f.getAbsolutePath();
     }
@@ -242,6 +364,7 @@ public class Bob {
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
         options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
         options.addOption(null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)");
+        options.addOption(null, "with-symbols", false, "Generate the symbol file (if applicable)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
@@ -254,7 +377,13 @@ public class Bob {
         options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
         options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
+        options.addOption(null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)");
+
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
+
+        options.addOption("ar", "architectures", true, "comma separated list of architectures to include for the platform");
+
+        options.addOption(null, "settings", true, "a path to a game project settings file. more than one occurrance are allowed. the settings files are applied left to right.");
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
@@ -344,9 +473,6 @@ public class Bob {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
 
-        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-        project.setOption("liveupdate", shouldPublish ? "true" : "false");
-
         Option[] options = cmd.getOptions();
         for (Option o : options) {
             if (cmd.hasOption(o.getLongOpt())) {
@@ -358,6 +484,39 @@ public class Bob {
             }
         }
 
+        // Get and set architectures list.
+        Platform platform = project.getPlatform();
+        String[] architectures = platform.getArchitectures().getDefaultArchitectures();
+        List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
+
+        if (cmd.hasOption("architectures")) {
+            architectures = cmd.getOptionValue("architectures").split(",");
+        }
+
+        if (architectures.length == 0) {
+            System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
+            System.exit(1);
+            return;
+        }
+
+        // Remove duplicates and make sure they are all supported for
+        // selected platform.
+        Set<String> uniqueArchitectures = new HashSet<String>();
+        for (int i = 0; i < architectures.length; i++) {
+            String architecture = architectures[i];
+            if (!availableArchitectures.contains(architecture)) {
+                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                System.exit(1);
+                return;
+            }
+            uniqueArchitectures.add(architecture);
+        }
+
+        project.setOption("architectures", String.join(",", uniqueArchitectures));
+
+        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
+        project.setOption("liveupdate", shouldPublish ? "true" : "false");
+
         if (!cmd.hasOption("variant")) {
             if (cmd.hasOption("debug")) {
                 System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
@@ -368,6 +527,13 @@ public class Bob {
             }
         }
 
+        String variant = project.option("variant", VARIANT_RELEASE);
+        if (! (variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS)) ) {
+            System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
+            System.exit(1);
+            return;
+        }
+
         if (cmd.hasOption("texture-profiles")) {
             // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
             System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
@@ -376,6 +542,16 @@ public class Bob {
                 texCompression = cmd.getOptionValue("texture-compression");
             }
             project.setOption("texture-compression", texCompression);
+        }
+
+        if (cmd.hasOption("use-vanilla-lua")) {
+            project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("settings")) {
+            for (String filepath : cmd.getOptionValues("settings")) {
+                project.addPropertyFile(filepath);
+            }
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

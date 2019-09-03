@@ -8,11 +8,7 @@ namespace dmSound
 
     Result PlatformFinalize();
 
-    bool PlatformAcquireAudioFocus();
-
-    bool PlatformReleaseAudioFocus();
-
-    bool PlatformIsMusicPlaying();
+    bool PlatformIsMusicPlaying(bool is_device_started, bool has_window_focus);
 
     bool PlatformIsPhoneCallActive();
 }

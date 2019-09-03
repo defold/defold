@@ -1,8 +1,8 @@
-# JavaFX Clojure Editor
+# Defold Editor
 
 ## Requirements
-* Java 1.8
-* [Leiningen](http://leiningen.org/)
+* [Java 11](https://jdk.java.net/11/)
+Note that we do not yet officially support development with a newer version of Java than 11.
 
 ## Windows
 
@@ -29,7 +29,7 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
 * Follow the OS X/Linux instructions!
 
-## OS X/Linux
+## macOS/Linux
 
 * `cd` to the `defold` directory
 * run `./scripts/build.py shell --platform=...`
@@ -37,11 +37,33 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 This is the shell environment that you must have to run the project.
 Consider putting it in an alias in your bash profile.
 
+## Updating jdk to JDK11
+
+### macOS
+
+* Download the [macOS](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
+* Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
+* Verify that the jdk version is available by running `/usr/libexec/java_home -V`
+* Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
+
+### Linux
+
+* Download [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it somewhere
+* Run `sudo update-alternatives --install "/usr/bin/java" "java" "/path/to/jdk/bin/java" 1102`
+* Run `sudo update-alternatives --install "/usr/bin/javac" "javac" "/path/to/jdk/bin/javac" 1102`
+* If require, switch to new version using `sudo update-alternatives --config java` and `sudo update-alternatives --config javac`
+
+### Notes
+
+If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
+and then set the project SDK setting (file->project structure/Project) to the new version.
+
 ## Setup
+* Run install_ext for the correct platform `scripts/build.py install_ext --platform=...`
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
 * Build builtins with `scripts/build.py build_builtins`
-* Build Bob with `scripts/build.py build_bob --skip-sync-archive`
+* Build Bob with `scripts/build.py build_bob`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
@@ -71,8 +93,6 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 `lein run` will launch the editor as well as providing a nrepl port
 for you to jack into
 
-**PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
-
 ## Building the Editor
 
 Use `scripts/bundle.py` to produce a bundled version of the editor.
@@ -81,27 +101,27 @@ There are a few different scenarios in which you might want to build
 the editor locally:
 
 - Local editor sources, archived engine artifacts based on HEAD:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4`
     - This will fetch engine and launcher artifacts using the `HEAD`
       revision.
 - Local editor sources, archived engine artifacts based on a different revision:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4 --git-rev dev`
     - This will fetch engine and launcher artifacts using the `dev`
       revision and is handy if you are on a branch where no engine
       artifacts have been archived.
 - Local editor sources, local engine artifacts, archived launcher from `dev`:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4 --git-rev dev --pack-local`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4 --git-rev dev --pack-local`
     - This will use local engine artifacts from `$DYNAMO_HOME`, with
       the exception of the launcher.
 - Local editor sources, local engine artifacts, local launcher:
-  - `./scripts/bundle.py --platform x86-win32 --version 1.2.3.4--pack-local --launcher ../tmp/dynamo_home/bin/x86_64-darwin/launcher`
+  - `./scripts/bundle.py --platform x86_64-win32 --version 1.2.3.4--pack-local --launcher ../tmp/dynamo_home/bin/x86_64-darwin/launcher`
 
 
 ## Jacking into a REPL
 
 You can also use `M-x cider-jack-in` or launch the editor inside Cursive for debugging with breakpoints etc.
 
-First set the envrinment varaible `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
+First set the environment variable `DYNAMO_HOME`. Example of a value `/Users/martin/work/defold/tmp/dynamo_home`.
 
 After you jacked in do the following to load and start the app;
 
@@ -153,5 +173,5 @@ In order to setup bob locally, you need to:
 
 - Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
   - For android, you also need to build_go through build.py to obtain apkc
-- Build bob with local artefacts, python scripts/build.py build_bob --skip-sync-archive
+- Build bob with local artifacts, python scripts/build.py build_bob
 - lein init, which will install bob.jar as a local maven package

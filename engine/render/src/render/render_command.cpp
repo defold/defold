@@ -59,14 +59,9 @@ namespace dmRender
                     dmGraphics::DisableState(context, (dmGraphics::State)c->m_Operands[0]);
                     break;
                 }
-                case COMMAND_TYPE_ENABLE_RENDER_TARGET:
+                case COMMAND_TYPE_SET_RENDER_TARGET:
                 {
-                    dmGraphics::EnableRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0] );
-                    break;
-                }
-                case COMMAND_TYPE_DISABLE_RENDER_TARGET:
-                {
-                    dmGraphics::DisableRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0] );
+                    dmGraphics::SetRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0], c->m_Operands[1] );
                     break;
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:

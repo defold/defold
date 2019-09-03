@@ -5,6 +5,12 @@ using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
 
+
+CompRenderConstants::CompRenderConstants()
+{
+    memset(this, 0x0, sizeof(*this));
+}
+
 dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector3& ref_value, const PropVector3& property)
 {
     dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
@@ -297,7 +303,8 @@ int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)
 void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
 {
     // Padding in the SetConstant-struct forces us to copy the components by hand
-    for (uint32_t i = 0; i < constants->m_ConstantCount; ++i)
+    uint32_t size = constants->m_ConstantCount;
+    for (uint32_t i = 0; i < size; ++i)
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
         dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(uint64_t));
@@ -306,5 +313,18 @@ void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
     }
 }
 
+int AreRenderConstantsUpdated(CompRenderConstants* constants)
+{
+    uint32_t size = constants->m_ConstantCount;
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        // TODO: Do a faster check for equality!
+        if (lengthSqr(constants->m_RenderConstants[i].m_Value - constants->m_PrevRenderConstants[i]) > 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
 
 }

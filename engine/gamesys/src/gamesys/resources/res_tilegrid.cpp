@@ -2,15 +2,12 @@
 
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <vectormath/ppu/cpp/vec_aos.h>
 
 #include "gamesys.h"
 #include "gamesys_ddf.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
-
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename, bool reload)
     {
@@ -24,6 +21,8 @@ namespace dmGameSystem
             }
         }
 
+        tile_grid->m_TileGrid = tile_grid_ddf;
+
         dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
         if (r != dmResource::RESULT_OK)
         {
@@ -34,10 +33,15 @@ namespace dmGameSystem
         {
             return r;
         }
+        if(dmRender::GetMaterialVertexSpace(tile_grid->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Tile Grid component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
             tile_grid_ddf->m_BlendMode = dmGameSystemDDF::TileGrid::BLEND_MODE_ADD;
-        tile_grid->m_TileGrid = tile_grid_ddf;
         TextureSetResource* texture_set = tile_grid->m_TextureSet;
 
         // find boundaries
@@ -48,6 +52,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < tile_grid_ddf->m_Layers.m_Count; ++i)
         {
             dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
+            // we hash it here in the resource loading in order to make it easier to generate the tilemap
+            // files from external tools
+            layer->m_IdHash = dmHashString64(layer->m_Id);
             uint32_t cell_count = layer->m_Cell.m_Count;
             for (uint32_t j = 0; j < cell_count; ++j)
             {

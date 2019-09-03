@@ -35,6 +35,7 @@ namespace dmHttpService
     struct Worker
     {
         dmThread::Thread      m_Thread;
+        dmDNS::HChannel       m_DNSChannel;
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
@@ -207,6 +208,8 @@ namespace dmHttpService
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
+            params.m_DNSChannel = worker->m_DNSChannel;
+
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
             if (worker->m_Client) {
                 dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
@@ -344,7 +347,7 @@ namespace dmHttpService
         }
         else
         {
-            dmLogWarning("Unable to locate application support path (%d)", sys_result);
+            dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
         }
 
         service->m_Run = true;
@@ -364,6 +367,11 @@ namespace dmHttpService
             worker->m_CacheFlusher = i == 0;
             worker->m_Run = true;
             service->m_Workers.Push(worker);
+
+            if (dmDNS::NewChannel(&worker->m_DNSChannel) != dmDNS::RESULT_OK)
+            {
+                worker->m_DNSChannel = 0;
+            }
 
             dmThread::Thread t = dmThread::New(&Loop, THREAD_STACK_SIZE, worker, "http");
             worker->m_Thread = t;
@@ -389,10 +397,13 @@ namespace dmHttpService
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
             url.m_Socket = worker->m_Socket;
+            dmDNS::StopChannel(http_service->m_Workers[i]->m_DNSChannel);
             dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0, 0);
             dmThread::Join(worker->m_Thread);
             dmMessage::DeleteSocket(worker->m_Socket);
-            if (worker->m_Client) {
+            dmDNS::DeleteChannel(worker->m_DNSChannel);
+            if (worker->m_Client)
+            {
                 dmHttpClient::Delete(worker->m_Client);
             }
             delete worker;

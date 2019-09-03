@@ -5,11 +5,11 @@
 #include <dlib/math.h>
 #include <gameobject/gameobject.h>
 #include <render/render.h>
-#include <vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 namespace dmGameSystem
 {
-    const uint32_t MAX_COMP_RENDER_CONSTANTS = 4;
+    const uint32_t MAX_COMP_RENDER_CONSTANTS = 16;
 
     struct PropVector3
     {
@@ -61,10 +61,7 @@ namespace dmGameSystem
 
     struct CompRenderConstants
     {
-        CompRenderConstants()
-        {
-            memset(this, 0x0, sizeof(*this));
-        }
+        CompRenderConstants();
         dmRender::Constant          m_RenderConstants[MAX_COMP_RENDER_CONSTANTS];
         Vectormath::Aos::Vector4    m_PrevRenderConstants[MAX_COMP_RENDER_CONSTANTS];
         uint32_t                    m_ConstantCount;
@@ -80,6 +77,7 @@ namespace dmGameSystem
     void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
     int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
     void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state);
+    int  AreRenderConstantsUpdated(CompRenderConstants* constants);
 
 
 #define DM_GAMESYS_PROP_VECTOR3(var_name, prop_name, readOnly)\

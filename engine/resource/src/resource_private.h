@@ -46,8 +46,8 @@ namespace dmResource
     Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
-    void GetCanonicalPath(const char* relative_dir, char* buf);
-    void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
+    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
+    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
     SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
     SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);
@@ -71,6 +71,11 @@ namespace dmResource
      * and load the bundled manifest instead.
      */
     Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
+
+    /**
+     * Exposed for unit tests
+     */
+     Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, dmResourceArchive::HArchiveIndexContainer archive_index);
 
     struct PreloadRequest;
     struct PreloadHintInfo

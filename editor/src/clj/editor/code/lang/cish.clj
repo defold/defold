@@ -18,45 +18,31 @@
     :captures {1 {:name "constant.character.escape.line-continuation.c"}}}])
 
 (def ^:private c-comments-patterns
-  [{
-    :captures {1 {:name "meta.toc-list.banner.block.c"}}
+  [{:captures {1 {:name "meta.toc-list.banner.block.c"}}
     :match #"^/\* =(\s*.*?)\s*= \*/$$?"
-    :name "comment.block.c"
-    }
-   {
-    :begin #"/\*"
+    :name "comment.block.c"}
+   {:begin #"/\*"
     :begin-captures {0 {:name "punctuation.definition.comment.begin.c"}}
     :end #"\*/"
     :end-captures {0 {:name "punctuation.definition.comment.end.c"}}
-    :name "comment.block.c"
-    }
-   {
-    :match #"\*/.*$"
-    :name "invalid.illegal.stray-comment-end.c"
-    }
-   {
-    :captures {1 {:name "meta.toc-list.banner.line.c"}}
+    :name "comment.block.c"}
+   {:match #"\*/.*$"
+    :name "invalid.illegal.stray-comment-end.c"}
+   {:captures {1 {:name "meta.toc-list.banner.line.c"}}
     :match #"^// =(\s*.*?)\s*=\s*$$?"
-    :name "comment.line.banner.cpp"
-    }
-   {
-    :begin #"(^[ \t]+)?(?=//)"
+    :name "comment.line.banner.cpp"}
+   {:begin #"(^[ \t]+)?(?=//)"
     :begin-captures {1 {:name "punctuation.whitespace.comment.leading.cpp"}}
     :end #"(?!\G)"
     :patterns [{:begin #"//"
                 :begin-captures {0 {:name "punctuation.definition.comment.cpp"}}
                 :end #"(?=$)"
                 :name "comment.line.double-slash.cpp"
-                :patterns c-line-continuation-character-patterns
-                }
-               ]
-    }])
+                :patterns c-line-continuation-character-patterns}]}])
 
 (def ^:private c-numbers-patterns
   [{:match #"\b((0(x|X)[0-9a-fA-F]([0-9a-fA-F']*[0-9a-fA-F])?)|(0(b|B)[01]([01']*[01])?)|(([0-9]([0-9']*[0-9])?\.?[0-9]*([0-9']*[0-9])?)|(\.[0-9]([0-9']*[0-9])?))((e|E)(\+|-)?[0-9]([0-9']*[0-9])?)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\b"
-    :name "constant.numeric.c"
-    }
-   ])
+    :name "constant.numeric.c"}])
 
 (def ^:private c-string-escaped-char-patterns
   [{:match #"(?x)\\ (
@@ -67,11 +53,9 @@
 x[a-fA-F0-9]{0,2} |
 u[a-fA-F0-9]{0,4} |
 U[a-fA-F0-9]{0,8} )"
-    :name "constant.character.escape.c"
-    }
+    :name "constant.character.escape.c"}
    {:match #"\\."
-    :name "invalid.illegal.unknown-escape.c"}
-   ])
+    :name "invalid.illegal.unknown-escape.c"}])
 
 (def ^:private c-string-placeholder-patterns
   [{:match #"(?x) %
@@ -82,11 +66,9 @@ U[a-fA-F0-9]{0,8} )"
 (\.((-?\d+)|\*(-?\d+\$)?)?)?         # precision
 (hh|h|ll|l|j|t|z|q|L|vh|vl|v|hv|hl)? # length modifier
 [diouxXDOUeEfFgGaACcSspn%]           # conversion type"
-    :name "constant.other.placeholder.c"
-    }
+    :name "constant.other.placeholder.c"}
    {:match #"(%)(?!\"\s*(PRI|SCN))"
-    :captures {1 {:name "invalid.illegal.placeholder.c"}}
-    }])
+    :captures {1 {:name "invalid.illegal.placeholder.c"}}}])
 
 (def ^:private c-strings-patterns
   [{:begin #"\""
@@ -96,8 +78,7 @@ U[a-fA-F0-9]{0,8} )"
     :name "string.quoted.double.c"
     :patterns (concat c-string-escaped-char-patterns
                       c-string-placeholder-patterns
-                      c-line-continuation-character-patterns)
-    }
+                      c-line-continuation-character-patterns)}
    {:begin #"'"
     :begin-captures {0 {:name "punctuation.definition.string.begin.c"}}
     :end #"'"
@@ -107,56 +88,32 @@ U[a-fA-F0-9]{0,8} )"
                       c-line-continuation-character-patterns)}])
 
 (def ^:private c-operators-patterns
-  [{
-    :match #"(?<![\w$])(sizeof)(?![\w$])"
-    :name "keyword.operator.sizeof.c"
-    }
-   {
-    :match #"--"
-    :name "keyword.operator.decrement.c"
-    }
-   {
-    :match #"\+\+"
-    :name "keyword.operator.increment.c"
-    }
-   {
-    :match #"%=|\+=|-=|\*=|(?<!\()/="
-    :name "keyword.operator.assignment.compound.c"
-    }
-   {
-    :match #"&=|\^=|<<=|>>=|\|="
-    :name "keyword.operator.assignment.compound.bitwise.c"
-    }
-   {
-    :match #"<<|>>"
-    :name "keyword.operator.bitwise.shift.c"
-    }
-   {
-    :match #"!=|<=|>=|==|<|>"
-    :name "keyword.operator.comparison.c"
-    }
-   {
-    :match #"&&|!|\|\|"
-    :name "keyword.operator.logical.c"
-    }
-   {
-    :match #"&|\||\^|~"
-    :name "keyword.operator.c"
-    }
-   {
-    :match #"="
-    :name "keyword.operator.assignment.c"
-    }
-   {
-    :match #"%|\*|/|-|\+"
-    :name "keyword.operator.c"
-    }
+  [{:match #"(?<![\w$])(sizeof)(?![\w$])"
+    :name "keyword.operator.sizeof.c"}
+   {:match #"--"
+    :name "keyword.operator.decrement.c"}
+   {:match #"\+\+"
+    :name "keyword.operator.increment.c"}
+   {:match #"%=|\+=|-=|\*=|(?<!\()/="
+    :name "keyword.operator.assignment.compound.c"}
+   {:match #"&=|\^=|<<=|>>=|\|="
+    :name "keyword.operator.assignment.compound.bitwise.c"}
+   {:match #"<<|>>"
+    :name "keyword.operator.bitwise.shift.c"}
+   {:match #"!=|<=|>=|==|<|>"
+    :name "keyword.operator.comparison.c"}
+   {:match #"&&|!|\|\|"
+    :name "keyword.operator.logical.c"}
+   {:match #"&|\||\^|~"
+    :name "keyword.operator.c"}
+   {:match #"="
+    :name "keyword.operator.assignment.c"}
+   {:match #"%|\*|/|-|\+"
+    :name "keyword.operator.c"}])
    ;; skipped ternary operator bogus
-   ])
 
 (def ^:private c-libc-patterns
-  [{
-    :captures {1 {:name "punctuation.whitespace.support.function.leading.c"}
+  [{:captures {1 {:name "punctuation.whitespace.support.function.leading.c"}
                2 {:name "support.function.C99.c"}}
     :match #"(?x) (\s*) \b
 (_Exit|(?:nearbyint|nextafter|nexttoward|netoward|nan)[fl]?|a(?:cos|sin)h?[fl]?|abort|abs|asctime|assert
@@ -199,8 +156,7 @@ U[a-fA-F0-9]{0,8} )"
                       c-line-continuation-character-patterns)}])
 
 (def ^:private c-include-patterns
-  [{
-    :begin #"^\s*(#)\s*(include(?:_next)?|import)\b\s*"
+  [{:begin #"^\s*(#)\s*(include(?:_next)?|import)\b\s*"
     :begin-captures {1 {:name "punctuation.definition.directive.c"}
                      2 {:name "keyword.control.directive.c"}}
     :end #"(?=(?://|/\*))|(?<!\\)(?=$)"
@@ -211,30 +167,22 @@ U[a-fA-F0-9]{0,8} )"
                         :begin-captures {0 {:name "punctuation.definition.string.begin.c"}}
                         :end #"\""
                         :end-captures {0 {:name "punctuation.definition.string.end.c"}}
-                        :name "string.quoted.double.include.c"
-                        }
-                       {
-                        :begin #"<"
+                        :name "string.quoted.double.include.c"}
+                       {:begin #"<"
                         :begin-captures {0 {:name "punctuation.definition.string.begin.c"}}
                         :end #">"
                         :end-captures {0 {:name "punctuation.definition.string.end.c"}}
-                        :name "string.quoted.other.lt-gt.include.c"
-                        }
-                       ])}])
+                        :name "string.quoted.other.lt-gt.include.c"}])}])
 
 (def ^:private c-pragma-patterns
-  [{
-    :begin #"^\s*(#)\s*(pragma)\b"
+  [{:begin #"^\s*(#)\s*(pragma)\b"
     :begin-captures {1 {:name "punctuation.definition.directive.c"}
                      2 {:name "keyword.control.directive.pragma.c"}}
     :end #"(?=(?://|/\*))|(?<!\\)(?=$)"
     :name "meta.preprocessor.pragma.c"
     :patterns (concat c-strings-patterns
-                      [{
-                        :match #"[a-zA-Z_$][\w\-$]*"
-                        :name "entity.other.attribute-name.pragma.preprocessor.c"
-                        }
-                       ]
+                      [{:match #"[a-zA-Z_$][\w\-$]*"
+                        :name "entity.other.attribute-name.pragma.preprocessor.c"}]
                       c-numbers-patterns
                       c-line-continuation-character-patterns)}])
 
@@ -271,15 +219,13 @@ U[a-fA-F0-9]{0,8} )"
     :patterns []}]) ;; here we should work on the content also...
 
 (def ^:private c-undef-patterns
-  [{
-    :begin #"^\s*(#)\s*(undef)\b"
+  [{:begin #"^\s*(#)\s*(undef)\b"
     :begin-captures {1 {:name "punctuation.definition.directive.c"}
                      2 {:name "keyword.control.directive.undef.c"}}
     :end #"(?=(?://|/\*))|(?<!\\)(?=$)"
     :name "meta.preprocessor.c"
     :patterns (concat [{:match #"[a-zA-Z_$][\w$]*"
-                        :name "entity.name.function.preprocessor.c"
-                        }]
+                        :name "entity.name.function.preprocessor.c"}]
                       c-line-continuation-character-patterns)}])
 
 (def ^:private c-sys-types-patterns
@@ -301,8 +247,7 @@ U[a-fA-F0-9]{0,8} )"
     :name "support.type.stdint.c"}])
 
 (def ^:private c-square-bracket-patterns
-  [{
-    :match #"(\[)|(\])"
+  [{:match #"(\[)|(\])"
     :captures {1 {:name "punctuation.definition.begin.bracket.square.c"}
                2 {:name "punctuation.definition.end.bracket.square.c"}}}])
 
@@ -311,13 +256,11 @@ U[a-fA-F0-9]{0,8} )"
     :name "keyword.control.c"}])
 
 (def ^:private c-storage-modifiers-patterns
-  [{
-    :match #"\b(const|extern|register|restrict|static|volatile|inline)\b"
+  [{:match #"\b(const|extern|register|restrict|static|volatile|inline)\b"
     :name "storage.modifier.c"}])
 
 (def ^:private c-language-constants-patterns
-  [{
-    :match #"\b(NULL|true|false|TRUE|FALSE)\b"
+  [{:match #"\b(NULL|true|false|TRUE|FALSE)\b"
     :name "constant.language.c"}])
 
 (def ^:private c-terminator-patterns
@@ -333,6 +276,7 @@ U[a-fA-F0-9]{0,8} )"
    :scope-name "source.cish"
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
+   :line-comment "//"
    :patterns (concat c-comments-patterns
                      c-storage-types-patterns
                      c-control-keywords-patterns
@@ -360,68 +304,43 @@ U[a-fA-F0-9]{0,8} )"
                      c-separator-patterns
 
                      [{:match #"\b(friend|explicit|virtual|override|final|noexcept)\b"
-                       :name "storage.modifier.cish"
-                       }
+                       :name "storage.modifier.cish"}
                       {:match #"\b(private:|protected:|public:)"
-                       :name "storage.modifier.cish"
-                       }
+                       :name "storage.modifier.cish"}
                       {:match #"\b(catch|operator|try|throw|using)\b"
-                       :name "keyword.control.cish"
-                       }
+                       :name "keyword.control.cish"}
                       {:match #"\bdelete\b(\s*\[\])?|\bnew\b(?!])"
-                       :name "keyword.control.cish"
-                       }
+                       :name "keyword.control.cish"}
                       {:match #"<="
-                       :name "keyword.operator.cish"
-                       }
+                       :name "keyword.operator.cish"}
                       {:match #"\bthis\b"
-                       :name "variable.language.this.cish"
-                       }
+                       :name "variable.language.this.cish"}
                       {:match #"\bnulptr\b"
-                       :name "constant.language.cish"
-                       }
+                       :name "constant.language.cish"}
                       {:match #"\btemplate\b\s*"
-                       :name "storage.type.template.cish"
-                       }
+                       :name "storage.type.template.cish"}
                       {:match #"\b(const_cast|dynamic_cast|reinterpret_cast|static_cast)\b\s*"
-                       :name "keyword.operator.cast.cish"
-                       }
+                       :name "keyword.operator.cast.cish"}
                       {:match #"::"
-                       :name "punctuation.separator.namespace.access.cpp"
-                       }
+                       :name "punctuation.separator.namespace.access.cpp"}
                       {:match #"\b(and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\b"
-                       :name "keyword.operator.cpp"
-                       }
-                      {
-                       :match #"\b(class|decltype|wchar_t|char16_t|char32_t)\b"
-                       :name "storage.type.cpp"
-                       }
-                      {
-                       :match #"\b(constexpr|export|mutable|typename|thread_local)\b"
-                       :name "storage.modifier.cpp"
-                       }
+                       :name "keyword.operator.cpp"}
+                      {:match #"\b(class|decltype|wchar_t|char16_t|char32_t)\b"
+                       :name "storage.type.cpp"}
+                      {:match #"\b(constexpr|export|mutable|typename|thread_local)\b"
+                       :name "storage.modifier.cpp"}
                       ;; strings
-                      {
-                       :begin #"(u|u8|U|L)?R?\""
+                      {:begin #"(u|u8|U|L)?R?\""
                        :begin-captures {0 {:name "punctuation.definition.string.begin.cpp"}}
                        :end #"\""
                        :end-captures {0 {:name "punctuation.definition.string.end.cpp"}}
                        :name "string.quoted.double.cpp"
                        :patterns (concat [{:match #"\\u\h{4}|\\U\h{8}"
-                                           :name "constant.character.escape.cpp"
-                                           }
-                                          {
-                                           :match #"\\['\"?\\abfnrtv]"
-                                           :name "constant.character.escape.cpp"
-                                           }
-                                          {
-                                           :match #"\\[0-7]{13}"
-                                           :name "constant.character.escape.cpp"
-                                           }
-                                          {
-                                           :match #"\\x\h+"
-                                           :name "constant.character.escape.cpp"
-                                           }
-                                          ]
-                                         c-string-placeholder-patterns)
-                       }])})
+                                           :name "constant.character.escape.cpp"}
+                                          {:match #"\\['\"?\\abfnrtv]"
+                                           :name "constant.character.escape.cpp"}
+                                          {:match #"\\[0-7]{13}"
+                                           :name "constant.character.escape.cpp"}
+                                          {:match #"\\x\h+"
+                                           :name "constant.character.escape.cpp"}]
+                                         c-string-placeholder-patterns)}])})

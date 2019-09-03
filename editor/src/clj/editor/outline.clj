@@ -55,6 +55,7 @@
                         (s/optional-key :outline-error?)      s/Bool
                         (s/optional-key :outline-overridden?) s/Bool
                         (s/optional-key :outline-reference?)  s/Bool
+                        (s/optional-key :outline-show-link?)  s/Bool
                         s/Keyword                             s/Any})
 
 (g/defnode OutlineNode

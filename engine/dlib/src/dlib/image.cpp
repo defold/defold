@@ -1,31 +1,25 @@
+#include <string.h>
 #include <dlib/log.h>
 #include "image.h"
 
+//#define STBI_NO_JPEG
+//#define STBI_NO_PNG
+#define STBI_NO_BMP
+#define STBI_NO_PSD
+#define STBI_NO_TGA
+#define STBI_NO_GIF
 #define STBI_NO_HDR
+#define STBI_NO_PIC
+#define STBI_NO_PNM
+#define STBI_NO_HDR
+#define STBI_NO_LINEAR
 #define STBI_NO_STDIO
 #define STBI_FAILURE_USERMSG
-// r15 of https://code.google.com/p/stblib/source/browse/trunk/libraries/stb_image.c
-#include "../stb_image/stb_image.c"
-// r13 of https://jpeg-compressor.googlecode.com/svn/trunk/jpgd.cpp
-// r11 of https://jpeg-compressor.googlecode.com/svn/trunk/jpgd.h
-#include "../jpgd/jpgd.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "../stb_image/stb_image.h"
 
 namespace dmImage
 {
-    static bool IsJpeg(const uint8_t* buffer, uint32_t buffer_size)
-    {
-        return (buffer_size >= 10 &&
-                buffer[0] == 0xff &&
-                buffer[1] == 0xd8 &&
-                buffer[2] == 0xff &&
-                buffer[3] == 0xe0 &&
-                buffer[6] == 0x4a &&
-                buffer[7] == 0x46 &&
-                buffer[8] == 0x49 &&
-                buffer[9] == 0x46 &&
-                buffer[10] == 0x00);
-    }
-
     void Premultiply(uint8_t* buffer, int width, int height)
     {
         for (int y = 0; y < height; ++y) {
@@ -42,17 +36,11 @@ namespace dmImage
         }
     }
 
-    Result Load(const void* buffer, uint32 buffer_size, bool premult, Image* image)
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, Image* image)
     {
         int x, y, comp;
 
-        unsigned char* ret;
-        if (IsJpeg((const uint8_t*) buffer, buffer_size)) {
-            // For progressive jpeg support. stb_image is non-progressive only
-            ret = jpgd::decompress_jpeg_image_from_memory((const unsigned char *) buffer, (int) buffer_size, &x, &y, &comp, 3);
-        } else {
-            ret = stbi_load_from_memory((const stbi_uc*) buffer, (int) buffer_size, &x, &y, &comp, 0);
-        }
+        unsigned char* ret = stbi_load_from_memory((const stbi_uc*) buffer, (int) buffer_size, &x, &y, &comp, 0);
 
         if (ret) {
             Image i;
@@ -65,7 +53,7 @@ namespace dmImage
             case 2:
                 // Luminance + alpha. Convert to luminance
                 i.m_Type = TYPE_LUMINANCE;
-                ret = convert_format(ret, 2, 1, x, y);
+                ret = stbi__convert_format(ret, 2, 1, x, y);
                 break;
             case 3:
                 i.m_Type = TYPE_RGB;

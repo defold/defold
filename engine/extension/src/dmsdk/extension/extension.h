@@ -148,7 +148,7 @@ namespace dmExtension
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
-    /*# onActivityResult callback typedef
+    /*# OnActivityResult callback typedef
      *
      * Activity result callback function type. Monitors events from the main activity.
      * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
@@ -168,7 +168,8 @@ namespace dmExtension
      * Registers an activity result callback. Multiple listeners are allowed.
      *
      * @note [icon:android] Only available on Android
-     * @param [type:OnActivityResult] listener
+     * @name RegisterAndroidOnActivityResultListener
+     * @param [type:dmExtension::OnActivityResult] listener
      */
     void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
 
@@ -177,7 +178,8 @@ namespace dmExtension
      * Unregisters an activity result callback
      *
      * @note [icon:android] Only available on Android
-     * @param [type:OnActivityResult] listener
+     * @name UnregisterAndroidOnActivityResultListener
+     * @param [type:dmExtension::OnActivityResult] listener
      */
     void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
 
@@ -257,7 +259,7 @@ namespace dmExtension
      * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
      *
      * @examples
-     * ```cpp
+     * ```objective-c
      *
      * // myextension_ios.mm
      *
@@ -364,7 +366,7 @@ namespace dmExtension
  * Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
  *
  * @macro
- * @name DM_PLATFORM_WIN32
+ * @name DM_PLATFORM_WINDOWS
  *
  */
 

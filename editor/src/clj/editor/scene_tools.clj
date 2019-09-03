@@ -5,32 +5,15 @@
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.gl.pass :as pass]
             [editor.math :as math]
-            [editor.prefs :as prefs])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region Rect]
-           [java.awt Font]
-           [java.awt.image BufferedImage]
-           [javafx.application Platform]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.geometry BoundingBox]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Tab]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane Pane]
-           [java.lang Runnable Math]
-           [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d AxisAngle4d]))
+            [editor.prefs :as prefs]
+            [editor.scene-picking :as scene-picking])
+  (:import [java.lang Runnable Math]
+           [com.jogamp.opengl GL GL2]
+           [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -61,12 +44,6 @@
   [node-id]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
-(defn- transform->translation
-  ^Vector3d [^Matrix4d transform]
-  (let [translation (Vector3d.)]
-    (.get transform translation)
-    translation))
-
 ; Render assets
 
 (vtx/defvertex pos-vtx
@@ -78,7 +55,7 @@
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
 
 (shader/defshader fragment-shader
-  (uniform vec4 color)
+  (uniform vec4 color) ; `color` also used in selection pass to render picking id
   (defn void main []
     (setq gl_FragColor color)))
 
@@ -87,13 +64,11 @@
 
 ; Rendering
 
-(defn- scale-factor [camera viewport]
-  (let [inv-view (doto (Matrix4d. (c/camera-view-matrix camera)) (.invert))
-        x-axis   (Vector4d.)
-        _        (.getColumn inv-view 0 x-axis)
-        cp1      (c/camera-project camera viewport (Point3d.))
-        cp2      (c/camera-project camera viewport (Point3d. (.x x-axis) (.y x-axis) (.z x-axis)))]
-    (/ 1.0 (Math/abs (- (.x cp1) (.x cp2))))))
+(defn- scale-factor [camera viewport ^Tuple3d reference-point]
+  (let [offset-point (doto (Point3d.) (.add reference-point (c/camera-right-vector camera)))
+        screen-point-a (c/camera-project camera viewport reference-point)
+        screen-point-b (c/camera-project camera viewport offset-point)]
+    (/ 1.0 (Math/abs (- (.x screen-point-a) (.x screen-point-b))))))
 
 (defn- manip->screen? [manip]
   (case manip
@@ -143,21 +118,25 @@
     :local manip-world-rotation
     :world geom/NoRotation))
 
-(defn render-manips [^GL2 gl render-args renderables count]
+(defn render-manips [^GL2 gl render-args renderables n]
   (let [camera (:camera render-args)
         renderable (first renderables)
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         manip (:manip user-data)
         manip-rotation (:manip-rotation user-data)
-        color (:color user-data)
+        color (if (= (:pass render-args) pass/manipulator-selection)
+                (scene-picking/picking-id->color (:picking-id renderable))
+                (:color user-data))
         vertex-buffers (:vertex-buffers user-data)]
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
         (doseq [[mode vertex-buffer vertex-count] vertex-buffers
                 :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
-                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode) (float-array (assoc color 3 1.0)) (float-array color))]
+                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
+                              (float-array (assoc color 3 1.0))
+                              (float-array color))]
                 :when (> vertex-count 0)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (shader/set-uniform shader gl "color" color)
@@ -386,11 +365,11 @@
   (get-in transform-tools [active-tool :manip-spaces]))
 
 (defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
-  (let [world-position (transform->translation (:world-transform reference-renderable))
+  (let [world-translation ^Vector3d (:world-translation reference-renderable)
         world-rotation ^Matrix3d (case manip-space
                                    :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
                                    :world geom/Identity3d)]
-    (Matrix4d. world-rotation world-position scale-factor)))
+    (Matrix4d. world-rotation world-translation scale-factor)))
 
 (g/defnk produce-renderables [_node-id active-tool manip-space camera viewport selected-renderables active-manip hot-manip start-action]
   (if (not (contains? transform-tools active-tool))
@@ -402,8 +381,9 @@
         {}
         (let [tool-active (not (nil? start-action))
               reference-renderable (last selected-renderables)
-              scale (scale-factor camera viewport)
+              world-translation (:world-translation reference-renderable)
               world-rotation (:world-rotation reference-renderable)
+              scale (scale-factor camera viewport world-translation)
               world-transform (manip-world-transform reference-renderable manip-space scale)
               rotation-fn #(manip->rotation %)
               color-fn #(manip->color % active-manip hot-manip tool-active)
@@ -422,24 +402,24 @@
   (case manip
     :scale-uniform (:screen-pos action)
     (let [manip-dir (manip->normal manip manip-rotation)
-         _ (.transform lead-transform manip-dir)
-         _ (.normalize manip-dir)
-         manip-pos (Vector3d.)
-         _ (.get lead-transform manip-pos)
-         [action-pos action-dir] (action->line action)]
-     (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
+          _ (.transform lead-transform manip-dir)
+          _ (.normalize manip-dir)
+          manip-pos (math/translation lead-transform)
+          [action-pos action-dir] (action->line action)]
+      (proj-fn action-pos action-dir (Point3d. manip-pos) manip-dir))))
 
 (defn- manip->project-fn [manip camera viewport]
   (case manip
     (:move-x :move-y :move-z :scale-x :scale-y :scale-z) math/project-lines
     (:move-xy :move-xz :move-yz :move-screen :scale-xy :scale-xz :scale-yz) math/line-plane-intersection
     (:rot-x :rot-y :rot-z :rot-screen)
-    (let [scale (scale-factor camera viewport)
-          radius (* scale
-                    (case manip
-                      (:rot-x :rot-y :rot-z) axis-rotation-radius
-                      :rot-screen screen-rotation-radius))]
-      (fn [pos dir manip-pos manip-dir] (math/project-line-circle pos dir manip-pos manip-dir radius)))
+    (fn [pos dir manip-pos manip-dir]
+      (let [scale (scale-factor camera viewport manip-pos)
+            radius (* scale
+                      (case manip
+                        (:rot-x :rot-y :rot-z) axis-rotation-radius
+                        :rot-screen screen-rotation-radius))]
+        (math/project-line-circle pos dir manip-pos manip-dir radius)))
     :scale-uniform identity))
 
 (defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values]
@@ -489,7 +469,7 @@
 
 (defn- apply-manipulator [manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport]
   (let [{:keys [world-rotation world-transform]} (peek original-values)
-        manip-origin (transform->translation world-transform)
+        manip-origin (math/translation world-transform)
         manip-rotation (get-manip-rotation manip-space world-rotation)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
@@ -595,5 +575,6 @@
 
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output info-text g/Str (g/constantly nil))
   (output manip-opts g/Any produce-manip-opts)
   (output manip-space g/Keyword produce-manip-space))

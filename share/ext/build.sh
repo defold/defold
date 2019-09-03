@@ -9,10 +9,12 @@ function usage() {
     echo " * x86_64-linux"
     echo " * armv7-darwin"
     echo " * arm64-darwin"
+    echo " * x86_64-ios"
     echo " * armv7-android"
+    echo " * arm64-android"
     echo " * i586-mingw32msvc"
     echo " * js-web"
-    echo " * as3-web"
+    echo " * wasm-web"
     echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
     exit $1

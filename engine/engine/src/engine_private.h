@@ -84,6 +84,13 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
+    enum Vsync
+    {
+        VSYNC_SOFTWARE = 0,
+        VSYNC_HARDWARE = 1,
+
+    };
+
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -100,7 +107,6 @@ namespace dmEngine
         uint32_t                                    m_LastReloadMTime;
 
         float                                       m_MouseSensitivity;
-        bool                                        m_ShowProfile;
 
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
@@ -121,6 +127,7 @@ namespace dmEngine
         dmGameSystem::SpineModelContext             m_SpineModelContext;
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
+        dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
@@ -147,6 +154,7 @@ namespace dmEngine
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        Vsync                                       m_VsyncMode;
 
         RecordData                                  m_RecordData;
     };

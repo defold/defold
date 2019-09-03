@@ -3,5 +3,5 @@ material: "/builtins/fonts/system_font.material"
 size: 14
 antialias: 1
 alpha: 1.0
-shadow_alpha: 1.0
-shadow_blur: 2
+shadow_alpha: 0.0
+shadow_blur: 0

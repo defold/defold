@@ -7,6 +7,7 @@
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
@@ -75,8 +76,6 @@
                   :command :referencing-files}
                  {:label "Dependencies..."
                   :command :dependencies}
-                 {:label "Hot Reload"
-                  :command :hot-reload}
                  {:label :separator}
                  {:label "View Diff"
                   :icon "icons/32/Icons_S_06_arrowup.png"
@@ -93,9 +92,21 @@
             (and (disk-availability/available?)
                  (pos? (count selection))))
   (run [async-reload! selection git changes-view workspace]
-    (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
-      (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-      (async-reload! workspace changes-view moved-files))))
+    (when (dialogs/make-confirmation-dialog
+            {:title "Revert Changes?"
+             :size :large
+             :icon :icon/circle-question
+             :header "Are you sure you want to revert changes on selected files?"
+             :buttons [{:text "Cancel"
+                        :cancel-button true
+                        :default-button true
+                        :result false}
+                       {:text "Revert Changes"
+                        :variant :danger
+                        :result true}]})
+      (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
+        (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
+        (async-reload! workspace changes-view moved-files)))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
@@ -106,36 +117,45 @@
 (defn project-is-git-repo? [changes-view]
   (some? (g/node-value changes-view :unconfigured-git)))
 
-(defn first-sync! [changes-view project]
+(defn first-sync! [changes-view dashboard-client project]
   (let [workspace (project/workspace project)
         proj-path (.getPath (workspace/project-path workspace))
         project-title (project/project-title project)
         prefs (g/node-value changes-view :prefs)]
-    (-> (sync/begin-first-flow! proj-path project-title prefs
+    (-> (sync/begin-first-flow! proj-path project-title prefs dashboard-client
                                 (fn [git]
                                   (ui/run-later
                                     (g/set-property! changes-view :unconfigured-git git))))
         (sync/open-sync-dialog))))
 
-(defn regular-sync! [changes-view]
-  (let [prefs (g/node-value changes-view :prefs)
-        git (g/node-value changes-view :git)]
-    (if-not (login/login prefs)
-      false
-      (let [creds (git/credentials prefs)
-            flow (sync/begin-flow! git creds)]
-        (sync/open-sync-dialog flow)
-        true))))
+(defn regular-sync! [changes-view dashboard-client]
+  (if-not (login/sign-in! dashboard-client :synchronize)
+    false
+    (let [git (g/node-value changes-view :git)
+          prefs (g/node-value changes-view :prefs)
+          creds (git/credentials prefs)
+          flow (sync/begin-flow! git creds)]
+      (sync/open-sync-dialog flow)
+      true)))
 
 (defn ensure-no-locked-files! [changes-view]
   (let [git (g/node-value changes-view :unconfigured-git)]
     (loop []
       (if-some [locked-files (not-empty (git/locked-files git))]
         ;; Found locked files below the project. Notify user and offer to retry.
-        (if (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                         {:title "Not Safe to Sync"
-                                          :ok-label "Retry"
-                                          :cancel-label "Cancel"})
+        (if (dialogs/make-confirmation-dialog
+              {:title "Not Safe to Sync"
+               :icon :icon/circle-question
+               :header "There are locked files, retry?"
+               :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
+                         :text (git/locked-files-error-message locked-files)}
+               :buttons [{:text "Cancel"
+                          :cancel-button true
+                          :result false}
+                         {:text "Retry"
+                          :default-button true
+                          :result true}]})
           (recur)
           false)
 

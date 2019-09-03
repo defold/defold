@@ -382,14 +382,9 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component->m_RenderConstants.m_ConstantCount;
-            for (uint32_t const_i = 0; const_i < const_count; ++const_i)
+            if (dmGameSystem::AreRenderConstantsUpdated(&component->m_RenderConstants))
             {
-                if (lengthSqr(component->m_RenderConstants.m_RenderConstants[const_i].m_Value - component->m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                {
-                    ReHash(component);
-                    break;
-                }
+                ReHash(component);
             }
 
             dmRender::DrawTextParams params;
@@ -474,6 +469,11 @@ namespace dmGameSystem
         metrics.m_Height     = metrics.m_Height;
         metrics.m_MaxAscent  = metrics.m_MaxAscent;
         metrics.m_MaxDescent = metrics.m_MaxDescent;
+    }
+
+    const char* CompLabelGetText(const LabelComponent* component)
+    {
+        return component->m_Text;
     }
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)

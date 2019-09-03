@@ -18,6 +18,12 @@ platforms:
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
             libs: ["record_null","sound_null","graphics_null","hid_null"]
 
+    wasm-web:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
     x86-win32:
         context:
             excludeLibs: ["librecord","libvpx","libsound","libtremolo","libgraphics","libhid"]
@@ -31,6 +37,12 @@ platforms:
             libs: ["librecord_null.lib","libsound_null.lib","libgraphics_null.lib","libhid_null.lib"]
 
     armv7-android:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
+    arm64-android:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]

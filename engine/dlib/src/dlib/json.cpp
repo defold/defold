@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "json.h"
+#include "static_assert.h"
 #include "math.h"
 #include "utf8.h"
+#include <dmsdk/dlib/json.h>
 
 extern "C"
 {
@@ -176,12 +177,18 @@ namespace dmJson
         }
     }
 
-    Result Parse(const char* buffer, Document* doc)
+    Result Parse(const char* buffer, unsigned int buffer_length, Document* doc)
     {
+        DM_STATIC_ASSERT((int)TYPE_PRIMITIVE == (int)JSMN_PRIMITIVE, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_OBJECT == (int)JSMN_OBJECT, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_ARRAY == (int)JSMN_ARRAY, Type_mismatch);
+        DM_STATIC_ASSERT((int)TYPE_STRING == (int)JSMN_STRING, Type_mismatch);
+
         memset(doc, 0, sizeof(Document));
         jsmn_parser parser;
-        // NOTE: initial count is increased in do-while
-        unsigned int token_count = 64;
+        // NOTE: count may be increased in do-while, at a higher cost because of extra malloc/free and parsing
+        // Tested wth a +1mb json to achieve a single iteration in the while loop below
+        unsigned int token_count = dmMath::Max(64U, buffer_length/8);
 
         if(!buffer)
         {
@@ -197,8 +204,7 @@ namespace dmJson
             token_count += dmMath::Min(256U, token_count);
             free(tokens);
             tokens = (jsmntok_t*) malloc(sizeof(jsmntok_t) * token_count);
-            err = jsmn_parse(&parser, buffer, strlen(buffer), tokens, token_count);
-
+            err = jsmn_parse(&parser, buffer, buffer_length, tokens, token_count);
         } while (err == JSMN_ERROR_NOMEM);
 
         if (err >= 0)
@@ -235,59 +241,15 @@ namespace dmJson
         return RESULT_UNKNOWN;
     }
 
+    Result Parse(const char* buffer, Document* doc)
+    {
+        return Parse(buffer, buffer ? strlen(buffer) : 0, doc);
+    }
+
     void Free(Document* doc)
     {
         free(doc->m_Nodes);
         free(doc->m_Json);
         memset(doc, 0, sizeof(Document));
     }
-
-    const char* CStringArrayToJsonString(const char** array,
-        unsigned int length)
-    {
-        // Calculate the memory required to store the JSON string.
-        unsigned int data_length = 2 + length * 2 + (length - 1);
-        for (unsigned int i = 0; i < length; ++i)
-        {
-            data_length += strlen(array[i]);
-            for (unsigned int n = 0; n < strlen(array[i]); ++n)
-            {
-                if (array[i][n] == '"')
-                {
-                    // We will have to escape this character with a backslash
-                    data_length += 1;
-                }
-            }
-        }
-
-        // Allocate memory for the JSON string,
-        // this has to be free'd by the caller.
-        char* json_array = (char*) malloc(data_length + 1);
-        if (json_array != 0)
-        {
-            unsigned int position = 0;
-            memset((void*) json_array, 0, data_length + 1);
-
-            json_array[position++] = '[';
-            for (unsigned int i = 0; i < length; ++i)
-            {
-                json_array[position++] = '"';
-                for (unsigned int n = 0; n < strlen(array[i]); ++n)
-                {
-                    if (array[i][n] == '"')
-                    {
-                        json_array[position++] = '\\';
-                    }
-                    json_array[position++] = array[i][n];
-                }
-                json_array[position++] = '"';
-            }
-
-            json_array[position++] = ']';
-            json_array[position] = '\0';
-        }
-
-        return json_array;
-    }
-
 }

@@ -6,6 +6,7 @@
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
@@ -256,21 +257,30 @@
 
 (defn interactive-cancel! [cancel-fn]
   (loop []
-    (let [result (cancel-fn)]
+    (let [result (cancel-fn)
+          dialog-props {:title "Unable to Cancel Sync"
+                        :icon :icon/triangle-error
+                        :header "An error occurred"
+                        :content {:fx/type fxui/label
+                                  :style-class "dialog-content-padding"
+                                  :text (cancel-result-message result)}}]
       (when (not= :success (:type result))
         (if (:can-retry? result)
-          (when (dialogs/make-confirm-dialog (cancel-result-message result)
-                                             {:title "Unable to Cancel Sync"
-                                              :ok-label "Retry"
-                                              :cancel-label "Lose Changes"})
+          (when (dialogs/make-info-dialog
+                  (assoc dialog-props :buttons [{:text "Lose Changes"
+                                                 :cancel-button true
+                                                 :result false}
+                                                {:text "Retry"
+                                                 :default-button true
+                                                 :result true}]))
             (recur))
-          (dialogs/make-alert-dialog (cancel-result-message result)))))))
+          (dialogs/make-info-dialog dialog-props))))))
 
-(defn- upload-project! [project-path project-title prefs on-new-git! settings render-progress!]
+(defn- upload-project! [project-path project-title prefs dashboard-client on-new-git! settings render-progress!]
   (let [msgs (:msgs settings)]
     (try
-      (when (login/login prefs)
-        (let [client (client/make-client prefs)]
+      (when (login/sign-in! dashboard-client :upload-project)
+        (with-open [client (client/make-client prefs)]
           (when-let [user-id (some-> client
                                (client/user-info)
                                (:id))]
@@ -300,9 +310,9 @@
      (catch Throwable t
        {:error {:exception t :message (.getMessage t)}}))))
 
-(defn begin-first-flow! [project-path project-title prefs on-new-git!]
+(defn begin-first-flow! [project-path project-title prefs dashboard-client on-new-git!]
   (let [flow {:state :first/start
-              :f     (partial upload-project! project-path project-title prefs on-new-git!)}
+              :f     (partial upload-project! project-path project-title prefs dashboard-client on-new-git!)}
         !flow (atom flow)]
     (try
       (add-watch !flow ::on-flow-changed on-flow-changed)

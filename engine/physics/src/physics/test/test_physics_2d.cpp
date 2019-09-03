@@ -3,10 +3,14 @@
  * collision groups within the same collision object nor support for the custom grid-shape.
  */
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 #include "test_physics.h"
 
 #include <vector>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 
 using namespace Vectormath::Aos;
 
@@ -115,7 +119,7 @@ Test2D::~Test2D()
     delete [] m_Vertices;
 }
 
-typedef ::testing::Types<Test2D> TestTypes;
+typedef jc_test_type1<Test2D> TestTypes;
 TYPED_TEST_CASE(PhysicsTest, TestTypes);
 
 TYPED_TEST(PhysicsTest, MultipleGroups)
@@ -404,6 +408,7 @@ TYPED_TEST(PhysicsTest, GridShapeTrigger)
     dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
+    dmPhysics::ClearGridShapeHulls(grid_co);
     dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS);
     dmPhysics::SetGridShapeHull(grid_co, 0, 0, 1, 0, EMPTY_FLAGS);
 
@@ -547,7 +552,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
-// We changed tilegrids from doind edge checks to polygon checks
+// We changed tilegrids from doing edge checks to polygon checks
 // in order to get more solid collisions
 TYPED_TEST(PhysicsTest, PolygonShape)
 {
@@ -976,6 +981,313 @@ TYPED_TEST(PhysicsTest, ScaledBox)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
 }
 
+TYPED_TEST(PhysicsTest, JointGeneral)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(-2.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    //////////////////////////////////////////////////////////////
+    // Create SPRING joint
+    dmPhysics::JointType joint_type = dmPhysics::JOINT_TYPE_SPRING;
+    Vectormath::Aos::Point3 p_zero(0.0f);
+    dmPhysics::ConnectJointParams joint_params(joint_type);
+    dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Update SPRING joint
+    joint_params.m_SpringJointParams.m_Length = 10.0f;
+    bool r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+
+    // Get SPRING joint params
+    r = dmPhysics::GetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+    ASSERT_NEAR(10.0f, joint_params.m_SpringJointParams.m_Length, FLT_EPSILON);
+
+    Vectormath::Aos::Vector3 force(0.0f);
+    ASSERT_TRUE(dmPhysics::GetJointReactionForce2D(TestFixture::m_World, joint, force, 1.0f / 16.0f));
+
+    // Delete SPRING joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    //////////////////////////////////////////////////////////////
+    // Create FIXED joint
+    joint_type = dmPhysics::JOINT_TYPE_FIXED;
+    joint_params = dmPhysics::ConnectJointParams(joint_type);
+    joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Update FIXED joint
+    joint_params.m_FixedJointParams.m_MaxLength = 10.0f;
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+
+    // Get FIXED joint params
+    r = dmPhysics::GetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+    ASSERT_NEAR(10.0f, joint_params.m_FixedJointParams.m_MaxLength, FLT_EPSILON);
+
+    // Delete FIXED joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    //////////////////////////////////////////////////////////////
+    // Create HINGE joint
+    joint_type = dmPhysics::JOINT_TYPE_HINGE;
+    joint_params = dmPhysics::ConnectJointParams(joint_type);
+    joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Update HINGE joint
+    joint_params.m_HingeJointParams.m_MotorSpeed = 10.0f;
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+
+    // Get HINGE joint params
+    r = dmPhysics::GetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+    ASSERT_NEAR(10.0f, joint_params.m_HingeJointParams.m_MotorSpeed, FLT_EPSILON);
+
+    float torque = 0.0f;
+    ASSERT_TRUE(dmPhysics::GetJointReactionTorque2D(TestFixture::m_World, joint, torque, 1.0f / 16.0f));
+
+    // Delete HINGE joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    //////////////////////////////////////////////////////////////
+    // Create SLIDER joint
+    joint_type = dmPhysics::JOINT_TYPE_SLIDER;
+    joint_params = dmPhysics::ConnectJointParams(joint_type);
+    joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Update SLIDER joint
+    joint_params.m_SliderJointParams.m_MotorSpeed = 10.0f;
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+
+    // Get SLIDER joint params
+    r = dmPhysics::GetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+    ASSERT_NEAR(10.0f, joint_params.m_SliderJointParams.m_MotorSpeed, FLT_EPSILON);
+
+    // Delete SLIDER joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+
+}
+
+TYPED_TEST(PhysicsTest, JointSpring)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(-2.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    // Create SPRING joint
+    dmPhysics::JointType joint_type = dmPhysics::JOINT_TYPE_SPRING;
+    Vectormath::Aos::Point3 p_zero(0.0f);
+    dmPhysics::ConnectJointParams joint_params(joint_type);
+    joint_params.m_SpringJointParams.m_Length = 3.0f;
+    dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_NEAR(-3.0f, vo_b.m_Position.getY(), FLT_EPSILON);
+    }
+
+    // Delete SPRING joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+
+}
+
+TYPED_TEST(PhysicsTest, JointFixed)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(-2.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    // Create FIXED joint
+    dmPhysics::JointType joint_type = dmPhysics::JOINT_TYPE_FIXED;
+    Vectormath::Aos::Point3 p_zero(0.0f);
+    dmPhysics::ConnectJointParams joint_params(joint_type);
+    joint_params.m_FixedJointParams.m_MaxLength = 3.0f;
+    dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_TRUE(-3.0f <= vo_b.m_Position.getY());
+    }
+
+    // Delete FIXED joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+
+}
+
+TYPED_TEST(PhysicsTest, JointSlider)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    // Create SLIDER joint
+    dmPhysics::JointType joint_type = dmPhysics::JOINT_TYPE_SLIDER;
+    Vectormath::Aos::Point3 p_zero(0.0f);
+    dmPhysics::ConnectJointParams joint_params(joint_type);
+    joint_params.m_SliderJointParams.m_LocalAxisA[0] = 0.0f;
+    joint_params.m_SliderJointParams.m_LocalAxisA[1] = 1.0f;
+    joint_params.m_SliderJointParams.m_LocalAxisA[2] = 0.0f;
+    joint_params.m_SliderJointParams.m_MotorSpeed = 1.0f;
+    joint_params.m_SliderJointParams.m_LowerTranslation = 0.0f;
+    joint_params.m_SliderJointParams.m_UpperTranslation = 10.0f;
+    joint_params.m_SliderJointParams.m_EnableMotor = true;
+    joint_params.m_SliderJointParams.m_EnableLimit = true;
+    joint_params.m_SliderJointParams.m_MaxMotorForce = 1000.0f;
+    dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Step simulation, make sure Y position increases due to the motor
+    float y = 0.0f;
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_LT(y, vo_b.m_Position.getY());
+        y = vo_b.m_Position.getY();
+    }
+
+    // Delete SLIDER joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+
+}
+
+TYPED_TEST(PhysicsTest, JointHinge)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(-2.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    // Create HINGE joint
+    dmPhysics::JointType joint_type = dmPhysics::JOINT_TYPE_HINGE;
+    Vectormath::Aos::Point3 p_zero(0.0f);
+    dmPhysics::ConnectJointParams joint_params(joint_type);
+    joint_params.m_HingeJointParams.m_MotorSpeed = 1.0f;
+    joint_params.m_HingeJointParams.m_EnableMotor = true;
+    joint_params.m_HingeJointParams.m_MaxMotorTorque = 1000.0f;
+    dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Step simulation, make sure Z rotation increases
+    Vectormath::Aos::Vector3 euler(0.0f);
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_NEAR(0.0f, vo_b.m_Position.getY(), FLT_EPSILON);
+        Vectormath::Aos::Vector3 new_rotation = dmVMath::QuatToEuler(vo_b.m_Rotation.getX(), vo_b.m_Rotation.getY(), vo_b.m_Rotation.getZ(), vo_b.m_Rotation.getW());
+        ASSERT_LT(euler.getZ(), new_rotation.getZ());
+        euler = new_rotation;
+    }
+
+    // Delete HINGE joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+
+}
+
 TYPED_TEST(PhysicsTest, ScaledGrid)
 {
     /*
@@ -1247,6 +1559,6 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
 
 int main(int argc, char **argv)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
 }

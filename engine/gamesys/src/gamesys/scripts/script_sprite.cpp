@@ -83,18 +83,62 @@ namespace dmGameSystem
      *
      * @examples
      *
-     * How to overwrite a sprite's original texture
-     *
-     * ```lua
-     * function init(self)
-     *   -- get texture resource from one sprite and set it on another
-     *   local resource_path1 = go.get("#sprite1", "texture0")
-     *   local buffer = resource.load(resource_path1)
-     *   local resource_path2 = go.get("#sprite2", "texture0")
-     *   resource.set(resource_path2, buffer)
-     * end
-     * ```
+     * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
+
+
+    /*# [type:number] sprite cursor
+    *
+    * The normalized animation cursor. The type of the property is number.
+    *
+    * @name cursor
+    * @property
+    *
+    * @examples
+    *
+    * How to get the normalized cursor value:
+    *
+    * ```lua
+    * function init(self)
+    *   -- Get the cursor value on component "sprite"
+    *   cursor = go.get("#sprite", "cursor")
+    * end
+    * ```
+    *
+    * How to animate the cursor from 0.0 to 1.0 using linear easing for 2.0 seconds:
+    *
+    * ```lua
+    * function init(self)
+    *   -- Get the current value on component "sprite"
+    *   go.set("#sprite", "cursor", 0.0)
+    *   -- Animate the cursor value
+    *   go.animate("#sprite", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
+    * end
+    * ```
+    */
+
+    /*# [type:number] sprite playback_rate
+    *
+    * The animation playback rate. A multiplier to the animation playback rate. The type of the property is [type:number].
+    *
+    * The playback_rate is a non-negative number, a negative value will be clamped to 0.
+    *
+    * @name playback_rate
+    * @property
+    *
+    * @examples
+    *
+    * How to set the playback_rate on component "sprite" to play at double the current speed:
+    *
+    * ```lua
+    * function init(self)
+    *   -- Get the current value on component "sprite"
+    *   playback_rate = go.get("#sprite", "playback_rate")
+    *   -- Set the playback_rate to double the previous value.
+    *   go.set("#sprite", "playback_rate", playback_rate * 2)
+    * end
+    * ```
+    */
 
     /*# set horizontal flipping on a sprite's animations
      * Sets horizontal flipping of the provided sprite's animations.
@@ -283,11 +327,11 @@ namespace dmGameSystem
 
     /*# Play an animation on a sprite component
      * Play an animation on a sprite component from its tile set
-     * 
+     *
      * An optional completion callback function can be provided that will be called when
      * the animation has completed playing. If no function is provided,
      * a [ref:animation_done] message is sent to the script that started the animation.
-     * 
+     *
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id hash name hash of the animation to play
@@ -307,12 +351,22 @@ namespace dmGameSystem
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
+     *
+     * @param [play_properties] [type:table] optional table with properties:
+     *
+     * `offset`
+     * : [type:number] the normalized initial value of the animation cursor when the animation starts playing.
+     *
+     * `playback_rate`
+     * : [type:number] the rate with which the animation will be played. Must be positive.
+     *
      * @examples
-     * 
+     *
      * The following examples assumes that the model has id "sprite".
-     * 
+     *
      * How to play the "jump" animation followed by the "run" animation:
-     * 
+     *
+     *```lua
      * local function anim_done(self, message_id, message, sender)
      *   if message_id == hash("model_animation_done") then
      *     if message.id == hash("jump") then
@@ -321,7 +375,8 @@ namespace dmGameSystem
      *     end
      *   end
      * end
-     * 
+     * ```
+     *
      * ```lua
      * function init(self)
      *   local url = msg.url("#sprite")
@@ -341,6 +396,24 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
+        lua_Number offset = 0.0, playback_rate = 1.0;
+
+        if (top > 3) // table with args
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "offset");
+            offset = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "playback_rate");
+            playback_rate = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
         if (top > 2)
         {
             if (lua_isfunction(L, 3))
@@ -351,8 +424,11 @@ namespace dmGameSystem
             }
         }
 
+
         dmGameSystemDDF::PlayAnimation msg;
         msg.m_Id = id_hash;
+        msg.m_Offset = offset;
+        msg.m_PlaybackRate = playback_rate;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
@@ -365,7 +441,7 @@ namespace dmGameSystem
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
-            {"play_flipbook",  SpriteComp_PlayFlipBook},
+            {"play_flipbook",   SpriteComp_PlayFlipBook},
             {0, 0}
     };
 

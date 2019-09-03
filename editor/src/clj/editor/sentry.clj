@@ -82,7 +82,7 @@
   [^Exception ex ^Thread thread]
   (let [id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
         environment (if (system/defold-version) "release" "dev")
-        gl-info (gl/gl-info)
+        gl-info (gl/info)
         event {:event_id    id
                :message     (.getMessage ex)
                :timestamp   (LocalDateTime/now ZoneOffset/UTC)

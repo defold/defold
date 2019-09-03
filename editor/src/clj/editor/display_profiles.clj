@@ -1,17 +1,10 @@
 (ns editor.display-profiles
   (:require [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
-            [editor.scene :as scene]
+            [editor.build-target :as bt]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.math :as math]
-            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [util.text-util :as text-util])
   (:import (com.dynamo.render.proto Render$DisplayProfiles)))
@@ -20,7 +13,7 @@
 
 (def pb-def {:ext "display_profiles"
              :label "Display Profiles"
-             :view-types [:form-view :text]
+             :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
              :pb-class Render$DisplayProfiles})
 
@@ -58,13 +51,14 @@
   (g/transact (add-profile node-id name qualifiers)))
 
 (g/defnk produce-form-data-desc [_node-id]
-  {:sections
+  {:navigation false
+   :sections
    [{:title "Display Profiles"
      :fields [{:path [:profiles]
                :label "Profile"
                :type :2panel
                :panel-key {:path [:name] :type :string :default "New Display Profile"}
-               :on-add (partial add-profile! _node-id "New Display Profile" [])
+               :on-add #(add-profile! _node-id "New Display Profile" [])
                :on-remove (fn [vals] (g/transact (map #(g/delete-node (:node-id %)) vals)))
                :set (fn [v path val] (g/set-property! (:node-id v) (first path) val))
                :panel-form {:sections
@@ -96,12 +90,13 @@
     {:resource resource :content (protobuf/map->bytes (:pb-class pb-def) pb)}))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-pb
-    :user-data {:pb pb-msg
-                :pb-class (:pb-class pb-def)}
-    :deps []}])
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-pb
+      :user-data {:pb pb-msg
+                  :pb-class (:pb-class pb-def)}
+      :deps []})])
 
 (g/defnode DisplayProfilesNode
   (inherits resource-node/ResourceNode)

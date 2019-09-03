@@ -65,6 +65,7 @@ message TokenExchangeInfo {
     // Only set if type == LOGIN
     optional string auth_token = 6;
     optional int64 user_id = 7;
+    optional string tracking_id = 8;
 }
 
 message LoginInfo {
@@ -73,6 +74,7 @@ message LoginInfo {
     required string auth_token = 3;
     optional string first_name = 4;
     optional string last_name = 5;
+    required string tracking_id = 6;
 }
 
 message UserInfo {
@@ -112,6 +114,13 @@ message ProjectInfo {
     required string repositoryUrl = 9;
     optional string iOSExecutableUrl = 10;
     optional string trackingId = 11 [default = ""];
+    optional bool has_project_site = 12;
+    optional ProjectType project_type = 13;
+}
+
+enum ProjectType {
+    GAME = 1;
+    ASSET = 2;
 }
 
 message ProjectSite {
@@ -139,6 +148,25 @@ message ProjectSite {
     repeated SocialMediaReference social_media_references = 22;
     optional bool liked_by_me = 23;
     optional int64 number_of_likes = 24;
+    optional ProjectType project_type = 25;
+    optional TagList tags = 26;
+    optional License license = 27;
+    optional string license_name = 28;
+    optional string license_url = 29;
+    optional string short_description = 30;
+    optional string playable_filename = 31;
+    optional int64 playable_upload_timestamp = 32;
+    optional string attachment_filename = 33;
+    optional int64 attachment_upload_timestamp = 34;
+    optional Build build = 35;
+    optional bool is_blocked = 36;
+    optional string github_url = 37;
+    optional bool github_readme = 38;
+    optional bool github_license = 39;
+    optional TagList platform_tags = 40;
+    optional int64 dev_log_topic_id = 41;
+    optional int64 comments_topic_id = 42;
+    optional int64 owner_id = 43;
 
     message AppStoreReference {
         required int64 id = 1;
@@ -157,6 +185,46 @@ message ProjectSite {
         required string label = 2;
         required string url = 3;
     }
+
+    message TagList {
+        repeated string tags = 1;
+    }
+
+    enum License {
+        CUSTOM = 1;
+        CC0_1_0_UNIVERSAL = 2;
+        MIT = 3;
+        GPL_3_0 = 4;
+        APACHE_2_0 = 5;
+    }
+
+    message Build {
+        required Status status = 1;
+        required string created_by = 2;
+        required int64 last_updated = 3;
+
+        enum Status {
+            STARTED = 1;
+            SUCCESS = 2;
+            BUILD_ERROR = 3;
+            SERVER_ERROR = 4;
+            NONE = 5;
+        }
+    }
+}
+
+message ProjectSiteTagList {
+    repeated Tag tags = 1;
+
+    message Tag {
+        required string name = 1;
+        required string label = 2;
+        optional int64 number_of_projects = 3;
+    }
+}
+
+message CreateProjectSiteRequest {
+    required ProjectType project_type = 1;
 }
 
 message ProjectLikeResponse {
@@ -186,6 +254,30 @@ message ScreenshotSortOrderRequest {
 message NewSocialMediaReference {
     required string label = 1;
     required string url = 2;
+}
+
+message LibraryValidationResponse {
+    enum Result {
+        SUCCESS = 1;
+        ERROR_COMMUNICATION = 2;
+        ERROR_GAME_PROJECT_NOT_FOUND = 3;
+        ERROR_NO_INCLUDE_DIRS = 4;
+    }
+
+    required Result result = 1;
+}
+
+message ProjectSiteAdmin {
+    required int64 id = 1;
+    required string name = 2;
+    required string owner_email = 3;
+    required ProjectType project_type = 4;
+    required bool is_public_site = 5;
+    required bool is_blocked = 6;
+}
+
+message ProjectSiteAdminList {
+    repeated ProjectSiteAdmin sites = 1;
 }
 
 message ProjectSiteList {
@@ -307,17 +399,6 @@ message Log
     repeated CommitDesc commits = 1;
 }
 
-message NewsSubscriber {
-    required string email = 1;
-    required string first_name = 2;
-    required string last_name = 3;
-    required string key = 4;
-}
-
-message NewsSubscriberList {
-    repeated NewsSubscriber subscribers = 1;
-}
-
 message SignupRequest {
     required string email = 1;
     required string password = 2;
@@ -326,14 +407,14 @@ message SignupRequest {
 }
 
 message PasswordChangeRequest {
-    required string currentPassword = 1;
-    required string newPassword = 2;
+    required string current_password = 1;
+    required string new_password = 2;
 }
 
 message PasswordResetRequest {
     required string email = 1;
     required string token = 2;
-    required string newPassword = 3;
+    required string new_password = 3;
 }
 
 message SignupVerificationResponse {
@@ -342,4 +423,16 @@ message SignupVerificationResponse {
     required string first_name = 3;
     required string last_name = 4;
     required int64 user_id = 5;
+    required string tracking_id = 6;
+}
+
+message IdTokenSignInRequest
+{
+    required string id_token = 1;
+}
+
+message TopicChangeRequest {
+    optional int64 dev_log_topic_id = 1;
+    optional int64 comments_topic_id = 2;
+    required string api_key = 3;
 }

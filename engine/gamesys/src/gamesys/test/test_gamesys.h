@@ -1,5 +1,3 @@
-#include <gtest/gtest.h>
-
 #include <resource/resource.h>
 
 #include <hid/hid.h>
@@ -10,6 +8,9 @@
 
 #include "gamesys/gamesys.h"
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 struct Params
 {
     const char* m_ValidResource;
@@ -18,7 +19,7 @@ struct Params
 };
 
 template<typename T>
-class GamesysTest : public ::testing::TestWithParam<T>
+class GamesysTest : public jc_test_params_class<T>
 {
 protected:
     virtual void SetUp();
@@ -45,6 +46,8 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
+    dmGameSystem::TilemapContext m_TilemapContext;
+    dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
@@ -77,6 +80,12 @@ class ResourceFailTest : public GamesysTest<ResourceFailParams>
 {
 public:
     virtual ~ResourceFailTest() {}
+};
+
+class InvalidVertexSpaceTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~InvalidVertexSpaceTest() {}
 };
 
 class ComponentTest : public GamesysTest<const char*>
@@ -165,6 +174,27 @@ public:
     virtual ~TexturePropTest() {}
 };
 
+class FlipbookTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~FlipbookTest() {}
+};
+
+struct CursorTestParams
+{
+    const char* m_AnimationId;
+    float m_CursorStart;
+    float m_PlaybackRate;
+    float m_Expected[16];
+    uint8_t m_ExpectedCount;
+};
+
+class CursorTest : public GamesysTest<CursorTestParams>
+{
+public:
+    virtual ~CursorTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 
@@ -241,6 +271,10 @@ void GamesysTest<T>::SetUp()
     m_LabelContext.m_MaxLabelCount = 32;
     m_LabelContext.m_Subpixels     = 0;
 
+    m_TilemapContext.m_RenderContext = m_RenderContext;
+    m_TilemapContext.m_MaxTilemapCount = 16;
+    m_TilemapContext.m_MaxTileCount = 512;
+
     m_ModelContext.m_RenderContext = m_RenderContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
@@ -252,7 +286,9 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext, &m_ModelContext, &m_LabelContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
+                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

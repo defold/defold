@@ -1,0 +1,106 @@
+// Shared styling for new-look components.
+$df-dark-grey1: #292A2F;
+$df-grey1: #A6B2BF;
+$df-grey2: #CFDAE6;
+$df-bright-blue: #5BC0FF;
+
+.df-style {
+
+  // ---------------------------------------------------------------------------
+  // Default JavaFX node styles
+  // ---------------------------------------------------------------------------
+
+  .label {
+    -fx-font-size: 14px;
+    -fx-font-smoothing-type: lcd;
+    -fx-padding: 0;
+    -fx-text-fill: $df-grey2;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Style classes
+  // ---------------------------------------------------------------------------
+
+  .df-button {
+    -fx-min-width: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: $df-bright-blue;
+    -fx-border-radius: 2px;
+    -fx-text-fill: $df-bright-blue;
+    -fx-font-size: 14px;
+    -fx-padding: 4px 12px;
+
+    &:hover {
+      -fx-border-color: lighten($df-bright-blue, 9%);
+      -fx-text-fill: lighten($df-bright-blue, 9%);
+    }
+  }
+
+  .df-button.dim {
+    -fx-border-color: $df-grey2;
+    -fx-text-fill: $df-grey2;
+
+    &:hover {
+      -fx-border-color: lighten($df-grey2, 9%);
+      -fx-text-fill: lighten($df-grey2, 9%);
+    }
+  }
+
+  .df-button.extra-dim {
+    -fx-border-color: $df-grey2;
+    -fx-text-fill: $df-grey2;
+    -fx-opacity: 0.75;
+
+    &:hover {
+      -fx-border-color: lighten($df-grey2, 9%);
+      -fx-text-fill: lighten($df-grey2, 9%);
+      -fx-opacity: 0.8;
+    }
+  }
+
+  .df-header {
+    -fx-fill: #A6B2BF;
+    -fx-font-family: "Source Sans Pro Light";
+    -fx-font-size: 20px;
+    -fx-font-smoothing-type: lcd;
+  }
+
+  .df-tiny-text {
+    -fx-font-size: 11px;
+
+    &.df-below-field {
+      -fx-padding: 2px 0px 0px 0px;
+    }
+  }
+
+  .df-error-banner {
+    -fx-alignment: center;
+    -fx-border-color: $error-severity-warning;
+    -fx-border-insets: 17px 17px 0px 17px;
+    -fx-border-radius: 4px;
+    -fx-border-width: 1px;
+    -fx-font-size: 14px;
+    -fx-line-spacing: 3px;
+    -fx-padding: 10px;
+    -fx-text-alignment: center;
+    -fx-text-fill: $error-severity-warning;
+    -fx-wrap-text: true;
+    -fx-max-width: Infinity;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Specific constructs
+  // ---------------------------------------------------------------------------
+
+  .explanation-overlay {
+    -fx-alignment: top-center;
+
+    .hero-text {
+      -fx-font-size: 16px;
+      -fx-line-spacing: 3px;
+      -fx-padding: 10px 0px 0px 0px;
+      -fx-text-alignment: center;
+      -fx-wrap-text: true;
+    }
+  }
+}

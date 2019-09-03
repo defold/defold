@@ -15,7 +15,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [util.murmur :as murmur]
-            [integration.test-util :refer [with-loaded-project] :as test-util])
+            [integration.test-util :refer [with-loaded-project] :as test-util]
+            [editor.settings-core :as settings-core])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -193,7 +194,7 @@
                                       (set (map :id animations)))))
 
                              (let [mesh (-> mesh-set :mesh-attachments first)]
-                               (is (< 2 (-> mesh :indices count))))
+                               (is (< 2 (-> mesh :position-indices count))))
 
                              ;; TODO - id must be 0 currently because of the runtime
                              ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
@@ -229,7 +230,7 @@
                               (is (= [""] (:textures pb)))
 
                               (let [mesh (-> mesh-set :mesh-attachments first)]
-                                (is (< 2 (-> mesh :indices count))))))}]})
+                                (is (< 2 (-> mesh :position-indices count))))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -341,6 +342,79 @@
                       :let [component (.getComponent comp)]]
                 (is (contains? target-paths component))))))))))
 
+(deftest merge-textures
+  (with-loaded-project "test/resources/build_resource_merging"
+    (let [main-collection (test-util/resource-node project "/main/main.collection")
+          build-artifacts (project-build-artifacts project main-collection (g/make-evaluation-context))
+          textures-by-texture-set (into {}
+                                        (keep (fn [{:keys [resource] :as artifact}]
+                                                (when (= "texturesetc" (resource/ext resource))
+                                                  [(resource/proj-path resource)
+                                                   (:texture
+                                                     (protobuf/bytes->map TextureSetProto$TextureSet
+                                                                          (content-bytes artifact)))])))
+                                        build-artifacts)]
+
+      (is (= 16 (count textures-by-texture-set)))
+      (is (every? (comp string? val) textures-by-texture-set))
+
+      ;; The project contains "red1/image.png" and "red2/image.png", which are
+      ;; identical. These images are referenced by both atlases and tile sources.
+      ;; Among these, files with the "_copy" suffix are duplicates in different
+      ;; locations. Files with the "_luma" suffix are also copies, but configured
+      ;; to use a different texture profile. Files with the "_padded" suffix
+      ;; specify a padding that will affect how the source images are packed in
+      ;; the image generated for the texture set.
+
+      (is (= (textures-by-texture-set "/atlases/red1.texturesetc")
+             (textures-by-texture-set "/atlases/red1_copy.texturesetc")))
+      (is (= (textures-by-texture-set "/atlases/red2.texturesetc")
+             (textures-by-texture-set "/atlases/red2_copy.texturesetc")))
+
+      (is (= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+             (textures-by-texture-set "/tilemaps/red1_copy.texturesetc")))
+      (is (= (textures-by-texture-set "/tilemaps/red2.texturesetc")
+             (textures-by-texture-set "/tilemaps/red2_copy.texturesetc")))
+
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/atlases/red1_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/atlases/red1_padded.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/atlases/red2.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2.texturesetc")
+                (textures-by-texture-set "/atlases/red2_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2.texturesetc")
+                (textures-by-texture-set "/atlases/red2_padded.texturesetc")))
+
+      (is (not= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_padded.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red2.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/tilemaps/red2.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_padded.texturesetc")))
+
+      (is (not= (textures-by-texture-set "/atlases/red1.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1_copy.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_copy.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1_luma.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red1_padded.texturesetc")
+                (textures-by-texture-set "/tilemaps/red1_padded.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2_copy.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_copy.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2_luma.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_luma.texturesetc")))
+      (is (not= (textures-by-texture-set "/atlases/red2_padded.texturesetc")
+                (textures-by-texture-set "/tilemaps/red2_padded.texturesetc"))))))
+
 (deftest embed-raw-sound
   (testing "Verify raw sound components (.wav or .ogg) are converted to embedded sounds (.sound)"
     (with-build-results "/main/raw_sound.go"
@@ -425,12 +499,18 @@
         (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
 
 (deftest build-font
-  (testing "Building font"
+  (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
       (let [content (get content-by-source "/fonts/score.font")
-            desc    (protobuf/bytes->map Font$FontMap content)]
+            desc (protobuf/bytes->map Font$FontMap content)]
         (is (= 1024 (:cache-width desc)))
-        (is (= 256 (:cache-height desc)))))))
+        (is (= 256 (:cache-height desc))))))
+  (testing "Building BMFont"
+    (with-build-results "/fonts/gradient.font"
+      (let [content (get content-by-source "/fonts/gradient.font")
+            desc (protobuf/bytes->map Font$FontMap content)]
+        (is (= 1024 (:cache-width desc)))
+        (is (= 512 (:cache-height desc)))))))
 
 (deftest build-script
   (testing "Buildling a valid script succeeds"
@@ -594,6 +674,62 @@
           build-results       (project-build project resource-node (g/make-evaluation-context))]
       (is (instance? internal.graph.error_values.ErrorValue (:error build-results))))))
 
+(defn- check-project-setting [properties path expected-value]
+  (let [value (settings-core/get-setting properties path)]
+    (is (= expected-value value))))
+
+(deftest build-game-project-with-buildtime-conversion
+  (with-loaded-project "test/resources/buildtime_conversion"
+    (let [game-project (test-util/resource-node project "/game.project")]
+     (let [br (project-build project game-project (g/make-evaluation-context))]
+       (is (not (contains? br :error)))
+       (with-open [r (io/reader (build-path workspace "game.projectc"))]
+         (let [built-properties (settings-core/parse-settings r)]
+
+           ;; Check build-time conversion has taken place
+           ;; Having 'variable_dt' checked should map to 'vsync' 0 and 'update_frequency' 0
+           (check-project-setting built-properties ["display" "variable_dt"] "1")
+           (check-project-setting built-properties ["display" "vsync"] "0")
+           (check-project-setting built-properties ["display" "update_frequency"] "0")))))))
+
+(deftest build-game-project-properties
+  (with-loaded-project "test/resources/game_project_properties"
+                       (let [game-project (test-util/resource-node project "/game.project")]
+                         (let [br (project-build project game-project (g/make-evaluation-context))]
+                           (is (not (contains? br :error)))
+                           (with-open [r (io/reader (build-path workspace "game.projectc"))]
+                             (let [built-properties (settings-core/parse-settings r)]
+
+                               ;; Overwrite default value
+                               (check-project-setting built-properties ["project" "title"] "Game Project Properties")
+
+                               ;; Non existent property
+                               (check-project-setting built-properties ["project" "doesn't_exist"] nil)
+
+                               ;; Default boolean value
+                               (check-project-setting built-properties ["script" "shared_state"] "0")
+
+                               ;; Default number value
+                               (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; Custom property
+                               (check-project-setting built-properties ["custom" "love"] "defold")
+
+                               ;; project.dependencies entry should be removed
+                               (check-project-setting built-properties ["project" "dependencies"] nil)
+
+                               ;; Compiled resource
+                               (check-project-setting built-properties ["display" "display_profiles"] "/builtins/render/default.display_profilesc")
+
+                               ;; Copy-only resource
+                               (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")
+
+                               ;; Check so that empty defaults are not included
+                               (check-project-setting built-properties ["tracking" "app_id"] nil)
+
+                               ;; Check so empty custom properties are included as empty strings
+                               (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
+
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]
@@ -694,3 +830,18 @@
           (workspace/resource-sync! workspace))
         (let [br (project-build project game-project (g/make-evaluation-context))]
           (is (not (contains? br :error))))))))
+
+(deftest inexact-path-casing-produces-build-error
+  (with-loaded-project project-path
+    (let [game-project-node (test-util/resource-node project "/game.project")
+          atlas-node (test-util/resource-node project "/background/background.atlas")
+          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
+          image-resource (g/node-value atlas-image-node :image)
+          workspace (resource/workspace image-resource)
+          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
+          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
+      (g/set-property! atlas-image-node :image uppercase-image-resource)
+      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
+            error-message (some :message (tree-seq :causes :causes build-error))]
+        (is (g/error? build-error))
+        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))

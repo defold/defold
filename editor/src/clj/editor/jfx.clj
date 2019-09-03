@@ -1,9 +1,6 @@
 (ns editor.jfx
   (:require [clojure.java.io :as io])
-  (:import [javafx.scene.image Image ImageView]
-           [javafx.stage FileChooser FileChooser$ExtensionFilter]
-           [java.io File]
-           [java.util ArrayList]))
+  (:import [javafx.scene.image Image ImageView]))
 
 (set! *warn-on-reflection* true)
 
@@ -27,9 +24,9 @@
 
 (defn get-image-view
   ([name]
-    (ImageView. ^Image (get-image name)))
+   (ImageView. ^Image (get-image name)))
   ([name size]
-    (let [iv (ImageView. ^Image (get-image name))]
-      (.setFitWidth iv size)
-      (.setFitHeight iv size)
-      iv)))
+   (let [iv (ImageView. ^Image (get-image name))]
+     (.setFitWidth iv size)
+     (.setFitHeight iv size)
+     iv)))

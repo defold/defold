@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.code.script-intelligence :as si]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
@@ -34,8 +35,9 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private TBreakpoint {:resource s/Any
-                            :line     Long})
+(def ^:private TBreakpoint
+  {:resource s/Any
+   :row Long})
 
 (g/deftype Breakpoints [TBreakpoint])
 
@@ -198,6 +200,13 @@
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
+(defn script-intelligence
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (script-intelligence project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :script-intelligence evaluation-context)))
+
 (defn load-project
   ([project]
    (load-project project (g/node-value project :resources)))
@@ -206,13 +215,15 @@
   ([project resources render-progress!]
    (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-     (let [nodes (make-nodes! project resources)]
+     (let [nodes (make-nodes! project resources)
+           script-intel (script-intelligence project)]
        (load-nodes! project nodes render-progress! {})
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
+             (g/connect script-intel :build-errors game-project :build-errors)
              (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)             
+             (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -339,7 +350,7 @@
         step-count (count @steps)
         progress-tracer (make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
-        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (reverse @steps))
+        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
         node-build-targets (g/node-value node :build-targets evaluation-context)
         build-targets (cond-> node-build-targets
@@ -382,6 +393,8 @@
                                                                    :command :bundle
                                                                    :user-data {:platform platform}})
                                                                 bundle-targets)}
+                                               {:label "Rebundle"
+                                                :command :rebundle}
                                                {:label "Fetch Libraries"
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"
@@ -401,17 +414,19 @@
                        vals
                        (reduce into [])
                        distinct
-                       vec)]
-    (concat
-      (g/set-property project :all-selections all-selections)
-      (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
-        (g/disconnect node-id label project :all-selected-node-ids))
-      (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
-        (g/disconnect node-id label project :all-selected-node-properties))
-      (for [node-id all-node-ids]
-        (concat
-          (g/connect node-id :_node-id    project :all-selected-node-ids)
-          (g/connect node-id :_properties project :all-selected-node-properties))))))
+                       vec)
+        old-all-selections (g/node-value project :all-selections)]
+    (when-not (= old-all-selections all-selections)
+      (concat
+        (g/set-property project :all-selections all-selections)
+        (for [[node-id label] (g/sources-of project :all-selected-node-ids)]
+          (g/disconnect node-id label project :all-selected-node-ids))
+        (for [[node-id label] (g/sources-of project :all-selected-node-properties)]
+          (g/disconnect node-id label project :all-selected-node-properties))
+        (for [node-id all-node-ids]
+          (concat
+            (g/connect node-id :_node-id    project :all-selected-node-ids)
+            (g/connect node-id :_properties project :all-selected-node-properties)))))))
 
 (defn select
   ([project resource-node node-ids open-resource-nodes]
@@ -508,17 +523,20 @@
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]
-                                  (map (fn [[output _]] [node output]) (gu/outputs node)))
+                                  (map (fn [[output _]] [node output]) (gu/explicit-outputs node)))
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 
-      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))]
+      (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))
+            dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
         (g/transact
           (concat
             (let [all-selections (-> (g/node-value project :all-selections)
+                                     (dissoc-deleted)
                                      (remap-selection old->new (comp vector first)))]
               (perform-selection project all-selections))
             (let [all-sub-selections (-> (g/node-value project :all-sub-selections)
+                                         (dissoc-deleted)
                                          (remap-selection old->new (constantly [])))]
               (perform-sub-selection project all-sub-selections)))))
 
@@ -555,11 +573,12 @@
 (g/defnode Project
   (inherits core/Scope)
 
-  (extern workspace g/Any)
+  (property workspace g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
+  (input script-intelligence g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -711,16 +730,18 @@
 
 (defn make-project [graph workspace-id]
   (let [project-id
-        (first
+        (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id]]
-                            (g/connect workspace-id :build-settings project :build-settings)
-                            (g/connect workspace-id :resource-list project :resources)
-                            (g/connect workspace-id :resource-map project :resource-map)
-                            (g/connect workspace-id :resource-types project :resource-types)
-                            (g/set-graph-value graph :project-id project)))))]
+                  [script-intelligence si/ScriptIntelligenceNode
+                   project [Project :workspace workspace-id]]
+                (g/connect script-intelligence :_node-id project :script-intelligence)
+                (g/connect workspace-id :build-settings project :build-settings)
+                (g/connect workspace-id :resource-list project :resources)
+                (g/connect workspace-id :resource-map project :resource-map)
+                (g/connect workspace-id :resource-types project :resource-types)
+                (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
@@ -730,14 +751,33 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-uris))))
 
+(def ^:private embedded-resource? (comp nil? resource/proj-path))
+
+(defn project-resource-node? [node-id evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (and (g/node-instance? basis resource-node/ResourceNode node-id)
+         (not (embedded-resource? (g/node-value node-id :resource evaluation-context))))))
+
+(defn- cached-save-data-output? [node-id label evaluation-context]
+  (case label
+    (:save-data :source-value) (project-resource-node? node-id evaluation-context)
+    false))
+
+(defn update-system-cache-save-data! [evaluation-context]
+  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-save-data-output?)]
+    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature so we pull
   ;; it in the background here to cache it.
   (let [evaluation-context (g/make-evaluation-context)]
     (future
-      ;; TODO progress reporting
-      (g/node-value project :save-data evaluation-context)
-      (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
+      (error-reporting/catch-all!
+        ;; TODO: Progress reporting.
+        (g/node-value project :save-data evaluation-context)
+        (ui/run-later
+          (update-system-cache-save-data! evaluation-context))))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [dependencies (read-dependencies game-project-resource)
@@ -755,6 +795,8 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+      ;; Prime the auto completion cache
+      (g/node-value (script-intelligence project) :lua-completions)
       (cache-save-data! populated-project)
       populated-project)))
 

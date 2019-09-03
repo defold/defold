@@ -95,12 +95,17 @@ namespace dmInput
         AccelerationBinding* m_AccelerationBinding;
         TextBinding* m_TextBinding;
         dmHashTable64< Action > m_Actions;
+
+        dmInputDDF::GamepadTrigger* m_DDFGamepadTriggersData;
+        uint32_t m_DDFGamepadTriggersCount;
+        dmArray<uint32_t> m_DisconnectedGamepadIndices;
     };
 
     struct GamepadInput
     {
         uint16_t m_Index;
-        uint16_t m_Type : 1;
+        uint16_t m_HatMask;
+        uint16_t m_Type : 2;
         uint16_t m_Negate : 1;
         uint16_t m_Scale : 1;
         uint16_t m_Clamp : 1;

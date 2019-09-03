@@ -1,26 +1,24 @@
 (ns editor.html-view
-  (:require
-   [clojure.core.protocols :as p]
-   [clojure.java.io :as io]
-   [clojure.string :as string]
-   [dynamo.graph :as g]
-   [editor.defold-project :as project]
-   [editor.dialogs :as dialogs]
-   [editor.handler :as handler]
-   [editor.resource :as resource]
-   [editor.ui :as ui]
-   [editor.view :as view]
-   [service.log :as log]
-   [util.http-server :as http-server]
-   [editor.workspace :as workspace])
-  (:import
-   (java.net URI URLDecoder)
-   (javafx.scene Node Parent)
-   (javafx.scene.layout GridPane Priority ColumnConstraints)
-   (javafx.scene.web WebEngine WebView WebEvent)
-   (javafx.concurrent Worker Worker$State)
-   (org.w3c.dom Document Element NodeList)
-   (org.w3c.dom.events Event EventListener EventTarget)))
+  (:require [clojure.core.protocols :as p]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.handler :as handler]
+            [editor.resource :as resource]
+            [editor.ui :as ui]
+            [editor.view :as view]
+            [editor.workspace :as workspace]
+            [service.log :as log]
+            [util.http-server :as http-server])
+  (:import [java.net URI URLDecoder]
+           [javafx.scene Parent]
+           [javafx.scene.control Tab]
+           [javafx.scene.web WebEngine WebView WebEvent]
+           [javafx.concurrent Worker$State]
+           [org.w3c.dom Document Element NodeList]
+           [org.w3c.dom.events Event EventListener EventTarget]))
 
 (set! *warn-on-reflection* true)
 
@@ -109,7 +107,7 @@
   (when (not (string/blank? params))
     (into {}
           (map (fn [param]
-                 (let [[k v] (string/split param #"=")]
+                 (let [[k ^String v] (string/split param #"=")]
                    [(keyword k) (URLDecoder/decode v "UTF-8")])))
           (string/split params #"&"))))
 
@@ -124,6 +122,13 @@
     {:command   :open
      :user-data {:resources [resource]}}))
 
+(defmethod url->command "add-dependency"
+  [^URI uri {:keys [project]}]
+  (let [params (query-params->map (.getQuery uri))
+        dep-url (:url params)]
+    {:command   :add-dependency
+     :user-data {:dep-url dep-url}}))
+
 (defmethod url->command :default
   [^URI uri _]
   {:command (keyword (.getHost uri))})
@@ -131,9 +136,7 @@
 (defn- dispatch-url!
   [project ^URI uri]
   (when-some [{:keys [command user-data]} (url->command uri {:project project})]
-    (when-let [handler-ctx (handler/active command (ui/contexts (.getScene (ui/main-stage))) user-data)]
-      (when (handler/enabled? handler-ctx)
-        (handler/run handler-ctx)))))
+    (ui/execute-command (ui/contexts (ui/main-scene)) command user-data)))
 
 (defn- string->url
   ^URI [^String str]
@@ -193,9 +196,11 @@
   [^WebEngine web-engine]
   (let [load-worker (.getLoadWorker web-engine)]
     (when-some [ex (.getException load-worker)]
-      (dialogs/make-alert-dialog (str (.getMessage load-worker)
-                                      ": "
-                                      (.getMessage ex))))))
+      (dialogs/make-info-dialog
+        {:title "Could not load page"
+         :icon :icon/triangle-error
+         :header (.getMessage load-worker)
+         :content (.getMessage ex)}))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)
@@ -264,7 +269,11 @@
     (ui/context! web-view :browser {:web-engine web-engine} nil)
 
     (doto web-engine
-      (.setOnAlert (ui/event-handler ev (dialogs/make-alert-dialog (.getData ^WebEvent ev))))
+      (.setOnAlert (ui/event-handler ev
+                     (dialogs/make-info-dialog
+                       {:title "Alert"
+                        :icon :icon/circle-info
+                        :header (.getData ^WebEvent ev)})))
       (.setUserStyleSheetLocation (str (io/resource "markdown.css")))
       (load-resource! project (g/node-value html-node :resource)))
 

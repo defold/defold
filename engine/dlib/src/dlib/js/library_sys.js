@@ -31,7 +31,7 @@ var LibraryDmSys = {
             if (null == DMSYS._cstr) {
                 var str = DMSYS.GetUserPersistentDataRoot();
                 DMSYS._cstr = _malloc(str.length + 1);
-                Module.writeStringToMemory(str, DMSYS._cstr);
+                Module.stringToUTF8(str, DMSYS._cstr, str.length + 1);
             }
             return DMSYS._cstr;
         },
@@ -44,14 +44,23 @@ var LibraryDmSys = {
             var jsdefault = Pointer_stringify(defaultlang);
             var preferred = navigator == undefined ? jsdefault : (navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
             var buffer = _malloc(preferred.length + 1);
-            writeStringToMemory(preferred, buffer);
+            Module.stringToUTF8(preferred, buffer, preferred.length + 1);
             return buffer;
         },
 
         dmSysGetUserAgent: function() {
             var useragent = navigator.userAgent;
             var buffer = _malloc(useragent.length + 1);
-            writeStringToMemory(useragent, buffer);
+            Module.stringToUTF8(useragent, buffer, useragent.length + 1);
+            return buffer;
+        },
+
+        dmSysGetApplicationPath: function() {
+            var path = location.href.substring(0, location.href.lastIndexOf("/"));
+             // 'path.length' would return the length of the string as UTF-16 units, but Emscripten C strings operate as UTF-8.
+            var lengthBytes = lengthBytesUTF8(path) + 1;
+            var buffer = _malloc(lengthBytes);
+            Module.stringToUTF8(path, buffer, lengthBytes);
             return buffer;
         },
 
@@ -64,6 +73,6 @@ var LibraryDmSys = {
 
             return true;
         }
-}
+};
 autoAddDeps(LibraryDmSys, '$DMSYS');
 mergeInto(LibraryManager.library, LibraryDmSys);

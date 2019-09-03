@@ -106,6 +106,11 @@ namespace dmMessage
         uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
     };
 
+    // Page size must be a multiple of dmMessage::ALIGNMENT (see message.cpp).
+    // This simplifies the allocation scheme
+    const uint32_t DM_MESSAGE_PAGE_SIZE = 4096U;
+    const uint32_t DM_MESSAGE_MAX_DATA_SIZE = DM_MESSAGE_PAGE_SIZE - sizeof(Message);
+
     /**
      * @see #Dispatch
      */

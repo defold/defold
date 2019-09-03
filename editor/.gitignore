@@ -15,9 +15,13 @@ pom.xml.asc
 /misc/timeseries.csv
 /resources/_unpack/
 /.cache
+/resources/dialogs.css
 /resources/editor.css
 /editor2.*.log
 /log.txt
 /.project
 /.pydevproject
-/resources/doc/*
+/resources/doc/
+/build
+/preflight-report.txt
+

@@ -770,7 +770,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
         }
 
         // Don't care if we fail here
-        (void)SetWindowTitleWithCFString( _glfwWin.window, CFSTR( "GLFW Window" ) );
+        (void)SetWindowTitleWithCFString( _glfwWin.window, CFSTR( "" ) );
         (void)RepositionWindow( _glfwWin.window,
                                 NULL,
                                 kWindowCenterOnMainScreen );
@@ -1006,6 +1006,11 @@ void _glfwPlatformCloseWindow( void )
         ReleaseWindow( _glfwWin.window );
         _glfwWin.window = NULL;
     }
+}
+
+int _glfwPlatformGetWindowRefreshRate()
+{
+    return _glfwWin.refreshRate;
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )

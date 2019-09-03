@@ -1,8 +1,8 @@
 import sys
-sys.path = ['build/default/proto'] + sys.path
-import engine_ddf_pb2, httplib
+sys.path = ['../script/build/default/src/script'] + sys.path
+import sys_ddf_pb2, httplib
 
-m = engine_ddf_pb2.Exit()
+m = sys_ddf_pb2.Exit()
 m.code = 6
 
 conn = httplib.HTTPConnection("localhost", int(sys.argv[1]))

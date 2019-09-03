@@ -103,7 +103,7 @@ namespace dmSpinlock
     *lock = 0LL;
   }
 }
-#elif defined(ANDROID)
+#elif defined(ANDROID) && !defined(__aarch64__)
 namespace dmSpinlock
 {
     typedef uint32_t lock_t;
@@ -142,7 +142,44 @@ namespace dmSpinlock
     }
 }
 
-#elif defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#elif defined(ANDROID) && defined(__aarch64__)
+// Asm implementation from https://gitlab-beta.engr.illinois.edu/ejclark2/linux/blob/f668cd1673aa2e645ae98b65c4ffb9dae2c9ac17/arch/arm64/include/asm/spinlock.h
+namespace dmSpinlock
+{
+    typedef uint32_t lock_t;
+
+    static inline void Init(lock_t* lock)
+    {
+        *lock = 0;
+    }
+
+    static inline void Lock(lock_t* lock)
+    {
+
+        uint32_t tmp;
+         __asm__ __volatile__(
+    "   sevl\n"
+        "1: wfe\n"
+        "2: ldaxr   %w0, [%1]\n"
+        "   cbnz    %w0, 1b\n"
+        "   stxr    %w0, %w2, [%1]\n"
+        "   cbnz    %w0, 2b\n"
+        : "=&r" (tmp)
+        : "r" (lock), "r" (1)
+        : "memory");
+
+    }
+
+    static inline void Unlock(lock_t* lock)
+    {
+        __asm__ __volatile__(
+        "   stlr    %w1, [%0]\n"
+        : : "r" (lock), "r" (0) : "memory");
+
+    }
+}
+
+#elif defined(__EMSCRIPTEN__)
 
 namespace dmSpinlock
 {
@@ -170,5 +207,27 @@ namespace dmSpinlock
 #else
 #error "Unsupported platform"
 #endif
+
+namespace dmSpinlock
+{
+    struct ScopedLock
+    {
+        dmSpinlock::lock_t& m_Spinlock;
+        ScopedLock(dmSpinlock::lock_t& spinlock)
+            : m_Spinlock(spinlock)
+        {
+            dmSpinlock::Lock(&m_Spinlock);
+        }
+
+        ~ScopedLock()
+        {
+            dmSpinlock::Unlock(&m_Spinlock);
+        }
+    };
+}
+
+#define SCOPED_SPINLOCK_PASTE(x, y) x ## y
+#define SCOPED_SPINLOCK_PASTE2(x, y) SCOPED_SPINLOCK_PASTE(x, y)
+#define DM_SPINLOCK_SCOPED_LOCK(spinlock) dmSpinlock::ScopedLock SCOPED_SPINLOCK_PASTE2(lock, __LINE__)(spinlock);
 
 #endif

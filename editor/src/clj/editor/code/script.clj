@@ -1,20 +1,22 @@
 (ns editor.code.script
   (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code-completion :as code-completion]
+            [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.lua :as lua]
-            [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
+            [editor.luajit :as luajit]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
             [editor.workspace :as workspace])
-  (:import (com.dynamo.lua.proto Lua$LuaModule)
-           (com.google.protobuf ByteString)))
+  (:import [com.dynamo.lua.proto Lua$LuaModule]
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -28,6 +30,7 @@
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
+   :line-comment "--"
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -134,15 +137,21 @@
               (update :properties into (:properties user-properties))
               (update :display-order into (:display-order user-properties)))))
 
-(defn- script->bytecode [lines proj-path]
+(defn- script->bytecode [lines proj-path arch]
   (try
-    (luajit/bytecode (data/lines-reader lines) proj-path)
+    (luajit/bytecode (data/lines-reader lines) proj-path arch)
     (catch Exception e
-      (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error nil :lines :fatal e (.getMessage e)
-                   {:filename filename
-                    :line     line
-                    :message  message})))))
+      (let [{:keys [filename line message]} (ex-data e)
+            cursor-range (some-> line data/line-number->CursorRange)]
+        (g/map->error
+          {:_label :lines
+           :message (.getMessage e)
+           :severity :fatal
+           :user-data (cond-> {:filename filename
+                               :message message}
+
+                              (some? cursor-range)
+                              (assoc :cursor-range cursor-range))})))))
 
 (defn- build-script [resource _dep-resources user-data]
   (let [user-properties (:user-properties user-data)
@@ -152,14 +161,16 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
+        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
     (g/precluding-errors
       [bytecode]
       {:resource resource
        :content  (protobuf/map->bytes Lua$LuaModule
                                       {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                                     :filename (resource/proj-path (:resource resource))
-                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)}
+                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)
+                                                    :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
                                        :modules    modules
                                        :resources  (mapv lua/lua-module->build-path modules)
                                        :properties (properties/properties->decls properties true)})})))
@@ -174,15 +185,16 @@
                            properties))))))
 
 (g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-script
-    ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
-    :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
-    :deps dep-build-targets}])
+  [(bt/with-content-hash
+     {:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-script
+      ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
+      :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
+      :deps dep-build-targets})])
 
-(g/defnk produce-completions [completion-info module-completion-infos]
-  (code-completion/combine-completions completion-info module-completion-infos))
+(g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
+  (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
 
 (g/defnk produce-user-properties [_node-id script-properties]
   (let [display-order (mapv prop->key script-properties)
@@ -208,7 +220,7 @@
         (comp (filter data/breakpoint-region?)
               (map (fn [region]
                      {:resource resource
-                      :line (data/breakpoint-row region)})))
+                      :row (data/breakpoint-row region)})))
         regions))
 
 (g/defnode ScriptNode
@@ -216,6 +228,8 @@
 
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+
+  (input script-intelligence-completions si/ScriptCompletions)
 
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
@@ -264,7 +278,15 @@
   (output completions g/Any :cached produce-completions)
   (output user-properties g/Properties produce-user-properties))
 
+(defn- additional-load-fn
+  [project self resource]
+  (let [script-intelligence (project/script-intelligence project)]
+    (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))
+
 (defn register-resource-types [workspace]
   (for [def script-defs
-        :let [args (assoc def :node-type ScriptNode :eager-loading? true)]]
+        :let [args (assoc def
+                     :node-type ScriptNode
+                     :eager-loading? true
+                     :additional-load-fn additional-load-fn)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

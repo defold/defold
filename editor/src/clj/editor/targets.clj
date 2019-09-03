@@ -267,42 +267,6 @@
 (defn all-targets []
   (concat @launched-targets @ssdp-targets))
 
-(defn make-target-log-dialog []
-  (let [root        ^Parent (ui/load-fxml "target-log.fxml")
-        stage       (doto (ui/make-stage)
-                      (.initOwner (ui/main-stage)))
-        scene       (Scene. root)
-        controls    (ui/collect-controls root ["message" "ok" "clear" "restart"])
-        get-message (fn [log] (apply str (interpose "\n" log)))]
-    (ui/title! stage "Target Discovery Log")
-    (ui/text! (:message controls) (get-message @event-log))
-    (ui/on-action! (:ok controls) (fn [_] (.close stage)))
-    (ui/on-action! (:clear controls) (fn [_] (reset! event-log [])))
-    (ui/on-action! (:restart controls) (fn [_] (restart)))
-
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-      (ui/event-handler event
-                        (let [code (.getCode ^KeyEvent event)]
-                          (when (= code KeyCode/ESCAPE)
-                            (.close stage)))))
-
-    (.initModality stage Modality/NONE)
-    (.setScene stage scene)
-
-    (add-watch event-log :dialog (fn [_ _ _ log]
-                                   (ui/run-later (let [ta ^TextArea (:message controls)
-                                                       old-text (ui/text ta)
-                                                       new-text (get-message log)]
-                                                   (when (and (empty? (.getSelectedText ta)) (not= old-text new-text))
-                                                     (let [left (.getScrollLeft ta)]
-                                                       (ui/text! ta new-text)
-                                                       (.setScrollTop ta Double/MAX_VALUE)
-                                                       (.deselect ta)
-                                                       (.setScrollLeft ta left)))))))
-    (ui/on-closed! stage (fn [_]
-                           (remove-watch event-log :dialog)))
-    (ui/show! stage)))
-
 (defn selected-target [prefs]
   (swap! selected-target-atom
          (fn [selected-target]
@@ -312,7 +276,7 @@
                (first (filter #(= (:id %) target-address) (all-targets))))))))
 
 (defn controllable-target? [target]
-  (when (:url target) target))
+  (some? (:url target)))
 
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
@@ -382,28 +346,28 @@
 
 (handler/defhandler :target-ip :global
   (run [prefs]
-    (ui/run-later
-      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get-prefs prefs "manual-target-ip+port" "") nil)]
-        (when (some? manual-ip+port)
-          (prefs/set-prefs prefs "manual-target-ip+port" manual-ip+port)
-            (let [[manual-ip port] (str/split manual-ip+port #":")
-                  device (try
-                           (locate-device manual-ip port)
-                           (catch Exception e (.getMessage e)))
-                  target (when (not (string? device))
-                           (device->target update-targets-context device))
-                  error-msg (or (and (string? target) target)
-                                (and (string? device) device))]
-              (if error-msg
-                (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
-                (do
-                  (reset! manual-device device)
-                  (select-target! prefs target)
-                  (invalidate-target-menu!)))))))))
+       (ui/run-later
+         (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get-prefs prefs "manual-target-ip+port" "") nil)]
+           (when (some? manual-ip+port)
+             (prefs/set-prefs prefs "manual-target-ip+port" manual-ip+port)
+             (let [[manual-ip port] (str/split manual-ip+port #":")
+                   device (try
+                            (locate-device manual-ip port)
+                            (catch Exception e (.getMessage e)))
+                   target (when (not (string? device))
+                            (device->target update-targets-context device))
+                   error-msg (or (and (string? target) target)
+                                 (and (string? device) device))]
+               (if error-msg
+                 (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
+                 (do
+                   (reset! manual-device device)
+                   (select-target! prefs target)
+                   (invalidate-target-menu!)))))))))
 
 (handler/defhandler :target-log :global
   (run []
-    (ui/run-later (make-target-log-dialog))))
+       (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
 
 (ui/extend-menu ::menubar :editor.defold-project/project-end
                 [{:label "Target"

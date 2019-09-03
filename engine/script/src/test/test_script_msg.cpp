@@ -1,4 +1,5 @@
-#include <gtest/gtest.h>
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 #include <string.h>
 
 #include "script.h"
@@ -43,7 +44,7 @@ static const luaL_reg META_TABLE[] =
     {0, 0}
 };
 
-class ScriptMsgTest : public ::testing::Test
+class ScriptMsgTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
@@ -690,6 +691,10 @@ TEST_F(ScriptMsgTest, TestFailPost)
         "msg.post(\"::\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
+    ASSERT_FALSE(RunString(L,
+        "msg.post(nil, \"sub_msg\", {uint_value = 1})\n"
+        ));
+
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -766,7 +771,7 @@ TEST_F(ScriptMsgTest, TestPostDeletedSocket)
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    testing::InitGoogleTest(&argc, argv);
-    int ret = RUN_ALL_TESTS();
+    jc_test_init(&argc, argv);
+    int ret = jc_test_run_all();
     return ret;
 }

@@ -120,8 +120,8 @@ namespace dmGameObject
             if (result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
-                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-                uint32_t comp_count = components.Size();
+                Prototype::Component* components = instance->m_Prototype->m_Components;
+                uint32_t comp_count = instance->m_Prototype->m_ComponentCount;
                 for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
                 {
                     Prototype::Component& component = components[comp_i];
@@ -142,8 +142,8 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData);
-                                if (!r)
+                                set_params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromDDF(&comp_prop.m_PropertyDecls);
+                                if (set_params.m_PropertySet.m_UserData == 0x0)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, filename);
                                     res = dmResource::RESULT_FORMAT_ERROR;
@@ -151,8 +151,8 @@ namespace dmGameObject
                                 }
                                 else
                                 {
-                                    set_params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                                    set_params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
+                                    set_params.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
+                                    set_params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertyContainerCallback;
                                 }
                                 break;
                             }

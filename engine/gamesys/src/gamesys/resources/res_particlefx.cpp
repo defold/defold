@@ -3,6 +3,7 @@
 #include <dlib/log.h>
 
 #include <particle/particle_ddf.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
@@ -35,6 +36,11 @@ namespace dmGameSystem
                 return result;
             }
             dmParticle::SetMaterial(prototype, i, material);
+            if(dmRender::GetMaterialVertexSpace((dmRender::HMaterial)material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+            {
+                dmLogError("Failed to create ParticleFX component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
+                return dmResource::RESULT_NOT_SUPPORTED;
+            }
         }
         return dmResource::RESULT_OK;
     }
@@ -75,6 +81,8 @@ namespace dmGameSystem
         for(uint32_t i = 0; i < particle_fx->m_Emitters.m_Count; ++i)
         {
             dmResource::PreloadHint(params.m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_TileSource);
+            if (particle_fx->m_Emitters.m_Data[i].m_Material[0] != 0)
+                dmResource::PreloadHint(params.m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_Material);
         }
         *params.m_PreloadData = particle_fx;
         return dmResource::RESULT_OK;

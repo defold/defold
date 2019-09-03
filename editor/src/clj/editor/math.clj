@@ -1,8 +1,7 @@
 (ns editor.math
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d AxisAngle4d
-            Tuple3d Tuple4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -73,7 +72,8 @@
         (doto (Point3d. line-dir) (.scaleAdd (- (Math/sqrt (- radius-sq dist-sq))) closest))
         (Point3d. (doto (Vector3d. closest) (.sub circle-pos) (.normalize) (.scaleAdd (Math/sqrt radius-sq) circle-pos)))))))
 
-(defn euler->quat ^Quat4d [euler]
+(defn euler->quat
+  ^Quat4d [euler]
   ; Implementation based on:
   ; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ; Rotation sequence: 231 (YZX)
@@ -130,13 +130,26 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
-(defn rotate ^Vector3d [^Quat4d rotation ^Vector3d v]
+(defn offset-scaled
+  ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
+  (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
+    (.scaleAdd scale-factor offset original)))
+
+(defn rotate
+  ^Vector3d [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
-(defn transform-vector ^Vector3d [^Matrix4d mat ^Vector3d v]
+(defn transform
+  ^Vector3d [^Matrix4d mat ^Vector3d v]
+  (let [v' (Point3d. v)]
+    (.transform mat v')
+    (Vector3d. v')))
+
+(defn transform-vector
+  ^Vector3d [^Matrix4d mat ^Vector3d v]
   (let [v' (Vector3d. v)]
     (.transform mat v')
     v'))
@@ -147,21 +160,107 @@
              (Math/round (.getY v))
              (Math/round (.getZ v))))
 
+(defn scale-vector
+  ^Vector3d [^Vector3d v ^double n]
+  (doto (Vector3d. v)
+    (.scale n)))
+
+(defn add-vector
+  ^Vector3d [^Vector3d v1 ^Vector3d v2]
+  (doto (Vector3d. v1)
+    (.add v2)))
+
+(defn subtract-vector
+  ^Vector3d [^Tuple3d v1 ^Tuple3d v2]
+  (doto (Vector3d. v1)
+    (.sub v2)))
+
+(defn multiply-vector
+  ^Vector3d [^Vector3d v1 ^Vector3d v2]
+  (Vector3d. (* (.-x v1) (.-x v2))
+             (* (.-y v1) (.-y v2))
+             (* (.-z v1) (.-z v2))))
+
+(defn cross
+  ^Vector3d [^Vector3d u ^Vector3d v]
+  (doto (Vector3d.)
+    (.cross u v)))
+
+(defn dot
+  "Flexible dot product that works with any three-element tuples."
+  ^double [^Tuple3d a ^Tuple3d b]
+  (+ (* (.x a) (.x b))
+     (* (.y a) (.y b))
+     (* (.z a) (.z b))))
+
+(defn dot-v4-point
+  "Dot product between a four-element vector and a point."
+  ^double [^Tuple4d v ^Tuple3d p]
+  (+ (* (.x v) (.x p))
+     (* (.y v) (.y p))
+     (* (.z v) (.z p))
+     (.w v)))
+
+(defn plane-from-points
+  "Construct an infinite plane from three points in space. The plane normal will
+  point towards the observer when the points are supplied in counter-clockwise
+  order. Returns a 4d vector where the x, y, z coordinates are the plane normal
+  and w is the distance from the origin in the opposite direction of the normal."
+  ^Vector4d [^Tuple3d a ^Tuple3d b ^Tuple3d c]
+  (let [ab (subtract-vector b a)
+        ac (subtract-vector c a)
+        n (cross ab ac)
+        len (.length n)]
+    (when (zero? len)
+      (throw (ArithmeticException. "A plane cannot be found since all three points are on a line.")))
+    (.scale n (/ 1.0 len))
+    (Vector4d. (.x n) (.y n) (.z n) (- (dot n a)))))
+
+(def in-front-of-plane? (comp pos? dot-v4-point))
+
+(defn plane-normal
+  ^Vector3d [^Vector4d plane]
+  (Vector3d. (.x plane) (.y plane) (.z plane)))
+
+(defn edge-normal
+  ^Vector3d [^Tuple3d from ^Tuple3d to]
+  (doto (Vector3d.)
+    (.sub to from)
+    (.normalize)))
+
+(defn translation
+  ^Vector3d [^Matrix4d m]
+  (let [ret (Vector3d.)]
+    (.get m ret)
+    ret))
+
+(defn rotation
+  ^Quat4d [^Matrix4d m]
+  (let [ret (Quat4d.)]
+    (.get m ret)
+    ret))
+
+(defn scale
+  ^Vector3d [^Matrix4d m]
+  (let [unrotated (doto (Matrix4d. m)
+                    (.setRotation (Quat4d. 0.0 0.0 0.0 1.0)))]
+    (Vector3d. (.-m00 unrotated) (.-m11 unrotated) (.-m22 unrotated))))
+
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
-    (let [q (doto (Quat4d. rotation) (.conjugate))
-          p1 (doto (Point3d. p) (.sub position))]
-      (rotate q p1)))
+   (let [q (doto (Quat4d. rotation) (.conjugate))
+         p1 (doto (Point3d. p) (.sub position))]
+     (rotate q p1)))
   ([^Quat4d rotation ^Quat4d q]
-    (let [q1 (doto (Quat4d. rotation) (.conjugate))]
-      (.mul q1 q)
-      q1)))
+   (let [q1 (doto (Quat4d. rotation) (.conjugate))]
+     (.mul q1 q)
+     q1)))
 
 (defn from-to->quat [^Vector3d unit-from ^Vector3d unit-to]
   (let [dot (.dot unit-from unit-to)]
     (let [cos-half (Math/sqrt (* 2.0 (+ 1.0 dot)))
           recip-cos-half (/ 1.0 cos-half)
-        axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
+          axis (doto (Vector3d.) (.cross unit-from unit-to) (.scale recip-cos-half))]
       (doto (Quat4d. (.x axis) (.y axis) (.z axis) (* 0.5 cos-half))))))
 
 (defn unit-axis [^long dimension-index] ^Vector3d
@@ -170,13 +269,16 @@
     1 (Vector3d. 0 1 0)
     2 (Vector3d. 0 0 1)))
 
-(defn ->mat4 ^Matrix4d []
+(defn ->mat4
+  ^Matrix4d []
   (doto (Matrix4d.) (.setIdentity)))
 
-(defn ->mat4-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
+(defn ->mat4-uniform
+  ^Matrix4d [^Vector3d position ^Quat4d rotation ^double scale]
   (Matrix4d. rotation position scale))
 
-(defn ->mat4-non-uniform ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
+(defn ->mat4-non-uniform
+  ^Matrix4d [^Vector3d position ^Quat4d rotation ^Vector3d scale]
   (let [s (doto (Matrix3d.)
             (.setElement 0 0 (.x scale))
             (.setElement 1 1 (.y scale))
@@ -281,3 +383,21 @@
        (* (+ (* 3 t2) (* -4 t) 1) t0)
        (* (+ (* -6 t2) (* 6 t)) y1)
        (* (+ (* 3 t2) (* -2 t)) t1))))
+
+(defn derive-render-transforms
+  [^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
+  ;; Matrix multiplication A * B = C is c.mul(a, b) in vecmath. In-place A := A * B is a.mul(b).
+  ;; The matrix naming is in the order the transforms will be applied to the vertices. For instance
+  ;; view-proj is "Proj * View", and view-proj.transform(v) is (Proj * (View * V))
+  (let [view-proj (doto (Matrix4d. projection) (.mul view))
+        world-view (doto (Matrix4d. view) (.mul world))
+        world-view-proj (doto (Matrix4d. view-proj) (.mul world))
+        normal (doto (affine-inverse world-view) (.transpose))]
+    {:world world
+     :view view
+     :projection projection
+     :texture texture
+     :normal normal
+     :view-proj view-proj
+     :world-view world-view
+     :world-view-proj world-view-proj}))

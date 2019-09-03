@@ -150,12 +150,14 @@ namespace dmGameSystem
      */
 
     /*# plays a sound
-     * Post this message to a sound-component to make it play its sound. Multiple voices is support. The limit is set to 32 voices per sound component.
+     * Post this message to a sound-component to make it play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
      *
      * [icon:attention] Note that gain is in linear scale, between 0 and 1.
      * To get the dB value from the gain, use the formula `20 * log(gain)`.
      * Inversely, to find the linear value from a dB value, use the formula
      * <code>10<sup>db/20</sup></code>.
+     *
+     * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can send a `stop_sound` to stop the sound.
      *
      * @message
      * @name play_sound
