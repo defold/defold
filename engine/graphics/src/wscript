@@ -32,7 +32,7 @@ def build(bld):
 
         obj.find_sources_in_dirs('. flash ../proto/graphics')
 
-    if Options.options.with_vulkan and not bld.env['PLATFORM'] in ('x86_64-ios','js-web','asm-web'):
+    if Options.options.with_vulkan and not bld.env['PLATFORM'] in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
       obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                              includes = ['. vulkan', '../proto'],
                              proto_gen_py = True,
@@ -50,7 +50,7 @@ def build(bld):
         obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
       elif bld.env.PLATFORM == 'x86_64-linux':
         obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
-      elif bld.env.PLATFORM == 'x86_64-win32':
+      elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
         obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
