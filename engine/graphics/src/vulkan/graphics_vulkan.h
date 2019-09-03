@@ -102,7 +102,7 @@ namespace dmGraphics
 
     // Implemented in graphics_vulkan_device.cpp
     uint32_t    GetPhysicalDeviceCount(VkInstance vkInstance);
-    bool        GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
+    void        GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     void        ResetPhysicalDevice(PhysicalDevice* device);
     QueueFamily GetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
     VkResult    CreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,

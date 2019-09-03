@@ -133,15 +133,17 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        uint32_t device_count           = GetPhysicalDeviceCount(context->m_Instance);
-        PhysicalDevice* device_list     = new PhysicalDevice[device_count];
-        PhysicalDevice* selected_device = NULL;
+        uint32_t device_count = GetPhysicalDeviceCount(context->m_Instance);
 
-        if (!GetPhysicalDevices(context->m_Instance, &device_list, device_count))
+        if (device_count == 0)
         {
             dmLogError("Could not get any Vulkan devices.");
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
+
+        PhysicalDevice* device_list     = new PhysicalDevice[device_count];
+        PhysicalDevice* selected_device = NULL;
+        GetPhysicalDevices(context->m_Instance, &device_list, device_count);
 
         const uint8_t required_device_extension_count = 2;
         const char* required_device_extensions[] = {
@@ -210,20 +212,24 @@ namespace dmGraphics
             #undef RESET_AND_CONTINUE
         }
 
+        LogicalDevice logical_device;
+        uint32_t created_width  = params->m_Width;
+        uint32_t created_height = params->m_Height;
+        const bool want_vsync   = true;
+
         if (selected_device == NULL)
         {
             dmLogError("Could not select a suitable Vulkan device.");
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            goto bail;
         }
 
-        LogicalDevice logical_device;
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             required_device_extensions, required_device_extension_count,
             g_validation_layers, g_validation_layer_count, &logical_device);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            goto bail;
         }
 
         context->m_WindowOpened   = 1;
@@ -231,23 +237,26 @@ namespace dmGraphics
         context->m_LogicalDevice  = logical_device;
 
         // Create swap chain
-        uint32_t created_width  = params->m_Width;
-        uint32_t created_height = params->m_Height;
-        const bool want_vsync   = true;
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
         context->m_SwapChain    = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
 
         res = UpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
         if (res != VK_SUCCESS)
         {
-            delete context->m_SwapChain;
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            goto bail;
         }
 
         delete[] device_list;
 
         return WINDOW_RESULT_OK;
+bail:
+        if (context->m_SwapChain)
+            delete context->m_SwapChain;
+        if (device_list)
+            delete[] device_list;
+
+        return WINDOW_RESULT_WINDOW_OPEN_ERROR;
     }
 
     void CloseWindow(HContext context)

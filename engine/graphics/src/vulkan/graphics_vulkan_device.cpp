@@ -9,13 +9,9 @@ namespace dmGraphics
         return vk_device_count;
     }
 
-    bool GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
     {
-        if (deviceListSize == 0)
-        {
-            return false;
-        }
-
+        assert(deviceListOut);
         PhysicalDevice* device_list = *deviceListOut;
         uint32_t vk_device_count = deviceListSize;
         VkPhysicalDevice* vk_device_list = new VkPhysicalDevice[vk_device_count];
@@ -60,8 +56,6 @@ namespace dmGraphics
         }
 
         delete[] vk_device_list;
-
-        return true;
     }
 
     void ResetPhysicalDevice(PhysicalDevice* device)
