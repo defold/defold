@@ -415,13 +415,6 @@ adb forward tcp:6000 localfilesystem:/data/local/debugger-socket
 In that web app manager, you can see the console output, take screenshots or show other web developer options for the phone.
 
 
-## Flash
-
-**TODO**
-
-* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
-* Verify that exceptions are disabled
-
 ## Asset loading
 
 Assets can be loaded from file-system, from an archive or over http.
