@@ -32,7 +32,7 @@ def build(bld):
 
         obj.find_sources_in_dirs('. flash ../proto/graphics')
 
-    if Options.options.with_vulkan:
+    if not 'web' in bld.env.PLATFORM and not bld.env.PLATFORM == 'x86_64-ios' and Options.options.with_vulkan:
       obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                              includes = ['. vulkan', '../proto'],
                              proto_gen_py = True,
@@ -52,9 +52,6 @@ def build(bld):
         obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
       elif bld.env.PLATFORM == 'x86_64-win32':
         obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
-      else:
-        error('Vulkan is not supported for platform: ' + bld.env.PLATFORM)
-        sys.exit(1)
 
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                            includes = ['. null', '../proto'],
