@@ -127,6 +127,7 @@ namespace dmEngine
         dmGameSystem::SpineModelContext             m_SpineModelContext;
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
+        dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;

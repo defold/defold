@@ -1170,6 +1170,7 @@ TYPED_TEST(PhysicsTest, GravityChange)
     data.m_Mass = 1.0f;
     data.m_Restitution = 1.0f;
     typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+    (void)box_co_a;
 
     // Verify that the default gravity is applied.
     const int steps = 10;

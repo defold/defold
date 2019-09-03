@@ -70,6 +70,7 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
+        conf.env['STATICLIB_CPP_RUNTIME'] = 'c++_static'
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":

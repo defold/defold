@@ -33,6 +33,10 @@ namespace dmDNS
     {
         return RESULT_OK;
     }
+    Result RefreshChannel(HChannel channel)
+    {
+        return RESULT_OK;
+    }
     void StopChannel(HChannel channel) {}
     void DeleteChannel(HChannel channel) {}
     Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
