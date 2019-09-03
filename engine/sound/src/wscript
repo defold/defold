@@ -40,7 +40,7 @@ def build(bld):
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
                      '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
-        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
+        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
         bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')
         bld.new_task_gen(features='jar seq', basedir='java', destfile='sound_android.jar')
         bld.install_files('${PREFIX}/share/java', 'sound_android.jar')
