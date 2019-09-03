@@ -215,12 +215,14 @@ namespace dmGraphics
             {
                 if(func_ptr(*vkInstanceOut, &vk_debug_messenger_create_info, 0, &g_vk_debug_callback_handle) != VK_SUCCESS)
                 {
-                    dmLogError("Vulkan validation requested but could not create validation layer callback, reason: vkCreateDebugUtilsMessengerEXT failed");
+                    dmLogError("Vulkan validation requested but could not create validation layer callback, \
+                        call to vkCreateDebugUtilsMessengerEXT failed");
                 }
             }
             else
             {
-                dmLogError("Vulkan validation requested but could create validation layer callback, reason: could not find 'vkCreateDebugUtilsMessengerEXT'");
+                dmLogError("Vulkan validation requested but could not create validation layer callback, \
+                    could not find 'vkCreateDebugUtilsMessengerEXT'");
             }
         }
 
