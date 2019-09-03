@@ -12,7 +12,7 @@
 namespace dmGraphics
 {
     // Source: GLFW3
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI)
+    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
         VkMacOSSurfaceCreateInfoMVK sci;
         PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK;

@@ -37,6 +37,7 @@ namespace dmGraphics
 
         if (vkEnumerateInstanceExtensionProperties(NULL, &vk_extension_count, vk_extension_list) != VK_SUCCESS)
         {
+            delete[] vk_extension_list;
             return false;
         }
 

@@ -169,7 +169,7 @@ namespace dmGraphics
         vkDestroySwapchainKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, 0);
     }
 
-    void GetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
+    void GetSwapChainCapabilities(PhysicalDevice* device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
     {
         assert(device);
 

@@ -10,7 +10,7 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 namespace dmGraphics
 {
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI)
+    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
         PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR = (PFN_vkCreateAndroidSurfaceKHR)
             vkGetInstanceProcAddr(vkInstance, "vkCreateAndroidSurfaceKHR");

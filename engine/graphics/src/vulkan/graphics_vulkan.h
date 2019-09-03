@@ -102,10 +102,10 @@ namespace dmGraphics
 
     // Implemented in graphics_vulkan_device.cpp
     uint32_t    GetPhysicalDeviceCount(VkInstance vkInstance);
-    void        GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
+    void        GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, const uint32_t deviceListSize);
     void        ResetPhysicalDevice(PhysicalDevice* device);
-    QueueFamily GetQueueFamily(PhysicalDevice* device, VkSurfaceKHR surface);
-    VkResult    CreateLogicalDevice(PhysicalDevice* device, VkSurfaceKHR surface, QueueFamily queueFamily,
+    QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
+    VkResult    CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
@@ -116,9 +116,9 @@ namespace dmGraphics
     VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
         const bool wantVSync, SwapChainCapabilities& capabilities);
     void     ResetSwapChain(SwapChain* swapChain);
-    void     GetSwapChainCapabilities(PhysicalDevice* device, VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
+    void     GetSwapChainCapabilities(PhysicalDevice* device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
     // Implemented per supported platform
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI);
+    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__
