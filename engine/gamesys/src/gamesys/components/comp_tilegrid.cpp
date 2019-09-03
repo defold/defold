@@ -104,7 +104,6 @@ namespace dmGameSystem
 
         uint32_t                        m_MaxTilemapCount;
         uint32_t                        m_MaxTileCount;
-        uint32_t                        m_NumLayers; // total count to allocate for in render stage
     };
 
     static void TileGridWorldAllocate(TileGridWorld* world)
@@ -137,7 +136,6 @@ namespace dmGameSystem
 
         world->m_Components.SetCapacity(world->m_MaxTilemapCount);
 
-        world->m_NumLayers = 0;
         world->m_VertexDeclaration = 0;
 
         *params.m_World = world;
@@ -372,7 +370,6 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        world->m_NumLayers += layer_count;
         world->m_Components.Push(component);
         *params.m_UserData = (uintptr_t) component;
 
@@ -389,7 +386,6 @@ namespace dmGameSystem
             if (world->m_Components[i] == tile_grid)
             {
                 dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid->m_Resource->m_TileGrid;
-                world->m_NumLayers -= tile_grid_ddf->m_Layers.m_Count;
 
                 delete [] tile_grid->m_Cells;
                 delete [] tile_grid->m_CellFlags;
@@ -661,9 +657,9 @@ namespace dmGameSystem
         }
 
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, world->m_NumLayers);
+        dmRender::RenderListEntry* render_list = 0;
+        dmRender::RenderListEntry* write_ptr = 0;
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
-        dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -702,6 +698,10 @@ namespace dmGameSystem
 
                         Vector4 trans = component->m_World * Point3(x * tile_width, y * tile_height, layer_ddf->m_Z);
 
+                        write_ptr = dmRender::RenderListAlloc(render_context, 1);
+                        if (!render_list) {
+                            render_list = write_ptr;
+                        }
                         write_ptr->m_WorldPosition = Point3(trans.getXYZ());
                         write_ptr->m_UserData = EncodeRegionInfo(i, l, x, y);
                         write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component->m_Resource->m_Material);
@@ -715,7 +715,8 @@ namespace dmGameSystem
             }
         }
 
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        if (render_list != write_ptr)
+            dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
