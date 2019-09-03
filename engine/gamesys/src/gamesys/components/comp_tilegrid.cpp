@@ -74,10 +74,10 @@ namespace dmGameSystem
         CompRenderConstants         m_RenderConstants;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
         uint16_t                    m_RegionsY; // number of regions in the y dimension
+        uint16_t                    m_Occupied; // Number of occupied regions (regions with visible tiles)
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_AddedToUpdate : 1;
-        uint8_t                     m_Occupied : 1; // Does the component have any tiles set at all?
-        uint8_t                     : 5;
+        uint8_t                     : 6;
     };
 
     struct TileGridVertex
@@ -291,7 +291,7 @@ namespace dmGameSystem
         uint32_t occupied = 0;
         for (uint32_t region_y = 0; region_y < component->m_RegionsY; ++region_y) {
             for (uint32_t region_x = 0; region_x < component->m_RegionsX; ++region_x) {
-                occupied |= UpdateRegion(component, region_x, region_y);
+                occupied += UpdateRegion(component, region_x, region_y);
             }
         }
         return occupied;
@@ -339,7 +339,7 @@ namespace dmGameSystem
         }
 
         CreateRegions(component, resource);
-        UpdateRegions(component);
+        component->m_Occupied = UpdateRegions(component);
         return n_layers;
     }
 
@@ -656,10 +656,21 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_OK;
         }
 
+        // count the number of render entries needed
+        uint32_t num_render_entries = 0;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            TileGridComponent* component = components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_Occupied) {
+                continue;
+            }
+            num_render_entries += component->m_Occupied;
+        }
+
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        dmRender::RenderListEntry* render_list = 0;
-        dmRender::RenderListEntry* write_ptr = 0;
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, num_render_entries);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -698,10 +709,6 @@ namespace dmGameSystem
 
                         Vector4 trans = component->m_World * Point3(x * tile_width, y * tile_height, layer_ddf->m_Z);
 
-                        write_ptr = dmRender::RenderListAlloc(render_context, 1);
-                        if (!render_list) {
-                            render_list = write_ptr;
-                        }
                         write_ptr->m_WorldPosition = Point3(trans.getXYZ());
                         write_ptr->m_UserData = EncodeRegionInfo(i, l, x, y);
                         write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component->m_Resource->m_Material);
