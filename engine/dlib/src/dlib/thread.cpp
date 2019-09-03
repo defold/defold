@@ -3,7 +3,7 @@
 
 namespace dmThread
 {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
     struct ThreadData
     {
         ThreadStart m_Start;

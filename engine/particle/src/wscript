@@ -13,13 +13,12 @@ def build(bld):
                                 uselib = 'DDF DLIB PLATFORM_SOCKET',
                                 source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
-    if bld.env.PLATFORM != 'as3-web':
-        particle_shared = bld.new_task_gen(features = 'cxx cshlib ddf',
-                                           includes = ['.', '../proto'],
-                                           target = 'particle_shared',
-                                           protoc_includes = '../proto',
-                                           uselib = 'DDF DLIB PLATFORM_SOCKET',
-                                           source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+    particle_shared = bld.new_task_gen(features = 'cxx cshlib ddf',
+                                       includes = ['.', '../proto'],
+                                       target = 'particle_shared',
+                                       protoc_includes = '../proto',
+                                       uselib = 'DDF DLIB PLATFORM_SOCKET',
+                                       source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
