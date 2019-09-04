@@ -519,6 +519,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #if defined(GL_RENDERDOC_SUPPORT)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+        glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 #endif
 
         int mode = GLFW_WINDOW;
