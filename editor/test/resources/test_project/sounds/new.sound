@@ -2,3 +2,4 @@ sound: ""
 looping: 0
 group: "master"
 gain: 1.0
+pan: 0.0
