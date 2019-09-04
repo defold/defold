@@ -6,7 +6,7 @@ APPNAME = 'graphics'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys
+import os, sys, Options
 
 import waf_ddf, waf_dynamo
 
@@ -49,6 +49,9 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
+
+    if Options.options.with_renderdoc:
+        conf.env.append_value('CXXFLAGS', ['-DGL_RENDERDOC_SUPPORT'])
 
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
