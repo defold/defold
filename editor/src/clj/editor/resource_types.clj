@@ -25,6 +25,7 @@
             [editor.markdown :as markdown]
             [editor.material :as material]
             [editor.model :as model]
+            [editor.mesh :as mesh]
             [editor.particlefx :as particlefx]
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
@@ -61,6 +62,7 @@
       (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)
       (model/register-resource-types workspace)
+      (mesh/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
