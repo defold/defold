@@ -108,7 +108,7 @@ namespace dmGameSystem
 
     static void TileGridWorldAllocate(TileGridWorld* world)
     {
-        world->m_RenderObjects.SetCapacity(world->m_MaxTilemapCount);
+        world->m_RenderObjects.SetCapacity(4);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(world->m_RenderContext);
         // TODO: Everything below here should be move to the "universe" when available
@@ -261,6 +261,8 @@ namespace dmGameSystem
         int32_t max_x = dmMath::Min(min_x + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellX + (int32_t)column_count);
         int32_t max_y = dmMath::Min(min_y + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellY + (int32_t)row_count);
 
+        region->m_Occupied = 0;
+
         uint32_t visible_tiles = 0;
         for (uint32_t j = 0; j < n_layers; ++j)
         {
@@ -277,12 +279,13 @@ namespace dmGameSystem
                     if (tile != 0xffff)
                     {
                         ++visible_tiles;
+                        region->m_Occupied = 1;
+                        return region->m_Occupied;
                     }
                 }
             }
         }
 
-        region->m_Occupied = visible_tiles ? 1 : 0;
         return region->m_Occupied;
     }
 
@@ -385,8 +388,6 @@ namespace dmGameSystem
         {
             if (world->m_Components[i] == tile_grid)
             {
-                dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid->m_Resource->m_TileGrid;
-
                 delete [] tile_grid->m_Cells;
                 delete [] tile_grid->m_CellFlags;
                 world->m_Components.EraseSwap(i);
@@ -566,6 +567,10 @@ namespace dmGameSystem
         TextureSetResource* texture_set = resource->m_TextureSet;
 
         dmRender::RenderObject& ro = *world->m_RenderObjects.End();
+        if (world->m_RenderObjects.Remaining() == 0)
+        {
+            world->m_RenderObjects.OffsetCapacity(4);
+        }
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
         // Fill in vertex buffer
@@ -644,6 +649,29 @@ namespace dmGameSystem
         }
     }
 
+    // Estimates the number of render entries needed
+    static uint32_t CalcNumVisibleRegions(TileGridComponent** components, uint32_t num_components)
+    {
+        uint32_t num_render_entries = 0;
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            const TileGridComponent* component = components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_Occupied) {
+                continue;
+            }
+            uint32_t n_layers = component->m_Layers.Size();
+            for (uint32_t l = 0; l < n_layers; ++l)
+            {
+                const TileGridLayer* layer = &component->m_Layers[l];
+                if (!layer->m_IsVisible)
+                    continue;
+
+                num_render_entries += component->m_RegionsY * component->m_RegionsX;
+            }
+        }
+        return num_render_entries;
+    }
+
     dmGameObject::UpdateResult CompTileGridRender(const dmGameObject::ComponentsRenderParams& params)
     {
         TilemapContext* context = (TilemapContext*)params.m_Context;
@@ -656,17 +684,7 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_OK;
         }
 
-        // count the number of render entries needed
-        uint32_t num_render_entries = 0;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            TileGridComponent* component = components[i];
-            if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_Occupied) {
-                continue;
-            }
-            num_render_entries += component->m_Occupied;
-        }
-
+        uint32_t num_render_entries = CalcNumVisibleRegions(&components[0], n);
         dmRender::HRenderContext render_context = context->m_RenderContext;
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, num_render_entries);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
