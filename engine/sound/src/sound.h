@@ -22,6 +22,7 @@ namespace dmSound
         PARAMETER_GAIN  = 0,
         PARAMETER_PAN   = 1,
         PARAMETER_SPEED = 2,
+        PARAMETER_MAX   = 3
     };
 
     enum Result

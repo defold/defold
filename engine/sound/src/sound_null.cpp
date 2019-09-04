@@ -17,7 +17,7 @@ namespace dmSound
 
     struct SoundInstance
     {
-        Vector4 m_Parameters[PARAMETER_GAIN + 1];
+        Vector4 m_Parameters[PARAMETER_MAX];
         uint32_t m_Playing : 1;
         uint32_t m_Looping : 1;
     };
