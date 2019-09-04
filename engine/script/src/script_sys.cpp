@@ -467,7 +467,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android.
+     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `ad_ident`
      * : [type:string] [icon:ios] "advertisingIdentifier" on iOS. [icon:android] advertising ID provided by Google Play on Android.
