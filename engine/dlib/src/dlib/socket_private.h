@@ -3,7 +3,7 @@
 
 namespace dmSocket
 {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
     #define DM_SOCKET_ERRNO errno
     #define DM_SOCKET_HERRNO h_errno
 #else

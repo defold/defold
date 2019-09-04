@@ -119,6 +119,9 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
 
+            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
+            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
+
             assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
 
             // Clang errors
@@ -178,7 +181,7 @@ public class BundleHelperTest {
         Map<String, Object> main = ExtenderUtil.readYaml(resource);
         Map<String, Object> platforms = (Map<String, Object>)main.getOrDefault("platforms", null);
         assertNotNull(platforms);
-        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("armv7-android", null);
+        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("android", null);
         assertNotNull(platform);
         Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
         assertNotNull(bundle);
@@ -202,7 +205,7 @@ public class BundleHelperTest {
 
         Map<String, Object> platforms = (Map<String, Object>)merged.getOrDefault("platforms", null);
         assertNotNull(platforms);
-        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("armv7-android", null);
+        Map<String, Object> platform = (Map<String, Object>)platforms.getOrDefault("android", null);
         assertNotNull(platform);
         Map<String, Object> bundle = (Map<String, Object>)platform.getOrDefault("bundle", null);
         assertNotNull(bundle);

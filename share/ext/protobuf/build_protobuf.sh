@@ -15,6 +15,8 @@ function download() {
     cp ./${FILE_URL} ../download/
 }
 
+download
+
 #
 # Build protoc locally first,
 # in order to make the cross platform configuration work
@@ -32,8 +34,6 @@ set -e
 set +e
 popd >/dev/null
 
-
-download
 cmi $1
 
 rm -rf cross_tmp

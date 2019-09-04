@@ -1,41 +1,36 @@
 (ns editor.collision-object
-  (:require
-   [clojure.string :as s]
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.build-target :as bt]
-   [editor.collision-groups :as collision-groups]
-   [editor.defold-project :as project]
-   [editor.geom :as geom]
-   [editor.gl :as gl]
-   [editor.gl.pass :as pass]
-   [editor.gl.shader :as shader]
-   [editor.gl.vertex :as vtx]
-   [editor.graph-util :as gu]
-   [editor.handler :as handler]
-   [editor.math :as math]
-   [editor.outline :as outline]
-   [editor.properties :as properties]
-   [editor.protobuf :as protobuf]
-   [editor.resource :as resource]
-   [editor.resource-node :as resource-node]
-   [editor.scene :as scene]
-   [editor.scene-picking :as scene-picking]
-   [editor.scene-tools :as scene-tools]
-   [editor.types :as types]
-   [editor.validation :as validation]
-   [editor.workspace :as workspace])
-  (:import
-   [com.dynamo.physics.proto Physics$CollisionObjectDesc
-    Physics$CollisionObjectType
-    Physics$CollisionShape$Shape]
-   [com.jogamp.opengl GL GL2]
-   [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.build-target :as bt]
+            [editor.collision-groups :as collision-groups]
+            [editor.colors :as colors]
+            [editor.defold-project :as project]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vtx]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
+            [editor.math :as math]
+            [editor.outline :as outline]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
+            [editor.scene-picking :as scene-picking]
+            [editor.scene-tools :as scene-tools]
+            [editor.types :as types]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]
+            [schema.core :as s])
+  (:import [com.dynamo.physics.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
+           [com.jogamp.opengl GL2]
+           [javax.vecmath Matrix4d Point4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
-
-(defn- v4->euler [v]
-  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
 
@@ -67,12 +62,15 @@
     "2D"
     "3D"))
 
+(g/deftype PhysicsType (s/enum "2D" "3D"))
+
 (g/defnode Shape
   (inherits outline/OutlineNode)
   (inherits scene/SceneNode)
 
   (input color g/Any)
-  
+  (input project-physics-type PhysicsType)
+
   (property shape-type g/Any
             (dynamic visible (g/constantly false)))
   (property node-outline-key g/Str
@@ -97,253 +95,227 @@
 ;;--------------------------------------------------------------------
 ;; rendering
 
-(vtx/defvertex color-vtx
-  (vec3 position)
-  (vec4 color))
+;; We cannot batch-render the collision shapes, since we need to cancel out non-
+;; uniform scaling on the individual shape transforms. Thus, we are free to use
+;; shared object-space vertex buffers and transform them in the vertex shader.
+
+(vtx/defvertex pos-vtx
+  ;; The W component is multiplied with the point_offset_by_w uniform, which is
+  ;; used to offset the point in local space. We use this to offset the caps of
+  ;; the capsule shape.
+  (vec4 position))
 
 (shader/defshader vertex-shader
+  (uniform mat4 world_view_proj)
+  (uniform vec4 point_scale)
+  (uniform vec4 point_offset_by_w)
   (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
+    (setq vec3 point
+          (+ (* position.xyz
+                point_scale.xyz)
+             (* position.w
+                point_offset_by_w.xyz)))
+    (setq gl_Position
+          (* world_view_proj
+             (vec4 point 1.0)))))
 
 (shader/defshader fragment-shader
-  (varying vec4 var_color)
+  (uniform vec4 color) ; `color` also used in selection pass to render picking id
   (defn void main []
-    (setq gl_FragColor var_color)))
+    (setq gl_FragColor color)))
 
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"world_view_proj" :world-view-proj}))
 
-(shader/defshader shape-id-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
+(def ^:private box-lines
+  {:primitive-type GL2/GL_LINES
+   :vbuf (-> (->pos-vtx 24 :static)
 
-(shader/defshader shape-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
+             ;; Pos Z
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
 
-(def id-shader (shader/make-shader ::shape-id-shader shape-id-vertex-shader shape-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+             ;; Neg Z
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
 
-(def outline-alpha 1.0)
-(def shape-alpha 0.1)
-(def selected-outline-alpha 1.0)
-(def selected-shape-alpha 0.3)
+             ;; Connecting lines
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
 
-(defn- gen-vertex
-  [^Matrix4d wt ^Point3d pt x y cr cg cb ca]
-  (.set pt x y 0)
-  (.transform wt pt)
-  [(.x pt) (.y pt) (.z pt) cr cg cb ca])
+             (vtx/flip!))})
 
-(defn- gen-vertex-buffer
-  "Generate a vertex buffer for count renderables.
+(def ^:private box-triangles
+  {:primitive-type GL2/GL_TRIANGLES
+   :vbuf (-> (->pos-vtx 36 :static)
 
-  vbuf-fn is a two arity function:
-  - ([count]) should return a vertex buffer with required capacity
-  - ([vbuf renderable tmp-point]) should conj! vertices for given renderable"
-  [renderables count vbuf-fn]
-  (let [tmp-point (Point3d.)]
-    (loop [[renderable & rest] renderables
-           vbuf (vbuf-fn count)]
-      (if-not renderable
-        (persistent! vbuf)
-        (recur rest (vbuf-fn vbuf renderable tmp-point))))))
+             ;; We start with the camera-facing face so that we can render just
+             ;; the first face in case we are rendering a 2D box.
 
+             ;; Neg Z
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
 
-;; sphere
+             ;; Pos Z
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
 
-(def disc-segments 32)
+             ;; Neg Y
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
 
-(defn- conj-disc-outline!
-  [vbuf ^Matrix4d wt ^Point3d pt r cr cg cb ca]
-  (reduce (fn [vbuf [x y _]]
-            (conj! vbuf (gen-vertex wt pt x y cr cg cb ca)))
-          vbuf
-          (->> geom/origin-geom
-               (geom/transl [0 r 0])
-               (geom/circling disc-segments))))
+             ;; Pos Y
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
 
-(defn- gen-disc-outline-vertex-buffer
-  ([count]
-   (->color-vtx (* count disc-segments)))
-  ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [{:keys [sphere-diameter color]} user-data
-         [cr cg cb] color
-         ca (if selected selected-outline-alpha outline-alpha)
-         r (* 0.5 sphere-diameter)]
-     (conj-disc-outline! vbuf world-transform tmp-point r cr cg cb ca))))
+             ;; Neg X
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! -1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! -1.0 1.0 1.0 0.0)
 
-(defn- gen-disc-vertex-buffer
-  ([count]
-   (->color-vtx (* count (+ 2 disc-segments))))
-  ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [{:keys [sphere-diameter color]} user-data
-         [cr cg cb] color
-         ca (if selected selected-shape-alpha shape-alpha)
-         r (* 0.5 sphere-diameter)]
-     (-> vbuf
-         (conj! (gen-vertex world-transform tmp-point 0 0 cr cg cb ca))
-         (conj-disc-outline! world-transform tmp-point r cr cg cb ca)
-         (conj! (gen-vertex world-transform tmp-point 0 r cr cg cb ca))))))
+             ;; Pos X
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 -1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 -1.0 0.0)
+             (pos-vtx-put! 1.0 1.0 1.0 0.0)
 
-(defn- render-sphere
-  [^GL2 gl render-args renderables n]
-  (let [pass (:pass render-args)]
-    (condp = pass
-      pass/outline
-      (let [vbuf (gen-vertex-buffer renderables n gen-disc-outline-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box-outline vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINE_LOOP 0 (count vbuf))))
+             (vtx/flip!))})
 
-      pass/transparent
-      (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf))))
+(def ^:private disc-perimeter
+  (->> geom/origin-geom
+       (geom/transl [0.0 1.0 0.0])
+       (geom/circling 32)))
 
-      pass/selection
-      (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf id-shader)]
-        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vbuf-binding]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
+(def ^:private disc-lines
+  {:primitive-type GL2/GL_LINE_LOOP
+   :vbuf (vtx/flip!
+           (reduce
+             (fn [vbuf [x y _]]
+               (pos-vtx-put! vbuf x y 0.0 0.0))
+             (->pos-vtx (count disc-perimeter) :static)
+             disc-perimeter))})
 
+(def ^:private disc-triangles
+  {:primitive-type GL2/GL_TRIANGLE_FAN
+   :vbuf (-> (reduce
+               (fn [vbuf [x y _]]
+                 (pos-vtx-put! vbuf x y 0.0 0.0))
+               (pos-vtx-put!
+                 (->pos-vtx (+ 2 (count disc-perimeter)) :static)
+                 0.0 0.0 0.0 0.0)
+               disc-perimeter)
+             (pos-vtx-put! 0.0 1.0 0.0 0.0)
+             (vtx/flip!))})
 
-;; box
+(defn- pos-nrm->quad-point
+  ^Point4d [[^double x ^double y ^double z] ^double w]
+  (Point4d. x y z w))
 
-(defn- conj-outline-quad! [vbuf ^Matrix4d wt ^Point3d pt width height cr cg cb ca]
-  (let [x1 (* 0.5 width)
-        y1 (* 0.5 height)
-        x0 (- x1)
-        y0 (- y1)
-        v0 (gen-vertex wt pt x0 y0 cr cg cb ca)
-        v1 (gen-vertex wt pt x1 y0 cr cg cb ca)
-        v2 (gen-vertex wt pt x1 y1 cr cg cb ca)
-        v3 (gen-vertex wt pt x0 y1 cr cg cb ca)]
-    (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
+(defn- pos-nrm-face->quad [[v0 v1 v2 _ v4] ^double w]
+  [(pos-nrm->quad-point v0 w)
+   (pos-nrm->quad-point v1 w)
+   (pos-nrm->quad-point v4 w)
+   (pos-nrm->quad-point v2 w)])
 
-(defn- gen-box-outline-vertex-buffer
-  ([count]
-   (->color-vtx (* count 8)))
-  ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [{:keys [box-width box-height color]} user-data
-         [cr cg cb] color
-         ca (if selected selected-outline-alpha outline-alpha)]
-     (conj-outline-quad! vbuf world-transform tmp-point box-width box-height cr cg cb ca))))
+(defn- pos-nrm-face->waist-quad [[v0 v1]]
+  [(pos-nrm->quad-point v0 1.0)
+   (pos-nrm->quad-point v1 1.0)
+   (pos-nrm->quad-point v1 -1.0)
+   (pos-nrm->quad-point v0 -1.0)])
 
-(defn- gen-box-vertex-buffer
-  ([count]
-   (->color-vtx (* count 8)))
-  ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [{:keys [box-width box-height color]} user-data
-         [cr cg cb] color
-         ca (if selected selected-shape-alpha shape-alpha)]
-     (conj-outline-quad! vbuf world-transform tmp-point box-width box-height cr cg cb ca))))
-
-(defn render-box
-  [^GL2 gl render-args renderables n]
-  (let [pass (:pass render-args)]
-    (condp = pass
-      pass/outline
-      (let [vbuf (gen-vertex-buffer renderables n gen-box-outline-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box-outline vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vbuf))))
-
-      pass/transparent
-      (let [vbuf (gen-vertex-buffer renderables n gen-box-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vbuf-binding]
-          (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))
-
-      pass/selection
-      (let [vbuf (gen-vertex-buffer renderables n gen-box-vertex-buffer)
-            vbuf-binding (vtx/use-with ::box vbuf id-shader)]
-        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vbuf-binding]
-          (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))
-
-
-;; capsule
-
-(def capsule-segments 32) ; needs to be divisible by 4
-
-(defn- capsule-geometry
-  [r h]
-  ;; generate a circle, split in quarters and translate the halfs
-  ;; up/down, with some overlap between top/bottom for straight edges
-  (let [ps  (->> geom/origin-geom
-                 (geom/transl [0 r 0])
-                 (geom/circling capsule-segments))
-        quarter (/ capsule-segments 4)
-        top-l    (subvec ps 0             (inc quarter))
-        bottom-l (subvec ps quarter       (* 2 quarter))
-        bottom-r (subvec ps (* 2 quarter) (inc (* 3 quarter)))
-        top-r    (subvec ps (* 3 quarter) (* 4 quarter))
-        ext-y (* 0.5 h)]
+(def ^:private capsule-quads
+  (let [capsule-cap-lats 16
+        capsule-cap-longs 32
+        sphere-faces (geom/unit-sphere-pos-nrm capsule-cap-lats capsule-cap-longs)
+        hemisphere-face-count (/ (* capsule-cap-lats capsule-cap-longs) 2)]
     (concat
-     (geom/transl [0 ext-y 0] top-l)
-     (geom/transl [0 (- ext-y) 0] bottom-l)
-     (geom/transl [0 (- ext-y) 0] bottom-r)
-     (geom/transl [0 ext-y 0] top-r))))
+      ;; Top cap
+      (sequence (comp (take hemisphere-face-count)
+                      (map #(pos-nrm-face->quad % 1.0)))
+                sphere-faces)
 
-(defn- conj-capsule-outline!
-  [vbuf ^Matrix4d wt ^Point3d pt r h cr cg cb ca]
-  (reduce (fn [vbuf [x y _]]
-            (conj! vbuf (gen-vertex wt pt x y cr cg cb ca)))
-          vbuf
-          (capsule-geometry r h)))
+      ;; Waist
+      (sequence (comp (drop hemisphere-face-count)
+                      (take capsule-cap-longs)
+                      (map pos-nrm-face->waist-quad))
+                sphere-faces)
 
-(defn- gen-capsule-outline-vbuf
-  ([count]
-   (->color-vtx (* count (+ 2 capsule-segments))))
-  ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [{:keys [capsule-diameter capsule-height color]} user-data
-         [cr cg cb] color
-         ca (if selected selected-outline-alpha outline-alpha)
-         r (* 0.5 capsule-diameter)]
-     (conj-capsule-outline! vbuf world-transform tmp-point r capsule-height cr cg cb ca))))
+      ;; Bottom cap
+      (sequence (comp (drop hemisphere-face-count)
+                      (map #(pos-nrm-face->quad % -1.0)))
+                sphere-faces))))
 
-(defn gen-capsule-vbuf
-  ([count]
-   (->color-vtx (* count (+ 4 capsule-segments))))
-  ([vbuf {:keys [selected world-transform user-data] :as renderable} tmp-point]
-   (let [{:keys [capsule-diameter capsule-height color]} user-data
-         [cr cg cb] color
-         ca (if selected selected-shape-alpha shape-alpha)
-         r (* 0.5 capsule-diameter)
-         ext-y (* 0.5 capsule-height)]
-     (-> vbuf
-         (conj! (gen-vertex world-transform tmp-point 0 0 cr cg cb ca))
-         (conj-capsule-outline! world-transform tmp-point r capsule-height cr cg cb ca)
-         (conj! (gen-vertex world-transform tmp-point 0 (+ r ext-y) cr cg cb ca))))))
+(defn- pos-vtx-put-point! [vbuf ^Point4d point]
+  (pos-vtx-put! vbuf (.x point) (.y point) (.z point) (.w point)))
 
-(defn render-capsule
-  [^GL2 gl render-args renderables n]
-  (let [pass (:pass render-args)
-        segments 32]
-    (condp = pass
-      pass/outline
-      (let [vbuf (gen-vertex-buffer renderables n gen-capsule-outline-vbuf)
-            vertex-binding (vtx/use-with ::capsule-outline vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINE_LOOP 0 (count vbuf))))
+(def ^:private capsule-lines
+  {:primitive-type GL2/GL_LINES
+   :vbuf (vtx/flip!
+           (reduce
+             (fn [vbuf [quad]]
+               (-> vbuf
+                   (pos-vtx-put-point! (quad 0))
+                   (pos-vtx-put-point! (quad 3))))
+             (->pos-vtx (* 2 (/ (count capsule-quads) 4)) :static)
+             (partition 4 capsule-quads)))})
 
-      pass/transparent
-      (let [vbuf (gen-vertex-buffer renderables n gen-capsule-vbuf)
-            vertex-binding (vtx/use-with ::capsule vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf))))
+(def ^:private capsule-triangles
+  {:primitive-type GL2/GL_TRIANGLES
+   :vbuf (vtx/flip!
+           (reduce
+             (fn [vbuf quad]
+               (-> vbuf
+                   (pos-vtx-put-point! (quad 0))
+                   (pos-vtx-put-point! (quad 1))
+                   (pos-vtx-put-point! (quad 2))
+                   (pos-vtx-put-point! (quad 2))
+                   (pos-vtx-put-point! (quad 3))
+                   (pos-vtx-put-point! (quad 0))))
+             (->pos-vtx (* 6 (count capsule-quads)) :static)
+             capsule-quads))})
 
-      pass/selection
-      (let [vbuf (gen-vertex-buffer renderables n gen-capsule-vbuf)
-            vertex-binding (vtx/use-with ::capsule vbuf id-shader)]
-        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
+(def shape-alpha 0.1)
+
+(def selected-shape-alpha 0.3)
 
 (defn unify-scale [renderable]
   (let [{:keys [^Quat4d world-rotation
@@ -361,53 +333,173 @@
   (fn [gl render-args renderables n]
     (render-fn gl render-args (map unify-scale renderables) n)))
 
-(g/defnk produce-sphere-shape-scene
-  [_node-id transform diameter color node-outline-key]
-  {:node-id _node-id
-   :node-outline-key node-outline-key
-   :transform transform
-   :aabb (let [radius (* 0.5 diameter)]
-           (geom/coords->aabb [radius radius radius]
-                              [(- radius) (- radius) (- radius)]))
-   :renderable {:render-fn (wrap-uniform-scale render-sphere)
-                :tags #{:collision-shape}
-                :user-data {:sphere-diameter diameter
-                            :color color}
-                :passes [pass/outline pass/transparent pass/selection]}})
+(def ^:private no-point-scale (float-array 4 1.0))
 
-(g/defnk produce-box-shape-scene
-  [_node-id transform dimensions color node-outline-key]
-  (let [[w h d] dimensions]
+(def ^:private no-point-offset-by-w (float-array 4 0.0))
+
+(defn render-lines [^GL2 gl render-args renderables _num-renderables]
+  (assert (not= pass/selection (:pass render-args)) "color not intended for picking")
+  (let [{:keys [selected user-data world-transform]} (first renderables)
+        {:keys [color geometry]} user-data
+        {:keys [primitive-type vbuf]} geometry
+        color (float-array (if selected
+                             colors/selected-outline-color
+                             (colors/alpha color 1.0)))
+        render-args (merge render-args
+                           (math/derive-render-transforms
+                             world-transform
+                             (:view render-args)
+                             (:projection render-args)
+                             (:texture render-args)))
+        point-count (:point-count user-data (count vbuf))
+        point-scale (:point-scale user-data no-point-scale)
+        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
+        request-id (System/identityHashCode vbuf)
+        vertex-binding (vtx/use-with request-id vbuf shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (shader/set-uniform shader gl "point_scale" point-scale)
+      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
+      (shader/set-uniform shader gl "color" color)
+      (gl/gl-draw-arrays gl primitive-type 0 point-count))))
+
+(defn render-triangles [^GL2 gl render-args renderables _num-renderables]
+  (let [renderable (first renderables)
+        {:keys [selected user-data world-transform]} renderable
+        {:keys [color double-sided geometry]} user-data
+        {:keys [primitive-type vbuf]} geometry
+        color (float-array
+                (cond
+                  (= pass/selection (:pass render-args))
+                  (scene-picking/renderable-picking-id-uniform renderable)
+
+                  selected
+                  (colors/alpha color selected-shape-alpha)
+
+                  :else
+                  (colors/alpha color shape-alpha)))
+        render-args (merge render-args
+                           (math/derive-render-transforms
+                             world-transform
+                             (:view render-args)
+                             (:projection render-args)
+                             (:texture render-args)))
+        point-count (:point-count user-data (count vbuf))
+        point-scale (:point-scale user-data no-point-scale)
+        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
+        request-id (System/identityHashCode vbuf)
+        vertex-binding (vtx/use-with request-id vbuf shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (when-not double-sided
+        (gl/gl-enable gl GL2/GL_CULL_FACE)
+        (gl/gl-cull-face gl GL2/GL_BACK))
+      (shader/set-uniform shader gl "point_scale" point-scale)
+      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
+      (shader/set-uniform shader gl "color" color)
+      (gl/gl-draw-arrays gl primitive-type 0 point-count)
+      (when-not double-sided
+        (gl/gl-disable gl GL2/GL_CULL_FACE)))))
+
+(def ^:private render-lines-uniform-scale (wrap-uniform-scale render-lines))
+
+(def ^:private render-triangles-uniform-scale (wrap-uniform-scale render-triangles))
+
+(g/defnk produce-sphere-shape-scene
+  [_node-id transform diameter color node-outline-key project-physics-type]
+  (let [radius (* 0.5 diameter)
+        is-2d (= "2D" project-physics-type)
+        ext-z (if is-2d 0.0 radius)
+        ext [radius radius ext-z]
+        neg-ext [(- radius) (- radius) (- ext-z)]
+        aabb (geom/coords->aabb ext neg-ext)
+        point-scale (float-array ext)]
     {:node-id _node-id
      :node-outline-key node-outline-key
      :transform transform
-     :aabb (let [ext-x (* 0.5 w)
-                 ext-y (* 0.5 h)
-                 ext-z (* 0.5 d)]
-             (geom/coords->aabb [ext-x ext-y ext-z]
-                                [(- ext-x) (- ext-y) (- ext-z)]))
-     :renderable {:render-fn (wrap-uniform-scale render-box)
+     :aabb aabb
+     :renderable {:render-fn render-triangles-uniform-scale
                   :tags #{:collision-shape}
-                  :user-data {:box-width w
-                              :box-height h
-                              :color color}
-                  :passes [pass/outline pass/transparent pass/selection]}}))
+                  :passes [pass/transparent pass/selection]
+                  :user-data {:color color
+                              :double-sided is-2d
+                              :point-scale point-scale
+                              :geometry (if is-2d disc-triangles capsule-triangles)}}
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-lines-uniform-scale
+                              :tags #{:collision-shape :outline}
+                              :passes [pass/outline]
+                              :user-data {:color color
+                                          :point-scale point-scale
+                                          :geometry (if is-2d disc-lines capsule-lines)}}}]}))
+
+(g/defnk produce-box-shape-scene
+  [_node-id transform dimensions color node-outline-key project-physics-type]
+  (let [[w h d] dimensions
+        ext-x (* 0.5 w)
+        ext-y (* 0.5 h)
+        ext-z (case project-physics-type
+                "2D" 0.0
+                "3D" (* 0.5 d))
+        ext [ext-x ext-y ext-z]
+        neg-ext [(- ext-x) (- ext-y) (- ext-z)]
+        aabb (geom/coords->aabb ext neg-ext)
+        point-scale (float-array ext)]
+    {:node-id _node-id
+     :node-outline-key node-outline-key
+     :transform transform
+     :aabb aabb
+     :renderable {:render-fn render-triangles-uniform-scale
+                  :tags #{:collision-shape}
+                  :passes [pass/transparent pass/selection]
+                  :user-data {:color color
+                              :double-sided (zero? ext-z)
+                              :point-count (if (zero? ext-z) 6 (count (:vbuf box-triangles)))
+                              :point-scale point-scale
+                              :geometry box-triangles}}
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-lines-uniform-scale
+                              :tags #{:collision-shape :outline}
+                              :passes [pass/outline]
+                              :user-data {:color color
+                                          :point-count (if (zero? ext-z) 8 (count (:vbuf box-lines)))
+                                          :point-scale point-scale
+                                          :geometry box-lines}}}]}))
 
 (g/defnk produce-capsule-shape-scene
-  [_node-id transform diameter height color node-outline-key]
-  {:node-id _node-id
-   :node-outline-key node-outline-key
-   :transform transform
-   :aabb (let [radius (* 0.5 diameter)
-               ext-y (+ (* 0.5 height) radius)]
-           (geom/coords->aabb [radius ext-y radius]
-                              [(- radius) (- ext-y) (- radius)]))
-   :renderable {:render-fn (wrap-uniform-scale render-capsule)
-                :tags #{:collision-shape}
-                :user-data {:capsule-diameter diameter
-                            :capsule-height height
-                            :color color}
-                :passes [pass/outline pass/transparent pass/selection]}})
+  [_node-id transform diameter height color node-outline-key project-physics-type]
+  ;; NOTE: Capsules are currently only supported when physics type is 3D.
+  (let [radius (* 0.5 diameter)
+        half-height (* 0.5 height)
+        ext-y (+ half-height radius)
+        ext-z (case project-physics-type
+                "2D" 0.0
+                "3D" radius)
+        ext [radius ext-y ext-z]
+        neg-ext [(- radius) (- ext-y) (- ext-z)]
+        aabb (geom/coords->aabb ext neg-ext)
+        point-scale (float-array [radius radius ext-z])
+        point-offset-by-w (float-array [0.0 half-height 0.0])]
+    {:node-id _node-id
+     :node-outline-key node-outline-key
+     :transform transform
+     :aabb aabb
+     :renderable {:render-fn render-triangles-uniform-scale
+                  :tags #{:collision-shape}
+                  :passes [pass/transparent pass/selection]
+                  :user-data {:color color
+                              :point-scale point-scale
+                              :point-offset-by-w point-offset-by-w
+                              :geometry capsule-triangles}}
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-lines-uniform-scale
+                              :tags #{:collision-shape :outline}
+                              :passes [pass/outline]
+                              :user-data {:color color
+                                          :point-scale point-scale
+                                          :point-offset-by-w point-offset-by-w
+                                          :geometry capsule-lines}}}]}))
 
 (g/defnode SphereShape
   (inherits Shape)
@@ -489,8 +581,6 @@
   [node-id]
   [:scale-x :scale-y :scale-xy])
 
-
-
 (defn attach-shape-node
   [resolve-node-outline-key? parent shape-node]
   (concat
@@ -499,6 +589,7 @@
     (g/connect shape-node :scene                 parent     :child-scenes)
     (g/connect shape-node :shape                 parent     :shapes)
     (g/connect parent     :collision-group-color shape-node :color)
+    (g/connect parent     :project-physics-type  shape-node :project-physics-type)
     (when resolve-node-outline-key?
       (g/update-property shape-node :node-outline-key outline/next-node-outline-key (outline/taken-node-outline-keys parent)))))
 
@@ -546,7 +637,7 @@
       :friction (:friction co)
       :restitution (:restitution co)
       :group (:group co)
-      :mask (some->> (:mask co) (s/join ", "))
+      :mask (some->> (:mask co) (string/join ", "))
       :linear-damping (:linear-damping co)
       :angular-damping (:angular-damping co)
       :locked-rotation (:locked-rotation co))
@@ -597,7 +688,7 @@
    :friction friction
    :restitution restitution
    :group group
-   :mask (when mask (->> (s/split mask #",") (map s/trim) (remove s/blank?)))
+   :mask (when mask (->> (string/split mask #",") (map string/trim) (remove string/blank?)))
    :linear-damping linear-damping
    :angular-damping angular-damping
    :locked-rotation locked-rotation
@@ -625,7 +716,7 @@
     collision-shape))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-settings shapes]
+  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-physics-type shapes]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (:ext (resource/resource-type collision-shape))))
                        (get-in (first dep-build-targets) [:user-data :pb]))
@@ -647,13 +738,12 @@
        (when (and (empty? (:collision-shape pb-msg))
                   (empty? (:embedded-collision-shape pb-msg)))
          (g/->error _node-id :collision-shape :fatal collision-shape "Collision Object has no shapes"))
-       (let [supported-physics-type (project-physics-type project-settings)]
-         (sequence (comp (map :shape-type)
-                         (distinct)
-                         (remove #(contains? (shape-type-physics-types %) supported-physics-type))
-                         (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) supported-physics-type))
-                         (map #(g/->error _node-id :shapes :fatal shapes %)))
-                   shapes))]
+       (sequence (comp (map :shape-type)
+                       (distinct)
+                       (remove #(contains? (shape-type-physics-types %) project-physics-type))
+                       (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) project-physics-type))
+                       (map #(g/->error _node-id :shapes :fatal shapes %)))
+                 shapes)]
       [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
@@ -712,7 +802,7 @@
   (property mask g/Str)
 
   (output scene g/Any :cached produce-scene)
-
+  (output project-physics-type PhysicsType (g/fnk [project-settings] (project-physics-type project-settings)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                      {:node-id _node-id
                                                       :node-outline-key "Collision Object"

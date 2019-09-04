@@ -191,11 +191,10 @@
 -keep public class android.support.v4.app.FragmentTransaction
 -keep public class android.support.v4.app.SharedElementCallback
 -keep public class android.support.v4.app.SupportActivity$ExtraData
--keep public class android.support.v4.content.LocalBroadcastManager
+-keep        class android.support.v4.content.LocalBroadcastManager { *; }
 -keep public class android.arch.lifecycle.Lifecycle$State
 
 # -keep public class com.amazon.device.iap.**
--keep public class com.google.firebase.**
 -keep public class com.facebook.**
 
 -keep public class android.Manifest
@@ -306,17 +305,9 @@
 -keep public class com.google.android.gms.common.GoogleApiAvailability
 -keep public class com.google.android.gms.tasks.OnCompleteListener
 -keep public class com.google.android.gms.tasks.Task
--keep public class com.google.firebase.FirebaseApp
--keep public class com.google.firebase.FirebaseOptions
--keep public class com.google.firebase.iid.FirebaseInstanceId
--keep public class com.google.firebase.iid.InstanceIdResult
--keep public class com.google.firebase.messaging.RemoteMessage
--keep public class com.google.android.gms.gcm.GoogleCloudMessaging
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.android.gms.**
 -dontwarn com.google.protobuf.**
--dontwarn com.google.firebase.messaging.R
--dontwarn com.google.firebase.messaging.R$*
 -keep public class java.io.BufferedReader
 -keep public class java.io.File
 -keep public class java.io.FileNotFoundException

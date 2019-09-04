@@ -1370,12 +1370,13 @@ _GLFWwin g_Savewin;
 
     // According to Apple glFinish() should be called here
     glFinish();
+
+    if(_glfwWin.windowFocusCallback)
+        _glfwWin.windowFocusCallback(0);
 }
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
-    if(_glfwWin.windowFocusCallback)
-        _glfwWin.windowFocusCallback(0);
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application

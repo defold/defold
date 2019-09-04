@@ -1,11 +1,16 @@
+
+#include <dlib/configfile.h>
 #include <dlib/log.h>
 #include <ddf/ddf.h>
+#include <gameobject/gameobject.h>
+#include <render/render.h>
 #include <script/script.h>
+#include "gamesys.h"
 #include "tile_ddf.h"
+#include "../gamesys_private.h"
+#include "../resources/res_tilegrid.h"
 #include "../components/comp_tilegrid.h"
 #include "../proto/physics_ddf.h"
-#include "gamesys.h"
-#include "../gamesys_private.h"
 #include "script_tilemap.h"
 
 extern "C"
@@ -49,7 +54,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int TileMap_SetConstant(lua_State* L)
+    static int TileMap_SetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -93,7 +98,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int TileMap_ResetConstant(lua_State* L)
+    static int TileMap_ResetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -149,7 +154,7 @@ namespace dmGameSystem
      * tilemap.set_tile("/level#tilemap", "foreground", self.player_x, self.player_y, 0)
      * ```
      */
-    int TileMap_SetTile(lua_State* L)
+    static int TileMap_SetTile(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -160,7 +165,6 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
-        TileGridResource* resource = component->m_TileGridResource;
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
@@ -175,14 +179,15 @@ namespace dmGameSystem
 
         int x = luaL_checkinteger(L, 3) - 1;
         int y = luaL_checkinteger(L, 4) - 1;
+
         int lua_tile  = luaL_checkinteger(L, 5);
 
         /* Range check: tile indices that fall outside of the valid limits will crash the engine.
-         * 
+         *
          * Note that 0 resets the tile cell, so the valid range is [0...N]
          * where N is equal to the amount of tiles availabel in the tile source.
          */
-        if (lua_tile < 0 || lua_tile > resource->m_TextureSet->m_TextureSet->m_TileCount)
+        if (lua_tile < 0 || lua_tile > (int)GetTileCount(component))
         {
             return luaL_error(L, "tilemap.set_tile called with out-of-range tile index (%d)", lua_tile);
         }
@@ -192,26 +197,25 @@ namespace dmGameSystem
          * That's why tile-index is subtracted by 1
          * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
          */
-        uint32_t tile = ((uint16_t) lua_tile) - 1;
+        uint32_t tile = lua_tile - 1;
 
-        int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
-        if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
+        int min_x, min_y, grid_w, grid_h;
+        GetTileGridBounds(component, &min_x, &min_y, &grid_w, &grid_h);
+
+        int32_t cell_x, cell_y;
+        GetTileGridCellCoord(component, x, y, cell_x, cell_y);
+
+        if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h)
         {
             dmLogError("Could not set the tile since the supplied tile was out of range.");
             lua_pushboolean(L, 0);
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
-        uint32_t region_x = cell_x / TILEGRID_REGION_WIDTH;
-        uint32_t region_y = cell_y / TILEGRID_REGION_HEIGHT;
-        uint32_t region_index = region_y * component->m_RegionsX + region_x;
-        TileGridRegion* region = &component->m_Regions[region_index];
-        region->m_Dirty = true;
-        component->m_Cells[cell_index] = tile;
-        TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-        flags->m_FlipHorizontal = lua_toboolean(L, 6);
-        flags->m_FlipVertical = lua_toboolean(L, 7);
+
+        bool flip_h = lua_toboolean(L, 6);
+        bool flip_v = lua_toboolean(L, 7);
+        SetTileGridTile(component, layer_index, cell_x, cell_y, tile, flip_h, flip_v);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -223,8 +227,8 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            set_hull_ddf.m_FlipHorizontal = flags->m_FlipHorizontal;
-            set_hull_ddf.m_FlipVertical = flags->m_FlipVertical;
+            set_hull_ddf.m_FlipHorizontal = flip_h;
+            set_hull_ddf.m_FlipVertical = flip_v;
             dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
@@ -265,7 +269,7 @@ namespace dmGameSystem
      * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
      * ```
      */
-    int TileMap_GetTile(lua_State* L)
+    static int TileMap_GetTile(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -275,10 +279,8 @@ namespace dmGameSystem
         uintptr_t user_data;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
-        TileGridResource* resource = component->m_TileGridResource;
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
-
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
@@ -290,16 +292,23 @@ namespace dmGameSystem
 
         int x = luaL_checkinteger(L, 3) - 1;
         int y = luaL_checkinteger(L, 4) - 1;
-        int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
-        if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
+
+        int min_x, min_y, grid_w, grid_h;
+        GetTileGridBounds(component, &min_x, &min_y, &grid_w, &grid_h);
+
+        int32_t cell_x, cell_y;
+        GetTileGridCellCoord(component, x, y, cell_x, cell_y);
+
+        if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h)
         {
             dmLogError("Could not get the tile since the supplied tile was out of range.");
             lua_pushnil(L);
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
-        uint16_t cell = (component->m_Cells[cell_index] + 1);
+
+        uint16_t cell = GetTileGridTile(component, layer_index, cell_x, cell_y);
+
         lua_pushinteger(L,  cell);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -326,7 +335,7 @@ namespace dmGameSystem
      * local x, y, w, h = tilemap.get_bounds("/level#tilemap")
      * ```
      */
-    int TileMap_GetBounds(lua_State* L)
+    static int TileMap_GetBounds(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -336,20 +345,54 @@ namespace dmGameSystem
         uintptr_t user_data;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
-        TileGridResource* resource = component->m_TileGridResource;
 
-        int x = resource->m_MinCellX + 1;
-        int y = resource->m_MinCellY + 1;
-        int w = resource->m_ColumnCount;
-        int h = resource->m_RowCount;
+        int x, y, w, h;
+        GetTileGridBounds(component, &x, &y, &w, &h);
 
-        lua_pushinteger(L, x);
-        lua_pushinteger(L, y);
+        lua_pushinteger(L, x + 1);
+        lua_pushinteger(L, y + 1);
         lua_pushinteger(L, w);
         lua_pushinteger(L, h);
 
         assert(top + 4 == lua_gettop(L));
         return 4;
+    }
+
+    /*# set the visibility of a layer
+     * Sets the visibility of the tilemap layer
+     *
+     * @name tilemap.set_visible
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param visible [type:boolean] should the layer be visible
+     * @examples
+     *
+     * ```lua
+     * -- Disable rendering of the layer
+     * tilemap.set_visible("/level#tilemap", "foreground", false)
+     * ```
+     */
+    static int TileMap_SetVisible(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
+        TileGridComponent* component = (TileGridComponent*) user_data;
+
+        dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
+        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        if (layer_index == ~0u)
+        {
+            return DM_LUA_ERROR("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
+        }
+
+        bool visible = lua_toboolean(L, 3);
+        SetLayerVisible(component, layer_index, visible);
+        return 0;
     }
 
     static const luaL_reg TILEMAP_FUNCTIONS[] =
@@ -359,6 +402,7 @@ namespace dmGameSystem
         {"set_tile",        TileMap_SetTile},
         {"get_tile",        TileMap_GetTile},
         {"get_bounds",      TileMap_GetBounds},
+        {"set_visible",     TileMap_SetVisible},
         {0, 0}
     };
 

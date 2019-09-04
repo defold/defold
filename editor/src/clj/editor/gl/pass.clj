@@ -7,16 +7,17 @@
 
 (set! *warn-on-reflection* true)
 
-(defrecord RenderPass [nm selection model-transform]
+(defrecord RenderPass [nm selection model-transform depth-clipping]
   types/Pass
   (types/selection?       [this] selection)
-  (types/model-transform? [this] model-transform))
+  (types/model-transform? [this] model-transform)
+  (types/depth-clipping?  [this] depth-clipping))
 
-(defmacro make-pass [lbl sel model-xfm]
-  `(def ~lbl (RenderPass. ~(str lbl) ~sel ~model-xfm)))
+(defmacro make-pass [sym selection model-transform depth-clipping]
+  `(def ~sym (RenderPass. ~(str sym) ~selection ~model-transform ~depth-clipping)))
 
 (defmacro make-passes [& forms]
-  (let [ps (partition 3 forms)]
+  (let [ps (partition 4 forms)]
     `(do
        ~@(map #(list* 'make-pass %) ps)
        (def all-passes ~(mapv first ps))
@@ -24,18 +25,20 @@
        (def render-passes    ~(mapv first (remove second ps))))))
 
 (make-passes
-  ; name selection model-transform
-  background     false false
-  opaque         false true
-  transparent    false true
-  outline        false true
-  manipulator    false true
-  overlay        false false
-  opaque-selection true true
-  selection      true  true ; transparent selection if you will...
-  manipulator-selection      true true)
+  ; name selection model-transform depth-clipping
+  background            false false false
+  infinity-grid         false true  false
+  opaque                false true  true
+  transparent           false true  true
+  outline               false true  true
+  manipulator           false true  false
+  overlay               false false true
+  opaque-selection      true  true  true
+  selection             true  true  true  ; transparent selection if you will...
+  manipulator-selection true  true  false)
 
 (g/deftype RenderData {(s/optional-key background)            s/Any
+                       (s/optional-key infinity-grid)         s/Any
                        (s/optional-key opaque)                s/Any
                        (s/optional-key transparent)           s/Any
                        (s/optional-key outline)               s/Any
@@ -58,6 +61,20 @@
   (.glStencilMask gl 0x0)
   (.glColorMask gl true true true true)
   (.glDisable gl GL2/GL_LINE_STIPPLE))
+
+(defmethod prepare-gl infinity-grid
+  [_ ^GL2 gl ^GLU glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)
+    (.glDisable GL/GL_SCISSOR_TEST)
+    (.glDisable GL/GL_STENCIL_TEST)
+    (.glStencilMask 0x0)
+    (.glColorMask true true true true)
+    (.glDisable GL2/GL_LINE_STIPPLE)))
 
 (defmethod prepare-gl opaque
   [_ ^GL2 gl glu]

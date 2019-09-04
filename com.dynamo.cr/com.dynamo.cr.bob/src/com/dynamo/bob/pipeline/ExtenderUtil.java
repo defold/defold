@@ -546,6 +546,10 @@ public class ExtenderUtil {
             excludes = new ArrayList<>();
         }
 
+        // Make sure the path has Unix separators, since this is how
+        // paths are specified game project relative internally.
+        path = FilenameUtils.separatorsToUnix(path);
+
         HashMap<String, IResource> resources = new HashMap<String, IResource>();
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths(path, paths);
@@ -565,7 +569,7 @@ public class ExtenderUtil {
         return resources;
     }
     private static String[] getBundleResourcePaths(Project project) {
-        return project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim().split(",");
+        return project.getProjectProperties().getStringArrayValue("project", "bundle_resources", new String[0]);
     }
 
     // Removes resources that starts with the string
@@ -639,6 +643,10 @@ public class ExtenderUtil {
     // returns true if any sub directory has an android asset directory name
     public static boolean isAndroidAssetDirectory(Project project, String path) {
         List<String> subdirs = new ArrayList<>();
+
+        // Make sure the path has Unix separators, since this is how
+        // paths are specified game project relative internally.
+        path = FilenameUtils.separatorsToUnix(path);
         project.findResourceDirs(path, subdirs);
 
         for (String subdir : subdirs) {
@@ -811,13 +819,27 @@ public class ExtenderUtil {
         }
     }
 
-    static boolean isListOfStrings(List<Object> list) {
+    private static boolean isListOfStrings(Object l) {
+        if (!(l instanceof List)) {
+            return false;
+        }
+        List<Object> list = (List<Object>)l;
         for (Object o : list) {
             if (!(o instanceof String)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isMap(Object o) {
+        return o instanceof Map<?, ?>;
+    }
+
+    private static boolean isSameClass(Object a, Object b) {
+        if (isMap(a)) return isMap(b);
+        if (isListOfStrings(a)) return isListOfStrings(b);
+        return a.getClass().equals(b.getClass());
     }
 
     /* Merges a and b
@@ -838,18 +860,18 @@ public class ExtenderUtil {
                 continue;
             }
 
-            if (!objA.getClass().equals(objB.getClass())) {
+            if (!isSameClass(objA, objB)) {
                 throw new RuntimeException(String.format("Class types differ: '%s' != '%s' for values '%s' and '%s'", objA.getClass(), objB.getClass(), objA, objB));
             }
 
-            if (objA instanceof List && isListOfStrings((List<Object>)objA)) {
+            if (isListOfStrings(objA)) {
                 List<String> listA = (List<String>)objA;
                 List<String> listB = (List<String>)objB;
                 List<String> list = new ArrayList<String>();
                 list.addAll(listA);
                 list.addAll(listB);
                 merged.put(key, list);
-            } else if (objA instanceof Map<?, ?>) {
+            } else if (isMap(objA)) {
                 Map<String, Object> mergedChildren = ExtenderUtil.mergeManifestContext((Map<String, Object>)objA, (Map<String, Object>)objB);
                 merged.put(key, mergedChildren);
             } else {
@@ -906,7 +928,8 @@ public class ExtenderUtil {
             try {
                 ctx = mergeManifestContext(ctx, platform_ctx);
             } catch (RuntimeException e) {
-                throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", e.toString()));
+                e.printStackTrace(System.out);
+                throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
             }
         }
         return ctx;

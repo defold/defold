@@ -172,13 +172,6 @@ extern "C" {
 #elif defined(ANDROID)
 #include <EGL/egl.h>
 #include <GLES/gl.h>
-#elif defined(__AVM2__)
-
-// Minimal GL compatibility (no GL in flash)
-#define GL_FALSE                                0x0
-#define GL_TRUE                                 0x1
-typedef unsigned char   GLubyte;
-
 #else
  #include <GL/gl.h>
  #ifndef GLFW_NO_GLU
@@ -374,6 +367,7 @@ typedef unsigned char   GLubyte;
 #define GLFW_OPENGL_DEBUG_CONTEXT 0x00020017
 #define GLFW_OPENGL_PROFILE       0x00020018
 #define GLFW_WINDOW_HIGH_DPI      0x00020019
+#define GLFW_CLIENT_API           0x0002001A
 
 /* GLFW_OPENGL_PROFILE tokens */
 #define GLFW_OPENGL_CORE_PROFILE  0x00050001
@@ -386,6 +380,10 @@ typedef unsigned char   GLubyte;
 #define GLFW_SYSTEM_KEYS          0x00030004
 #define GLFW_KEY_REPEAT           0x00030005
 #define GLFW_AUTO_POLL_EVENTS     0x00030006
+
+/* GLFW_CLIENT_API modes */
+#define GLFW_NO_API                        0
+#define GLFW_OPENGL_API           0x00030001
 
 /* glfwWaitThread wait modes */
 #define GLFW_WAIT                 0x00040001

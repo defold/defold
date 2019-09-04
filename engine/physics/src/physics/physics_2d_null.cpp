@@ -248,4 +248,11 @@ namespace dmPhysics
         return true;
     }
 
+    void FlipH2D(HCollisionObject2D collision_object)
+    {
+    }
+
+    void FlipV2D(HCollisionObject2D collision_object)
+    {
+    }
 }

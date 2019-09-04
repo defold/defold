@@ -360,18 +360,45 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
-    public void loadProjectFile() throws IOException, ParseException {
-        clearProjectProperties();
-        IResource gameProject = this.fileSystem.get("/game.project");
-        if (gameProject.exists()) {
-            ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
-            projectProperties.load(is);
+    public static void loadPropertyFile(BobProjectProperties properties, String filepath) throws IOException {
+        Path pathHandle = Paths.get(filepath);
+        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
+            throw new IOException(filepath + " is not a file");
+        byte[] data = Files.readAllBytes(pathHandle);
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        try {
+            properties.load(is);
+        } catch(ParseException e) {
+            throw new IOException("Could not parse: " + filepath);
+        }
+    }
 
-            for (String filepath : propertyFiles) {
-                loadPropertyFile(filepath);
-            }
-        } else {
-            logWarning("No game.project found");
+    // Loads the properties from a game project settings file
+    // Also adds any properties specified with the "--settings" flag
+    public static BobProjectProperties loadProperties(IResource resource, List<String> settingsFiles) throws IOException {
+        if (!resource.exists()) {
+            throw new IOException(String.format("Project file not found: %s", resource.getAbsPath()));
+        }
+
+        BobProjectProperties properties = new BobProjectProperties();
+        try {
+            properties.loadDefaults();
+            Project.loadPropertyFile(properties, resource.getAbsPath());
+        } catch(ParseException e) {
+            throw new IOException("Could not parse: " + resource.getAbsPath());
+        }
+
+        for (String filepath : settingsFiles) {
+            Project.loadPropertyFile(properties, filepath);
+        }
+
+        return properties;
+    }
+
+    public void loadProjectFile() throws IOException, ParseException {
+        IResource gameProject = getGameProjectResource();
+        if (gameProject.exists()) {
+            projectProperties = Project.loadProperties(gameProject, this.getPropertyFiles());
         }
     }
 
@@ -379,13 +406,9 @@ public class Project {
         propertyFiles.add(filepath);
     }
 
-    public void loadPropertyFile(String filepath) throws IOException, ParseException {
-        Path pathHandle = Paths.get(filepath);
-        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
-            throw new IOException(filepath + " is not a file");
-        byte[] data = Files.readAllBytes(pathHandle);
-        ByteArrayInputStream is = new ByteArrayInputStream(data);
-        projectProperties.load(is);
+    // Returns the command line specified property files
+    public List<String> getPropertyFiles() {
+        return propertyFiles;
     }
 
     private void logExceptionToStdErr(IResource res, int line)
@@ -657,7 +680,12 @@ public class Project {
                 String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
                 proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
 
-                if (!androidResourcesGenerated)
+                // NOTE:
+                // We previously only generated and sent Android resources for at most one arch,
+                // to avoid sending and building these twice.
+                // However the server will run proguard for both of these architectures which means
+                // for the second arch it will not find R attributes and fail.
+                // if (!androidResourcesGenerated)
                 {
                     androidResourcesGenerated = true;
 
@@ -1335,7 +1363,9 @@ run:
 
     // Finds the first level of directories in a path
     public void findResourceDirs(String _path, Collection<String> result) {
-        final String path = Project.stripLeadingSlash(_path);
+        // Make sure the path has Unix separators, since this is how
+        // paths are specified game project relative internally.
+        final String path = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(_path));
         fileSystem.walk(path, new FileSystemWalker() {
             public boolean handleDirectory(String dir, Collection<String> results) {
                 if (path.equals(dir)) {
