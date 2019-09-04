@@ -94,10 +94,6 @@ namespace dmSys
         int  m_GmtOffset;
         /// Unique device identifier, e.g. "identifierForVendor" on iOS
         char m_DeviceIdentifier[64];
-        /// Advertising identifier if available, e.g. "advertisingIdentifier" on iOS
-        char m_AdIdentifier[64];
-        /// True if advertising is enabled, e.g. "advertisingTrackingEnabled" on iOS
-        bool m_AdTrackingEnabled;
         /// The string returned from the browser (allocated, has to be free'd)
         const char* m_UserAgent;
     };
