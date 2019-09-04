@@ -939,17 +939,19 @@
 
 (defn- fudge-empty-aabb
   ^AABB [^AABB aabb]
-  (let [min-p ^Point3d (.min aabb)
-        max-p ^Point3d (.max aabb)
-        zero-x (= (.x min-p) (.x max-p))
-        zero-y (= (.y min-p) (.y max-p))
-        zero-z (= (.z min-p) (.z max-p))]
-    (geom/coords->aabb [(cond-> (.x min-p) zero-x dec)
-                        (cond-> (.y min-p) zero-y dec)
-                        (cond-> (.z min-p) zero-z dec)]
-                       [(cond-> (.x max-p) zero-x inc)
-                        (cond-> (.y max-p) zero-y inc)
-                        (cond-> (.z max-p) zero-z inc)])))
+  (if (geom/null-aabb? aabb)
+    aabb
+    (let [min-p ^Point3d (.min aabb)
+          max-p ^Point3d (.max aabb)
+          zero-x (= (.x min-p) (.x max-p))
+          zero-y (= (.y min-p) (.y max-p))
+          zero-z (= (.z min-p) (.z max-p))]
+      (geom/coords->aabb [(cond-> (.x min-p) zero-x dec)
+                          (cond-> (.y min-p) zero-y dec)
+                          (cond-> (.z min-p) zero-z dec)]
+                         [(cond-> (.x max-p) zero-x inc)
+                          (cond-> (.y max-p) zero-y inc)
+                          (cond-> (.z max-p) zero-z inc)]))))
 
 (defn frame-selection [view animate?]
   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))

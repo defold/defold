@@ -397,26 +397,19 @@
       pass/selection (render-lines gl render-args renderables count)
       pass/transparent (render-emitters-sim gl render-args renderables count))))
 
-(defn- property-range
-  ^double [prop ^double default]
-  (if (nil? prop)
-    default
-    (let [[^double -r ^double +r] (props/sample-range prop)]
-      (max (Math/abs -r) +r))))
-
 (g/defnk produce-emitter-aabb [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
   (case type
     (:emitter-type-2dcone :emitter-type-cone)
-    (let [+bx (* 0.5 (property-range emitter-key-size-x 0.0))
-          +by (property-range emitter-key-size-y 0.0)
+    (let [+bx (* 0.5 (props/sample emitter-key-size-x))
+          +by (props/sample emitter-key-size-y)
           -bx (- +bx)]
       (geom/coords->aabb [-bx 0.0 (case type :emitter-type-2dcone 0.0 -bx)]
                          [+bx +by (case type :emitter-type-2dcone 0.0 +bx)]))
 
     :emitter-type-box
-    (let [+bx (* 0.5 (property-range emitter-key-size-x 0.0))
-          +by (* 0.5 (property-range emitter-key-size-y 0.0))
-          +bz (* 0.5 (property-range emitter-key-size-z 0.0))
+    (let [+bx (* 0.5 (props/sample emitter-key-size-x))
+          +by (* 0.5 (props/sample emitter-key-size-y))
+          +bz (* 0.5 (props/sample emitter-key-size-z))
           -bx (- +bx)
           -by (- +by)
           -bz (- +bz)]
@@ -424,10 +417,17 @@
                          [+bx +by +bz]))
 
     (:emitter-type-circle :emitter-type-sphere)
-    (let [+bx (property-range emitter-key-size-x 0.0)
+    (let [+bx (props/sample emitter-key-size-x)
           -bx (- +bx)]
       (geom/coords->aabb [-bx -bx (case type :emitter-type-circle 0.0 -bx)]
                          [+bx +bx (case type :emitter-type-circle 0.0 +bx)]))))
+
+(defn- property-range
+  ^double [prop ^double default]
+  (if (nil? prop)
+    default
+    (let [[^double -r ^double +r] (props/sample-range prop)]
+      (max (Math/abs -r) +r))))
 
 (g/defnk produce-emitter-visibility-aabb
   [type
