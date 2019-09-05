@@ -21,19 +21,14 @@ Where [rev] corresponds to an SDK Tools revision, e.g. 23.0.2. The process of in
 
 Install the platform tools and build tools for a version matching what is defined in `waf_dynamo.py` (currently 23.0.2).
 
-* Download NDK 10e: [http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip](http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip)
-* Put NDK/SDK in **~/android/android-ndk-r10e** and **~/android/android-sdk** respectively
+* Put the SDK in **~/android/android-sdk**
+* The Android NDK is managed as a package and automatically installed via install_ext from the `build.py` script
 
 Installer+GUI installation of those tools are a bit tricky, so it's recommended doing it via command line
 Here are some commands to help out with the process:
 
     mkdir ~/android
     cd ~/android
-
-    # Supported: darwin,linux,windows
-    PLATFORM=darwin
-    wget http://dl.google.com/android/repository/android-ndk-r10e-$PLATFORM-x86_64.zip
-    unzip android-ndk-r10e-$PLATFORM-x86_64.zip
 
     # Supported: macosx,linux,windows
     PLATFORM=macosx
@@ -52,7 +47,7 @@ Here are some commands to help out with the process:
     # Note the API level version: E.g. "android-23"
     ./android-sdk/tools/bin/sdkmanager --verbose "tools" "platform-tools" "extras;android;m2repository" "platforms;android-23" "build-tools;23.0.2"
 
-After installing SDK and NDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
+After installing the SDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
 
 **Note** Newer version have the suffixes ".bin" or ".exe" as they are now installers.
 Simply use that as the suffix, and and extract with **7z**
@@ -143,7 +138,7 @@ The first option is the preferred and easiest solution, but due to bugs with cer
 * Go to the build directory for the engine subsystem, `engine/engine/build/default/src/dmengine.android/`
 * This directory includes the debug app APK, `dmengine.apk` and has a structure that `ndk-gdb` understands.
 * Install (`adb install dmengine.apk`) and launch the application.
-* Run `ndk-gdb` from Android NDK; `android-ndk-r10b/ndk-gdb --start`
+* Run `ndk-gdb` from Android NDK; `$DYNAMO_HOME/ext/SDKs/android-ndk-<version>/ndk-gdb --start`
 
 If you are having problems with `ndk-gdb` try running it with `--verbose` for troubleshooting. If you encounter the error below it might be easier to go with the `gdbserver` solution.
 
@@ -180,7 +175,7 @@ This will start the gdbserver (which in this case is located inside dmengine.apk
 
 Next you will need to start a local gdb instance and connect to the gdbserver. The correct gdb binaries are located in the Android NDK:
 
-    $ android-ndk-r10b/toolchains/arm-linux-androideabi-4.6/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb app_process
+    $ $DYNAMO_HOME/ext/SDKs/android-ndk-<version>/toolchains/arm-linux-androideabi-4.6/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb app_process
     ...
     (gdb) target remote :5039
     ...

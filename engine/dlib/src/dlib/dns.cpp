@@ -9,7 +9,7 @@
 #include <ares.h>
 #include <assert.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__)
     #include <netdb.h>
 #endif
 
@@ -71,7 +71,7 @@ namespace dmDNS
             // so that we can attempt to make a connection anyway.
             req->m_Status = ARES_SUCCESS;
         }
-        else if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
+        else if (status != ARES_ECANCELLED && status != ARES_EDESTRUCTION)
         {
             // we cannot guarantee that the request data is still alive if the
             // request is either cancelled or destroyed. If so, we don't touch
@@ -107,7 +107,7 @@ namespace dmDNS
         RequestInfo* req = (RequestInfo*) arg;
 
         // Same as ares_gethost_callback, we need to trust the req pointer.
-        if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
+        if (status != ARES_ECANCELLED && status != ARES_EDESTRUCTION)
         {
             req->m_Status = (uint32_t) status;
         }
@@ -230,6 +230,16 @@ namespace dmDNS
             ares_destroy(dns_channel->m_Handle);
             delete dns_channel;
         }
+    }
+
+    Result RefreshChannel(HChannel channel)
+    {
+        if (channel && ares_init(&((Channel*)channel)->m_Handle) == ARES_SUCCESS)
+        {
+            return RESULT_OK;
+        }
+
+        return RESULT_INIT_ERROR;
     }
 
     // Note: This function should ultimately replace the dmSocket::GetHostByName, but there's a few places

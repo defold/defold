@@ -252,8 +252,24 @@ union SaveLoadBuffer
      * Find a path where we can store data (the example path is on the macOS platform):
      *
      * ```lua
+     * -- macOS: /Applications/my_game.app
      * local application_path = sys.get_application_path()
      * print(application_path) --> /Applications/my_game.app
+     *
+     * -- Windows: C:\Program Files\my_game\my_game.exe
+     * print(application_path) --> C:\Program Files\my_game
+     *
+     * -- Linux: /home/foobar/my_game/my_game
+     * print(application_path) --> /home/foobar/my_game
+     *
+     * -- Android package name: com.foobar.my_game
+     * print(application_path) --> /data/user/0/com.foobar.my_game
+     *
+     * -- iOS: my_game.app
+     * print(application_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     *
+     * -- HTML5: http://www.foobar.com/my_game/
+     * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
     int Sys_GetApplicationPath(lua_State* L)
