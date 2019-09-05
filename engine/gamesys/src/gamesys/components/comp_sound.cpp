@@ -23,7 +23,7 @@ namespace dmGameSystem
         dmMessage::URL          m_Receiver;
         float                   m_Delay;
         dmGameObject::HInstance m_Instance;
-        uint32_t                m_PlayId;
+        uint32_t                m_PlayId : 31;
         uint32_t                m_StopRequested : 1;
     };
 
