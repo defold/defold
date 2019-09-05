@@ -36,7 +36,6 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spi
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
-jar cfM lib/android-res.zip -C $DYNAMO_HOME/ext/share/java/ res
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/armv7-android/classes.dex lib/classes.dex
 cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
