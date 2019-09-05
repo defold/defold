@@ -302,6 +302,8 @@ namespace dmGui
 
     InternalNode* GetNode(HScene scene, HNode node);
 
+    bool IsNodeValid(HScene scene, HNode node);
+
     /** calculates the transform of a node
      * A boundary transform maps the local rectangle (0,1),(0,1) to screen space such that it inclusively encapsulates the node boundaries in screen space.
      * Box nodes are rendered in boundary space (quad with dimensions (0,1),(0,1)), so the same transform is calculated whether or not the CALCULATE_NODE_BOUNDARY flag is set.

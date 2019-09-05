@@ -231,8 +231,6 @@ namespace dmScript
 
     static void HttpInitialize(HContext context)
     {
-// TODO: Port
-#if !defined(__AVM2__)
         lua_State* L = GetLuaState(context);
         dmConfigFile::HConfig config_file = GetConfigFile(context);
 
@@ -253,19 +251,16 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
-#endif
     }
 
     static void HttpFinalize(HContext context)
     {
-#if !defined(__AVM2__)
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
         if (g_ServiceRefCount == 0) {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
         }
-#endif
     }
 
     void InitializeHttp(HContext context)

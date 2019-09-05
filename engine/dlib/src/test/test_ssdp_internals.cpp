@@ -385,8 +385,15 @@ TEST_F(dmSSDPInternalTest, ClientServer_MatchingInterfaces)
 
     for (unsigned int i = 0; i < server->m_LocalAddrCount; ++i)
     {
-        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, client->m_LocalAddrSocket[i]);
-        ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, server->m_LocalAddrSocket[i]);
+        // IPv6 sockets (and others with family other than IPv4) are ignored
+        // in dmSSDP::UpdateListeningSockets and have their handle set to invalid
+        if (client->m_LocalAddr[i].m_Address.m_family != dmSocket::DOMAIN_IPV4) {
+            ASSERT_EQ(dmSocket::INVALID_SOCKET_HANDLE, client->m_LocalAddrSocket[i]);
+        }
+        // The IPv4 socket should not be invalid
+        else {
+            ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, client->m_LocalAddrSocket[i]);
+        }
         ASSERT_EQ(server->m_LocalAddr[i].m_Address, client->m_LocalAddr[i].m_Address);
     }
 

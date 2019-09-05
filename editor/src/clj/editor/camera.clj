@@ -1,15 +1,38 @@
 (ns editor.camera
   (:require [dynamo.graph :as g]
-            [schema.core :as s]
-            [editor.ui :as ui]
             [editor.geom :as geom]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.types :as types]
-            [editor.graph-util :as gu])
-  (:import [editor.types AABB Camera Rect Region]
-           [javax.vecmath Point3d Quat4d Matrix3d Matrix4d Vector3d Vector4d AxisAngle4d Tuple3d Tuple4d]))
+            [schema.core :as s])
+  (:import [editor.types AABB Camera Frustum Rect Region]
+           [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
+
+(def fov-x-35mm-full-frame 54.4)
+(def fov-y-35mm-full-frame 37.8)
+
+(s/defn camera-forward-vector :- Vector3d
+  [camera :- Camera]
+  (math/rotate (types/rotation camera)
+               (Vector3d. 0.0 0.0 -1.0)))
+
+(s/defn camera-right-vector :- Vector3d
+  [camera :- Camera]
+  (math/rotate (types/rotation camera)
+               (Vector3d. 1.0 0.0 0.0)))
+
+(s/defn camera-focus-point :- Point3d
+  [camera :- Camera]
+  (let [^Vector4d p (:focus-point camera)]
+    (Point3d. (.x p) (.y p) (.z p))))
+
+(s/defn camera-without-depth-clipping :- Camera
+  [camera :- Camera]
+  (assoc camera
+    :z-near Double/MIN_NORMAL
+    :z-far Double/MAX_VALUE))
 
 (s/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
@@ -139,12 +162,12 @@
          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
          rotation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))]
      (types/->Camera t position rotation
-                     0 10000
-                     (get opts :fov-x 30) (get opts :fov-y 30)
-                     (Vector4d. 0 0 0 1.0)
+                     1.0 10000.0
+                     (get opts :fov-x fov-x-35mm-full-frame) (get opts :fov-y fov-y-35mm-full-frame)
+                     (Vector4d. 0.0 0.0 0.0 1.0)
                      filter-fn))))
 
-(s/defn set-orthographic :- Camera
+(s/defn set-extents :- Camera
   [camera :- Camera fov-x :- s/Num fov-y :- s/Num z-near :- s/Num z-far :- s/Num]
   (assoc camera
          :fov-x fov-x
@@ -172,13 +195,14 @@
     (.transform view-matrix position)
     (.setZ position 0.0)
     (.transform ^Matrix4d (geom/invert view-matrix) position)
-    (assoc camera :position position
-           :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
+    (assoc camera
+      :position position
+      :focus-point (Vector4d. (.x center) (.y center) (.z center) 1.0))))
 
 (s/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
-  [camera :- Camera viewport :- Region point :- Point3d]
+  [camera :- Camera viewport :- Region point :- Tuple3d]
   (let [proj  (camera-projection-matrix camera)
         model (camera-view-matrix camera)
         in    (Vector4d. (.x point) (.y point) (.z point) 1.0)
@@ -234,10 +258,10 @@
                          0.0 0.0 0.0 1.0])))))
 
 
-(defmacro scale-to-doubleunit [x x-min x-max]
+(defmacro normalize-to-bipolar [x x-min x-max]
   `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))
 
-(defmacro normalize-vector [v]
+(defmacro perspective-divide [v]
   `(do
      (if (= (.w ~v) 0.0) (throw (ArithmeticException.)))
      (Vector4d. (/ (.x ~v) (.w ~v))
@@ -248,8 +272,8 @@
 (s/defn camera-unproject :- Vector4d
   [camera :- Camera viewport :- Region win-x :- s/Num win-y :- s/Num win-z :- s/Num]
   (let [win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
-        in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
-                            (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
+        in       (Vector4d. (normalize-to-bipolar win-x (.left viewport) (.right viewport))
+                            (normalize-to-bipolar win-y (.top viewport) (.bottom viewport))
                             (- (* 2 win-z) 1.0)
                             1.0)
         proj     (camera-projection-matrix camera)
@@ -259,7 +283,7 @@
     (.mul a proj model)
     (.invert a)
     (.transform a in out)
-    (normalize-vector out)))
+    (perspective-divide out)))
 
 (s/defn viewproj-frustum-planes :- [Vector4d]
   [camera :- Camera]
@@ -276,12 +300,62 @@
              temp))
          rows scales)))
 
-(defn dolly
-  [camera delta]
-  (let [dolly-fn (fn [fov] (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))]
+(defn screen->clip
+  ^Point2d [^Region viewport ^double x ^double y]
+  (Point2d. (normalize-to-bipolar x (.left viewport) (.right viewport))
+            (- (normalize-to-bipolar y (.top viewport) (.bottom viewport)))))
+
+(defn clip->world
+  ^Point3d [^Matrix4d inv-view-proj ^Tuple2d clip ^double clip-z]
+  (let [undivided (Vector4d. (.x clip) (.y clip) clip-z 1.0)
+        _ (.transform inv-view-proj undivided)
+        world (perspective-divide undivided)]
+    (Point3d. (.x world) (.y world) (.z world))))
+
+(s/defn screen-rect-frustum :- Frustum
+  [camera :- Camera viewport :- Region rect :- Rect]
+  (let [inv-view-proj (doto (camera-projection-matrix camera)
+                        (.mul (camera-view-matrix camera))
+                        (.invert))
+        clip-tl (screen->clip viewport (.x rect) (.y rect))
+        clip-tr (screen->clip viewport (+ (.x rect) (.width rect)) (.y rect))
+        clip-bl (screen->clip viewport (.x rect) (+ (.y rect) (.height rect)))
+        clip-br (screen->clip viewport (+ (.x rect) (.width rect)) (+ (.y rect) (.height rect)))
+        near-tl (clip->world inv-view-proj clip-tl -1.0)
+        near-tr (clip->world inv-view-proj clip-tr -1.0)
+        near-bl (clip->world inv-view-proj clip-bl -1.0)
+        near-br (clip->world inv-view-proj clip-br -1.0)
+        far-tl (clip->world inv-view-proj clip-tl 1.0)
+        far-tr (clip->world inv-view-proj clip-tr 1.0)
+        far-bl (clip->world inv-view-proj clip-bl 1.0)
+        far-br (clip->world inv-view-proj clip-br 1.0)]
+    (geom/corners->frustum near-tl near-tr near-bl near-br far-tl far-tr far-bl far-br)))
+
+(defn- dolly-orthographic [camera delta]
+  (let [dolly-fn (fn [fov]
+                   (max 0.01 (+ (or fov 0)
+                                (* (or fov 1)
+                                   delta))))]
     (-> camera
-      (update :fov-x dolly-fn)
-      (update :fov-y dolly-fn))))
+        (update :fov-x dolly-fn)
+        (update :fov-y dolly-fn))))
+
+(defn- dolly-perspective [camera delta]
+  (let [forward (camera-forward-vector camera)
+        position (types/position camera)
+        focus ^Vector4d (:focus-point camera)
+        camera-to-focus-point (doto (Vector3d. (.x focus) (.y focus) (.z focus))
+                                (.sub position))
+        distance-to-focus-point (.length camera-to-focus-point)
+        offset-distance (if (pos? delta)
+                          (max 0.01 (* delta distance-to-focus-point))
+                          (min -0.01 (* delta distance-to-focus-point)))]
+    (update camera :position math/offset-scaled forward offset-distance)))
+
+(defn dolly [camera delta]
+  (case (:type camera)
+    :orthographic (dolly-orthographic camera delta)
+    :perspective (dolly-perspective camera delta)))
 
 (defn track
   [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
@@ -292,7 +366,7 @@
         delta (camera-unproject camera viewport last-x last-y screen-z)]
     (.sub delta world)
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
-           :focus-point (doto focus (.add delta)))))
+      :focus-point (doto focus (.add delta)))))
 
 (defn tumble
   [^Camera camera last-x last-y evt-x evt-y]
@@ -349,8 +423,7 @@
     (let [key [button shift ctrl alt meta]]
       (button-interpretation key :idle))))
 
-
-(s/defn camera-fov-from-aabb :- s/Num
+(s/defn camera-orthographic-fov-from-aabb :- s/Num
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
@@ -374,15 +447,53 @@
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (let [aspect (/ (:fov-x camera) (:fov-y camera))
-        [^double fov-x ^double fov-y] (camera-fov-from-aabb camera viewport aabb)
+        [^double fov-x ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
         [fov-x fov-y] (if (> (/ fov-x aspect) (* aspect fov-y))
                         [fov-x (/ fov-x aspect)]
                         [(* aspect fov-y) fov-y])
         filter-fn (or (:filter-fn camera) identity)]
     (-> camera
-      (camera-set-center aabb)
-      (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
-      filter-fn)))
+        (camera-set-center aabb)
+        (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
+        filter-fn)))
+
+(defn find-perspective-frame-distance
+  ^double [points point->coord ^double fov-deg]
+  (let [^double half-fov-rad (math/deg->rad (* fov-deg 0.5))
+        comp-half-fov-rad (- ^double math/half-pi half-fov-rad)
+        tan-comp-half-fov-rad (Math/tan comp-half-fov-rad)]
+    (reduce (fn [^double max-distance ^Point3d point]
+              (max max-distance
+                   (+ (.z point)
+                      (* tan-comp-half-fov-rad
+                         (Math/abs ^double (point->coord point))))))
+            Double/NEGATIVE_INFINITY
+            points)))
+
+(s/defn camera-perspective-frame-aabb :- Camera
+  [camera :- Camera ^AABB aabb :- AABB]
+  (assert (= :perspective (:type camera)))
+  (let [^double fov-x-deg (:fov-x camera)
+        ^double fov-y-deg (:fov-y camera)
+        filter-fn (or (:filter-fn camera) identity)
+        new-camera (camera-set-center camera aabb)
+        view-matrix (camera-view-matrix new-camera)
+        corners (mapv (fn [^Point3d corner]
+                        (.transform view-matrix corner)
+                        corner)
+                      (geom/aabb->corners aabb))
+        distance (max (find-perspective-frame-distance corners #(.x ^Point3d %) fov-x-deg)
+                      (find-perspective-frame-distance corners #(.y ^Point3d %) fov-y-deg))
+        cam-forward (camera-forward-vector new-camera)]
+    (-> new-camera
+        (update :position math/offset-scaled cam-forward (- distance))
+        filter-fn)))
+
+(s/defn camera-frame-aabb :- Camera
+  [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
+  (case (:type camera)
+    :orthographic (camera-orthographic-frame-aabb camera viewport aabb)
+    :perspective (camera-perspective-frame-aabb camera aabb)))
 
 (defn camera-orthographic-realign ^Camera
   [^Camera camera ^Region viewport ^AABB aabb]
@@ -391,30 +502,98 @@
         delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
                           (.sub focus))
         dist (.length delta)]
-    (assoc camera :position (Point3d. (.x focus) (.y focus) dist)
-           :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
+    (assoc camera
+      :position (Point3d. (.x focus) (.y focus) dist)
+      :rotation (Quat4d. 0.0 0.0 0.0 1.0))))
 
 (s/defn camera-orthographic-frame-aabb-y :- Camera
   [camera :- Camera viewport :- Region ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
   (let [fov-x (:fov-x camera)
-        [_ ^double fov-y] (camera-fov-from-aabb camera viewport aabb)
+        [_ ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
         filter-fn (or (:filter-fn camera) identity)]
     (-> camera
       (camera-set-center aabb)
-      (set-orthographic fov-x fov-y (:z-near camera) (:z-far camera))
+      (set-extents fov-x fov-y (:z-near camera) (:z-far camera))
       filter-fn)))
 
-(g/defnk produce-camera [_node-id local-camera viewport]
-  (let [w (- (:right viewport) (:left viewport))
-        h (- (:bottom viewport) (:top viewport))]
-    (if (and (> w 0) (> h 0))
-      (let [aspect (/ (double w) h)
-            filter-fn (or (:filter-fn local-camera) identity)]
-        (-> local-camera
-          (set-orthographic (* aspect (:fov-y local-camera)) (:fov-y local-camera) 0 10000)
-          filter-fn))
-      local-camera)))
+(s/defn camera-orthographic->perspective :- Camera
+  [camera :- Camera ^double fov-y-deg]
+  ;; Orthographic fov is specified as distance between the frustum edges.
+  ;; Perspective fov is specified as degrees between the frustum edges.
+  (assert (= :orthographic (:type camera)))
+  (let [^double fov-x-distance (:fov-x camera)
+        ^double fov-y-distance (:fov-y camera)
+        ^double half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
+        aspect (/ fov-x-distance fov-y-distance)
+        focus-distance (/ fov-y-distance 2.0 (Math/tan half-fov-y-rad))
+        focus-pos (camera-focus-point camera)
+        cam-forward (camera-forward-vector camera)
+        cam-pos (math/offset-scaled focus-pos cam-forward (- focus-distance))]
+    (assoc camera
+      :type :perspective
+      :position cam-pos
+      :fov-x (* fov-y-deg aspect)
+      :fov-y fov-y-deg)))
+
+(s/defn camera-perspective->orthographic :- Camera
+  [camera :- Camera]
+  ;; Orthographic fov is specified as distance between the frustum edges.
+  ;; Perspective fov is specified as degrees between the frustum edges.
+  (assert (= :perspective (:type camera)))
+  (let [focus-pos (camera-focus-point camera)
+        focus-distance (.length (math/subtract-vector focus-pos (:position camera)))
+        ^double fov-x-deg (:fov-x camera)
+        ^double fov-y-deg (:fov-y camera)
+        ^double half-fov-x-rad (math/deg->rad (* fov-x-deg 0.5))
+        ^double half-fov-y-rad (math/deg->rad (* fov-y-deg 0.5))
+        fov-x-distance (* focus-distance 2.0 (Math/tan half-fov-x-rad))
+        fov-y-distance (* focus-distance 2.0 (Math/tan half-fov-y-rad))
+        cam-forward (camera-forward-vector camera)
+        cam-pos (math/offset-scaled focus-pos cam-forward (- 5000))]
+    (assoc camera
+      :type :orthographic
+      :position cam-pos
+      :fov-x fov-x-distance
+      :fov-y fov-y-distance)))
+
+(s/defn camera-ensure-orthographic :- Camera
+  [camera :- Camera]
+  (case (:type camera)
+    :orthographic camera
+    :perspective (camera-perspective->orthographic camera)))
+
+(s/defn find-z-extents :- [s/Num s/Num]
+  [cam-pos :- Vector3d cam-dir :- Vector3d aabb :- AABB]
+  (loop [corners (geom/aabb->corners aabb)
+         near Double/MAX_VALUE
+         far Double/MIN_VALUE]
+    (if-some [corner (first corners)]
+      (let [cam->corner (math/subtract-vector corner cam-pos)
+            distance (.dot cam-dir cam->corner)]
+        (recur (next corners)
+               (min distance near)
+               (max distance far)))
+      [(max 1.0 (- near 0.0001))
+       (max 10.0 (+ far 0.0001))])))
+
+(g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
+  (let [filter-fn (or (:filter-fn local-camera) identity)
+        w (- (:right viewport) (:left viewport))
+        h (- (:bottom viewport) (:top viewport))
+        aspect (if (and (pos? w) (pos? h))
+                 (/ (double w) h)
+                 1.0)
+        fov-y (:fov-y local-camera)
+        fov-x (* aspect fov-y)
+        [z-near z-far] (if (nil? scene-aabb)
+                         [1.0 10000.0]
+                         (find-z-extents (types/position local-camera)
+                                         (camera-forward-vector local-camera)
+                                         scene-aabb))]
+    (-> local-camera
+        (set-extents fov-x fov-y z-near z-far)
+        filter-fn)))
 
 (defn handle-input [self action user-data]
   (let [viewport                   (g/node-value self :viewport)
@@ -465,6 +644,7 @@
   (property local-camera Camera)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
+  (input scene-aabb AABB)
   (input viewport Region)
 
   (output viewport Region (gu/passthrough viewport))

@@ -147,7 +147,7 @@ public class AtlasUtil {
         return animDescs;
     }
 
-    public static TextureSetResult genereateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
+    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
@@ -169,7 +169,7 @@ public class AtlasUtil {
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         return TextureSetGenerator.generate(images, iterator,
                 Math.max(0, atlas.getMargin()),
-                Math.max(0,  atlas.getInnerPadding()),
+                Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()), false, false, true, false, null);
     }
 }

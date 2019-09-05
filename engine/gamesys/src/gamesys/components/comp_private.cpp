@@ -5,6 +5,12 @@ using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
 
+
+CompRenderConstants::CompRenderConstants()
+{
+    memset(this, 0x0, sizeof(*this));
+}
+
 dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vector3& ref_value, const PropVector3& property)
 {
     dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;

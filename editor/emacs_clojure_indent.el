@@ -17,6 +17,8 @@
   (gl-push-matrix 1)
   (with-gl-bindings 1)
   (defhandler 1)
+  (defshader 1)
+  (defvertex 1)
   (register-ddf-resource-type 1)
   (event-handler 1)
   (invalidation-listener 1)
