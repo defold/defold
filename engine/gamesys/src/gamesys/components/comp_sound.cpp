@@ -190,6 +190,7 @@ namespace dmGameSystem
      * @name play_sound
      * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
      * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @param [play_id] [type:number] the identifier of the sound, can be used to distinguish between consecutive plays from the same component.
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
@@ -231,6 +232,15 @@ namespace dmGameSystem
      * ```lua
      * msg.post("#sound", "set_gain", {gain = 0.5})
      * ```
+     */
+
+    /*# reports when a sound has finished playing
+     * This message is sent back to the sender of a `play_sound` message, if the sound
+     * could be played to completion.
+     *
+     * @message
+     * @name sound_done
+     * @param [play_id] [type:number] id number supplied when the message was posted.
      */
 
     dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
