@@ -133,31 +133,24 @@ namespace dmGameSystem
                             dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
                             dmGameSystemDDF::SoundDone message;
 
-                            dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(entry.m_Instance), entry.m_Listener.m_Path);
-                            if (!listener_instance)
-                            {
-                                dmLogError("Could not send sound_done to instance: %s#%s", dmHashReverseSafe64(entry.m_Listener.m_Path), dmHashReverseSafe64(entry.m_Listener.m_Fragment));
-                            }
-                            else
-                            {
-                                dmMessage::URL receiver = entry.m_Listener;
-                                dmMessage::URL sender = entry.m_Receiver;
+                            dmMessage::URL receiver = entry.m_Listener;
+                            dmMessage::URL sender = entry.m_Receiver;
 
-                                if (dmMessage::IsSocketValid(sender.m_Socket) && dmMessage::IsSocketValid(receiver.m_Socket))
+                            if (dmMessage::IsSocketValid(sender.m_Socket) && dmMessage::IsSocketValid(receiver.m_Socket))
+                            {
+                                uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
+                                uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
+
+                                message.m_PlayId = entry.m_PlayId;
+
+                                if (dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
                                 {
-                                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
-                                    uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
-
-                                    message.m_PlayId = entry.m_PlayId;
-
-                                    if (dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
-                                    {
-                                        dmLogError("Could not send sound_done to listener.");
-                                    }
+                                    dmLogError("Could not send sound_done to listener.");
                                 }
-
-                                dmMessage::ResetURL(entry.m_Listener);
                             }
+
+                            dmMessage::ResetURL(entry.m_Receiver);
+                            dmMessage::ResetURL(entry.m_Listener);
                         }
                     }
                     else if (entry.m_StopRequested)
