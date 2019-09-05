@@ -3,7 +3,7 @@
 
 #include <dmsdk/dlib/mutex.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>
 #elif defined(_WIN32)
 #include "safe_windows.h"

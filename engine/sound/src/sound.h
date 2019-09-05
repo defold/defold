@@ -21,8 +21,11 @@ namespace dmSound
     {
         PARAMETER_GAIN  = 0,
         PARAMETER_PAN   = 1,
+<<<<<<< HEAD
         PARAMETER_SPEED = 2,
         PARAMETER_MAX   = 3
+=======
+>>>>>>> dev
     };
 
     enum Result

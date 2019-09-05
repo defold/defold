@@ -1,7 +1,7 @@
 #ifndef DM_ENDIAN
 #define DM_ENDIAN
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>

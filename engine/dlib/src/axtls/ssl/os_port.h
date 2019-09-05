@@ -151,7 +151,7 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
 #if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 		#include <netinet/in.h>
 	#elif defined(_WIN32)
 		//included elsewhere

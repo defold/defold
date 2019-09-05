@@ -50,7 +50,6 @@ NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
@@ -411,10 +410,6 @@ class Configuration(object):
             for path in target_package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
-
-        # Is as3-web a supported platform? doesn't say so in --platform?
-        print("Installing flash packages")
-        self._extract_packages('as3-web', PACKAGES_FLASH)
 
         print("Installing python eggs")
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
@@ -830,7 +825,6 @@ class Configuration(object):
             self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
 
         env = self._form_env()
-        self._set_java_8(env)
         self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
@@ -989,7 +983,6 @@ class Configuration(object):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
-        self._set_java_8(env)
         self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = cwd, shell = True, env = env)
 
@@ -1139,20 +1132,9 @@ instructions.configure=\
                     return os.path.join(root, d, 'bin')
         return ''
 
-    def _set_java_8(self, env):
-        if 'linux' in self.host2:
-            env['JAVA_HOME'] = '/usr/lib/jvm/java-8-oracle'
-        elif 'darwin' in self.host2:
-            env['JAVA_HOME'] = self.exec_command(['/usr/libexec/java_home','-v','1.8']).strip()
-        elif 'win32' in self.host2:
-            env['JAVA_HOME'] = self._find_jdk8_folder('C:\\Program Files\\Java')
-            env['PATH'] = env['JAVA_HOME'] + os.path.pathsep + env['PATH']
-        self._log("Setting JAVA to 1.8: " + env['JAVA_HOME'])
-
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
-        self._set_java_8(env)
         self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
 
     def build_editor2(self):

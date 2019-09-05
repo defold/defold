@@ -143,11 +143,18 @@ namespace dmSound
         void*       m_Frames;
         dmhash_t    m_Group;
 
+<<<<<<< HEAD
         Value       m_Gain;     // default: 1.0f
         Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
         float       m_Speed;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
         uint32_t    m_FrameCount;
         uint64_t    m_FrameFraction;
+=======
+        Value       m_Gain;
+        Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
+        uint32_t    m_FrameCount;
+        uint32_t    m_FrameFraction;
+>>>>>>> dev
 
         uint16_t    m_Index;
         uint16_t    m_SoundDataIndex;
@@ -710,9 +717,12 @@ namespace dmSound
                     sound_instance->m_Pan.Set(pan, reset);
                 }
                 break;
+<<<<<<< HEAD
             case PARAMETER_SPEED:
                 sound_instance->m_Speed = dmMath::Max(0.1f, dmMath::Min((float)SOUND_MAX_SPEED, value.getX()));
                 break;
+=======
+>>>>>>> dev
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
                 return RESULT_INVALID_PROPERTY;
@@ -857,6 +867,10 @@ namespace dmSound
 
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
+<<<<<<< HEAD
+=======
+
+>>>>>>> dev
             mix_buffer[2 * i]       += s * left_scale;
             mix_buffer[2 * i + 1]   += s * right_scale;
         }

@@ -10,7 +10,7 @@ typedef unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes *
                                                         void* seed /* 6 bytes */);
 #include "safe_windows.h"
 
-#elif !defined(ANDROID) && !defined(__EMSCRIPTEN__) && !defined(__AVM2__)
+#elif !defined(ANDROID) && !defined(__EMSCRIPTEN__)
 #include <uuid/uuid.h>
 #endif
 
@@ -51,7 +51,7 @@ namespace dmUUID
         NtAllocateUuids(p, p+8, p+12, &seed[0] );
     }
 
-#elif defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#elif defined(ANDROID) || defined(__EMSCRIPTEN__)
 #include <assert.h>
     void Generate(UUID* uuid)
     {
