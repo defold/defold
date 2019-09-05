@@ -361,6 +361,21 @@ namespace dmGameSystem
      *
      * `gain`
      * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the sound has finished playing.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"sound_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:number] `play_id` - the sequential play identifier that was given by the sound.play function.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the sound component.
      *
      * @examples
      *
@@ -368,6 +383,21 @@ namespace dmGameSystem
      *
      * ```lua
      * sound.play("#sound", { delay = 1, gain = 0.5 } )
+     * ```
+     *
+     * Using the callback argument, you can chain several sounds together:
+     *
+     * ```lua
+     * local function sound_done(self, message_id, message, sender)
+     *   -- play 'boom' sound fx when the countdown has completed
+     *   if message_id == hash("sound_done") and message.play_id == self.countdown_id then
+     *     sound.play("#boom", nil, sound_done)
+     *   end
+     * end
+     *
+     * function init(self)
+     *   self.countdown_id = sound.play("#countdown", nil, sound_done)
+     * end
      * ```
      */
     int Sound_Play(lua_State* L)
