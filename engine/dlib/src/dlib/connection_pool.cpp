@@ -111,7 +111,6 @@ namespace dmConnectionPool
             mbedtls_ssl_config_init( &m_MbedConf );
             mbedtls_ctr_drbg_init( &m_MbedCtrDrbg );
             mbedtls_entropy_init( &m_MbedEntropy );
-            mbedtls_ssl_conf_read_timeout( &m_MbedConf, SOCKET_TIMEOUT );
 
 #if defined(MBEDTLS_DEBUG_C)
             mbedtls_debug_set_threshold( MBED_DEBUG_LEVEL );
@@ -385,7 +384,15 @@ namespace dmConnectionPool
                 // In order to not have it block (unless timeout == 0)
                 dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
                 dmSocket::SetReceiveTimeout(c->m_Socket, (int)ssl_handshake_timeout);
-                mbedtls_ssl_conf_handshake_timeout(&pool->m_MbedConf, (int)ssl_handshake_timeout, dmMath::Max(ssl_handshake_timeout, SOCKET_TIMEOUT));
+
+                int max_ssl_handshake_timeout = dmMath::Max(ssl_handshake_timeout, SOCKET_TIMEOUT);
+                if (ssl_handshake_timeout != 0)
+                {
+                    int mbed_ssl_timeout = dmMath::Max(ssl_handshake_timeout, SOCKET_TIMEOUT) / 1000;
+                    mbed_ssl_timeout = dmMath::Max(1, mbed_ssl_timeout);
+                    // Never go below 1 second, since that's the lowest supported by thus function anyways
+                    mbedtls_ssl_conf_handshake_timeout(&pool->m_MbedConf, 1, mbed_ssl_timeout);
+                }
 
                 c->m_SSLContext     = (mbedtls_ssl_context*)malloc(sizeof(mbedtls_ssl_context));
                 c->m_SSLNetContext  = (mbedtls_net_context*)malloc(sizeof(mbedtls_net_context));

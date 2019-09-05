@@ -330,8 +330,10 @@ namespace dmHttpClient
                 return dmSocket::RESULT_CONNRESET;
             case MBEDTLS_ERR_SSL_TIMEOUT:
                 return dmSocket::RESULT_WOULDBLOCK;
+            case MBEDTLS_ERR_NET_RECV_FAILED:
+            return dmSocket::RESULT_TRY_AGAIN;
             default:
-                dmLogWarning("Unhandled ssl status code: %d", r);
+                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r);
                 // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
                 // and abort the request
                 return dmSocket::RESULT_UNKNOWN;
