@@ -419,13 +419,8 @@ TEST_P(dmSoundVerifyTest, Mix)
         double frac = fmod(i * mix_rate / 44100.0, 1.0);
         double a = a1 * (1.0 - frac) + a2 * frac;
         int16_t as = (int16_t) a;
-<<<<<<< HEAD
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 27);
-=======
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * 0.707107f, 24);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * 0.707107f, 24);
->>>>>>> dev
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * 0.707107f, 27);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * 0.707107f, 27);
     }
 
     ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
@@ -478,19 +473,6 @@ TEST_P(dmSoundVerifyTest, NoEarlyBailOnSoundInstances)
 }
 
 const TestParams params_verify_test[] = {
-<<<<<<< HEAD
-=======
-    TestParams("loopback",
-            MONO_TONE_440_22050_44100_WAV,
-            MONO_TONE_440_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            22050,
-            44100,
-            2048),
-};
-const TestParams params_verify_test_[] = {
->>>>>>> dev
 TestParams("loopback",
             MONO_TONE_440_22050_44100_WAV,
             MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -898,7 +880,6 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-<<<<<<< HEAD
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::Play(instance);
@@ -944,8 +925,6 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     uint64_t start = dmTime::GetTime();
-=======
->>>>>>> dev
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
