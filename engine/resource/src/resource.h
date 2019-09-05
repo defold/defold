@@ -266,21 +266,6 @@ namespace dmResource
     typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
 
     /**
-     * Parameters to ResourceDuplicate callback.
-     */
-    struct ResourceDuplicateParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// Resource descriptor to copy from
-        SResourceDescriptor* m_OriginalResource;
-        /// Resource descriptor to write into
-        SResourceDescriptor* m_Resource;
-    };
-
-    /**
      * Parameters to ResourceReloaded callback.
      */
     struct ResourceReloadedParams
