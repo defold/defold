@@ -353,6 +353,9 @@ namespace dmGameSystem
      *
      * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can call `sound.stop()` to stop the sound.
      *
+     * @note Sounds are panned using a constant power panning (non linear fade). 0 means left/right channels are balanced at 71%/71% each.
+     * At -1 (full left) the channels are at 100%/0%, and 1 they're at 0%/100%.
+     *
      * @name sound.play
      * @param url [type:string|hash|url] the sound that should play
      * @param [play_properties] [type:table] optional table with properties:
@@ -362,12 +365,15 @@ namespace dmGameSystem
      * `gain`
      * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
      *
+     * `pan`
+     * : [type:number] sound pan between -1 and 1, default is 0. The final gain of the sound will be an addition of this pan and the sound pan.
+     *
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
      *
      * ```lua
-     * sound.play("#sound", { delay = 1, gain = 0.5, pan = 0.0 } )
+     * sound.play("#sound", { delay = 1, gain = 0.5, pan = -1.0 } )
      * ```
      */
     static int Sound_Play(lua_State* L)
@@ -488,6 +494,9 @@ namespace dmGameSystem
      * Set panning on all active playing voices of a sound.
      *
      * The valid range is from -1.0 to 1.0, representing -45 degrees left, to +45 degrees right.
+     *
+     * @note Sounds are panned using a constant power panning (non linear fade). 0 means left/right channels are balanced at 71%/71% each.
+     * At -1 (full left) the channels are at 100%/0%, and 1 they're at 0%/100%.
      *
      * @name sound.set_pan
      * @param url [type:string|hash|url] the sound to set the panning value to
