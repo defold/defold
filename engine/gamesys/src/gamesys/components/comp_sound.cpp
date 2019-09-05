@@ -20,8 +20,10 @@ namespace dmGameSystem
         Sound*                  m_Sound;
         dmSound::HSoundInstance m_SoundInstance;
         dmMessage::URL          m_Listener;
+        dmMessage::URL          m_Receiver;
         float                   m_Delay;
         dmGameObject::HInstance m_Instance;
+        uint32_t                m_PlayId;
         uint32_t                m_StopRequested : 1;
     };
 
@@ -126,38 +128,35 @@ namespace dmGameSystem
                             dmLogError("Error deleting sound: (%d)", r);
                             update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
-                        else
+                        else if (entry.m_Listener.m_Fragment != 0x0)
                         {
-                            if (entry.m_Listener.m_Fragment != 0x0)
+                            dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
+                            dmGameSystemDDF::SoundDone message;
+
+                            dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(entry.m_Instance), entry.m_Listener.m_Path);
+                            if (!listener_instance)
                             {
-                                dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
-                                dmGameSystemDDF::SoundDone message;
+                                dmLogError("Could not send sound_done to instance: %s#%s", dmHashReverseSafe64(entry.m_Listener.m_Path), dmHashReverseSafe64(entry.m_Listener.m_Fragment));
+                            }
+                            else
+                            {
+                                dmMessage::URL receiver = entry.m_Listener;
+                                dmMessage::URL sender = entry.m_Receiver;
 
-                                dmGameObject::HInstance listener_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(entry.m_Instance), entry.m_Listener.m_Path);
-                                if (!listener_instance)
+                                if (dmMessage::IsSocketValid(sender.m_Socket) && dmMessage::IsSocketValid(receiver.m_Socket))
                                 {
-                                    dmLogError("Could not send sound_done to instance: %s#%s", dmHashReverseSafe64(entry.m_Listener.m_Path), dmHashReverseSafe64(entry.m_Listener.m_Fragment));
-                                }
-                                else
-                                {
-                                    dmMessage::URL receiver = entry.m_Listener;
-                                    if (dmMessage::IsSocketValid(receiver.m_Socket))
-                                    {
-                                        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
-                                        uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
+                                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
+                                    uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
 
-                                        dmMessage::Result result = dmMessage::Post(0, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                                        dmMessage::ResetURL(entry.m_Listener);
-                                        if (result != dmMessage::RESULT_OK)
-                                        {
-                                            dmLogError("Could not send sound_done to listener.");
-                                        }
-                                    }
-                                    else
+                                    message.m_PlayId = entry.m_PlayId;
+
+                                    if (dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
                                     {
-                                        dmMessage::ResetURL(entry.m_Listener);
+                                        dmLogError("Could not send sound_done to listener.");
                                     }
                                 }
+
+                                dmMessage::ResetURL(entry.m_Listener);
                             }
                         }
                     }
@@ -260,7 +259,9 @@ namespace dmGameSystem
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
                 entry.m_Instance = params.m_Instance;
+                entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
+                entry.m_PlayId = play_sound->m_PlayId;
                 dmMessage::ResetURL(entry.m_Listener);
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)

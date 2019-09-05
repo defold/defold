@@ -86,6 +86,7 @@ message PlaySound
 {
     optional float delay = 1 [default=0.0];
     optional float gain = 2 [default=1.0];
+    optional int32 play_id = 3 [default = 0];
 }
 
 message StopSound
@@ -94,6 +95,7 @@ message StopSound
 
 message SoundDone
 {
+    optional int32 play_id = 1 [default = 0];
 }
 
 message SetGain

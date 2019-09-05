@@ -181,6 +181,7 @@ namespace dmSound
 
         uint32_t                m_MixRate;
         uint32_t                m_FrameCount;
+        uint32_t                m_PlayCounter;
 
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
@@ -673,6 +674,11 @@ namespace dmSound
         sound_instance->m_Playing = 0;
         dmSoundCodec::Reset(sound->m_CodecContext, sound_instance->m_Decoder);
         return RESULT_OK;
+    }
+
+    uint32_t GetAndIncreasePlayCounter()
+    {
+        return g_SoundSystem->m_PlayCounter++;
     }
 
     bool IsPlaying(HSoundInstance sound_instance)

@@ -372,7 +372,7 @@ namespace dmGameSystem
      */
     int Sound_Play(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 1);
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -410,11 +410,15 @@ namespace dmGameSystem
         }
 
         dmGameSystemDDF::PlaySound msg;
-        msg.m_Delay = delay;
-        msg.m_Gain = gain;
+        msg.m_Delay  = delay;
+        msg.m_Gain   = gain;
+        msg.m_PlayId = dmSound::GetAndIncreasePlayCounter();
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        return 0;
+
+        lua_pushnumber(L, (double) msg.m_PlayId);
+
+        return 1;
     }
 
     /*# stop a playing a sound(s)
