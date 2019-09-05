@@ -277,7 +277,7 @@ namespace dmGameSystem
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
                     float gain = set_gain->m_Gain * entry.m_Sound->m_Gain;
-                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vector4(gain, 0, 0, 0));
+                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     if (r != dmSound::RESULT_OK)
                     {
                         dmLogError("Fail to set gain on sound");
@@ -296,7 +296,7 @@ namespace dmGameSystem
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
                     float pan = ddf->m_Pan + entry.m_Sound->m_Pan;
-                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vector4(pan, 0, 0, 0));
+                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
                     if (r != dmSound::RESULT_OK)
                     {
                         dmLogError("Fail to set pan on sound");
