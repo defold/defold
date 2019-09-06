@@ -178,7 +178,7 @@ namespace dmRender
 
     // Allocate a buffer (from the array) with room for 'entries' entries.
     //
-    // NOTE: Pointer might go invalid after a consecutive call to RenderListAlloc if reallocatino
+    // NOTE: Pointer might go invalid after a consecutive call to RenderListAlloc if reallocation
     //       of backing buffer happens.
     RenderListEntry* RenderListAlloc(HRenderContext render_context, uint32_t entries)
     {
@@ -199,8 +199,12 @@ namespace dmRender
     // Submit a range of entries (pointers must be from a range allocated by RenderListAlloc, and not between two alloc calls).
     void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end)
     {
+        if (end == begin) {
+            return;
+        }
         // Insert the used up indices into the sort buffer.
         assert(end - begin <= (intptr_t)render_context->m_RenderListSortIndices.Remaining());
+        assert(end <= render_context->m_RenderList.End());
 
         // Transform pointers back to indices.
         RenderListEntry *base = render_context->m_RenderList.Begin();
@@ -376,6 +380,7 @@ namespace dmRender
         }
     }
 
+    // For unit testing only
     bool FindTagMaskRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_mask, RenderListRange& range)
     {
         for( uint32_t i = 0; i < num_ranges; ++i)
@@ -461,7 +466,7 @@ namespace dmRender
                     sort_values[idx].m_Order = entry->m_Order;
                 }
                 sort_values[idx].m_MinorOrder = entry->m_MinorOrder;
-                sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
+                sort_values[idx].m_BatchKey = entry->m_BatchKey & 0x00ffffff;
                 sort_values[idx].m_Dispatch = entry->m_Dispatch;
                 context->m_RenderListSortBuffer.Push(idx);
             }
