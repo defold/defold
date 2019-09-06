@@ -65,34 +65,34 @@
 
                      [cljfx "1.3.4"]
 
-                     [org.openjfx/javafx-base "12"]
-                     [org.openjfx/javafx-base "12" :classifier "linux"]
-                     [org.openjfx/javafx-base "12" :classifier "mac"]
-                     [org.openjfx/javafx-base "12" :classifier "win"]
-                     [org.openjfx/javafx-controls "12"]
-                     [org.openjfx/javafx-controls "12" :classifier "linux"]
-                     [org.openjfx/javafx-controls "12" :classifier "mac"]
-                     [org.openjfx/javafx-controls "12" :classifier "win"]
-                     [org.openjfx/javafx-graphics "12"]
-                     [org.openjfx/javafx-graphics "12" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "12" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "12" :classifier "win"]
-                     [org.openjfx/javafx-media "12"]
-                     [org.openjfx/javafx-media "12" :classifier "linux"]
-                     [org.openjfx/javafx-media "12" :classifier "mac"]
-                     [org.openjfx/javafx-media "12" :classifier "win"]
-                     [org.openjfx/javafx-web "12"]
-                     [org.openjfx/javafx-web "12" :classifier "linux"]
-                     [org.openjfx/javafx-web "12" :classifier "mac"]
-                     [org.openjfx/javafx-web "12" :classifier "win"]
-                     [org.openjfx/javafx-fxml "12"]
-                     [org.openjfx/javafx-fxml "12" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "12" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "12" :classifier "win"]
-                     [org.openjfx/javafx-swing "12"]
-                     [org.openjfx/javafx-swing "12" :classifier "linux"]
-                     [org.openjfx/javafx-swing "12" :classifier "mac"]
-                     [org.openjfx/javafx-swing "12" :classifier "win"]
+                     [org.openjfx/javafx-base "13-ea+13"]
+                     [org.openjfx/javafx-base "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-base "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-base "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-controls "13-ea+13"]
+                     [org.openjfx/javafx-controls "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-controls "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-controls "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-graphics "13-ea+13"]
+                     [org.openjfx/javafx-graphics "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-media "13-ea+13"]
+                     [org.openjfx/javafx-media "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-media "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-media "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-web "13-ea+13"]
+                     [org.openjfx/javafx-web "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-web "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-web "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-fxml "13-ea+13"]
+                     [org.openjfx/javafx-fxml "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-swing "13-ea+13"]
+                     [org.openjfx/javafx-swing "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-swing "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-swing "13-ea+13" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -190,7 +190,6 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
-                                                    "-Djdk.gtk.version=2"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
@@ -203,5 +202,4 @@
                                                     ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
-                                                    "-XX:+DebugNonSafepoints"]}}     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
-)
+                                                    "-XX:+DebugNonSafepoints"]}})     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.

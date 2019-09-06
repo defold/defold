@@ -88,6 +88,8 @@ namespace dmGameSystem
         // Tracking initial state.
         uint8_t m_AddedToUpdate : 1;
         uint8_t m_StartAsEnabled : 1;
+        uint8_t m_FlippedX : 1; // set if it's been flipped
+        uint8_t m_FlippedY : 1;
     };
 
     struct CollisionWorld
@@ -373,6 +375,8 @@ namespace dmGameSystem
         component->m_StartAsEnabled = true;
         component->m_Joints = 0x0;
         component->m_JointEndPoints = 0x0;
+        component->m_FlippedX = 0;
+        component->m_FlippedY = 0;
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
@@ -1458,5 +1462,26 @@ namespace dmGameSystem
         return dmGameObject::GetIdentifier(component->m_Instance);
     }
 
+    bool IsCollision2D(void* _world)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        return !world->m_3D;
+    }
+
+    void SetCollisionFlipH(void* _component, bool flip)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        if (component->m_FlippedX != flip)
+            dmPhysics::FlipH2D(component->m_Object2D);
+        component->m_FlippedX = flip;
+    }
+
+    void SetCollisionFlipV(void* _component, bool flip)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        if (component->m_FlippedY != flip)
+            dmPhysics::FlipV2D(component->m_Object2D);
+        component->m_FlippedY = flip;
+    }
 
 }

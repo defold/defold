@@ -1135,9 +1135,9 @@ int send_packet(SSL *ssl, uint8_t protocol, const uint8_t *in, int length)
         {
             protocol,
             0x03, /* version = 3.1 or higher */
-            ssl->version & 0x0f,
-            msg_length >> 8,
-            msg_length & 0xff
+            (uint8_t)(ssl->version & 0x0f),
+            (uint8_t)(msg_length >> 8),
+            (uint8_t)(msg_length & 0xff)
         };
 
         if (protocol == PT_HANDSHAKE_PROTOCOL)

@@ -179,7 +179,7 @@ namespace dmSpinlock
     }
 }
 
-#elif defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#elif defined(__EMSCRIPTEN__)
 
 namespace dmSpinlock
 {

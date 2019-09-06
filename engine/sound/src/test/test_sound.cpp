@@ -4,6 +4,7 @@
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -386,8 +387,8 @@ TEST_P(dmSoundVerifyTest, Mix)
         double frac = fmod(i * mix_rate / 44100.0, 1.0);
         double a = a1 * (1.0 - frac) + a2 * frac;
         int16_t as = (int16_t) a;
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 24);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 24);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * 0.707107f, 24);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * 0.707107f, 24);
     }
 
     ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
@@ -399,13 +400,13 @@ TEST_P(dmSoundVerifyTest, Mix)
     float rms_left, rms_right;
     dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
-    ASSERT_NEAR(rms_left, 0.8f / sqrtf(2.0f), 0.02f);
-    ASSERT_NEAR(rms_right, 0.8f / sqrtf(2.0f), 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_left, 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_right, 0.02f);
 
     float peak_left, peak_right;
     dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &peak_left, &peak_right);
-    ASSERT_NEAR(peak_left, 0.8f, 0.01f);
-    ASSERT_NEAR(peak_right, 0.8f, 0.01f);
+    ASSERT_NEAR(0.8f* 0.707107f, peak_left, 0.01f);
+    ASSERT_NEAR(0.8f* 0.707107f, peak_right, 0.01f);
 
     int expected_queued = (frame_count * 44100) / ((int) mix_rate * params.m_BufferFrameCount)
                             + dmMath::Min(1U, (frame_count * 44100) % ((int) mix_rate * params.m_BufferFrameCount));
@@ -449,7 +450,7 @@ const TestParams params_verify_test[] = {
             44100,
             2048),
 };
-const TestParams params_verify_test__[] = {
+const TestParams params_verify_test_[] = {
 TestParams("loopback",
             MONO_TONE_440_22050_44100_WAV,
             MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -624,7 +625,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
                 float mix = (i - prev_frames) / (float) (frames - prev_frames);
                 float expectedf = (32768.0f * 0.8f * ((1.0f - mix) * prev_g + g * mix));
                 int16_t expected = (int16_t) expectedf ;
-                ASSERT_NEAR(expected, actual, 2U);
+                ASSERT_NEAR(expected * 0.707107f, actual, 2U);
             }
             prev_g = g;
         }
@@ -730,7 +731,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    
+
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
@@ -747,11 +748,27 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float a = 0;
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        a += M_PI / 20000000.0f;
+        if (a > M_PI*2) {
+            a-= M_PI*2;
+        }
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
     } while (dmSound::IsPlaying(instance));
 
     r = dmSound::DeleteSoundInstance(instance);
@@ -968,8 +985,8 @@ TEST_P(dmSoundMixerTest, Mixer)
 
         const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain, abs_error);
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain * 0.707107f, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain * 0.707107f, abs_error);
         }
     }
     last_rms /= 32767.0f;

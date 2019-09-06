@@ -191,11 +191,6 @@ namespace dmGui
         return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
-    static bool LuaIsNode(lua_State *L, int index)
-    {
-        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
-    }
-
     static bool IsValidNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
@@ -2890,7 +2885,10 @@ namespace dmGui
     /*# gets the node size mode
      * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
-     * size mode alters the node size based on the node's content.
+     * size mode alters the node size based on the node's content. Automatic size
+     * mode works for Box nodes and Pie nodes which will both adjust their size
+     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * any size mode setting.
      *
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
@@ -2909,7 +2907,10 @@ namespace dmGui
     /*# sets node size mode
      * Sets the size mode of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
-     * size mode alters the node size based on the node's content.
+     * size mode alters the node size based on the node's content. Automatic size
+     * mode works for Box nodes and Pie nodes which will both adjust their size
+     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * any size mode setting.
      *
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for
@@ -4250,7 +4251,11 @@ namespace dmGui
     {
         GuiPfxEmitterScriptCallbackData* data = (GuiPfxEmitterScriptCallbackData*)user_data;
         GuiLuaCallback* luainfo = &data->m_Data->m_LuaInfo;
-        LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        if (dmGui::IsNodeValid(luainfo->m_Scene, luainfo->m_Node)) {
+            LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        } else {
+            lua_pushnil(L);
+        }
         dmScript::PushHash(L, data->m_EmitterID);
         lua_pushinteger(L, data->m_EmitterState);
     }
@@ -4283,8 +4288,8 @@ namespace dmGui
      * `self`
      * : [type:object] The current object
      *
-     * `id`
-     * : [type:hash] The id of the particle fx component
+     * `node`
+     * : [type:hash] The particle fx node, or `nil` if the node was deleted
      *
      * `emitter`
      * : [type:hash] The id of the emitter

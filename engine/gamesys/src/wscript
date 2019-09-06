@@ -19,7 +19,7 @@ def build(bld):
                          classpath=classpath,
                          source_root='java')
 
-        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
+        bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
 
         bld.new_task_gen(features='jar seq',
                          basedir='java',
