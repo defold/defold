@@ -1442,12 +1442,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* count)
     {
         GLint uniform_size;
         GLenum uniform_type;
         glGetActiveUniform(prog, index, buffer_size, 0, &uniform_size, &uniform_type, buffer);
         *type = (Type) uniform_type;
+        *count = (int32_t) uniform_size;
         CHECK_GL_ERROR
     }
 
@@ -1470,18 +1471,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetConstantV4(HContext context, const Vector4* data, int base_register)
+    void SetConstantV4(HContext context, const Vector4* data, int base_register, int count)
     {
         assert(context);
 
-        glUniform4fv(base_register,  1, (const GLfloat*) data);
+        glUniform4fv(base_register, count, ((const GLfloat*) data));
         CHECK_GL_ERROR
     }
 
-    void SetConstantM4(HContext context, const Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const Vector4* data, int base_register, int count)
     {
         assert(context);
-        glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
+        glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR
     }
 

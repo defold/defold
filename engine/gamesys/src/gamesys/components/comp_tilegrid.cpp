@@ -800,7 +800,7 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
-            SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, ddf->m_NameHash, 0, ddf->m_Value);
+            SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, ddf->m_NameHash, 0, 0, ddf->m_Value);
             ReHash(component);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
@@ -835,10 +835,10 @@ namespace dmGameSystem
         return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const uint32_t array_index, const dmGameObject::PropertyVar& var)
     {
         TileGridComponent* component = (TileGridComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, array_index, var);
         ReHash(component);
     }
 
@@ -851,6 +851,6 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
-        return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompTileGridSetConstantCallback, component);
+        return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, 0, CompTileGridSetConstantCallback, component);
     }
 }

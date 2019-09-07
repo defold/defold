@@ -407,10 +407,10 @@ namespace dmGameSystem
         return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const uint32_t array_index, const dmGameObject::PropertyVar& var)
     {
         LabelComponent* component = (LabelComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, array_index, var);
         ReHash(component);
     }
 
@@ -543,7 +543,7 @@ namespace dmGameSystem
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            result = SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompLabelSetConstantCallback, component);
+            result = SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, 0, CompLabelSetConstantCallback, component);
         }
 
         return result;

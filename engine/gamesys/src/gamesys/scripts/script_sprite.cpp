@@ -1,10 +1,12 @@
 #include <float.h>
 #include <stdio.h>
 #include <assert.h>
+#include <string.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/dstrings.h>
 #include <script/script.h>
 
 #include "gamesys.h"
@@ -247,12 +249,51 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        dmhash_t name_hash;
+        uint32_t array_ix = 0;
+
+        if (lua_isstring(L,2))
+        {
+            char name_str_buffer[128];
+            memset((void*)name_str_buffer,0,sizeof(name_str_buffer));
+
+            dmStrlCpy(name_str_buffer, lua_tostring(L,2), 128);
+
+            char* bracket_start = strchr(name_str_buffer, '[');
+            char* bracket_end   = strchr(name_str_buffer, ']');
+
+            if (bracket_start && bracket_end)
+            {
+                uint32_t bracket_start_ix = (uint32_t) (bracket_start - name_str_buffer);
+                uint32_t bracket_end_ix = (uint32_t) (bracket_end - name_str_buffer);
+
+                //name_str_buffer[bracket_end_ix] = '\0';
+                char* atoi_str = &name_str_buffer[bracket_start_ix+1];
+                array_ix = atoi(atoi_str);
+
+                char name_hash_buffer[128];
+                memset((void*)name_hash_buffer,0,sizeof(name_hash_buffer));
+                memcpy((void*)name_hash_buffer, name_str_buffer, bracket_start_ix);
+                memcpy((void*)(name_hash_buffer + bracket_start_ix), bracket_end + 1, strlen(bracket_end + 1));
+
+                name_hash = dmHashString64(name_hash_buffer);
+            }
+            else
+            {
+                name_hash = dmHashString64(lua_tostring(L, 2));
+            }
+        }
+        else
+        {
+            name_hash = dmScript::CheckHash(L,2);
+        }
+
         Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
 
         dmGameSystemDDF::SetConstant msg;
         msg.m_NameHash = name_hash;
         msg.m_Value = *value;
+        msg.m_ArrayIndex = array_ix;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

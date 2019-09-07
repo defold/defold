@@ -249,7 +249,7 @@ bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRen
     return false;
 }
 
-void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const uint32_t array_index, const dmGameObject::PropertyVar& var)
 {
     Vector4* v = 0x0;
     uint32_t count = constants->m_ConstantCount;
@@ -258,7 +258,8 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
         dmRender::Constant& c = constants->m_RenderConstants[i];
         if (c.m_NameHash == name_hash)
         {
-            v = &c.m_Value;
+            assert(array_index < c.m_Count);
+            v = (Vector4*) &(c.GetValue()[array_index]);
             break;
         }
     }
@@ -272,9 +273,11 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
         }
         dmRender::Constant c;
         dmRender::GetMaterialProgramConstant(material, name_hash, c);
+        assert(array_index < c.m_Count);
+
         constants->m_RenderConstants[count] = c;
-        constants->m_PrevRenderConstants[count] = c.m_Value;
-        v = &(constants->m_RenderConstants[count].m_Value);
+        constants->m_PrevRenderConstants[count] = c.GetValue()[array_index];
+        v = (Vector4*) &c.GetValue()[array_index];
         constants->m_ConstantCount++;
         assert(constants->m_ConstantCount <= MAX_COMP_RENDER_CONSTANTS);
     }

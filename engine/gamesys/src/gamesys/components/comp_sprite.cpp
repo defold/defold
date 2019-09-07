@@ -735,10 +735,10 @@ namespace dmGameSystem
         return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
     }
 
-    static void CompSpriteSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    static void CompSpriteSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, uint32_t array_index, const dmGameObject::PropertyVar& var)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, array_index, var);
         ReHash(component);
     }
 
@@ -819,7 +819,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
                 dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), CompSpriteSetConstantCallback, component);
+                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_ArrayIndex, CompSpriteSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
@@ -929,7 +929,7 @@ namespace dmGameSystem
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            result = SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpriteSetConstantCallback, component);
+            result = SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, 0, CompSpriteSetConstantCallback, component);
         }
 
         return result;

@@ -74,14 +74,32 @@ namespace dmRender
     struct Constant
     {
         Vectormath::Aos::Vector4                m_Value;
+        Vectormath::Aos::Vector4*               m_ValueArray;
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
         int32_t                                 m_Location;
+        int32_t                                 m_Count;
 
         Constant() {}
-        Constant(dmhash_t name_hash, int32_t location)
-            : m_Value(Vectormath::Aos::Vector4(0)), m_NameHash(name_hash), m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER), m_Location(location)
+        Constant(dmhash_t name_hash, int32_t location, int32_t count)
+            : m_Value(Vectormath::Aos::Vector4(0))
+            , m_ValueArray(0)
+            , m_NameHash(name_hash)
+            , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+            , m_Location(location)
+            , m_Count(count)
+        {}
+
+        const Vectormath::Aos::Vector4* GetValue() const
         {
+            if (m_Count > 1)
+            {
+                return (const Vectormath::Aos::Vector4*) m_ValueArray;
+            }
+            else
+            {
+                return (const Vectormath::Aos::Vector4*) &m_Value;
+            }
         }
     };
 

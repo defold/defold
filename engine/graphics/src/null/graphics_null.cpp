@@ -745,7 +745,7 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* count)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -753,6 +753,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        *count = 1;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
@@ -782,14 +783,14 @@ namespace dmGraphics
         return context->m_ProgramRegisters[base_register];
     }
 
-    void SetConstantV4(HContext context, const Vector4* data, int base_register)
+    void SetConstantV4(HContext context, const Vector4* data, int base_register, int count)
     {
         assert(context);
         assert(context->m_Program != 0x0);
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
     }
 
-    void SetConstantM4(HContext context, const Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const Vector4* data, int base_register, int count)
     {
         assert(context);
         assert(context->m_Program != 0x0);

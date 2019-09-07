@@ -39,12 +39,13 @@ namespace dmRender
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
         char buffer[128];
         dmGraphics::Type type;
+        int32_t count;
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
+            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type, &count);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
@@ -77,7 +78,7 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
+            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type, &count);
             int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
 
             // DEF-2971-hotfix
@@ -90,13 +91,22 @@ namespace dmRender
             if (location == -1) {
                 continue;
             }
+
+            if (count > 1)
+            {
+                int32_t c = 0;
+                while(buffer[c] && buffer[c] != '[') c++;
+                buffer[c] = '\0';
+            }
+
             dmhash_t name_hash = dmHashString64(buffer);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
                 MaterialConstant constant;
-                constant.m_Constant = Constant(name_hash, location);
+                constant.m_Constant = Constant(name_hash, location, count);
+                constant.m_Constant.m_ValueArray = new Vectormath::Aos::Vector4[count];
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     size_t original_size = strlen(buffer);
@@ -135,6 +145,17 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteProgram(graphics_context, material->m_Program);
+
+        dmArray<MaterialConstant>& constants = material->m_Constants;
+        for (uint32_t i = 0; i < constants.Size(); ++i)
+        {
+            MaterialConstant& material_constant = constants[i];
+            if (constants[i].m_Constant.m_ValueArray)
+            {
+                delete[] constants[i].m_Constant.m_ValueArray;
+            }
+        }
+
         delete material;
     }
 
@@ -152,32 +173,32 @@ namespace dmRender
             {
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                 {
-                    dmGraphics::SetConstantV4(graphics_context, &constant.m_Value, location);
+                    dmGraphics::SetConstantV4(graphics_context, constant.GetValue(), location, constant.m_Count);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location, 1);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_WorldTransform, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_WorldTransform, location, 1);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_TextureTransform, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_TextureTransform, location, 1);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_View, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_View, location, 1);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location, 1);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
@@ -189,7 +210,7 @@ namespace dmRender
                         // It is always affine however
                         normalT = affineInverse(normalT);
                         normalT = transpose(normalT);
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, location, 1);
                     }
                     break;
                 }
@@ -197,7 +218,7 @@ namespace dmRender
                 {
                     {
                         Matrix4 world_view = render_context->m_View * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location, 1);
                     }
                     break;
                 }
@@ -205,7 +226,7 @@ namespace dmRender
                 {
                     {
                         Matrix4 world_view = render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location, 1);
                     }
                     break;
                 }
