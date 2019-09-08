@@ -253,13 +253,14 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
 {
     Vector4* v = 0x0;
     uint32_t count = constants->m_ConstantCount;
+    uint32_t column_count = var.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4 ? 4 : 1;
     for (uint32_t i = 0; i < count; ++i)
     {
         dmRender::Constant& c = constants->m_RenderConstants[i];
         if (c.m_NameHash == name_hash)
         {
             assert(array_index < c.m_Count);
-            v = (Vector4*) &(c.GetValue()[array_index]);
+            v = (Vector4*) &(c.GetValue()[array_index * column_count]);
             break;
         }
     }
@@ -276,8 +277,8 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
         assert(array_index < c.m_Count);
 
         constants->m_RenderConstants[count] = c;
-        constants->m_PrevRenderConstants[count] = c.GetValue()[array_index];
-        v = (Vector4*) &c.GetValue()[array_index];
+        constants->m_PrevRenderConstants[count] = c.GetValue()[array_index * column_count];
+        v = (Vector4*) &c.GetValue()[array_index * column_count];
         constants->m_ConstantCount++;
         assert(constants->m_ConstantCount <= MAX_COMP_RENDER_CONSTANTS);
     }

@@ -818,8 +818,21 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-                        dmGameObject::PropertyVar(ddf->m_Value), ddf->m_ArrayIndex, CompSpriteSetConstantCallback, component);
+                dmGameObject::PropertyResult result;
+
+                if (ddf->m_Type == dmGameSystemDDF::VECTOR4)
+                {
+                    result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material,
+                        ddf->m_NameHash, dmGameObject::PropertyVar(ddf->m_Value.getCol0()),
+                        ddf->m_ArrayIndex, CompSpriteSetConstantCallback, component);
+                }
+                else
+                {
+                    result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material,
+                        ddf->m_NameHash, dmGameObject::PropertyVar(ddf->m_Value),
+                        ddf->m_ArrayIndex, CompSpriteSetConstantCallback, component);
+                }
+
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
