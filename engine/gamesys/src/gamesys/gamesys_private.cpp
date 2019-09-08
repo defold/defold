@@ -120,7 +120,9 @@ namespace dmGameSystem
             {
                 if (constant_id == name_hash)
                 {
-                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 && var.m_Type != dmGameObject::PROPERTY_TYPE_QUAT)
+                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 &&
+                        var.m_Type != dmGameObject::PROPERTY_TYPE_MATRIX4 &&
+                        var.m_Type != dmGameObject::PROPERTY_TYPE_QUAT)
                     {
                         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     }

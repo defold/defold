@@ -70,27 +70,27 @@ namespace dmGameObject
             case PROPERTY_TYPE_VECTOR3:
                 {
                     Vector3* v = (Vector3*)userdata;
-                    out_var.m_V4[0] = v->getX();
-                    out_var.m_V4[1] = v->getY();
-                    out_var.m_V4[2] = v->getZ();
+                    out_var.m_Values[0] = v->getX();
+                    out_var.m_Values[1] = v->getY();
+                    out_var.m_Values[2] = v->getZ();
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_VECTOR4:
                 {
                     Vector4* v = (Vector4*)userdata;
-                    out_var.m_V4[0] = v->getX();
-                    out_var.m_V4[1] = v->getY();
-                    out_var.m_V4[2] = v->getZ();
-                    out_var.m_V4[3] = v->getW();
+                    out_var.m_Values[0] = v->getX();
+                    out_var.m_Values[1] = v->getY();
+                    out_var.m_Values[2] = v->getZ();
+                    out_var.m_Values[3] = v->getW();
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_QUAT:
                 {
                     Quat* q = (Quat*)userdata;
-                    out_var.m_V4[0] = q->getX();
-                    out_var.m_V4[1] = q->getY();
-                    out_var.m_V4[2] = q->getZ();
-                    out_var.m_V4[3] = q->getW();
+                    out_var.m_Values[0] = q->getX();
+                    out_var.m_Values[1] = q->getY();
+                    out_var.m_Values[2] = q->getZ();
+                    out_var.m_Values[3] = q->getW();
                 }
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_BOOLEAN:
@@ -118,13 +118,13 @@ namespace dmGameObject
         }
             break;
         case PROPERTY_TYPE_VECTOR3:
-            dmScript::PushVector3(L, Vectormath::Aos::Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
+            dmScript::PushVector3(L, Vectormath::Aos::Vector3(var.m_Values[0], var.m_Values[1], var.m_Values[2]));
             break;
         case PROPERTY_TYPE_VECTOR4:
-            dmScript::PushVector4(L, Vectormath::Aos::Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            dmScript::PushVector4(L, Vectormath::Aos::Vector4(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]));
             break;
         case PROPERTY_TYPE_QUAT:
-            dmScript::PushQuat(L, Vectormath::Aos::Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            dmScript::PushQuat(L, Vectormath::Aos::Quat(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]));
             break;
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);

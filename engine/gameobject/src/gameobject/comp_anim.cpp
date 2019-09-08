@@ -558,14 +558,14 @@ namespace dmGameObject
 
             // Clear the release_callback for element animation to make sure we only call it once in the composite animation
             easing.release_callback = 0x0;
-            float* v = prop_desc.m_Variant.m_V4;
+            float* v = prop_desc.m_Variant.m_Values;
             for (uint32_t i = 0; i < element_count; ++i)
             {
                 float* val_ptr = 0x0;
                 if (prop_desc.m_ValuePtr != 0x0)
                     val_ptr = prop_desc.m_ValuePtr + i;
                 if (!PlayAnimation(world, instance, component_id, prop_desc.m_ElementIds[i], playback, val_ptr,
-                        *(v + i), to.m_V4[i], easing, duration, delay, 0x0, 0x0, 0x0, false))
+                        *(v + i), to.m_Values[i], easing, duration, delay, 0x0, 0x0, 0x0, false))
                     return PROPERTY_RESULT_BUFFER_OVERFLOW;
             }
         }

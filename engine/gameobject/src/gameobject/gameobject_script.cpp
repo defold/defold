@@ -2125,9 +2125,9 @@ bail:
             {
                 out_var.m_Type = PROPERTY_TYPE_VECTOR3;
                 const float* v = &defs->m_FloatValues[entry.m_Index];
-                out_var.m_V4[0] = v[0];
-                out_var.m_V4[1] = v[1];
-                out_var.m_V4[2] = v[2];
+                out_var.m_Values[0] = v[0];
+                out_var.m_Values[1] = v[1];
+                out_var.m_Values[2] = v[2];
                 return PROPERTY_RESULT_OK;
             }
         }
@@ -2139,10 +2139,10 @@ bail:
             {
                 out_var.m_Type = PROPERTY_TYPE_VECTOR4;
                 const float* v = &defs->m_FloatValues[entry.m_Index];
-                out_var.m_V4[0] = v[0];
-                out_var.m_V4[1] = v[1];
-                out_var.m_V4[2] = v[2];
-                out_var.m_V4[3] = v[3];
+                out_var.m_Values[0] = v[0];
+                out_var.m_Values[1] = v[1];
+                out_var.m_Values[2] = v[2];
+                out_var.m_Values[3] = v[3];
                 return PROPERTY_RESULT_OK;
             }
         }
@@ -2154,10 +2154,10 @@ bail:
             {
                 out_var.m_Type = PROPERTY_TYPE_QUAT;
                 const float* v = &defs->m_FloatValues[entry.m_Index];
-                out_var.m_V4[0] = v[0];
-                out_var.m_V4[1] = v[1];
-                out_var.m_V4[2] = v[2];
-                out_var.m_V4[3] = v[3];
+                out_var.m_Values[0] = v[0];
+                out_var.m_Values[1] = v[1];
+                out_var.m_Values[2] = v[2];
+                out_var.m_Values[3] = v[3];
                 return PROPERTY_RESULT_OK;
             }
         }
@@ -2324,7 +2324,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
             PropertyResult result = GetProperty(properties, entry.m_Id, var);
             CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_VECTOR3, result)
             lua_pushstring(L, entry.m_Key);
-            dmScript::PushVector3(L, Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
+            dmScript::PushVector3(L, Vector3(var.m_Values[0], var.m_Values[1], var.m_Values[2]));
             lua_settable(L, index - 2);
         }
         count = declarations->m_Vector4Entries.m_Count;
@@ -2334,7 +2334,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
             PropertyResult result = GetProperty(properties, entry.m_Id, var);
             CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_VECTOR4, result)
             lua_pushstring(L, entry.m_Key);
-            dmScript::PushVector4(L, Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            dmScript::PushVector4(L, Vector4(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]));
             lua_settable(L, index - 2);
         }
         count = declarations->m_QuatEntries.m_Count;
@@ -2344,7 +2344,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
             PropertyResult result = GetProperty(properties, entry.m_Id, var);
             CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_QUAT, result)
             lua_pushstring(L, entry.m_Key);
-            dmScript::PushQuat(L, Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            dmScript::PushQuat(L, Quat(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]));
             lua_settable(L, index - 2);
         }
         count = declarations->m_BoolEntries.m_Count;

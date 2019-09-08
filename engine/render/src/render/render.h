@@ -78,7 +78,8 @@ namespace dmRender
         dmhash_t                                m_NameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;
         int32_t                                 m_Location;
-        int32_t                                 m_Count;
+        uint16_t                                m_Count : 15;
+        uint16_t                                m_IsMatrix : 1;
 
         Constant() {}
         Constant(dmhash_t name_hash, int32_t location, int32_t count)
@@ -88,11 +89,12 @@ namespace dmRender
             , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
             , m_Location(location)
             , m_Count(count)
+            , m_IsMatrix(0)
         {}
 
         const Vectormath::Aos::Vector4* GetValue() const
         {
-            if (m_Count > 1)
+            if (m_Count > 1 || m_IsMatrix)
             {
                 return (const Vectormath::Aos::Vector4*) m_ValueArray;
             }

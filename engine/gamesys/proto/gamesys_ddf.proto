@@ -112,12 +112,19 @@ message ResetConstantParticleFX
     required uint64         name_hash   = 2;
 }
 
+enum SetConstantType
+{
+    VECTOR4 = 0;
+    MATRIX4 = 1;
+}
+
 /* Function wrapper documented in gamesys_script.cpp */
 message SetConstant
 {
-    required uint64         name_hash   = 1;
-    required dmMath.Vector4 value       = 2 [(field_align)=true];
-    optional uint32         array_index = 3 [default=1];
+    required uint64          name_hash   = 1;
+    required dmMath.Matrix4  value       = 2 [(field_align)=true];
+    optional SetConstantType type        = 3 [default=VECTOR4];
+    optional uint32          array_index = 4 [default=1];
 }
 
 /* Function wrapper documented in gamesys_script.cpp */

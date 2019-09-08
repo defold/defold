@@ -430,7 +430,7 @@ namespace dmGameSystem
 
         dmGameSystemDDF::SetConstant msg;
         msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
+        // msg.m_Value = *value;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

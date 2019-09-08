@@ -600,6 +600,11 @@ namespace dmScript
         {0,0}
     };
 
+    bool IsMatrix4(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_MATRIX4];
+    }
+
     Vectormath::Aos::Matrix4* ToMatrix4(lua_State *L, int index)
     {
         return (Vectormath::Aos::Matrix4*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4]);

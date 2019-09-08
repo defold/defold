@@ -357,7 +357,14 @@ namespace dmRender
                 const Constant* c = &ro->m_Constants[i];
                 if (c->m_Location != -1)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, c->GetValue(), c->m_Location, c->m_Count);
+                    if (c->m_IsMatrix)
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, c->GetValue(), c->m_Location, c->m_Count);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantV4(graphics_context, c->GetValue(), c->m_Location, c->m_Count);
+                    }
                 }
             }
             return;
@@ -370,7 +377,14 @@ namespace dmRender
                 int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
                 if (location)
                 {
-                    dmGraphics::SetConstantV4(graphics_context, c->GetValue(), *location, c->m_Count);
+                    if (c->m_IsMatrix)
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, c->GetValue(), *location, c->m_Count);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantV4(graphics_context, c->GetValue(), *location, c->m_Count);
+                    }
                 }
             }
         }

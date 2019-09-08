@@ -193,6 +193,7 @@ namespace dmGameObject
         PROPERTY_TYPE_VECTOR4 = 4,
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
+        PROPERTY_TYPE_MATRIX4 = 7,
         PROPERTY_TYPE_COUNT
     };
 
@@ -205,6 +206,7 @@ namespace dmGameObject
         PropertyVar(const dmMessage::URL& v);
         PropertyVar(Vectormath::Aos::Vector3 v);
         PropertyVar(Vectormath::Aos::Vector4 v);
+        PropertyVar(Vectormath::Aos::Matrix4 v);
         PropertyVar(Vectormath::Aos::Quat v);
         PropertyVar(bool v);
 
@@ -215,7 +217,7 @@ namespace dmGameObject
             dmhash_t m_Hash;
             // NOTE: We can't store an URL as is due to constructor
             char  m_URL[sizeof(dmMessage::URL)];
-            float m_V4[4];
+            float m_Values[16];
             bool m_Bool;
         };
     };

@@ -761,7 +761,7 @@ namespace dmGameObject
             {
                 if (is_element)
                 {
-                    out_value.m_Variant = PropertyVar(out_value.m_Variant.m_V4[element_index]);
+                    out_value.m_Variant = PropertyVar(out_value.m_Variant.m_Values[element_index]);
                 }
             }
         }
@@ -821,7 +821,7 @@ namespace dmGameObject
                 result = LuaToVar(L, -1, var);
                 if (result == PROPERTY_RESULT_OK)
                 {
-                    var.m_V4[element_index] = (float) params.m_Value.m_Number;
+                    var.m_Values[element_index] = (float) params.m_Value.m_Number;
                 }
             }
 

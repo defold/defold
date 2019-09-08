@@ -65,9 +65,9 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
     {
         if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
         {
-            set_value.setX(in_value.m_V4[0]);
-            set_value.setY(in_value.m_V4[1]);
-            set_value.setZ(in_value.m_V4[2]);
+            set_value.setX(in_value.m_Values[0]);
+            set_value.setY(in_value.m_Values[1]);
+            set_value.setZ(in_value.m_Values[2]);
         }
         else
         {
@@ -175,7 +175,7 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
     {
         if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR4)
         {
-            set_value = Vector4(in_value.m_V4[0], in_value.m_V4[1], in_value.m_V4[2], in_value.m_V4[3]);
+            set_value = Vector4(in_value.m_Values[0], in_value.m_Values[1], in_value.m_Values[2], in_value.m_Values[3]);
         }
         else
         {
@@ -281,10 +281,21 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
         constants->m_ConstantCount++;
         assert(constants->m_ConstantCount <= MAX_COMP_RENDER_CONSTANTS);
     }
-    if (element_index == 0x0)
-        *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+
+    if (var.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4)
+    {
+        *(&v[0]) = Vector4(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]);
+        *(&v[1]) = Vector4(var.m_Values[4], var.m_Values[5], var.m_Values[6], var.m_Values[7]);
+        *(&v[2]) = Vector4(var.m_Values[8], var.m_Values[9], var.m_Values[10], var.m_Values[11]);
+        *(&v[3]) = Vector4(var.m_Values[12], var.m_Values[13], var.m_Values[14], var.m_Values[15]);
+    }
     else
-        v->setElem(*element_index, (float)var.m_Number);
+    {
+        if (element_index == 0x0)
+            *v = Vector4(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]);
+        else
+            v->setElem(*element_index, (float)var.m_Number);
+    }
 }
 
 int ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash)

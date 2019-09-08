@@ -462,23 +462,23 @@ namespace dmGameObject
                 out_var.m_Type = PROPERTY_TYPE_URL;
                 break;
             case PROPERTY_CONTAINER_TYPE_VECTOR3:
-                out_var.m_V4[0] = property_container->m_FloatData[index+0];
-                out_var.m_V4[1] = property_container->m_FloatData[index+1];
-                out_var.m_V4[2] = property_container->m_FloatData[index+2];
+                out_var.m_Values[0] = property_container->m_FloatData[index+0];
+                out_var.m_Values[1] = property_container->m_FloatData[index+1];
+                out_var.m_Values[2] = property_container->m_FloatData[index+2];
                 out_var.m_Type = PROPERTY_TYPE_VECTOR3;
                 break;
             case PROPERTY_CONTAINER_TYPE_VECTOR4:
-                out_var.m_V4[0] = property_container->m_FloatData[index+0];
-                out_var.m_V4[1] = property_container->m_FloatData[index+1];
-                out_var.m_V4[2] = property_container->m_FloatData[index+2];
-                out_var.m_V4[3] = property_container->m_FloatData[index+3];
+                out_var.m_Values[0] = property_container->m_FloatData[index+0];
+                out_var.m_Values[1] = property_container->m_FloatData[index+1];
+                out_var.m_Values[2] = property_container->m_FloatData[index+2];
+                out_var.m_Values[3] = property_container->m_FloatData[index+3];
                 out_var.m_Type = PROPERTY_TYPE_VECTOR4;
                 break;
             case PROPERTY_CONTAINER_TYPE_QUAT:
-                out_var.m_V4[0] = property_container->m_FloatData[index+0];
-                out_var.m_V4[1] = property_container->m_FloatData[index+1];
-                out_var.m_V4[2] = property_container->m_FloatData[index+2];
-                out_var.m_V4[3] = property_container->m_FloatData[index+3];
+                out_var.m_Values[0] = property_container->m_FloatData[index+0];
+                out_var.m_Values[1] = property_container->m_FloatData[index+1];
+                out_var.m_Values[2] = property_container->m_FloatData[index+2];
+                out_var.m_Values[3] = property_container->m_FloatData[index+3];
                 out_var.m_Type = PROPERTY_TYPE_QUAT;
                 break;
             case PROPERTY_CONTAINER_TYPE_BOOLEAN:

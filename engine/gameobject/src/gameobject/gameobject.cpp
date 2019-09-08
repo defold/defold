@@ -113,27 +113,51 @@ namespace dmGameObject
     PropertyVar::PropertyVar(Vectormath::Aos::Vector3 v)
     {
         m_Type = PROPERTY_TYPE_VECTOR3;
-        m_V4[0] = v.getX();
-        m_V4[1] = v.getY();
-        m_V4[2] = v.getZ();
+        m_Values[0] = v.getX();
+        m_Values[1] = v.getY();
+        m_Values[2] = v.getZ();
     }
 
     PropertyVar::PropertyVar(Vectormath::Aos::Vector4 v)
     {
         m_Type = PROPERTY_TYPE_VECTOR4;
-        m_V4[0] = v.getX();
-        m_V4[1] = v.getY();
-        m_V4[2] = v.getZ();
-        m_V4[3] = v.getW();
+        m_Values[0] = v.getX();
+        m_Values[1] = v.getY();
+        m_Values[2] = v.getZ();
+        m_Values[3] = v.getW();
+    }
+
+    PropertyVar::PropertyVar(Vectormath::Aos::Matrix4 v)
+    {
+        m_Type = PROPERTY_TYPE_MATRIX4;
+        m_Values[0] = v[0].getX();
+        m_Values[1] = v[0].getY();
+        m_Values[2] = v[0].getZ();
+        m_Values[3] = v[0].getW();
+
+        m_Values[4] = v[1].getX();
+        m_Values[5] = v[1].getY();
+        m_Values[6] = v[1].getZ();
+        m_Values[7] = v[1].getW();
+
+        m_Values[8]  = v[2].getX();
+        m_Values[9]  = v[2].getY();
+        m_Values[10] = v[2].getZ();
+        m_Values[11] = v[2].getW();
+
+        m_Values[12] = v[3].getX();
+        m_Values[13] = v[3].getY();
+        m_Values[14] = v[3].getZ();
+        m_Values[15] = v[3].getW();
     }
 
     PropertyVar::PropertyVar(Vectormath::Aos::Quat v)
     {
         m_Type = PROPERTY_TYPE_QUAT;
-        m_V4[0] = v.getX();
-        m_V4[1] = v.getY();
-        m_V4[2] = v.getZ();
-        m_V4[3] = v.getW();
+        m_Values[0] = v.getX();
+        m_Values[1] = v.getY();
+        m_Values[2] = v.getZ();
+        m_Values[3] = v.getW();
     }
 
     PropertyVar::PropertyVar(bool v)
@@ -3184,9 +3208,9 @@ namespace dmGameObject
             {
                 if (value.m_Type != PROPERTY_TYPE_VECTOR3)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                position[0] = value.m_V4[0];
-                position[1] = value.m_V4[1];
-                position[2] = value.m_V4[2];
+                position[0] = value.m_Values[0];
+                position[1] = value.m_Values[1];
+                position[2] = value.m_Values[2];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_X)
@@ -3221,9 +3245,9 @@ namespace dmGameObject
                 }
                 else if (value.m_Type == PROPERTY_TYPE_VECTOR3)
                 {
-                    scale[0] = value.m_V4[0];
-                    scale[1] = value.m_V4[1];
-                    scale[2] = value.m_V4[2];
+                    scale[0] = value.m_Values[0];
+                    scale[1] = value.m_Values[1];
+                    scale[2] = value.m_Values[2];
                     return PROPERTY_RESULT_OK;
                 }
                 return PROPERTY_RESULT_TYPE_MISMATCH;
@@ -3253,10 +3277,10 @@ namespace dmGameObject
             {
                 if (value.m_Type != PROPERTY_TYPE_QUAT)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                rotation[0] = value.m_V4[0];
-                rotation[1] = value.m_V4[1];
-                rotation[2] = value.m_V4[2];
-                rotation[3] = value.m_V4[3];
+                rotation[0] = value.m_Values[0];
+                rotation[1] = value.m_Values[1];
+                rotation[2] = value.m_Values[2];
+                rotation[3] = value.m_Values[3];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_X)
@@ -3291,7 +3315,7 @@ namespace dmGameObject
             {
                 if (value.m_Type != PROPERTY_TYPE_VECTOR3)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                instance->m_EulerRotation = Vector3(value.m_V4[0], value.m_V4[1], value.m_V4[2]);
+                instance->m_EulerRotation = Vector3(value.m_Values[0], value.m_Values[1], value.m_Values[2]);
                 UpdateEulerToRotation(instance);
                 return PROPERTY_RESULT_OK;
             }

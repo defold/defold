@@ -106,7 +106,14 @@ namespace dmRender
                 m->m_NameHashToLocation.Put(name_hash, location);
                 MaterialConstant constant;
                 constant.m_Constant = Constant(name_hash, location, count);
-                constant.m_Constant.m_ValueArray = new Vectormath::Aos::Vector4[count];
+
+                if (count > 1 || type == dmGraphics::TYPE_FLOAT_MAT4)
+                {
+                    uint8_t num_columns = type == dmGraphics::TYPE_FLOAT_VEC4 ? 1 : 4;
+                    constant.m_Constant.m_ValueArray = new Vectormath::Aos::Vector4[count * num_columns];
+                    constant.m_Constant.m_IsMatrix = (uint16_t) type == dmGraphics::TYPE_FLOAT_MAT4;
+                }
+
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     size_t original_size = strlen(buffer);
@@ -173,7 +180,14 @@ namespace dmRender
             {
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
                 {
-                    dmGraphics::SetConstantV4(graphics_context, constant.GetValue(), location, constant.m_Count);
+                    if (constant.m_IsMatrix)
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, constant.GetValue(), location, constant.m_Count);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantV4(graphics_context, constant.GetValue(), location, constant.m_Count);
+                    }
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:

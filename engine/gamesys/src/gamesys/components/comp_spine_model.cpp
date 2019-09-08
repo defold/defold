@@ -674,7 +674,7 @@ namespace dmGameSystem
             v = &(constants[constants.Size()-1].m_Value);
         }
         if (element_index == 0x0)
-            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+            *v = Vector4(var.m_Values[0], var.m_Values[1], var.m_Values[2], var.m_Values[3]);
         else
             v->setElem(*element_index, (float)var.m_Number);
         ReHash(component);

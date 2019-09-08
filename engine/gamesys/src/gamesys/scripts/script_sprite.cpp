@@ -265,9 +265,6 @@ namespace dmGameSystem
             if (bracket_start && bracket_end)
             {
                 uint32_t bracket_start_ix = (uint32_t) (bracket_start - name_str_buffer);
-                uint32_t bracket_end_ix = (uint32_t) (bracket_end - name_str_buffer);
-
-                //name_str_buffer[bracket_end_ix] = '\0';
                 char* atoi_str = &name_str_buffer[bracket_start_ix+1];
                 array_ix = atoi(atoi_str);
 
@@ -288,12 +285,20 @@ namespace dmGameSystem
             name_hash = dmScript::CheckHash(L,2);
         }
 
-        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
-
         dmGameSystemDDF::SetConstant msg;
         msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
         msg.m_ArrayIndex = array_ix;
+
+        if (dmScript::IsVector4(L,3))
+        {
+            msg.m_Value[0] = *(dmScript::ToVector4(L, 3));
+            msg.m_Type = dmGameSystemDDF::VECTOR4;
+        }
+        else if (dmScript::IsMatrix4(L,3))
+        {
+            msg.m_Value = *(dmScript::ToMatrix4(L,3));
+            msg.m_Type = dmGameSystemDDF::MATRIX4;
+        }
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

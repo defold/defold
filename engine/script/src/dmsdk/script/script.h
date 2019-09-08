@@ -431,6 +431,9 @@ namespace dmScript
      */
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index);
 
+    // TODO: docs?
+    bool IsMatrix4(lua_State *L, int index);
+
     /*# get the value at index as a Vectormath::Aos::Matrix4*
      * Get the value at index as a Vectormath::Aos::Matrix4*
      * @name dmScript::ToMatrix4
