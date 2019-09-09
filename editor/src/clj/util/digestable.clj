@@ -29,8 +29,8 @@
        (node-id-key? key)))
 
 (defn- node-id-data-representation [node-id]
-  (if-some [node-type (g/node-type* node-id)]
-    (pair (symbol (:k node-type))
+  (if-some [node-type-kw (g/node-type-kw node-id)]
+    (pair (symbol node-type-kw)
           (g/node-value node-id :sha256))
     (throw (ex-info (str "Unknown node id in digestable: " node-id)
                     {:node-id node-id}))))

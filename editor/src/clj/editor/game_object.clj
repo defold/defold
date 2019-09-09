@@ -357,10 +357,11 @@
         component-go-props (map (comp build-go-props :properties) component-msgs)
         component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
         component-descs (map (fn [component-msg fused-build-resource-path go-props]
-                               (cond-> component-msg
-                                       true (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
-                                       true (assoc :component fused-build-resource-path)
-                                       (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
+                               (-> component-msg
+                                   (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
+                                   (assoc :component fused-build-resource-path)
+                                   (cond-> (seq go-props)
+                                           (assoc :property-decls (properties/go-props->decls go-props false)))))
                              component-msgs
                              component-build-resource-paths
                              component-go-props)

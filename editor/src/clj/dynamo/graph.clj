@@ -1191,14 +1191,25 @@
      (property-overridden? basis node-id prop-kw)
      true)))
 
+(defn node-type-kw
+  "Returns the fully-qualified keyword that corresponds to the node type of the
+  specified node id, or nil if the node does not exist."
+  ([node-id]
+   (:k (node-type* node-id)))
+  ([basis node-id]
+   (:k (node-type* basis node-id))))
+
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
   among them is that we will restore overridden properties during resource sync
   for nodes that return a non-nil node-key. Usually this only happens for
   ResourceNodes, but this also enables us to restore overridden properties on
   nodes produced by the resource :load-fn."
-  (fn [node-id evaluation-context]
-    (:key @(node-type* (:basis evaluation-context) node-id))))
+  (fn [node-id {:keys [basis] :as _evaluation-context}]
+    (if-some [node-type-kw (node-type-kw basis node-id)]
+      node-type-kw
+      (throw (ex-info (str "Unknown node id: " node-id)
+                      {:node-id node-id})))))
 
 (defmethod node-key :default [_node-id _evaluation-context] nil)
 
@@ -1235,7 +1246,7 @@
                  (let [override-node-key [override-id node-key]
                        overridden-properties (overridden-properties override-node-id evaluation-context)]
                    (if (contains? properties-by-override-node-key override-node-key)
-                     (let [node-type-kw (:key @(node-type* basis override-node-id))]
+                     (let [node-type-kw (node-type-kw basis override-node-id)]
                        (throw
                          (ex-info
                            (format "Duplicate node key `%s` from %s"

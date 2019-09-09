@@ -53,12 +53,12 @@
   ScriptPropertyNode type, which appear in the Property Editor for the owning
   ScriptNode. When focusing on such an error, we want to select the OutlineNode
   that displays the property."
-  [basis errors origin-override-depth origin-override-id]
-  (or (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
-        (when (g/node-instance? basis outline/OutlineNode node-id)
-          node-id))
-      (when-some [remaining-errors (next errors)]
-        (recur basis remaining-errors origin-override-depth origin-override-id))))
+  [basis errors origin-override-depth]
+  (some (fn [error]
+          (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id error))]
+            (when (g/node-instance? basis outline/OutlineNode node-id)
+              node-id)))
+        errors))
 
 (defn- find-override-value-origin [basis node-id label depth]
   (if (and node-id (g/override? basis node-id))
@@ -87,7 +87,7 @@
         basis (:basis evaluation-context)
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
-        outline-node-id (error-outline-node-id basis errors origin-override-depth origin-override-id)
+        outline-node-id (error-outline-node-id basis errors origin-override-depth)
         parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
         cursor-range (or cursor-range (error-cursor-range error))]
     (cond-> {:parent parent

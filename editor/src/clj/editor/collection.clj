@@ -345,7 +345,7 @@
   ;; when reading this. It will clear up how the output binaries are structured.
   ;; Be aware that these structures are also used to store the saved project
   ;; data. Sometimes a field will only be used by the editor *or* the runtime.
-  ;; In the case of CollectionDesc, neither the `collection_instances` or the
+  ;; In the case of CollectionDesc, neither the `collection_instances` nor the
   ;; `embedded_instances` fields are read by the runtime. Instead, all the game
   ;; objects brought in from these two fields are recursively collected into a
   ;; flat list of InstanceDesc under the `instances` field, each referencing a

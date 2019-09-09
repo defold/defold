@@ -114,7 +114,7 @@
   (join-words ', ' ' or ' []) => ''
   (join-words ', ' ' or ' ['a']) => 'a'
   (join-words ', ' ' or ' ['a' 'b']) => 'a or b'
-  (join-words ', ' ' or ' ['a' 'b' 'b']) => 'a, b or c'"
+  (join-words ', ' ' or ' ['a' 'b' 'c']) => 'a, b or c'"
   ^String [separator final-separator coll]
   (string/join final-separator
                (concat

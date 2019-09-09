@@ -16,8 +16,8 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
-            [editor.workspace :as workspace]
             [editor.validation :as validation]
+            [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
@@ -365,9 +365,6 @@
       [prop-kw (assoc prop :error lifted-error)])))
 
 (g/defnk produce-properties [_declared-properties _node-id script-properties script-property-entries]
-  ;; TODO - fix this when corresponding graph issue has been fixed
-  ;; NOTE: Sadly, what the "corresponding graph issue" that this comment refers
-  ;; to actually is have been lost to time. I'm tempted to remove the comment.
   (cond
     (g/error? _declared-properties) _declared-properties
     (g/error? script-property-entries) script-property-entries
