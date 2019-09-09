@@ -419,8 +419,8 @@ TEST_P(dmSoundVerifyTest, Mix)
         double frac = fmod(i * mix_rate / 44100.0, 1.0);
         double a = a1 * (1.0 - frac) + a2 * frac;
         int16_t as = (int16_t) a;
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * 0.707107f, 27);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * 0.707107f, 27);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 27);
     }
 
     ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
