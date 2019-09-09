@@ -63,6 +63,7 @@ GLFWAPI id glfwGetiOSEAGLContext(void);
 GLFWAPI id glfwGetOSXNSWindow(void);
 GLFWAPI id glfwGetOSXNSView(void);
 GLFWAPI id glfwGetOSXNSOpenGLContext(void);
+GLFWAPI id glfwGetOSXCALayer(void);
 
 GLFWAPI HWND glfwGetWindowsHWND(void);
 GLFWAPI HGLRC glfwGetWindowsHGLRC(void);

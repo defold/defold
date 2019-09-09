@@ -24,33 +24,14 @@ namespace dmGraphics
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
 
-        id window_layer;
+        id window_layer  = glfwGetOSXCALayer();
         id window_view   = glfwGetOSXNSView();
         id window_object = glfwGetOSXNSWindow();
-
-        // HACK: Dynamically load Core Animation to avoid adding an extra
-        //       dependency for the majority who don't use MoltenVK
-        NSBundle* bundle = [NSBundle bundleWithPath:@"/System/Library/Frameworks/QuartzCore.framework"];
-        if (!bundle)
-        {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-         // NOTE: Create the layer here as makeBackingLayer should not return nil
-        window_layer = [[bundle classNamed:@"CAMetalLayer"] layer];
-        if (!window_layer)
-        {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        [window_view setLayer: window_layer];
 
         if (enableHighDPI)
         {
             [window_layer setContentsScale:[window_object backingScaleFactor]];
         }
-
-        [window_view setWantsLayer:YES];
 
         memset(&sci, 0, sizeof(sci));
         sci.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
