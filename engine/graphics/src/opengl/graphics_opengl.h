@@ -11,6 +11,9 @@ namespace dmGraphics
     {
         Context(const ContextParams& params);
 
+        // Async queue data and synchronization objects
+        dmMutex::HMutex         m_AsyncMutex;
+
         WindowResizeCallback    m_WindowResizeCallback;
         void*                   m_WindowResizeCallbackUserData;
         WindowCloseCallback     m_WindowCloseCallback;
@@ -38,9 +41,7 @@ namespace dmGraphics
         uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
         uint32_t                m_VerifyGraphicsCalls : 1;
-
-        // Async queue data and synchronization objects
-        dmMutex::HMutex         m_AsyncMutex;
+        uint32_t                m_RenderDocSupport : 1;
     };
 
     static inline void IncreaseModificationVersion(Context* context)

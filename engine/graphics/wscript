@@ -50,9 +50,6 @@ def configure(conf):
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
 
-    if Options.options.with_renderdoc:
-        conf.env.append_value('CXXFLAGS', ['-DGL_RENDERDOC_SUPPORT'])
-
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))

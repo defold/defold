@@ -401,6 +401,7 @@ namespace dmGraphics
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
         bool          m_VerifyGraphicsCalls;
+        bool          m_RenderDocSupport;
     };
 
     /** Creates a graphics context
