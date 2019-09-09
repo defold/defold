@@ -2,17 +2,18 @@
 
 ## Enabling validation Layers
 
-By default, we link the engine with a static version of the MoltenVK library, which doesn't
-enable validation layers. To get validation layers to work, you need to copy the vulkan dylib files
-from the SDK to the $DYNAMO_HOME/tmp/share/lib/x86_64-darwin directory and link with the vulkan library
-instead. You don't need to copy the validation layer libraries, they should be picked up automatically
-by the loader.
-
-For the loader to work correctly, you need to set a bunch of environment variables to various
-points in the SDK. Currently, this has only been tested on OSX but the process should be similar
-for the other platforms.
-
 ### OSX
+
+By default, we link the engine with a static version of the MoltenVK library, which doesn't
+have any support for. To get validation layers to work on OSX and iOS platforms,
+you need to copy the vulkan dylib files from the SDK to the $DYNAMO_HOME/tmp/share/lib/x86_64-darwin directory
+and link with the vulkan library instead of MoltenVK. However, you don't need to copy the actual
+validation layer libraries, since they will be automatically picked up by the loader from the paths
+specified in the manifest files.
+
+For the loader to work correctly, you need to set a new environment variables to various
+places in the SDK. Currently, this has only been tested on OSX but the process should be similar
+for the other platforms.
 
 ```
 # This outputs everything the loader does, from searching for layers to ICDs
