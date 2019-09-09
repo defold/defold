@@ -221,6 +221,7 @@ namespace dmGameSystem
         TileGridResource* resource = component->m_Resource;
 
         dmHashInit32(&state, false);
+        dmHashUpdateBuffer32(&state, &resource->m_TextureSet, sizeof(resource->m_TextureSet));
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmHashUpdateBuffer32(&state, &resource->m_TileGrid->m_BlendMode, sizeof(resource->m_TileGrid->m_BlendMode));
         ReHashRenderConstants(&component->m_RenderConstants, &state);
