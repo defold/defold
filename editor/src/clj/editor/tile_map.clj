@@ -28,7 +28,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
@@ -158,10 +158,25 @@
   (let [pass (:pass render-args)]
     (condp = pass
       pass/transparent
-      (let [{:keys [selected ^Matrix4d world-transform user-data]}  (first renderables)
+      (let [{:keys [selected ^Matrix4d world-transform user-data]} (first renderables)
             {:keys [node-id vbuf shader gpu-texture blend-mode]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf shader)]
+          (let [render-args (merge render-args
+                                   (math/derive-render-transforms
+                                     world-transform
+                                     (:view render-args)
+                                     (:projection render-args)
+                                     (:texture render-args)))
+                ;; In the runtime, vertices are in world space. In the editor we
+                ;; prefer to keep the vertices in local space in order to avoid
+                ;; unnecessary buffer updates. As a workaround, we trick the
+                ;; shader by supplying a world-view-projection matrix for the
+                ;; view-projection matrix. If this turns out to be a problem, we
+                ;; need to produce world-space buffers here in the render
+                ;; function, seeing as we don't have the final world-transform
+                ;; until the scene has been flattened.
+                render-args (assoc render-args :view-proj (:world-view-proj render-args))
+                vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
               (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
@@ -169,7 +184,7 @@
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
-              (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
+              (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
@@ -232,6 +247,7 @@
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
       {:node-id _node-id
        :node-outline-key id
+       :transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
        :aabb aabb
        :renderable {:render-fn render-layer
                     :tags #{:tilemap}
@@ -240,7 +256,6 @@
                                 :gpu-texture gpu-texture
                                 :shader shader
                                 :blend-mode blend-mode}
-                    :index z
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline

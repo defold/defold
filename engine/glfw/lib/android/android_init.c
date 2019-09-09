@@ -365,7 +365,7 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
     return 0;
 }
 
-inline void *pointerIdToRef(int32_t id)
+void *pointerIdToRef(int32_t id)
 {
     return (void*)(0x1 + id);
 }
