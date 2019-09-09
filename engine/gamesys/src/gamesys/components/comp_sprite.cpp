@@ -189,9 +189,17 @@ namespace dmGameSystem
         return result;
     }
 
+    static inline dmRender::HMaterial GetMaterial(const SpriteComponent* component, const SpriteResource* resource) {
+        return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
+    static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, const SpriteResource* resource) {
+        return component->m_TextureSet ? component->m_TextureSet : resource->m_TextureSet;
+    }
+
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
-        TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+        TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
         uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation);
         if (anim_id)
         {
@@ -223,17 +231,9 @@ namespace dmGameSystem
             component->m_Playing = 0;
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            dmLogError("Unable to play animation '%s' since it could not be found.", dmHashReverseSafe64(animation));
+            dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
-    }
-
-    static inline dmRender::HMaterial GetMaterial(const SpriteComponent* component, const SpriteResource* resource) {
-        return component->m_Material ? component->m_Material : resource->m_Material;
-    }
-
-    static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, const SpriteResource* resource) {
-        return component->m_TextureSet ? component->m_TextureSet : resource->m_TextureSet;
     }
 
     static void ReHash(SpriteComponent* component)
@@ -303,7 +303,7 @@ namespace dmGameSystem
     }
 
 
-    SpriteVertex* CreateVertexData(SpriteWorld* sprite_world, SpriteVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static SpriteVertex* CreateVertexData(SpriteWorld* sprite_world, SpriteVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Sprite, "CreateVertexData");
         static int tex_coord_order[] = {
@@ -520,7 +520,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_Playing)
                 continue;
 
-            TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+            TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
             dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
@@ -599,7 +599,7 @@ namespace dmGameSystem
 
             if (component->m_Playing && component->m_AddedToUpdate)
             {
-                TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+                TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
@@ -625,7 +625,7 @@ namespace dmGameSystem
             if (component->m_DoTick) {
                 component->m_DoTick = 0;
 
-                TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+                TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
@@ -958,6 +958,12 @@ namespace dmGameSystem
         {
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+            // Since the animation referred to the old texture, we need to update it
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+            {
+                // Try to maintain offset and rate
+                PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
+            }
             return res;
         }
         return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompSpriteSetConstantCallback, component);
