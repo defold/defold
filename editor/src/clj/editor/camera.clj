@@ -350,7 +350,7 @@
         offset-distance (if (pos? delta)
                           (max 0.01 (* delta distance-to-focus-point))
                           (min -0.01 (* delta distance-to-focus-point)))]
-    (update camera :position math/offset-scaled forward offset-distance)))
+    (update camera :position math/offset-scaled forward (- offset-distance))))
 
 (defn dolly [camera delta]
   (case (:type camera)
