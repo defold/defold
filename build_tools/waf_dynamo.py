@@ -1500,6 +1500,10 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    # Vulkan support
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+        conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
+
     if 'win32' in platform:
         if platform == 'x86_64-win32':
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]

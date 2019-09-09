@@ -8,7 +8,6 @@ def set_options(opt):
     pass
 
 def build(bld):
-  
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                            includes = ['. opengl', '../proto'],
                            proto_gen_py = True,
@@ -22,7 +21,7 @@ def build(bld):
     else:
          obj.source.append('opengl/async/job_queue_threaded.cpp');
 
-    if Options.options.with_vulkan and not bld.env['PLATFORM'] in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+    if Options.options.with_vulkan:
       obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                              includes = ['. vulkan', '../proto'],
                              proto_gen_py = True,
