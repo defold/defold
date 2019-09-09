@@ -184,6 +184,7 @@ namespace dmGraphics
             }
 
             // Make sure all device extensions are supported
+            bool all_extensions_found = true;
             for (int32_t ext_i = 0; ext_i < required_device_extension_count; ++ext_i)
             {
                 bool found = false;
@@ -196,10 +197,12 @@ namespace dmGraphics
                     }
                 }
 
-                if (!found)
-                {
-                    RESET_AND_CONTINUE(device)
-                }
+                all_extensions_found &= found;
+            }
+
+            if (!all_extensions_found)
+            {
+                RESET_AND_CONTINUE(device)
             }
 
             // Make sure device has swap chain support
