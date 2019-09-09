@@ -51,7 +51,7 @@ def build(bld):
                      classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
                      source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
+    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
     extra_defines = []
     if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):

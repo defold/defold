@@ -19,6 +19,8 @@
  */
 namespace dmSound
 {
+    using namespace Vectormath::Aos;
+
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)
 
@@ -136,20 +138,21 @@ namespace dmSound
 
     struct SoundInstance
     {
-        uint16_t        m_Index;
-        uint16_t        m_SoundDataIndex;
-        Value           m_Gain;
-
         dmSoundCodec::HDecoder m_Decoder;
-        void*           m_Frames;
-        uint32_t        m_FrameCount;
-        uint32_t        m_FrameFraction;
+        void*       m_Frames;
+        dmhash_t    m_Group;
 
-        dmhash_t        m_Group;
+        Value       m_Gain;
+        Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
+        uint32_t    m_FrameCount;
+        uint32_t    m_FrameFraction;
 
-        uint32_t        m_Looping : 1;
-        uint32_t        m_EndOfStream : 1;
-        uint32_t        m_Playing : 1;
+        uint16_t    m_Index;
+        uint16_t    m_SoundDataIndex;
+        uint8_t     m_Looping : 1;
+        uint8_t     m_EndOfStream : 1;
+        uint8_t     m_Playing : 1;
+        uint8_t     : 5;
     };
 
     struct SoundGroup
@@ -480,6 +483,7 @@ namespace dmSound
         si->m_SoundDataIndex = sound_data->m_Index;
         si->m_Index = index;
         si->m_Gain.Reset(1.0f);
+        si->m_Pan.Reset(0.5f);
         si->m_Looping = 0;
         si->m_EndOfStream = 0;
         si->m_Playing = 0;
@@ -694,11 +698,26 @@ namespace dmSound
             case PARAMETER_GAIN:
                 sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
                 break;
+            case PARAMETER_PAN:
+                {
+                    float pan = dmMath::Max(-1.0f, dmMath::Min(1.0f, value.getX()));
+                    pan = (pan + 1.0f) * 0.5f; // map [-1,1] to [0,1] for easier calculations later
+                    sound_instance->m_Pan.Set(pan, reset);
+                }
+                break;
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
                 return RESULT_INVALID_PROPERTY;
         }
         return RESULT_OK;
+    }
+
+    static inline void GetPanScale(float pan, float* left_scale, float* right_scale)
+    {
+        // Constant power panning: https://www.cs.cmu.edu/~music/icm-online/readings/panlaws/index.html
+        const float theta = pan * M_PI_2;
+        *left_scale = cosf(theta);
+        *right_scale = sinf(theta);
     }
 
     template <typename T, int offset, int scale>
@@ -719,19 +738,24 @@ namespace dmSound
         // We never overfetch for identity mixing as identity mixing is a special case
         frames[instance->m_FrameCount] = frames[instance->m_FrameCount-1];
 
-        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
         for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
-            float gain = ramp.GetValue(i);
+            float gain = gain_ramp.GetValue(i);
+            float pan = pan_ramp.GetValue(i);
             float mix = frac * range_recip;
             T s1 = frames[index];
             T s2 = frames[index + 1];
             s1 = (s1 - offset) * scale;
             s2 = (s2 - offset) * scale;
 
+            float left_scale, right_scale;
+            GetPanScale(pan, &left_scale, &right_scale);
+
             float s = (1.0f - mix) * s1 + mix * s2;
-            mix_buffer[2 * i] += s * gain;
-            mix_buffer[2 * i + 1] += s * gain;
+            mix_buffer[2 * i] += s * gain * left_scale;
+            mix_buffer[2 * i + 1] += s * gain * right_scale;
 
             prev_index = index;
             frac += delta;
@@ -766,10 +790,12 @@ namespace dmSound
         frames[2 * instance->m_FrameCount] = frames[2 * instance->m_FrameCount - 2];
         frames[2 * instance->m_FrameCount + 1] = frames[2 * instance->m_FrameCount - 1];
 
-        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
         for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
-            float gain = ramp.GetValue(i);
+            float gain = gain_ramp.GetValue(i);
+            float pan = pan_ramp.GetValue(i);
             float mix = frac * range_recip;
             T sl1 = frames[2 * index];
             T sl2 = frames[2 * index + 2];
@@ -781,10 +807,13 @@ namespace dmSound
             sr1 = (sr1 - offset) * scale;
             sr2 = (sr2 - offset) * scale;
 
+            float left_scale, right_scale;
+            GetPanScale(pan, &left_scale, &right_scale);
+
             float sl = (1.0f - mix) * sl1 + mix * sl2;
             float sr = (1.0f - mix) * sr1 + mix * sr2;
-            mix_buffer[2 * i] += sl * gain;
-            mix_buffer[2 * i + 1] += sr * gain;
+            mix_buffer[2 * i]       += sl * gain * left_scale;
+            mix_buffer[2 * i + 1]   += sr * gain * right_scale;
 
             prev_index = index;
             frac += delta;
@@ -805,14 +834,21 @@ namespace dmSound
     {
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
-        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
+
         for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
-            float gain = ramp.GetValue(i);
+            float gain = gain_ramp.GetValue(i);
+            float pan = pan_ramp.GetValue(i);
             float s = frames[i];
             s = (s - offset) * scale * gain;
-            mix_buffer[2 * i] += s;
-            mix_buffer[2 * i + 1] += s;
+
+            float left_scale, right_scale;
+            GetPanScale(pan, &left_scale, &right_scale);
+
+            mix_buffer[2 * i]       += s * left_scale;
+            mix_buffer[2 * i + 1]   += s * right_scale;
         }
         instance->m_FrameCount -= mix_buffer_count;
     }
@@ -822,16 +858,22 @@ namespace dmSound
     {
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
-        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
+        Ramp pan_ramp = GetRamp(mix_context, &instance->m_Pan, mix_buffer_count);
+
         for (uint32_t i = 0; i < mix_buffer_count; i++)
         {
-            float gain = ramp.GetValue(i);
+            float gain = gain_ramp.GetValue(i);
+            float pan = pan_ramp.GetValue(i);
             float s1 = frames[2 * i];
             float s2 = frames[2 * i + 1];
             s1 = (s1 - offset) * scale * gain;
             s2 = (s2 - offset) * scale * gain;
-            mix_buffer[2 * i] += s1;
-            mix_buffer[2 * i + 1] += s2;
+
+            float left_scale, right_scale;
+            GetPanScale(pan, &left_scale, &right_scale);
+            mix_buffer[2 * i]       += s1 * left_scale;
+            mix_buffer[2 * i + 1]   += s2 * right_scale;
         }
         instance->m_FrameCount -= mix_buffer_count;
     }
@@ -1157,6 +1199,7 @@ namespace dmSound
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0) {
                 instance->m_Gain.Step();
+                instance->m_Pan.Step();
             }
         }
     }

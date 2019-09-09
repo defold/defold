@@ -19,6 +19,7 @@ ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_NDK_API_VERSION_VULKAN='24'
 ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='28' # Android 9.0
 ANDROID_MIN_API_LEVEL='14'
@@ -38,9 +39,6 @@ MIN_OSX_SDK_VERSION="10.7"
 XCODE_VERSION="10.1"
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
-
-# TODO: HACK
-FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
@@ -195,7 +193,12 @@ def getAndroidCompilerName(target_arch, api_version):
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+    if Options.options.with_vulkan:
+        return ANDROID_NDK_API_VERSION_VULKAN
+    elif target_arch == 'arm64':
+        return ANDROID_64_NDK_API_VERSION
+    else:
+        return ANDROID_NDK_API_VERSION
 
 def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:
@@ -340,13 +343,6 @@ def default_flags(self):
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
         self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
-    elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
-        # NOTE: -g set on both C*FLAGS and LINKFLAGS
-        # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
-        # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
-        for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
-        self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
@@ -1265,20 +1261,6 @@ def linux_link_flags(self):
     if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
-@feature('swf')
-@after('apply_link')
-def as3_link_flags_emit(self):
-    platform = self.env['PLATFORM']
-    if platform == 'as3-web' and 'swf' in self.features:
-        self.link_task.env.append_value('LINKFLAGS', ['-emit-swf'])
-
-@feature('swf')
-@before('apply_link')
-def as3_link_flags_pattern(self):
-    platform = self.env['PLATFORM']
-    if platform == 'as3-web' and 'swf' in self.features:
-        self.env['program_PATTERN']='%s.swf'
-
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
 def js_web_link_flags(self):
@@ -1518,6 +1500,10 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    # Vulkan support
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+        conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
+
     if 'win32' in platform:
         if platform == 'x86_64-win32':
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
@@ -1629,20 +1615,6 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
-
-    if 'web' == build_util.get_target_os() and 'as3' == build_util.get_target_architecture():
-        bin = os.path.join(FLASCC_ROOT, 'usr', 'bin')
-        conf.env['CC'] = '%s/gcc' % (bin)
-        conf.env['CXX'] = '%s/g++' % (bin)
-        conf.env['LINK_CXX'] = '%s/g++' % (bin)
-        conf.env['CPP'] = '%s/cpp' % (bin)
-        conf.env['AR'] = '%s/ar' % (bin)
-        conf.env['RANLIB'] = '%s/ranlib' % (bin)
-        conf.env['LD'] = '%s/ld' % (bin)
-
-        # flascc got confused by -compatibility_version 1 and -current_version 1
-        conf.env['shlib_CCFLAGS'] = []
-        conf.env['shlib_CXXFLAGS'] = []
 
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
