@@ -11,9 +11,6 @@
 
 namespace dmGraphics
 {
-    // TODO: Validation layers should probably be configurable,
-    //       or defined by the build system.
-    static bool g_enable_validation               = false;
     static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
     static const uint8_t g_validation_layer_count = 1;
 
@@ -72,8 +69,16 @@ namespace dmGraphics
                 return 0x0;
             }
 
+            bool enable_validation = false;
+
+            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
+            if (env_vulkan_validation != 0x0)
+            {
+                enable_validation = strtol(env_vulkan_validation, 0, 10);
+            }
+
             VkInstance vk_instance;
-            if (CreateInstance(&vk_instance, g_validation_layers, g_enable_validation ? 1 : 0) != VK_SUCCESS)
+            if (CreateInstance(&vk_instance, g_validation_layers, enable_validation) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
