@@ -4,6 +4,7 @@
 #include <android_native_app_glue.h>
 #include <dlib/log.h>
 #include <jni.h>
+#include <assert.h>
 
 extern struct android_app* g_AndroidApp;
 

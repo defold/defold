@@ -65,7 +65,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id sound looping group gain]
+  [_node-id sound looping group gain pan]
   {:navigation false
    :form-ops {:user-data {:node-id _node-id}
               :set set-form-op
@@ -83,18 +83,23 @@
                          :type :string}
                         {:path [:gain]
                          :label "Gain"
+                         :type :number}
+                         {:path [:pan]
+                         :label "Pan"
                          :type :number}]}]
    :values {[:sound] sound
             [:looping] looping
             [:group] group
-            [:gain] gain}})
+            [:gain] gain
+            [:pan] pan}})
 
 (g/defnk produce-pb-msg
-  [_node-id sound-resource looping group gain]
+  [_node-id sound-resource looping group gain pan]
   {:sound (resource/resource->proj-path sound-resource)
    :looping (if looping 1 0)
    :group group
-   :gain gain})
+   :gain gain
+   :pan pan})
 
 (defn build-sound
   [resource dep-resources user-data]
@@ -126,7 +131,8 @@
     :sound (workspace/resolve-resource resource (:sound sound))
     :looping (not (zero? (:looping sound)))
     :group (:group sound)
-    :gain (:gain sound)))
+    :gain (:gain sound)
+    :pan (:pan sound)))
 
 (g/defnode SoundNode
   (inherits resource-node/ResourceNode)
@@ -149,6 +155,8 @@
   (property group g/Str (default "master"))
   (property gain g/Num (default 1.0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-0-1? gain)))
+  (property pan g/Num (default 0.0)
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)

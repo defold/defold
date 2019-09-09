@@ -369,9 +369,9 @@
 (defn empty-aabb? [^AABB aabb]
   (let [min-p ^Point3d (.min aabb)
         max-p ^Point3d (.max aabb)]
-    (or (= (.x min-p) (.x max-p))
-        (= (.y min-p) (.y max-p))
-        (= (.z min-p) (.z max-p)))))
+    (and (= (.x min-p) (.x max-p))
+         (= (.y min-p) (.y max-p))
+         (= (.z min-p) (.z max-p)))))
 
 ;; From Graphics Gems:
 ;; https://github.com/erich666/GraphicsGems/blob/master/gems/TransBox.c
