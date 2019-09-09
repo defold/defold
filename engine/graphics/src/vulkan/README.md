@@ -2,6 +2,10 @@
 
 ## Enabling validation Layers
 
+To enable validation layers, set the environment variable "DM_VULKAN_VALIDATION=1".
+This may not be a guarantee that validation is supported by your host platform, but
+the flag needs to be set for the graphics system to poll for support.
+
 ### OSX
 
 By default, we link the engine with a static version of the MoltenVK library, which doesn't
