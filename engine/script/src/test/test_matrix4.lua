@@ -133,3 +133,14 @@ assert(mi.c1.z == 1)
 assert(mi.c2.x == 1)
 assert(mi.c2.y == 0)
 assert(mi.c2.z == 0)
+
+-- translation
+m = vmath.matrix4_translation(vmath.vector3(4,3,2))
+assert(m.c3.x == 4, "translation .x")
+assert(m.c3.y == 3, "translation .y")
+assert(m.c3.z == 2, "translation .z")
+
+m = vmath.matrix4_translation(vmath.vector4(8,7,6,-1))
+assert(m.c3.x == 8, "translation .x")
+assert(m.c3.y == 7, "translation .y")
+assert(m.c3.z == 6, "translation .z")
