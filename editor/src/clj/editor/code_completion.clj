@@ -46,8 +46,8 @@
                         (comp (remove #(contains? taken-display-strings (:display-string %)))
                               (util/distinct-by :display-string))
                         new)))
-              @lua/defold-docs
-              @lua/lua-std-libs-docs
+              lua/defold-docs
+              lua/lua-std-libs-docs
               script-intelligence-completions
               (make-local-completions local-completion-info)
               (make-required-completions (:requires local-completion-info) required-completion-infos)))
