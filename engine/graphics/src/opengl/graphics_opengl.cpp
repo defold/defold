@@ -2287,7 +2287,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         assert(texture);
 
-#if !defined(GL_HAS_RENDERDOC_SUPPORT)
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (!context->m_RenderDocSupport)
+        {
+            glEnable(GL_TEXTURE_2D);
+            CHECK_GL_ERROR
+        }
+#else
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -2304,7 +2310,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
 
-#if !defined(GL_HAS_RENDERDOC_SUPPORT)
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (!context->m_RenderDocSupport)
+        {
+            glEnable(GL_TEXTURE_2D);
+            CHECK_GL_ERROR
+        }
+#else
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
