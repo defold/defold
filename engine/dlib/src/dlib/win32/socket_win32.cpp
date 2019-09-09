@@ -56,10 +56,8 @@ namespace dmSocket
                                 sockaddr_in6 *ia = (sockaddr_in6 *)punicast->Address.lpSockaddr;
                                 memcpy(IPv6(&a->m_Address), &ia->sin6_addr, sizeof(struct in6_addr));
                             }
-                            else {
-                                a->m_Flags |= FLAGS_LINK;
-                            }
 
+                            a->m_Flags |= FLAGS_LINK;
                             a->m_MacAddress[0] = pcurraddresses->PhysicalAddress[0];
                             a->m_MacAddress[1] = pcurraddresses->PhysicalAddress[1];
                             a->m_MacAddress[2] = pcurraddresses->PhysicalAddress[2];

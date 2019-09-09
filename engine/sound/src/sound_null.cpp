@@ -6,6 +6,7 @@
 
 namespace dmSound
 {
+    using namespace Vectormath::Aos;
     dmArray<SoundInstance*>* g_Instances = 0x0;
 
     struct SoundData
