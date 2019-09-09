@@ -1574,18 +1574,37 @@ namespace dmScript
      * in euclidean space.
      *
      * @name vmath.matrix4_translation
-     * @param position [type:vector3] position vector to create matrix from
-     * @return m [type:matrix4] todo
+     * @param position [type:vector3|type:vector4] position vector to create matrix from
+     * @return m [type:matrix4] matrix from the supplied position vector
      * @examples
      *
      * ```lua
-     * todo
+     * -- Set camera view from custom view and translation matrices
+     * local mat_trans = vmath.matrix4_translation(vmath.vector3(0, 10, 100))
+     * local mat_view  = vmath.matrix4_rotation_y(-3.141592/4)
+     * render.set_view(mat_view * mat_trans)
      * ```
      */
     static int Matrix4_Translation(lua_State* L)
     {
-        const Vectormath::Aos::Vector3* t1 = CheckVector3(L, 1);
-        PushMatrix4(L, Vectormath::Aos::Matrix4::translation(*t1));
+        const ScriptUserType v_type = GetType(L, 1);
+
+        if (v_type == SCRIPT_TYPE_VECTOR3)
+        {
+            const Vectormath::Aos::Vector3* t1 = CheckVector3(L, 1);
+            PushMatrix4(L, Vectormath::Aos::Matrix4::translation(*t1));
+        }
+        else if (v_type == SCRIPT_TYPE_VECTOR4)
+        {
+            const Vectormath::Aos::Vector4* t1 = CheckVector4(L, 1);
+            PushMatrix4(L, Vectormath::Aos::Matrix4::translation(t1->getXYZ()));
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "matrix4_translation",
+                SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+        }
+
         return 1;
     }
 
