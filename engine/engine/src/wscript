@@ -57,7 +57,7 @@ def build(bld):
 
     # Set graphics library to use (at some point both GL/VK should be used)
     graphics_lib = 'GRAPHICS'
-    if not 'web' in bld.env['PLATFORM'] and Options.options.with_vulkan:
+    if Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
