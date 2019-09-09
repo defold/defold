@@ -875,7 +875,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    float a = 0;
+    float a = 0.0f;
 
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -928,6 +928,7 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    float a = 0.0f;
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
