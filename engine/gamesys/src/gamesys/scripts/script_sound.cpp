@@ -449,13 +449,9 @@ namespace dmGameSystem
         }
 
         dmGameSystemDDF::PlaySound msg;
-        msg.m_Delay = delay;
-        msg.m_Gain = gain;
-
-        dmGameSystemDDF::PlaySound msg;
         msg.m_Delay  = delay;
         msg.m_Gain   = gain;
-        msg.m_Pan = pan;
+        msg.m_Pan    = pan;
         msg.m_PlayId = dmSound::GetAndIncreasePlayCounter();
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
