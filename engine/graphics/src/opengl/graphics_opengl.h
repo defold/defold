@@ -37,11 +37,11 @@ namespace dmGraphics
         uint32_t                m_IndexBufferFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
-        uint32_t                m_FrameBufferInvalidateAttachments : 1;
-        uint32_t                m_PackedDepthStencil : 1;
-        uint32_t                m_WindowOpened : 1;
-        uint32_t                m_VerifyGraphicsCalls : 1;
-        uint32_t                m_RenderDocSupport : 1;
+        uint8_t                 m_FrameBufferInvalidateAttachments : 1;
+        uint8_t                 m_PackedDepthStencil : 1;
+        uint8_t                 m_WindowOpened : 1;
+        uint8_t                 m_VerifyGraphicsCalls : 1;
+        uint8_t                 m_RenderDocSupport : 1;
     };
 
     static inline void IncreaseModificationVersion(Context* context)

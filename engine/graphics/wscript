@@ -6,7 +6,7 @@ APPNAME = 'graphics'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys, Options
+import os, sys
 
 import waf_ddf, waf_dynamo
 
