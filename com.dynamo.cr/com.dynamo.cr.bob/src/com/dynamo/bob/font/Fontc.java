@@ -42,24 +42,12 @@ import java.util.Comparator;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.FileUtils;
-import java.awt.image.DataBufferByte;
 import com.sun.jna.Pointer;
 
 import com.dynamo.bob.TexcLibrary;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
-
-import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
-
-import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
-
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
-
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
@@ -604,10 +592,10 @@ public class Fontc {
                     int compressionType = TexcLibrary.CompressionType.CT_WEBP;
 
                     int pixelFormat = PixelFormat.L8;
-                    if (channelCount > 1)
-                        pixelFormat = PixelFormat.R8G8B8;
-                    else if (channelCount > 3)
+                    if (channelCount > 3)
                         pixelFormat = PixelFormat.R8G8B8A8;
+                    else if (channelCount > 1)
+                        pixelFormat = PixelFormat.R8G8B8;
 
                     ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
 

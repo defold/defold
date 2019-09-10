@@ -14,7 +14,7 @@ namespace dmTexc
 {
     static const uint32_t COMPRESSION_ENABLED_PIXELCOUNT_THRESHOLD = 64; // do not compress mips with less than this pixelcount
 
-    struct CompressedTextureData
+    struct TextureData
     {
         size_t m_ByteSize;
         uint8_t m_IsCompressed;
@@ -23,7 +23,7 @@ namespace dmTexc
 
     struct Texture
     {
-        dmArray<CompressedTextureData> m_CompressedMips;
+        dmArray<TextureData> m_CompressedMips;
         pvrtexture::CPVRTexture* m_PVRTexture;
         uint64_t m_CompressionFlags;
     };

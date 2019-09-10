@@ -313,7 +313,7 @@ namespace dmTexc
             uint32_t datasize = pt->getDataSize(mip_map);
             uint8_t* data = (uint8_t*) pt->getDataPtr(mip_map);
             uint32_t outsize;
-            CompressedTextureData ctd;
+            TextureData ctd;
             if (!CompressWebPInternal(&config, mip_width, mip_height, bpp, data, datasize, &ctd.m_Data, &outsize, pixel_format, compression_level, compression_type)) {
                 dmLogError("Failed to compress mip %d", mip_map);
                 mip_map = mip_maps;
@@ -365,7 +365,7 @@ namespace dmTexc
         }
 
         uint32_t outsize = 0;
-        CompressedTextureData* out = new CompressedTextureData;
+        TextureData* out = new TextureData;
 
         if (!CompressWebPInternal(&config, width, height, bpp, (uint8_t*)data, size, &out->m_Data, &outsize, pixel_format, compression_level, compression_type)) {
             if (outsize == 0xFFFFFFFF) {
@@ -384,13 +384,13 @@ namespace dmTexc
 
     uint32_t GetTotalBufferDataSize(HBuffer _buffer)
     {
-        CompressedTextureData* buffer = (CompressedTextureData*) _buffer;
+        TextureData* buffer = (TextureData*) _buffer;
         return (uint32_t)buffer->m_ByteSize + 1;
     }
 
     uint32_t GetBufferData(HBuffer _buffer, void* _out_data, uint32_t out_data_size)
     {
-        CompressedTextureData* buffer = (CompressedTextureData*) _buffer;
+        TextureData* buffer = (TextureData*) _buffer;
         uint8_t* out_data = (uint8_t*)_out_data;
         out_data[0] = buffer->m_IsCompressed;
         memcpy(out_data+1, buffer->m_Data, dmMath::Min(out_data_size, (uint32_t)buffer->m_ByteSize));
@@ -399,6 +399,6 @@ namespace dmTexc
 
     void DestroyBuffer(HBuffer buffer)
     {
-        delete (CompressedTextureData*)buffer;
+        delete (TextureData*)buffer;
     }
 }
