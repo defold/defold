@@ -28,4 +28,5 @@ Export-Package: com.dynamo.bob,
  com.dynamo.bob.tile,
  com.dynamo.bob.util
 Import-Package: com.dynamo.bob.archive.publisher,
- com.dynamo.bob.pipeline
+ com.dynamo.bob.pipeline,
+ com.sun.jna

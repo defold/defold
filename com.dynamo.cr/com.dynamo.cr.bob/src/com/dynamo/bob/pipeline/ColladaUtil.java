@@ -496,6 +496,10 @@ public class ColladaUtil {
         }
     }
 
+    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
+        loadMesh(is, meshSetBuilder, false);
+    }
+
     public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshSetBuilder, optimize);

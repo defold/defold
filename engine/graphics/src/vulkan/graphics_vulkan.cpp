@@ -2,6 +2,7 @@
 #include "graphics_vulkan.h"
 
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
@@ -10,7 +11,53 @@
 
 namespace dmGraphics
 {
+    static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
+    static const uint8_t g_validation_layer_count = 1;
+
     static Context* g_Context = 0;
+
+    static const char* VkResultToStr(VkResult res)
+    {
+        switch(res)
+        {
+            case VK_SUCCESS: return "VK_SUCCESS";
+            case VK_NOT_READY: return "VK_NOT_READY";
+            case VK_TIMEOUT: return "VK_TIMEOUT";
+            case VK_EVENT_SET: return "VK_EVENT_SET";
+            case VK_EVENT_RESET: return "VK_EVENT_RESET";
+            case VK_INCOMPLETE: return "VK_INCOMPLETE";
+            case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+            case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+            case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+            case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+            case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+            case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+            case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+            case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+            case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+            case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+            case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+            case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+            case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
+            case VK_ERROR_INVALID_EXTERNAL_HANDLE: return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+            case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
+            case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+            case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
+            case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
+            case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+            case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
+            case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
+            case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT: return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+            case VK_ERROR_FRAGMENTATION_EXT: return "VK_ERROR_FRAGMENTATION_EXT";
+            case VK_ERROR_NOT_PERMITTED_EXT: return "VK_ERROR_NOT_PERMITTED_EXT";
+            case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT: return "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT";
+            case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+            case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
+            default: break;
+        }
+
+        return "UNKNOWN_ERROR";
+    }
 
     HContext NewContext(const ContextParams& params)
     {
@@ -21,7 +68,25 @@ namespace dmGraphics
                 dmLogError("Could not initialize glfw.");
                 return 0x0;
             }
+
+            bool enable_validation = false;
+
+            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
+            if (env_vulkan_validation != 0x0)
+            {
+                enable_validation = strtol(env_vulkan_validation, 0, 10);
+            }
+
+            VkInstance vk_instance;
+            if (CreateInstance(&vk_instance, g_validation_layers, enable_validation) != VK_SUCCESS)
+            {
+                dmLogError("Could not create Vulkan instance");
+                return 0x0;
+            }
+
             g_Context = new Context();
+            g_Context->m_Instance = vk_instance;
+
             return g_Context;
         }
         return 0x0;
@@ -53,6 +118,9 @@ namespace dmGraphics
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
     {
+        assert(context);
+        assert(context->m_WindowSurface == VK_NULL_HANDLE);
+
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
 
@@ -63,9 +131,140 @@ namespace dmGraphics
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        context->m_WindowOpened = 1;
+        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        uint32_t device_count = GetPhysicalDeviceCount(context->m_Instance);
+
+        if (device_count == 0)
+        {
+            dmLogError("Could not get any Vulkan devices.");
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        PhysicalDevice* device_list     = new PhysicalDevice[device_count];
+        PhysicalDevice* selected_device = NULL;
+        GetPhysicalDevices(context->m_Instance, &device_list, device_count);
+
+        const uint8_t required_device_extension_count = 2;
+        const char* required_device_extensions[] = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            // From spec:
+            // "Allow negative height to be specified in the VkViewport::height field to
+            // perform y-inversion of the clip-space to framebuffer-space transform.
+            // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
+            // in shaders also targeting other APIs."
+            "VK_KHR_maintenance1"
+        };
+
+        QueueFamily selected_queue_family;
+        SwapChainCapabilities selected_swap_chain_capabilities;
+        for (uint32_t i = 0; i < device_count; ++i)
+        {
+            #define RESET_AND_CONTINUE(d) \
+                ResetPhysicalDevice(d); \
+                continue;
+
+            PhysicalDevice* device = &device_list[i];
+
+            if (selected_device)
+            {
+                RESET_AND_CONTINUE(device)
+            }
+
+            // Make sure we have a graphics and present queue available
+            QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
+            if (!queue_family.IsValid())
+            {
+                RESET_AND_CONTINUE(device)
+            }
+
+            // Make sure all device extensions are supported
+            bool all_extensions_found = true;
+            for (int32_t ext_i = 0; ext_i < required_device_extension_count; ++ext_i)
+            {
+                bool found = false;
+                for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
+                {
+                    if (dmStrCaseCmp(device->m_DeviceExtensions[j].extensionName, required_device_extensions[ext_i]) == 0)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                all_extensions_found &= found;
+            }
+
+            if (!all_extensions_found)
+            {
+                RESET_AND_CONTINUE(device)
+            }
+
+            // Make sure device has swap chain support
+            GetSwapChainCapabilities(device, context->m_WindowSurface, selected_swap_chain_capabilities);
+
+            if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
+                selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
+            {
+                RESET_AND_CONTINUE(device)
+            }
+
+            selected_device = device;
+            selected_queue_family = queue_family;
+
+            #undef RESET_AND_CONTINUE
+        }
+
+        LogicalDevice logical_device;
+        uint32_t created_width  = params->m_Width;
+        uint32_t created_height = params->m_Height;
+        const bool want_vsync   = true;
+
+        if (selected_device == NULL)
+        {
+            dmLogError("Could not select a suitable Vulkan device.");
+            goto bail;
+        }
+
+        res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
+            required_device_extensions, required_device_extension_count,
+            g_validation_layers, g_validation_layer_count, &logical_device);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
+            goto bail;
+        }
+
+        context->m_WindowOpened   = 1;
+        context->m_PhysicalDevice = *selected_device;
+        context->m_LogicalDevice  = logical_device;
+
+        // Create swap chain
+        context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
+        context->m_SwapChain    = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
+
+        res = UpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
+            goto bail;
+        }
+
+        delete[] device_list;
 
         return WINDOW_RESULT_OK;
+bail:
+        if (context->m_SwapChain)
+            delete context->m_SwapChain;
+        if (device_list)
+            delete[] device_list;
+
+        return WINDOW_RESULT_WINDOW_OPEN_ERROR;
     }
 
     void CloseWindow(HContext context)
@@ -74,7 +273,20 @@ namespace dmGraphics
         if (context->m_WindowOpened)
         {
             glfwCloseWindow();
+
+            ResetSwapChain(context->m_SwapChain);
+
+            ResetPhysicalDevice(&context->m_PhysicalDevice);
+
+            vkDestroyDevice(context->m_LogicalDevice.m_Device, 0);
+
+            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+
+            DestroyInstance(&context->m_Instance);
+
             context->m_WindowOpened = 0;
+
+            delete context->m_SwapChain;
         }
     }
 

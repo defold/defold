@@ -9,7 +9,7 @@
 #include <ares.h>
 #include <assert.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__)
     #include <netdb.h>
 #endif
 
