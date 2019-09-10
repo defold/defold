@@ -886,7 +886,6 @@ public class SpineSceneUtil {
             }
 
             // Load default skin first since other skins will be based on this.
-            // JsonNode defaultSkinNode = node.get("skins").get("default");
             JsonNode defaultSkinNode = findDefaultSkin(scene.spineVersionParts, node.get("skins"));
             if (defaultSkinNode == null) {
                 throw new LoadException("No default skin found!");
