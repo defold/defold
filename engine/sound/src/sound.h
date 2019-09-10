@@ -45,6 +45,10 @@ namespace dmSound
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
+    // Used to identify if a sound.play or play_sound msg
+    // should signal upon completion.
+    const uint32_t INVALID_PLAY_ID = 0xffffffff;
+
     struct Stats
     {
         uint32_t m_BufferUnderflowCount;
@@ -103,6 +107,7 @@ namespace dmSound
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
     bool IsPlaying(HSoundInstance sound_instance);
+    uint32_t GetAndIncreasePlayCounter();
 
     Result SetLooping(HSoundInstance sound_instance, bool looping);
 
