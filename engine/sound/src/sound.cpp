@@ -682,6 +682,10 @@ namespace dmSound
 
     uint32_t GetAndIncreasePlayCounter()
     {
+    	if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)
+    	{
+    		g_SoundSystem->m_PlayCounter = 0;
+    	}
         return g_SoundSystem->m_PlayCounter++;
     }
 

@@ -417,6 +417,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f;
+        uint32_t play_id = dmSound::INVALID_PLAY_ID;
 
         if (top > 1 && !lua_isnil(L,2)) // table with args
         {
@@ -443,6 +444,7 @@ namespace dmGameSystem
             if (lua_isfunction(L, 3))
             {
                 lua_pushvalue(L, 3);
+                play_id = dmSound::GetAndIncreasePlayCounter();
                 // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
                 sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
@@ -452,7 +454,7 @@ namespace dmGameSystem
         msg.m_Delay  = delay;
         msg.m_Gain   = gain;
         msg.m_Pan    = pan;
-        msg.m_PlayId = dmSound::GetAndIncreasePlayCounter();
+        msg.m_PlayId = play_id;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 

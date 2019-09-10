@@ -23,7 +23,7 @@ namespace dmGameSystem
         dmMessage::URL          m_Receiver;
         dmGameObject::HInstance m_Instance;
         float                   m_Delay;
-        uint32_t                m_PlayId : 31;
+        uint32_t                m_PlayId;
         uint32_t                m_StopRequested : 1;
     };
 
@@ -128,7 +128,7 @@ namespace dmGameSystem
                             dmLogError("Error deleting sound: (%d)", r);
                             update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
-                        else if (entry.m_Listener.m_Fragment != 0x0)
+                        else if (entry.m_PlayId != dmSound::INVALID_PLAY_ID && entry.m_Listener.m_Fragment != 0x0)
                         {
                             dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
                             dmGameSystemDDF::SoundDone message;
