@@ -8,6 +8,7 @@
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesystem.proto GameSystem$LightDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
+           [com.dynamo.buffer.proto BufferProto$BufferDesc]
            [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]
            [com.dynamo.physics.proto Physics$ConvexShape]))
 
@@ -38,7 +39,12 @@
                :label "Texture Profiles"
                :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
-               :pb-class Graphics$TextureProfiles}])
+               :pb-class Graphics$TextureProfiles}
+              {:ext "buffer"
+               :label "Buffer"
+               :view-types [:cljfx-form-view :text]
+               :icon "icons/32/Icons_61-Buffer.png"
+               :pb-class BufferProto$BufferDesc}])
 
 (defn- build-pb [resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})

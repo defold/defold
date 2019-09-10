@@ -7,6 +7,8 @@
 #include <render/render.h>
 #include "mesh_ddf.h"
 
+#include "res_buffer.h"
+
 namespace dmGameSystem
 {
     struct MeshResource
@@ -15,7 +17,8 @@ namespace dmGameSystem
             // nop?
         }
 
-        dmMeshDDF::Mesh*        m_Mesh;
+        dmMeshDDF::Mesh*        m_MeshDDF;
+        BufferResource*         m_BufferResource;
         dmRender::HMaterial     m_Material;
         // dmGraphics::HVertexBuffer m_VertexBuffer;
         // dmGraphics::HIndexBuffer m_IndexBuffer;

@@ -24,8 +24,9 @@
 
 (def ^:private mesh-icon "icons/32/Icons_22-Model.png")
 
-(g/defnk produce-pb-msg [name material textures]
+(g/defnk produce-pb-msg [name material vertices textures]
   (cond-> {:material (resource/resource->proj-path material)
+           :vertices (resource/resource->proj-path vertices)
            :textures (mapv resource/resource->proj-path textures)}
     (not (str/blank? name))
     (assoc :name name)))
@@ -56,10 +57,10 @@
                not-empty
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
-            pb-msg (select-keys pb-msg [:material :textures])
+            pb-msg (select-keys pb-msg [:material :vertices :textures])
             dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-            dep-resources (into (res-fields->resources pb-msg deps-by-source [:material])
+            dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
                             (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
         [(bt/with-content-hash
            {:node-id _node-id
@@ -121,6 +122,15 @@
                                   (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
+
+  (property vertices resource/Resource
+            (value (gu/passthrough vertices-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :vertices-resource]
+                                            [:build-targets :dep-build-targets])))
+            (dynamic edit-type (g/constantly {:type resource/Resource
+                                              :ext "buffer"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
@@ -141,6 +151,7 @@
 
   (input material-resource resource/Resource)
   (input samplers g/Any)
+  (input vertices-resource resource/Resource)
   (input texture-resources resource/Resource :array)
   (input gpu-texture-generators g/Any :array)
   (input dep-build-targets g/Any :array)
@@ -178,7 +189,7 @@
 (defn load-mesh [project self resource pb]
   (concat
     (g/set-property self :name (:name pb))
-    (for [res [:material [:textures]]]
+    (for [res [:material :vertices [:textures]]]
       (if (vector? res)
         (let [res (first res)]
           (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))

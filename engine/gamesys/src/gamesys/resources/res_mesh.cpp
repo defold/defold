@@ -37,15 +37,21 @@ namespace dmGameSystem
 
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, MeshResource* resource, const char* filename)
     {
-        dmResource::Result result = dmResource::Get(factory, resource->m_Mesh->m_Material, (void**) &resource->m_Material);
+        dmResource::Result result = dmResource::Get(factory, resource->m_MeshDDF->m_Material, (void**) &resource->m_Material);
         if (result != dmResource::RESULT_OK)
             return result;
 
+        result = dmResource::Get(factory, resource->m_MeshDDF->m_Vertices, (void**) &resource->m_BufferResource);
+        if (result != dmResource::RESULT_OK) {
+            dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
+            return result;
+        }
+
         dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
-        for (uint32_t i = 0; i < resource->m_Mesh->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        for (uint32_t i = 0; i < resource->m_MeshDDF->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
-            const char* texture_path = resource->m_Mesh->m_Textures[i];
+            const char* texture_path = resource->m_MeshDDF->m_Textures[i];
             if (*texture_path != 0)
             {
                 dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
@@ -64,6 +70,8 @@ namespace dmGameSystem
         }
         if (result != dmResource::RESULT_OK)
         {
+            dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
+            dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Vertices);
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
                 if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
             return result;
@@ -103,9 +111,9 @@ namespace dmGameSystem
         //     resource->m_IndexBuffer = 0x0;
         //     resource->m_ElementCount = 0;
         // }
-        if (resource->m_Mesh != 0x0)
-            dmDDF::FreeMessage(resource->m_Mesh);
-        resource->m_Mesh = 0x0;
+        if (resource->m_MeshDDF != 0x0)
+            dmDDF::FreeMessage(resource->m_MeshDDF);
+        resource->m_MeshDDF = 0x0;
         // if (resource->m_RigScene != 0x0)
         //     dmResource::Release(factory, resource->m_RigScene);
         // resource->m_RigScene = 0x0;
@@ -130,6 +138,7 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Vertices);
         for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i]);
@@ -143,7 +152,7 @@ namespace dmGameSystem
     {
         MeshResource* mesh_resource = new MeshResource();
         memset(mesh_resource, 0, sizeof(MeshResource));
-        mesh_resource->m_Mesh = (dmMeshDDF::Mesh*) params.m_PreloadData;
+        mesh_resource->m_MeshDDF = (dmMeshDDF::Mesh*) params.m_PreloadData;
         dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, mesh_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -175,7 +184,7 @@ namespace dmGameSystem
         }
         MeshResource* mesh_resource = (MeshResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, mesh_resource);
-        mesh_resource->m_Mesh = ddf;
+        mesh_resource->m_MeshDDF = ddf;
         return AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, mesh_resource, params.m_Filename);
     }
 }

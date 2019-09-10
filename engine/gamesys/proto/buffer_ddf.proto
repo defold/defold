@@ -1,0 +1,33 @@
+package dmBufferDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.buffer.proto";
+option java_outer_classname = "BufferProto";
+
+enum ValueType
+{
+    VALUE_TYPE_UINT8     = 0;
+    VALUE_TYPE_UINT16    = 1;
+    VALUE_TYPE_UINT32    = 2;
+    VALUE_TYPE_UINT64    = 3;
+    VALUE_TYPE_INT8      = 4;
+    VALUE_TYPE_INT16     = 5;
+    VALUE_TYPE_INT32     = 6;
+    VALUE_TYPE_INT64     = 7;
+    VALUE_TYPE_FLOAT32   = 8;
+}
+
+message StreamDesc
+{
+    required string name = 1;
+    required ValueType value_type = 2;
+    required uint32 value_count = 3;
+    repeated bytes data = 4;
+}
+
+message BufferDesc
+{
+    repeated StreamDesc streams = 1;
+}

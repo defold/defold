@@ -3,7 +3,8 @@
             [clojure.string :as str]
             [dynamo.graph :as g])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]))
+           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]
+           [com.dynamo.buffer.proto BufferProto$BufferDesc BufferProto$StreamDesc BufferProto$ValueType]))
 
 (set! *warn-on-reflection* true)
 
@@ -271,6 +272,30 @@
                                            :label "Premultiply alpha"
                                            :default true
                                            :optional true}]}]}}]}]}}]}]}))
+
+(defmethod protobuf-form-data BufferProto$BufferDesc [node-id pb def]
+  (let [value-type-values (protobuf/enum-values BufferProto$ValueType)]
+    {:navigation false
+     :sections
+     [{:title "Buffer"
+       :fields
+       [{:path [:streams]
+         :label "Streams"
+         :type :table
+         :columns [{:path [:name]
+                    :label "Stream Name"
+                    :type :string
+                    :default "position"}
+                   {:path [:value-type]
+                    :label "Type"
+                    :type :choicebox
+                    :options (make-options value-type-values)
+                    :default (ffirst value-type-values)}
+                    {:path [:value-count]
+                    :label "Count"
+                    :type :integer
+                    :default 3}]}
+        ]}]}))
 
 (defn produce-form-data
   ([node-id pb def]
