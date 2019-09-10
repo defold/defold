@@ -224,6 +224,7 @@ namespace dmScript
         {0, 0}
     };
 
+    // Used for unit test
     void SetHttpRequestTimeout(uint64_t timeout)
     {
         g_Timeout = timeout;

@@ -162,7 +162,7 @@ def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
     apidoc_extract_task(bld, source)
 
-# Add dmsdk files from 'source' recusrively.
+# Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
 # * 'source' files are added to documentation pipeline
 def dmsdk_add_files(bld, target, source):
@@ -349,7 +349,7 @@ def default_flags(self):
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
     libpath = build_util.get_library_path()
@@ -365,6 +365,17 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+# Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
+@feature('remove_flags')
+@before('apply_core')
+@after('cc')
+@after('cxx')
+def remove_flags_fn(self):
+    lookup = getattr(self, 'remove_flags', [])
+    for name, values in lookup.iteritems():
+        for flag, argcount in values:
+            remove_flag(self.env[name], flag, argcount)
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
@@ -789,7 +800,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />
         <meta-data android:name="android.notch_support" android:value="true"/>
-        
+
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -1438,23 +1449,39 @@ def get_msvc_version(conf, platform):
     msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
                 os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
 
+    # Since the programs(Windows!) can update, we do this dynamically
+    ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
+    ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
+    ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
+    ucrt_version = ucrt_dirs[-1]
+    if not ucrt_version.startswith('10.0'):
+        conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
+
     includes = [os.path.join(msvcdir,'VC','include'),
                 os.path.join(msvcdir,'VC','atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include','10.0.10240.0','ucrt'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
                 os.path.join(windowskitsdir,'8.1','Include','winrt'),
                 os.path.join(windowskitsdir,'8.1','Include','um'),
                 os.path.join(windowskitsdir,'8.1','Include','shared')]
     libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
                 os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
-                os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x64'),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x64'),
                 os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
     if platform == 'win32':
         libdirs = [os.path.join(msvcdir,'VC','lib'),
                     os.path.join(msvcdir,'VC','atlmfc','lib'),
-                    os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x86'),
+                    os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x86'),
                     os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
 
     return msvc_path, includes, libdirs
+
+def remove_flag(arr, flag, nargs):
+    if not flag in arr:
+        return
+    index = arr.index(flag)
+    del arr[index]
+    for i in range(nargs):
+        del arr[index]
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1587,15 +1614,6 @@ def detect(conf):
     conf.check_tool('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
-    def remove_flag(arr, flag, nargs):
-        if not flag in arr:
-            return
-        index = arr.index(flag)
-        if index >= 0:
-            del arr[index]
-            for i in range(nargs):
-                del arr[index]
-
     remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
@@ -1650,7 +1668,7 @@ def detect(conf):
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif platform == 'win32':
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
