@@ -41,6 +41,7 @@ extern "C" {
 #else
     typedef void* Window;
     typedef void* GLXContext;
+    typedef void* Display;
 #endif
 
 #if defined(__EMSCRIPTEN__)
@@ -62,6 +63,7 @@ GLFWAPI id glfwGetiOSEAGLContext(void);
 GLFWAPI id glfwGetOSXNSWindow(void);
 GLFWAPI id glfwGetOSXNSView(void);
 GLFWAPI id glfwGetOSXNSOpenGLContext(void);
+GLFWAPI id glfwGetOSXCALayer(void);
 
 GLFWAPI HWND glfwGetWindowsHWND(void);
 GLFWAPI HGLRC glfwGetWindowsHGLRC(void);
@@ -78,6 +80,7 @@ GLFWAPI android_app* glfwGetAndroidApp(void);
 
 GLFWAPI Window glfwGetX11Window(void);
 GLFWAPI GLXContext glfwGetX11GLXContext(void);
+GLFWAPI Display* glfwGetX11Display(void);
 
 #ifdef __cplusplus
 }

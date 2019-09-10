@@ -22,6 +22,8 @@ namespace dmGameSystem
 
     uint16_t GetTileCount(const TileGridComponent* component);
 
+    void SetLayerVisible(TileGridComponent* component, uint32_t layer, bool visible);
+
     // Component api functions
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 

@@ -6,6 +6,7 @@
 
 namespace dmSound
 {
+    using namespace Vectormath::Aos;
     dmArray<SoundInstance*>* g_Instances = 0x0;
 
     struct SoundData
@@ -183,6 +184,11 @@ namespace dmSound
     {
         sound_instance->m_Playing = 0;
         return RESULT_OK;
+    }
+
+    uint32_t GetAndIncreasePlayCounter()
+    {
+        return 0;
     }
 
     bool IsPlaying(HSoundInstance sound_instance)

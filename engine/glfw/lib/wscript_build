@@ -20,7 +20,7 @@ elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios')
     dmglfw.includes = '. ios'
 
-    if Options.options.with_vulkan:
+    if not platform == 'x86_64-ios' and Options.options.with_vulkan:
         dmglfw.source.remove(os.path.join('ios','ios_window.m'))
     else:
         dmglfw.source.remove(os.path.join('ios','ios_window_vulkan.m'))
@@ -37,7 +37,3 @@ elif 'win32' in platform:
 elif 'web' in platform:
     dmglfw.find_sources_in_dirs('js-web')
     dmglfw.includes = 'js-web .'
-elif platform == 'as3-web':
-    dmglfw.find_sources_in_dirs('flash')
-    dmglfw.includes = 'flash .'
-

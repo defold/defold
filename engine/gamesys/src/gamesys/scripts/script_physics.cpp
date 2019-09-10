@@ -949,11 +949,43 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# flip the geometry horizontally for a collision object
+     *
+     * Flips the collision shapes horizontally for a collision object
+     *
+     * @name physics.set_hflip
+     * @param url [type:string|hash|url] the collision object that should flip its shapes
+     * @param flip [type:boolean] `true` if the collision object should flip its shapes, `false` if not
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     self.fliph = true -- set on some condition
+     *     physics.set_hflip("#collisionobject", self.fliph)
+     * end
+     * ```
+     */
     static int Physics_SetFlipH(lua_State* L)
     {
         return Physics_SetFlipInternal(L, true);
     }
 
+    /*# flip the geometry vertically for a collision object
+     *
+     * Flips the collision shapes vertically for a collision object
+     *
+     * @name physics.set_vflip
+     * @param url [type:string|hash|url] the collision object that should flip its shapes
+     * @param flip [type:boolean] `true` if the collision object should flip its shapes, `false` if not
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     self.flipv = true -- set on some condition
+     *     physics.set_vflip("#collisionobject", self.flipv)
+     * end
+     * ```
+     */
     static int Physics_SetFlipV(lua_State* L)
     {
         return Physics_SetFlipInternal(L, false);

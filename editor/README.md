@@ -1,8 +1,8 @@
-# Defold JavaFX Clojure Editor
+# Defold Editor
 
 ## Requirements
 * [Java 11](https://jdk.java.net/11/)
-* [Leiningen](http://leiningen.org/) (Note: latest lein 2.9.0 does not work on this project, you should run `lein downgrade 2.8.3`) after installing
+Note that we do not yet officially support development with a newer version of Java than 11.
 
 ## Windows
 
@@ -29,7 +29,7 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
 * Follow the OS X/Linux instructions!
 
-## OS X/Linux
+## macOS/Linux
 
 * `cd` to the `defold` directory
 * run `./scripts/build.py shell --platform=...`
@@ -39,9 +39,9 @@ Consider putting it in an alias in your bash profile.
 
 ## Updating jdk to JDK11
 
-### OS X
+### macOS
 
-* Download the [OSX](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
+* Download the [macOS](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
 * Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
 * Verify that the jdk version is available by running `/usr/libexec/java_home -V`
 * Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
@@ -59,10 +59,11 @@ If you are using IntelliJ for lein tasks, you will need to first add the new SDK
 and then set the project SDK setting (file->project structure/Project) to the new version.
 
 ## Setup
+* Run install_ext for the correct platform `scripts/build.py install_ext --platform=...`
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
 * Build builtins with `scripts/build.py build_builtins`
-* Build Bob with `scripts/build.py build_bob --skip-sync-archive`
+* Build Bob with `scripts/build.py build_bob`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
@@ -73,15 +74,6 @@ Some of the remaining instructions are about EMACS. If instead you want to use t
 `lein test` will run all the tests including the integration tests.
 
 If you are using a repl, you can also run the tests by calling `(suite/suite)`.
-
-## Running the linter
-`lein lint` will run [eastwood](https://github.com/jonase/eastwood) on the project and save the output in a file called eastwood-warnings.txt.
-
-There will also be a lot of warnings about reflection, boxed math and some stack
-traces from eastwood printed to standard error. These are side effects of the
-flags for reflection warnings and boxed math being turned on for the project as
-a whole because of how eastwood parses and evaluates code and can safely be
-ignored. The real output from the linting is in eastwood-warnings.txt
 
 ## Setup NREPL for debugging
 
@@ -181,5 +173,5 @@ In order to setup bob locally, you need to:
 
 - Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
   - For android, you also need to build_go through build.py to obtain apkc
-- Build bob with local artifacts, python scripts/build.py build_bob --skip-sync-archive
+- Build bob with local artifacts, python scripts/build.py build_bob
 - lein init, which will install bob.jar as a local maven package
