@@ -1497,10 +1497,9 @@ def remove_flag(arr, flag, nargs):
     if not flag in arr:
         return
     index = arr.index(flag)
-    if index >= 0:
+    del arr[index]
+    for i in range(nargs):
         del arr[index]
-        for i in range(nargs):
-            del arr[index]
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)

@@ -1209,6 +1209,8 @@ bail:
             DM_HTTPCLIENT_RESULT_TO_STRING_CASE(HANDSHAKE_FAILED);
             DM_HTTPCLIENT_RESULT_TO_STRING_CASE(INVAL);
             DM_HTTPCLIENT_RESULT_TO_STRING_CASE(UNKNOWN);
+            default:
+                break;
         }
         dmLogError("Unable to convert result %d to string", r);
 

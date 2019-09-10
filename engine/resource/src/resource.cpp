@@ -36,8 +36,6 @@
 #include <dlib/time.h>
 #include <dlib/mutex.h>
 
-#include <dlib/crypt.h>
-
 #include "resource.h"
 #include "resource_ddf.h"
 #include "resource_private.h"

@@ -56,17 +56,16 @@ namespace dmConnectionPool
             m_State = STATE_FREE;
         }
 
-        uint16_t                m_Version;
-        uint16_t                m_ReuseCount;
-        dmhash_t                m_ID;
         dmSocket::Address       m_Address;
-        uint16_t                m_Port;
+        dmhash_t                m_ID;
         uint64_t                m_Expires;
-        dmSocket::Socket        m_Socket;
         mbedtls_net_context*    m_SSLNetContext;
         mbedtls_ssl_context*    m_SSLContext;
-
+        dmSocket::Socket        m_Socket;
         State                   m_State;
+        uint16_t                m_Port;
+        uint16_t                m_Version;
+        uint16_t                m_ReuseCount;
         uint16_t                m_WasShutdown:1;
     };
 
