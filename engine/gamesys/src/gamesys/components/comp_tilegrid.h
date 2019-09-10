@@ -1,74 +1,30 @@
 #ifndef DM_GAMESYS_COMP_TILEGRID_H
 #define DM_GAMESYS_COMP_TILEGRID_H
 
-#include <dlib/array.h>
 #include <gameobject/gameobject.h>
-#include "../resources/res_tilegrid.h"
-#include "tile_ddf.h"
 
 namespace dmGameSystem
 {
-    // Number of tiles in a region. A region is a subset of a tile-grid.
-    // Tile-grids are divied into regions to reduce the vertex buffer creation cost
-    const uint32_t TILEGRID_REGION_WIDTH = 32;
-    const uint32_t TILEGRID_REGION_HEIGHT = 32;
+    struct TileGridComponent;
 
-    struct TileGridRegion
-    {
-        dmRender::RenderObject    m_RenderObject;
-        void*                     m_ClientBuffer;
-        uint32_t                  m_ClientBufferSize;
-        uint32_t                  m_Dirty : 1;
-    };
-
-    struct TileGridComponent
-    {
-        struct Layer
-        {
-            dmhash_t    m_Id;
-            uint32_t    m_Visible : 1;
-        };
-
-        struct Flags
-        {
-            uint16_t    m_FlipHorizontal : 1;
-            uint16_t    m_FlipVertical : 1;
-            uint16_t    m_Padding : 14;
-        };
-
-        TileGridComponent();
-
-        dmArray<Layer>              m_Layers;
-        Vectormath::Aos::Vector3    m_Translation;
-        Vectormath::Aos::Quat       m_Rotation;
-        Vectormath::Aos::Matrix4    m_RenderWorldTransform;
-        dmGameObject::HInstance     m_Instance;
-        TileGridResource*           m_TileGridResource;
-        uint16_t*                   m_Cells;
-        Flags*                      m_CellFlags;
-        uint16_t                    m_RegionsX;
-        uint16_t                    m_RegionsY;
-        dmArray<TileGridRegion>     m_Regions;
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_Padding : 14;
-    };
-
-    struct TileGridWorld
-    {
-        TileGridWorld()
-        {
-            memset(this, 0, sizeof(TileGridWorld));
-        }
-
-        dmArray<TileGridComponent*>     m_TileGrids;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-    };
-
+    // Script support
     uint32_t CalculateCellIndex(uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t column_count, uint32_t row_count);
 
     uint32_t GetLayerIndex(const TileGridComponent* component, dmhash_t layer_id);
 
+    void GetTileGridBounds(const TileGridComponent* component, int32_t* x, int32_t* y, int32_t* w, int32_t* h);
+
+    void GetTileGridCellCoord(const TileGridComponent* component, int32_t x, int32_t y, int32_t& cell_x, int32_t& cell_y);
+
+    uint16_t GetTileGridTile(const TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y);
+
+    void SetTileGridTile(TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t tile, bool flip_h, bool flip_v);
+
+    uint16_t GetTileCount(const TileGridComponent* component);
+
+    void SetLayerVisible(TileGridComponent* component, uint32_t layer, bool visible);
+
+    // Component api functions
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompTileGridDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

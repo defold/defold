@@ -46,6 +46,8 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
+    dmGameSystem::TilemapContext m_TilemapContext;
+    dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
@@ -269,6 +271,10 @@ void GamesysTest<T>::SetUp()
     m_LabelContext.m_MaxLabelCount = 32;
     m_LabelContext.m_Subpixels     = 0;
 
+    m_TilemapContext.m_RenderContext = m_RenderContext;
+    m_TilemapContext.m_MaxTilemapCount = 16;
+    m_TilemapContext.m_MaxTileCount = 512;
+
     m_ModelContext.m_RenderContext = m_RenderContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
@@ -280,7 +286,9 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext, &m_ModelContext, &m_LabelContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
+                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

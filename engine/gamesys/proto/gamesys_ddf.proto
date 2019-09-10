@@ -86,6 +86,7 @@ message PlaySound
 {
     optional float delay = 1 [default=0.0];
     optional float gain = 2 [default=1.0];
+    optional float pan = 3 [default=0.0];
 }
 
 message StopSound
@@ -95,6 +96,11 @@ message StopSound
 message SetGain
 {
     optional float gain = 1 [default=1.0];
+}
+
+message SetPan
+{
+    optional float pan = 1 [default=0.0];
 }
 
 /* Documented in scripts/script_particlefx.cpp */

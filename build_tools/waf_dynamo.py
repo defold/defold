@@ -13,16 +13,18 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Also defined in build.py _strip_engine
+# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
+#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
-ANDROID_NDK_VERSION='10e'
-ANDROID_NDK_API_VERSION='14' # Android 4.0
+ANDROID_NDK_VERSION='20'
+ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_NDK_API_VERSION_VULKAN='24'
+ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='28' # Android 9.0
-ANDROID_MIN_API_LEVEL='16' # Android 4.1
-ANDROID_GCC_VERSION='4.8'
+ANDROID_MIN_API_LEVEL='14'
+ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
-ANDROID_64_GCC_VERSION='4.9'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 IOS_SDK_VERSION="12.1"
@@ -37,9 +39,6 @@ MIN_OSX_SDK_VERSION="10.7"
 XCODE_VERSION="10.1"
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
-
-# TODO: HACK
-FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
@@ -187,21 +186,29 @@ def getAndroidArch(target_arch):
 def getAndroidBuildtoolName(target_arch):
     return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
 
-def getAndroidGCCVersion(target_arch):
-    return ANDROID_64_GCC_VERSION if 'arm64' == target_arch else ANDROID_GCC_VERSION
+def getAndroidCompilerName(target_arch, api_version):
+    if target_arch == 'arm64':
+        return 'aarch64-linux-android%s-clang' % (api_version)
+    else:
+        return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+    if Options.options.with_vulkan:
+        return ANDROID_NDK_API_VERSION_VULKAN
+    elif target_arch == 'arm64':
+        return ANDROID_64_NDK_API_VERSION
+    else:
+        return ANDROID_NDK_API_VERSION
 
 def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:
     # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
     if 'arm64' == target_arch:
-        return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv8-a', '-fvisibility=hidden']
+        return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv8-a', '-fvisibility=hidden']
     # NOTE:
     # -fno-exceptions added
     else:
-        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
 
 def getAndroidLinkFlags(target_arch):
     if 'arm64' == target_arch:
@@ -297,31 +304,26 @@ def default_flags(self):
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-%s' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch))
-        stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch))
-        stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/%s" % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidGCCVersion(target_arch), getAndroidArch(target_arch))
-        stl_arch="%s/include" % stl_lib
+
+        sysroot='%s/toolchains/llvm/prebuilt/%s-x86_64/sysroot' % (ANDROID_NDK_ROOT, self.env['BUILD_PLATFORM'])
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
-                                      '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-%s/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidNDKAPIVersion(target_arch), getAndroidNDKArch(target_arch)),
-                                      '-I%s' % stl,
-                                      '-I%s' % stl_arch,
-                                      '--sysroot=%s' % sysroot,
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
+                                      '-I%s/sources/android/native_app_glue' % (ANDROID_NDK_ROOT),
+                                      '-I%s/sources/android/cpufeatures' % (ANDROID_NDK_ROOT),
+                                      '-isysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
-        # -lgnustl_static -lsupc++
+        # -lsupc++
         self.env.append_value('LINKFLAGS', [
-                '--sysroot=%s' % sysroot,
-                '-L%s' % stl_lib] + getAndroidLinkFlags(target_arch))
+                '-isysroot=%s' % sysroot,
+                '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
         # Default to asmjs output
@@ -341,13 +343,6 @@ def default_flags(self):
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
         self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
-    elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
-        # NOTE: -g set on both C*FLAGS and LINKFLAGS
-        # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
-        # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
-        for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
-        self.env.append_value('LINKFLAGS', ['-g'])
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
@@ -376,7 +371,7 @@ def default_flags(self):
 def android_link_flags(self):
     build_util = create_build_utility(self.env)
     if 'android' == build_util.get_target_os():
-        self.link_task.env.append_value('LINKFLAGS', ['-lgnustl_static', '-lm', '-llog', '-lc'])
+        self.link_task.env.append_value('LINKFLAGS', ['-lm', '-llog', '-lc'])
         self.link_task.env.append_value('LINKFLAGS', '-Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now'.split())
 
         if 'apk' in self.features:
@@ -689,7 +684,7 @@ def _strip_executable(bld, platform, target_arch, path):
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
         build_tool = getAndroidBuildtoolName(target_arch)
-        strip = "%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_ROOT, ANDROID_NDK_VERSION, build_tool, getAndroidGCCVersion(target_arch), ANDROID_HOST, build_tool)
+        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, ANDROID_GCC_VERSION, ANDROID_HOST, build_tool)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1266,20 +1261,6 @@ def linux_link_flags(self):
     if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
-@feature('swf')
-@after('apply_link')
-def as3_link_flags_emit(self):
-    platform = self.env['PLATFORM']
-    if platform == 'as3-web' and 'swf' in self.features:
-        self.link_task.env.append_value('LINKFLAGS', ['-emit-swf'])
-
-@feature('swf')
-@before('apply_link')
-def as3_link_flags_pattern(self):
-    platform = self.env['PLATFORM']
-    if platform == 'as3-web' and 'swf' in self.features:
-        self.env['program_PATTERN']='%s.swf'
-
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
 def js_web_link_flags(self):
@@ -1519,6 +1500,10 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    # Vulkan support
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+        conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
+
     if 'win32' in platform:
         if platform == 'x86_64-win32':
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
@@ -1570,18 +1555,21 @@ def detect(conf):
         conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        arch = 'x86_64'
+        arch        = 'x86_64'
         target_arch = build_util.get_target_architecture()
-        bin='%s/android-ndk-r%s/toolchains/%s-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, getAndroidBuildtoolName(target_arch), getAndroidGCCVersion(target_arch), build_platform, arch)
-        conf.env['CC'] = '%s/%s-gcc' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['LINK_CXX'] = '%s/%s-g++' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['CPP'] = '%s/%s-cpp' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['AR'] = '%s/%s-ar' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['RANLIB'] = '%s/%s-ranlib' % (bin, getAndroidBuildtoolName(target_arch))
-        conf.env['LD'] = '%s/%s-ld' % (bin, getAndroidBuildtoolName(target_arch))
+        tool_name   = getAndroidBuildtoolName(target_arch)
+        api_version = getAndroidNDKAPIVersion(target_arch)
+        clang_name  = getAndroidCompilerName(target_arch, api_version)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, build_platform, arch)
 
-        conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+        conf.env['CC']       = '%s/%s' % (bintools, clang_name)
+        conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
+        conf.env['LINK_CXX'] = '%s/%s++' % (bintools, clang_name)
+        conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
+        conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
+        conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
+        conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
+        conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     elif 'linux' == build_util.get_target_os():
         conf.find_program('gcc-5', var='GCC5', mandatory = False)
         if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
@@ -1627,20 +1615,6 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
-
-    if 'web' == build_util.get_target_os() and 'as3' == build_util.get_target_architecture():
-        bin = os.path.join(FLASCC_ROOT, 'usr', 'bin')
-        conf.env['CC'] = '%s/gcc' % (bin)
-        conf.env['CXX'] = '%s/g++' % (bin)
-        conf.env['LINK_CXX'] = '%s/g++' % (bin)
-        conf.env['CPP'] = '%s/cpp' % (bin)
-        conf.env['AR'] = '%s/ar' % (bin)
-        conf.env['RANLIB'] = '%s/ranlib' % (bin)
-        conf.env['LD'] = '%s/ld' % (bin)
-
-        # flascc got confused by -compatibility_version 1 and -current_version 1
-        conf.env['shlib_CCFLAGS'] = []
-        conf.env['shlib_CXXFLAGS'] = []
 
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])

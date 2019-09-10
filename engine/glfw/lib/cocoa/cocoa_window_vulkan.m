@@ -29,6 +29,7 @@
 
 
 #import <CoreVideo/CVDisplayLink.h>
+#import <QuartzCore/CAMetalLayer.h>
 #include "internal.h"
 
 //========================================================================
@@ -306,6 +307,18 @@ static int convertMacKeyCode( unsigned int macKeyCode )
     return YES;
 }
 
++ (Class)layerClass
+{
+    return [CAMetalLayer class];
+}
+
+-(CALayer*) makeBackingLayer {
+    CALayer* layer      = [self.class.layerClass layer];
+    CGSize viewScale    = [self convertSizeToBacking: CGSizeMake(1.0, 1.0)];
+    layer.contentsScale = MIN(viewScale.width, viewScale.height);
+    return layer;
+}
+
 - (void)mouseDown:(NSEvent *)event
 {
     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
@@ -548,7 +561,11 @@ int  _glfwPlatformOpenWindow( int width, int height,
                   styleMask:styleMask
                     backing:NSBackingStoreBuffered
                       defer:NO];
-    [_glfwWin.window setContentView:[[GLFWContentView alloc] init]];
+
+    GLFWContentView* view = [[GLFWContentView alloc] init];
+    view.wantsLayer = YES;
+
+    [_glfwWin.window setContentView: view];
     [_glfwWin.window setDelegate:_glfwWin.delegate];
     [_glfwWin.window setAcceptsMouseMovedEvents:YES];
     [_glfwWin.window center];
@@ -825,6 +842,11 @@ GLFWAPI id glfwGetOSXNSView()
 GLFWAPI id glfwGetOSXNSOpenGLContext()
 {
     return 0;
+}
+
+GLFWAPI id glfwGetOSXCALayer()
+{
+    return [[_glfwWin.window contentView] layer];
 }
 
 //========================================================================
