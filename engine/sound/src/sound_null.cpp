@@ -186,6 +186,11 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    uint32_t GetAndIncreasePlayCounter()
+    {
+        return 0;
+    }
+
     bool IsPlaying(HSoundInstance sound_instance)
     {
         return sound_instance->m_Playing == 1;

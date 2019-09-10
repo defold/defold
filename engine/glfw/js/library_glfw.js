@@ -657,11 +657,11 @@ var LibraryGLFW = {
 
     if (GLFW.prevWidth != width || GLFW.prevHeight != height) {
       if (GLFW.isFullscreen) {
-        width = window.innerWidth * GLFW.dpi;
-        height = window.innerHeight * GLFW.dpi;
+        width = Math.floor(window.innerWidth * GLFW.dpi);
+        height = Math.floor(window.innerHeight * GLFW.dpi);
       } else {
-        width = width * GLFW.dpi;
-        height = height * GLFW.dpi;
+        width = Math.floor(width * GLFW.dpi);
+        height = Math.floor(height * GLFW.dpi);
       }
       GLFW.prevWidth = width;
       GLFW.prevHeight = height;
