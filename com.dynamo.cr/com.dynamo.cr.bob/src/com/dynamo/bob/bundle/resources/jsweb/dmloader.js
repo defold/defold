@@ -271,16 +271,13 @@ var Progress = {
 
     addProgress : function (canvas) {
         /* Insert default progress bar below canvas */
-        canvas.insertAdjacentHTML('afterend', '<div id="' + Progress.progress_id + '" class="canvas-app-progress"><div id="' + Progress.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;">0%</div></div>');
+        canvas.insertAdjacentHTML('afterend', '<div id="' + Progress.progress_id + '" class="canvas-app-progress"><div id="' + Progress.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;"></div></div>');
         Progress.bar = document.getElementById(Progress.bar_id);
         Progress.progress = document.getElementById(Progress.progress_id);
     },
 
     updateProgress: function (percentage, text) {
         Progress.bar.style.width = percentage + "%";
-
-        text = (typeof text === 'undefined') ? Math.round(percentage) + "%" : text;
-        Progress.bar.innerText = text;
     },
 
     removeProgress: function () {
@@ -443,10 +440,6 @@ var Module = {
     *
     * 'extra_params' is an optional object that can have the following fields:
     *
-    *     'splash_image':
-    *         Path to an image that should be used as a background image for
-    *         the canvas element.
-    *
     *     'archive_location_filter':
     *         Filter function that will run for each archive path.
     *
@@ -478,7 +471,6 @@ var Module = {
         app_canvas_id = (typeof app_canvas_id === 'undefined') ?  'canvas' : app_canvas_id;
 
         var params = {
-            splash_image: undefined,
             archive_location_filter: function(path) { return 'split' + path; },
             unsupported_webgl_callback: undefined,
             engine_arguments: [],
@@ -497,9 +489,6 @@ var Module = {
         }
 
         Module.canvas = document.getElementById(app_canvas_id);
-        if (typeof params["splash_image"] !== 'undefined') {
-            Module.canvas.style.background = 'no-repeat center url("' + params["splash_image"] + '")';
-        }
         Module.arguments = params["engine_arguments"];
         Module.persistentStorage = params["persistent_storage"];
         Module["TOTAL_MEMORY"] = params["custom_heap_size"];

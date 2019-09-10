@@ -159,6 +159,8 @@
     #"^(?:(?!:\/| |\\).)*: (error|warning)?:?\s*(.*)$"]
    [:javac
     #"^javac\s.*$"]
+   [:jar-conflict
+    #"Uncaught translation error:*.+"]
    [:empty
     #"^$"]])
 
@@ -229,6 +231,9 @@
                             :message (match 3)}
       :undefined-symbols {:type :error
                           :message line}
+      :jar-conflict {:type :error
+                     :file ext-manifest-file
+                     :message line}
       {:type name :message line})))
 
 (defn- merge-compilation-messages

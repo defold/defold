@@ -52,6 +52,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < tile_grid_ddf->m_Layers.m_Count; ++i)
         {
             dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
+            // we hash it here in the resource loading in order to make it easier to generate the tilemap
+            // files from external tools
+            layer->m_IdHash = dmHashString64(layer->m_Id);
             uint32_t cell_count = layer->m_Cell.m_Count;
             for (uint32_t j = 0; j < cell_count; ++j)
             {

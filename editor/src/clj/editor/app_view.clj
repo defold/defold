@@ -342,21 +342,26 @@
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
-      (let [visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
-            filtered-renderable-tags (g/node-value scene-visibility :filtered-renderable-tags)
-            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags filtered-renderable-tags))]
-        (if filters-active?
-          (ui/add-style! btn "filters-active")
-          (ui/remove-style! btn "filters-active")))
+      (if (scene-visibility/filters-appear-active? scene-visibility)
+        (ui/add-style! btn "filters-active")
+        (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(def ^:private eye-icon-template (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+(def ^:private eye-icon-svg-path
+  (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+
+(def ^:private perspective-icon-svg-path
+  (ui/load-svg-path "scene/images/perspective_icon.svg"))
+
+(defn make-svg-icon-graphic
+  ^SVGPath [^SVGPath icon-template]
+  (doto (SVGPath.)
+    (.setContent (.getContent icon-template))))
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
-    (ui/children! [(doto (SVGPath.)
-                     (.setId "eye-icon")
-                     (.setContent (.getContent ^SVGPath eye-icon-template)))
+    (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
+                     (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
@@ -373,6 +378,9 @@
                  {:id :scale
                   :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}
+                 {:id :perspective-camera
+                  :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+                  :command :toggle-perspective-camera}
                  {:id :visibility-settings
                   :graphic-fn make-visibility-settings-graphic
                   :command :show-visibility-settings}])

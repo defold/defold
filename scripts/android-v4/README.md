@@ -8,5 +8,6 @@ ready to be used in Defols build pipeline.
 ## Usage
 Update the package versions as needed under `dependencies` inside
 `build.gradle` then just run `gradle build` from this directory.
-It will output a file called `android-support-v4-armv7-android.tar.gz`
-that can be moved to the packages folder inside the defold repo.
+It will output the files called `android-support-v4-armv7-android.tar.gz`
+and `android-support-v4-arm64-android.tar.gz` that can be moved
+to the packages folder inside the defold repo.

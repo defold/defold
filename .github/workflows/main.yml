@@ -1,0 +1,17 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v1
+    - name: Run a multi-line script
+      run: |
+        echo Add other actions to build,
+        ./scripts/build.py shell
+        ./scripts/build.py --platform=x86_64-linux install_ext
+        ./scripts/build.py --platform=x86_64-linux build_engine

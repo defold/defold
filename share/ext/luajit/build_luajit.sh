@@ -49,18 +49,16 @@ function luajit_configure() {
 		armv7-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
-			export CC="gcc"
-			export HOST_CC="gcc -m32"
+			export CROSS="" # is this needed for clang? -> "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/arm-linux-androideabi-"
+			export HOST_CC="clang -m32"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
 			;;
 		arm64-android)
 			TAR_SKIP_BIN=1
 			XFLAGS="-DLUAJIT_ENABLE_GC64 -DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
-			export CROSS="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin/aarch64-linux-android-"
-			export CC="gcc"
-			export HOST_CC="gcc -m64"
+			export CROSS="" # is this needed for clang? -> "${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/${platform}-x86_64/bin/aarch64-linux-android${ANDROID_64_VERSION}-"
+			export HOST_CC="clang -m64"
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"
@@ -146,6 +144,9 @@ case $1 in
 		function cmi_make() {
 					TAR_SKIP_BIN=0
 					echo "Building x86_64-darwin with LUAJIT_ENABLE_GC64=0"
+					# Note: Luajit sets this to 10.4, which is less than what we support.
+					#       This value is set to the same as MIN_OSX_SDK_VERSION in waf_dynamo.py
+					export MACOSX_DEPLOYMENT_TARGET="10.7"
 					export DEFOLD_ARCH="32"
 					set -e
 					make -j8

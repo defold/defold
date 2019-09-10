@@ -191,11 +191,6 @@ namespace dmGui
         return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_HASH, 0);
     }
 
-    static bool LuaIsNode(lua_State *L, int index)
-    {
-        return dmScript::GetUserType(L, index) == NODE_PROXY_TYPE_HASH;
-    }
-
     static bool IsValidNode(HScene scene, HNode node)
     {
         uint16_t version = (uint16_t) (node >> 16);
@@ -4256,7 +4251,11 @@ namespace dmGui
     {
         GuiPfxEmitterScriptCallbackData* data = (GuiPfxEmitterScriptCallbackData*)user_data;
         GuiLuaCallback* luainfo = &data->m_Data->m_LuaInfo;
-        LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        if (dmGui::IsNodeValid(luainfo->m_Scene, luainfo->m_Node)) {
+            LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        } else {
+            lua_pushnil(L);
+        }
         dmScript::PushHash(L, data->m_EmitterID);
         lua_pushinteger(L, data->m_EmitterState);
     }
@@ -4289,8 +4288,8 @@ namespace dmGui
      * `self`
      * : [type:object] The current object
      *
-     * `id`
-     * : [type:hash] The id of the particle fx component
+     * `node`
+     * : [type:hash] The particle fx node, or `nil` if the node was deleted
      *
      * `emitter`
      * : [type:hash] The id of the emitter

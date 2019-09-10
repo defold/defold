@@ -680,7 +680,12 @@ public class Project {
                 String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
                 proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
 
-                if (!androidResourcesGenerated)
+                // NOTE:
+                // We previously only generated and sent Android resources for at most one arch,
+                // to avoid sending and building these twice.
+                // However the server will run proguard for both of these architectures which means
+                // for the second arch it will not find R attributes and fail.
+                // if (!androidResourcesGenerated)
                 {
                     androidResourcesGenerated = true;
 

@@ -91,10 +91,16 @@
 
 (g/defnk grid-renderable
   [camera grids]
-  {pass/transparent
+  {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
    [{:world-transform geom/Identity4d
      :tags #{:grid}
-     :render-fn       render-scaled-grids
+     :render-fn render-scaled-grids
+     :user-render-data {:camera camera
+                        :grids grids}}]
+   pass/transparent ; Grid lines potentially intersecting scene geometry.
+   [{:world-transform geom/Identity4d
+     :tags #{:grid}
+     :render-fn render-scaled-grids
      :user-render-data {:camera camera
                         :grids grids}}]})
 
