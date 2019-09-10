@@ -2347,6 +2347,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #if defined(GL_HAS_RENDERDOC_SUPPORT)
         if (context->m_RenderDocSupport && state == DMGRAPHICS_STATE_ALPHA_TEST)
         {
+            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
             return;
         }
     #endif
@@ -2360,6 +2361,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #if defined(GL_HAS_RENDERDOC_SUPPORT)
         if (context->m_RenderDocSupport && state == DMGRAPHICS_STATE_ALPHA_TEST)
         {
+            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
             return;
         }
     #endif
