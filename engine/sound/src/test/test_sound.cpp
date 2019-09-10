@@ -924,7 +924,6 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    uint64_t start = dmTime::GetTime();
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
@@ -940,9 +939,6 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
     } while (dmSound::IsPlaying(instance));
-
-    uint64_t end = dmTime::GetTime();
-    printf("TIME: %f s\n", (end - start)/1000000.0f);
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -968,7 +964,7 @@ const TestParams params_test_play_test[] = {
                 dmSound::SOUND_DATA_TYPE_WAV,
                 440,
                 32000,
-                32000,
+                64000,
                 2048),
     TestParams("default",
                 MONO_TONE_440_44000_88000_WAV,
@@ -976,7 +972,7 @@ const TestParams params_test_play_test[] = {
                 dmSound::SOUND_DATA_TYPE_WAV,
                 440,
                 44000,
-                44000,
+                88000,
                 2048),
     TestParams("default",
                 STEREO_TONE_440_32000_64000_WAV,
@@ -984,7 +980,7 @@ const TestParams params_test_play_test[] = {
                 dmSound::SOUND_DATA_TYPE_WAV,
                 440,
                 32000,
-                32000,
+                64000,
                 2048),
     TestParams("default",
                 STEREO_TONE_440_44000_88000_WAV,
@@ -992,7 +988,7 @@ const TestParams params_test_play_test[] = {
                 dmSound::SOUND_DATA_TYPE_WAV,
                 440,
                 44000,
-                44000,
+                88000,
                 2048),
     TestParams("default",
                 MONO_TONE_440_44100_88200_WAV,
