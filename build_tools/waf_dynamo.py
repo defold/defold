@@ -832,7 +832,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.android.vending.BILLING" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
 </manifest>
@@ -919,7 +918,7 @@ def android_package(task):
     else:
         dex_input = dx_jars
     
-    if dex_input and len(dex_input) > 0:
+    if dex_input:
         ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
         if ret != 0:
             error('Error running dx')

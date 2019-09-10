@@ -640,7 +640,6 @@ void _glfwPreMain(struct android_app* state)
     _glfwWin.opened = 0;
     _glfwWin.hasSurface = 0;
 
-    JavaVM* vm = g_AndroidApp->activity->vm;
     ares_library_init_jvm(vm);
 
     // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
