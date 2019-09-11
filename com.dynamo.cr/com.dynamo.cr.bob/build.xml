@@ -282,6 +282,9 @@
               <include name="openmali.jar"/>
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
+              <include name="jaxb-api-2.3.0.jar"/>
+              <include name="jaxb-core-2.3.0.jar"/>
+              <include name="jaxb-impl-2.3.0.jar"/>
             </zipgroupfileset>
          </jar>
 
