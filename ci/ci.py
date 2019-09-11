@@ -6,7 +6,7 @@ import subprocess
 from argparse import ArgumentParser
 
 def call(args):
-    print(args.join(" "))
+    print(' '.join(args))
     subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
 
 
