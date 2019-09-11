@@ -416,7 +416,7 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
-        float delay = 0.0f, gain = 1.0f, pan = 0.0f;
+        float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
         uint32_t play_id = dmSound::INVALID_PLAY_ID;
 
         if (top > 1 && !lua_isnil(L,2)) // table with args
@@ -434,6 +434,10 @@ namespace dmGameSystem
 
             lua_getfield(L, -1, "pan");
             pan = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "speed");
+            speed = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -454,6 +458,7 @@ namespace dmGameSystem
         msg.m_Delay  = delay;
         msg.m_Gain   = gain;
         msg.m_Pan    = pan;
+        msg.m_Speed = speed;
         msg.m_PlayId = play_id;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);

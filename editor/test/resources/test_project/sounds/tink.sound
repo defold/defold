@@ -3,3 +3,4 @@ looping: 1
 group: "fx"
 gain: 0.5
 pan: -1.0
+speed: 0.5

@@ -23,6 +23,7 @@ namespace dmSound
 
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)
+    #define SOUND_MAX_SPEED (5)
 
     // TODO: How many bits?
     const uint32_t RESAMPLE_FRACTION_BITS = 31;
@@ -142,10 +143,11 @@ namespace dmSound
         void*       m_Frames;
         dmhash_t    m_Group;
 
-        Value       m_Gain;
+        Value       m_Gain;     // default: 1.0f
         Value       m_Pan;      // 0 = -45deg left, 1 = 45 deg right
+        float       m_Speed;    // 1.0 = normal speed, 0.5 = half speed, 2.0 = double speed
         uint32_t    m_FrameCount;
-        uint32_t    m_FrameFraction;
+        uint64_t    m_FrameFraction;
 
         uint16_t    m_Index;
         uint16_t    m_SoundDataIndex;
@@ -315,8 +317,10 @@ namespace dmSound
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
             // NOTE: +1 for "over-fetch" when up-sampling
-            instance->m_Frames = malloc((params->m_FrameCount + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            // NOTE: and x SOUND_MAX_SPEED for potential pitch range
+            instance->m_Frames = malloc((params->m_FrameCount * SOUND_MAX_SPEED + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
             instance->m_FrameCount = 0;
+            instance->m_Speed = 1.0f;
         }
 
         sound->m_SoundData.SetCapacity(max_sound_data);
@@ -511,6 +515,7 @@ namespace dmSound
         dmSoundCodec::DeleteDecoder(sound->m_CodecContext, sound_instance->m_Decoder);
         sound_instance->m_Decoder = 0;
         sound_instance->m_FrameCount = 0;
+        sound_instance->m_Speed = 1.0f;
 
         return RESULT_OK;
     }
@@ -715,6 +720,9 @@ namespace dmSound
                     sound_instance->m_Pan.Set(pan, reset);
                 }
                 break;
+            case PARAMETER_SPEED:
+                sound_instance->m_Speed = dmMath::Max(0.1f, dmMath::Min((float)SOUND_MAX_SPEED, value.getX()));
+                break;
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
                 return RESULT_INVALID_PROPERTY;
@@ -736,11 +744,11 @@ namespace dmSound
         const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
         const float range_recip = 1.0f / mask; // TODO: Divide by (1 << RESAMPLE_FRACTION_BITS) OR (1 << RESAMPLE_FRACTION_BITS) - 1?
 
-        uint32_t frac = instance->m_FrameFraction;
+        uint64_t frac = instance->m_FrameFraction;
         uint32_t prev_index = 0;
         uint32_t index = 0;
-        uint64_t tmp = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
-        uint32_t delta = (uint32_t) tmp;
+        uint64_t delta = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
+        delta *= instance->m_Speed;
 
         T* frames = (T*) instance->m_Frames;
 
@@ -769,7 +777,8 @@ namespace dmSound
 
             prev_index = index;
             frac += delta;
-            index += frac >> RESAMPLE_FRACTION_BITS;
+
+            index += (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
 
             frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
         }
@@ -787,11 +796,11 @@ namespace dmSound
         const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
         const float range_recip = 1.0f / mask; // TODO: Divide by (1 << RESAMPLE_FRACTION_BITS) OR (1 << RESAMPLE_FRACTION_BITS) - 1?
 
-        uint32_t frac = instance->m_FrameFraction;
+        uint64_t frac = instance->m_FrameFraction;
         uint32_t prev_index = 0;
         uint32_t index = 0;
-        uint64_t tmp = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
-        uint32_t delta = (uint32_t) tmp;
+        uint64_t delta = (((uint64_t) rate) << RESAMPLE_FRACTION_BITS) / mix_rate;
+        delta *= instance->m_Speed;
 
         T* frames = (T*) instance->m_Frames;
 
@@ -827,7 +836,7 @@ namespace dmSound
 
             prev_index = index;
             frac += delta;
-            index += frac >> RESAMPLE_FRACTION_BITS;
+            index += (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
 
             frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
         }
@@ -842,6 +851,8 @@ namespace dmSound
     template <typename T, int offset, int scale>
     static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
+        (void)rate;
+        (void)mix_rate;
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
@@ -856,7 +867,6 @@ namespace dmSound
 
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
-
             mix_buffer[2 * i]       += s * left_scale;
             mix_buffer[2 * i + 1]   += s * right_scale;
         }
@@ -866,6 +876,8 @@ namespace dmSound
     template <typename T, int offset, int scale>
     static void MixResampleIdentityStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
+        (void)rate;
+        (void)mix_rate;
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
         Ramp gain_ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
@@ -924,7 +936,9 @@ namespace dmSound
 
         void (*mixer)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count) = 0;
 
-        if (rate == mix_rate) {
+        bool identity_mixer = rate == mix_rate && instance->m_Speed == 1.0f;
+
+        if (identity_mixer) {
             uint32_t n = sizeof(g_IdentityMixers) / sizeof(g_IdentityMixers[0]);
             for (uint32_t i = 0; i < n; i++) {
                 const Mixer& m = g_IdentityMixers[i];
@@ -954,7 +968,7 @@ namespace dmSound
 
         SoundSystem* sound = g_SoundSystem;
         uint64_t delta = (uint32_t) ((((uint64_t) info->m_Rate) << RESAMPLE_FRACTION_BITS) / sound->m_MixRate);
-        uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / delta;
+        uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / (delta * instance->m_Speed);
         mix_count = dmMath::Min(mix_count, sound->m_FrameCount);
         assert(mix_count <= sound->m_FrameCount);
 
@@ -1016,7 +1030,7 @@ namespace dmSound
         if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
-            uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
+            uint32_t n = sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed) - instance->m_FrameCount;
 
             if (!is_muted)
             {
@@ -1072,7 +1086,8 @@ namespace dmSound
             return;
         }
 
-        Mix(mix_context, instance, &info);
+        if (instance->m_FrameCount > 0)
+            Mix(mix_context, instance, &info);
 
         if (instance->m_FrameCount <= 1 && instance->m_EndOfStream) {
             // NOTE: Due to round-off errors, e.g 32000 -> 44100,
