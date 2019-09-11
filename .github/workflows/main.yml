@@ -12,6 +12,10 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+        architecture: 'x64'
     - name: Run a multi-line script
       run: |
         echo Add other actions to build,
