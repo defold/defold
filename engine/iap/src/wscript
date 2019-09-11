@@ -16,7 +16,6 @@ def build(bld):
         source += ['iap_android.cpp']
 
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
                      '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % bld.env.DYNAMO_HOME, # amazon
                      '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
