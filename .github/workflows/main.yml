@@ -21,4 +21,4 @@ jobs:
     - name: Start CI
       run: |
         echo Add other actions to build,
-        python ci/ci.py --platform=linux
+        python ci/ci.py --platform=linux install build
