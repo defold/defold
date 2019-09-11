@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 
 def call(args):
     print(args.joins(" "))
-    subprocess.call(args, *, stdin=None, stdout=None, stderr=None, shell=False)
+    subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
 
 
 def install(platform):
