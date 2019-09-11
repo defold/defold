@@ -6,8 +6,8 @@ import subprocess
 from argparse import ArgumentParser
 
 def call(args):
-    print(args)
-    # subprocess.call(args, *, stdin=None, stdout=None, stderr=None, shell=False)
+    print(args.joins(" "))
+    subprocess.call(args, *, stdin=None, stdout=None, stderr=None, shell=False)
 
 
 def install(platform):
