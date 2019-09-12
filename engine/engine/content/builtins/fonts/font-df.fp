@@ -6,7 +6,6 @@ varying lowp vec4 var_sdf_params;
 varying lowp vec4 var_layer_mask;
 
 uniform mediump sampler2D texture_sampler;
-uniform lowp vec4 texture_size_recip;
 
 void main()
 {
