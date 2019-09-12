@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 
 def call(args):
     print("args is type", type(args))
-    if type(args) == "str":
+    if type(args) is str:
         args = args.split(" ")
 
     print("args", args)
