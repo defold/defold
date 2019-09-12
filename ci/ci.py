@@ -6,11 +6,9 @@ import subprocess
 from argparse import ArgumentParser
 
 def call(args):
-    print("args is type", type(args))
     if type(args) is str:
         args = args.split(" ")
 
-    print("args", args)
     print(' '.join(args))
     subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
 
@@ -19,6 +17,8 @@ def aptget(package):
 
 def install(platform):
     if platform == 'linux' or platform == 'linux-64':
+        call("sudo apt-get update")
+        call("sudo apt-get install -y software-properties-common")
         aptget("gcc-5")
         aptget("g++-5")
         aptget("libssl-dev")
