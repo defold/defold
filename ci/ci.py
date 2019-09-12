@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os
 import sys
 import subprocess
 from argparse import ArgumentParser
@@ -10,10 +9,12 @@ def call(args):
         args = args.split(" ")
 
     print(' '.join(args))
-    subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
+    # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
+
 
 def aptget(package):
     call("sudo apt-get install --no-install-recommends " + package)
+
 
 def install(platform):
     if platform == 'linux' or platform == 'linux-64':
@@ -53,10 +54,8 @@ def install(platform):
         aptget("silversearcher-ag")
         aptget("valgrind")
 
-        # call("sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake cmake tofrodos valgrind tree silversearcher-ag".split(" "))
 
-
-def make_engine_builder(platform, skip_tests = True, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_codesign = True, skip_docs = True, skip_builtins = True, branch = None, archive = False, org = 'defold', name = None):
+def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_codesign = True, skip_docs = True, skip_builtins = True, branch = None, archive = False, org = 'defold', name = None):
     args = 'python scripts/build.py distclean install_ext'.split()
     sub_args = []
 
@@ -124,22 +123,92 @@ def make_engine_builder(platform, skip_tests = True, with_valgrind = False, with
         name = 'engine-%s' % (platform)
 
     call(cmd)
-    # return make_builder(name, slaves, cmd, branch = branch, org = org)
+
+
+def build_editor(channel = None, branch = None, release = False, engine_artifacts = None):
+    args = 'python scripts/build.py distclean install_ext build_editor2 archive_editor2'.split()
+
+    if release:
+        args.append('release_editor2')
+
+    # for install_ext
+    args.append('--platform=x86_64-darwin')
+
+    args.append('--no-colors')
+
+    # Specifies from where to get the engine SHA1.
+    # From build.py:
+    #     'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)'
+    if engine_artifacts:
+        args.append('--engine_artifacts=' + engine_artifacts)
+
+    if channel:
+        args.append('--channel=' + channel)
+
+    cmd = ' '.join(args)
+    call(cmd)
+
+
+def build_bob(platform, branch, channel, autorelease = False):
+    release_str = 'release' if autorelease else ''
+    args = "python scripts/build.py distclean install_ext sync_archive build_bob archive_bob".split()
+
+    if autorelease:
+        args.append("release")
+
+    args.append("--")
+    args.append("--no-colors")
+
+    if branch:
+        args.append("--branch=" + branch)
+
+    if channel:
+        args.append("--channel=" + channel)
+
+    cmd = ' '.join(args)
+    call(cmd)
+
+
+def build_sdk():
+    call('python scripts/build.py build_sdk')
 
 
 def main(argv):
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute")
-    parser.add_argument("--platform", dest="platform", help="Platform to build for")
+    parser.add_argument("--platform", dest="platform", required=True, help="Platform to build for")
+    parser.add_argument("--branch", dest="branch", required=True, help="The branch to build for")
     args = parser.parse_args()
 
-    if not args.platform:
-        raise Exception("No --platform specified.")
 
+    if args.branch == "master":
+        channel = "stable"
+        autorelease = False
+    elif args.branch == "beta":
+        channel = "beta"
+        autorelease = False
+    elif args.branch == "dev":
+        channel = "alpha"
+        autorelease = True
+    else:
+        channel = None
+        autorelease = False
+
+    # if not args.platform:
+    #     raise Exception("No --platform specified.")
+
+    # smoke test on any branch builder
 
     for command in args.commands:
-        if command == "build":
-            make_engine_builder(args.platform)
+        if command == "engine":
+            build_engine(args.platform)
+        elif command == "editor":
+            release = False
+            build_editor(channel = args.channel, branch = args.branch, release = release, engine_artifacts = "archived")
+        elif command == "bob":
+            build_bob(args.platform, args.branch, arg.channel)
+        elif command == "sdk":
+            build_sdk()
         elif command == "install":
             install(args.platform)
         else:
