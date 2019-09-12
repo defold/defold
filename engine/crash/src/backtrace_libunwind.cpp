@@ -147,6 +147,8 @@ namespace dmCrash
 #endif
 
         WriteCrash(g_FilePath, &g_AppState);
+
+        printf("\n%s\n", g_AppState.m_Extra);
     }
 
     void WriteDump()

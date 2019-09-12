@@ -726,6 +726,9 @@ class Configuration(object):
                 shutil.copy2(engine, engine_stripped)
                 if self._strip_engine(engine_stripped):
                     self.upload_file(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
+                if 'win32' in self.target_platform:
+                    pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
+                    self.upload_file(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
             if 'web' in self.target_platform:
                 self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))

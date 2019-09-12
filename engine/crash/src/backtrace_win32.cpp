@@ -49,44 +49,43 @@ namespace dmCrash
         fflush(stderr);
 
         HANDLE process = ::GetCurrentProcess();
-        
+
         ::SymSetOptions(SYMOPT_DEBUG);
         ::SymInitialize(process, 0, TRUE);
-        
+
         // The API only accepts 62 or less
         uint32_t max = dmMath::Min(AppState::PTRS_MAX, (uint32_t)62);
         g_AppState.m_PtrCount = CaptureStackBackTrace(0, max, &g_AppState.m_Ptr[0], 0);
-        
+
         // Get a nicer printout as well
         const int name_length = 1024;
-        
-        
+
+
 		char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
         SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolbuffer;
         symbol->MaxNameLen = name_length;
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-        
+
         DWORD displacement;
         IMAGEHLP_LINE64 line;
         line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
-        
-        
+
         uint32_t offset = 0;
         for (uint32_t i = 0; i < g_AppState.m_PtrCount; ++i)
-        {            
+        {
             DWORD64 address = (DWORD64)(g_AppState.m_Ptr[i]);
-            
+
             const char* symbolname = "<unknown symbol>";
 		    DWORD64 symboladdress = address;
-            
+
 		    DWORD64 symoffset = 0;
-            
+
             if (::SymFromAddr(process, address, &symoffset, symbol))
             {
                 symbolname = symbol->Name;
                 symboladdress = symbol->Address;
             }
-            
+
             const char* filename = "<unknown>";
             int line_number = 0;
             if (::SymGetLineFromAddr64(process, address, &displacement, &line))
@@ -94,7 +93,7 @@ namespace dmCrash
                 filename = line.FileName;
                 line_number = line.LineNumber;
             }
-            
+
             if (offset < (dmCrash::AppState::EXTRA_MAX - 1))
             {
                 uint32_t size_left = dmCrash::AppState::EXTRA_MAX - offset;
@@ -102,11 +101,11 @@ namespace dmCrash
             }
         }
         g_AppState.m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
-        
+
         ::SymCleanup(process);
-       
+
         WriteCrash(g_FilePath, &g_AppState);
-        
+
         printf("\n%s\n", g_AppState.m_Extra);
     }
 
