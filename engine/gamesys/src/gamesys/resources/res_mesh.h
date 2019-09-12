@@ -17,7 +17,7 @@ namespace dmGameSystem
             // nop?
         }
 
-        dmMeshDDF::Mesh*        m_MeshDDF;
+        dmMeshDDF::MeshDesc*    m_MeshDDF;
         BufferResource*         m_BufferResource;
         dmRender::HMaterial     m_Material;
         // dmGraphics::HVertexBuffer m_VertexBuffer;
@@ -25,10 +25,11 @@ namespace dmGameSystem
         dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         // dmGraphics::Type        m_IndexBufferElementType;
-        // uint32_t                m_ElementCount;
 
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
+        // void*                           m_VertexBufferData;
+        uint32_t                        m_ElementCount;
     };
 
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params);

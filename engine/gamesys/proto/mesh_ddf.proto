@@ -12,13 +12,3 @@ message MeshDesc
     required string vertices = 2 [(resource)=true];
     repeated string textures = 3 [(resource)=true];
 }
-
-/*
-    FIXME: Should be able to remove this message since it's 1:1 to the desc above.
-*/
-message Mesh
-{
-    required string material = 1 [(resource)=true];
-    required string vertices = 2 [(resource)=true];
-    repeated string textures = 3 [(resource)=true];
-}

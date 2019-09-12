@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
+#include <dlib/buffer.h>
 #include "buffer_ddf.h"
 
 namespace dmGameSystem
@@ -11,6 +12,9 @@ namespace dmGameSystem
     struct BufferResource
     {
         dmBufferDDF::BufferDesc* m_BufferDDF;
+        dmBuffer::HBuffer        m_Buffer;
+        uint64_t                 m_ElementCount;
+        // dmBuffer
         // RigSceneResource*       m_RigScene;
         // dmRender::HMaterial     m_Material;
         // dmGraphics::HVertexBuffer m_VertexBuffer;

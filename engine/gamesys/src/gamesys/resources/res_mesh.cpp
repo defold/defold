@@ -34,6 +34,150 @@ namespace dmGameSystem
     //     dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, data_size, data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     // }
 
+    static dmGraphics::Type StreamTypeToGraphicsType(dmBufferDDF::ValueType value_type)
+    {
+        switch (value_type)
+        {
+            case dmBufferDDF::VALUE_TYPE_UINT8:
+                return dmGraphics::TYPE_UNSIGNED_BYTE;
+            break;
+            case dmBufferDDF::VALUE_TYPE_UINT16:
+                return dmGraphics::TYPE_UNSIGNED_SHORT;
+            break;
+            case dmBufferDDF::VALUE_TYPE_UINT32:
+                return dmGraphics::TYPE_UNSIGNED_INT;
+            break;
+            case dmBufferDDF::VALUE_TYPE_INT8:
+                return dmGraphics::TYPE_BYTE;
+            break;
+            case dmBufferDDF::VALUE_TYPE_INT16:
+                return dmGraphics::TYPE_SHORT;
+            break;
+            case dmBufferDDF::VALUE_TYPE_INT32:
+                return dmGraphics::TYPE_INT;
+            break;
+            case dmBufferDDF::VALUE_TYPE_FLOAT32:
+                return dmGraphics::TYPE_FLOAT;
+            break;
+
+            // case dmBufferDDF::VALUE_TYPE_UINT64:
+            // case dmBufferDDF::VALUE_TYPE_INT64:
+            default:
+                assert(false && "Unknown value type!");
+                return dmGraphics::TYPE_BYTE;
+        }
+    }
+
+    static size_t StreamTypeToSize(dmBufferDDF::ValueType value_type)
+    {
+        switch (value_type)
+        {
+            case dmBufferDDF::VALUE_TYPE_UINT8:
+                return sizeof(uint8_t);
+            break;
+            case dmBufferDDF::VALUE_TYPE_UINT16:
+                return sizeof(uint16_t);
+            break;
+            case dmBufferDDF::VALUE_TYPE_UINT32:
+                return sizeof(uint32_t);
+            break;
+            case dmBufferDDF::VALUE_TYPE_INT8:
+                return sizeof(int8_t);
+            break;
+            case dmBufferDDF::VALUE_TYPE_INT16:
+                return sizeof(int16_t);
+            break;
+            case dmBufferDDF::VALUE_TYPE_INT32:
+                return sizeof(int32_t);
+            break;
+            case dmBufferDDF::VALUE_TYPE_FLOAT32:
+                return sizeof(float);
+            break;
+
+            // case dmBufferDDF::VALUE_TYPE_UINT64:
+            // case dmBufferDDF::VALUE_TYPE_INT64:
+            default:
+                assert(false && "Unknown value type!");
+                return 0;
+        }
+    }
+
+    static bool BuildVertices(dmGraphics::HContext context,  MeshResource* mesh_resource)
+    {
+        assert(mesh_resource);
+        assert(mesh_resource->m_BufferResource);
+        const BufferResource* buffer_resource = mesh_resource->m_BufferResource;
+
+        const uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
+        dmGraphics::VertexElement* vert_decls = (dmGraphics::VertexElement*)malloc(stream_count * sizeof(dmGraphics::VertexElement));
+
+        // Setup vertex declaration
+        // dmGraphics::VertexElement ve[] =
+        // {
+        //         {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
+        //         {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+        // };
+        uint32_t vert_size = 0;
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+            dmGraphics::VertexElement& vert_decl = vert_decls[i];
+            vert_decl.m_Name = ddf_stream.m_Name;
+            vert_decl.m_Stream = i;
+            vert_decl.m_Size = ddf_stream.m_ValueCount;
+            vert_decl.m_Type = StreamTypeToGraphicsType(ddf_stream.m_ValueType);
+            vert_decl.m_Normalize = false;
+
+            vert_size += StreamTypeToSize(ddf_stream.m_ValueType) * ddf_stream.m_ValueCount;
+        }
+
+        // Init vertex declaration
+        // sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        mesh_resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, vert_decls, stream_count);
+
+        // Create vertex buffer handles
+        // sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        // sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 4 * sprite_world->m_Components.Capacity());
+        // mesh_resource->m_VertexBufferData = malloc(vert_size * buffer_resource->m_ElementCount);
+
+        // Fill vertex data
+
+        // {
+        //     uint32_t vertex_count = 4*sprite_context->m_MaxSpriteCount;
+        //     uint32_t size_type = vertex_count <= 65536 ? sizeof(uint16_t) : sizeof(uint32_t);
+        //     sprite_world->m_Is16BitIndex = size_type == sizeof(uint16_t) ? 1 : 0;
+
+        //     uint32_t indices_count = 6*sprite_context->m_MaxSpriteCount;
+        //     size_t indices_size = indices_count * size_type;
+        //     void* indices = (void*)malloc(indices_count * size_type);
+        //     if (sprite_world->m_Is16BitIndex) {
+        //         uint16_t* index = (uint16_t*)indices;
+        //         for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+        //         {
+        //             *index++ = v;
+        //             *index++ = v+1;
+        //             *index++ = v+2;
+        //             *index++ = v+2;
+        //             *index++ = v+3;
+        //             *index++ = v;
+        //         }
+
+        uint8_t* bytes = 0x0;
+        uint32_t size = 0;
+        dmBuffer::Result r = dmBuffer::GetBytes(buffer_resource->m_Buffer, (void**)&bytes, &size);
+        if (r != dmBuffer::RESULT_OK) {
+            free(vert_decls);
+            dmLogError("Could not get bytes from buffer!");
+            return false;
+        }
+
+        assert(size == vert_size * buffer_resource->m_ElementCount);
+        mesh_resource->m_ElementCount = buffer_resource->m_ElementCount;
+
+        mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, vert_size * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+        return true;
+    }
 
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, MeshResource* resource, const char* filename)
     {
@@ -95,6 +239,8 @@ namespace dmGameSystem
         //     }
         // }
 
+        BuildVertices(context, resource);
+
         return result;
     }
 
@@ -130,8 +276,8 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params)
     {
-        dmMeshDDF::Mesh* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_Mesh_DESCRIPTOR, (void**) &ddf);
+        dmMeshDDF::MeshDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -152,7 +298,7 @@ namespace dmGameSystem
     {
         MeshResource* mesh_resource = new MeshResource();
         memset(mesh_resource, 0, sizeof(MeshResource));
-        mesh_resource->m_MeshDDF = (dmMeshDDF::Mesh*) params.m_PreloadData;
+        mesh_resource->m_MeshDDF = (dmMeshDDF::MeshDesc*) params.m_PreloadData;
         dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, mesh_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -176,8 +322,8 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmMeshDDF::Mesh* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_Mesh_DESCRIPTOR, (void**) &ddf);
+        dmMeshDDF::MeshDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;

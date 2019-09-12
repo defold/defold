@@ -291,11 +291,15 @@
                     :type :choicebox
                     :options (make-options value-type-values)
                     :default (ffirst value-type-values)}
-                    {:path [:value-count]
+                   {:path [:value-count]
                     :label "Count"
                     :type :integer
-                    :default 3}]}
-        ]}]}))
+                    :default 3}
+                   {:path [:float-data]
+                    :label "Float Data"
+                    :type :list
+                    :element {:type :number
+                              :default 0.0}}]}]}]}))
 
 (defn produce-form-data
   ([node-id pb def]

@@ -16,7 +16,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.digest :as digest])
-  (:import [com.dynamo.mesh.proto MeshProto$Mesh MeshProto$MeshDesc]
+  (:import [com.dynamo.mesh.proto MeshProto$MeshDesc]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]))
 
@@ -41,7 +41,7 @@
                     (map (fn [[label res]]
                            [label (resource/proj-path (get dep-resources res))])
                          (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes MeshProto$Mesh pb)}))
+    {:resource resource :content (protobuf/map->bytes MeshProto$MeshDesc pb)}))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)

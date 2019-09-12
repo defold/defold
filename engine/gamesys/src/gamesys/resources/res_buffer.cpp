@@ -9,93 +9,11 @@
 
 namespace dmGameSystem
 {
-    // dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, BufferResource* resource, const char* filename)
-    // {
-    //     dmResource::Result result = dmResource::Get(factory, resource->m_BufferDDF->m_Vertices, (void**) &resource->m_Vertices);
-    //     if (result != dmResource::RESULT_OK)
-    //         return result;
-
-    //     result = dmResource::Get(factory, resource->m_BufferDDF->m_Material, (void**) &resource->m_Material);
-    //     if (result != dmResource::RESULT_OK)
-    //         return result;
-
-    //     dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-    //     memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
-    //     for (uint32_t i = 0; i < resource->m_BufferDDF->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-    //     {
-    //         const char* texture_path = resource->m_BufferDDF->m_Textures[i];
-    //         if (*texture_path != 0)
-    //         {
-    //             dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
-    //             if (r != dmResource::RESULT_OK)
-    //             {
-    //                 if (result == dmResource::RESULT_OK) {
-    //                     result = r;
-    //                 }
-    //             } else {
-    //                 r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
-    //                 if (r != dmResource::RESULT_OK) {
-    //                    result = r;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     if (result != dmResource::RESULT_OK)
-    //     {
-    //         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-    //             if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
-    //         return result;
-    //     }
-    //     memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
-
-    //     if(dmRender::GetMaterialVertexSpace(resource->m_Material) ==  dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
-    //     {
-    //         if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
-    //         {
-    //             dmLogError("Failed to create Model component. Material vertex space option VERTEX_SPACE_LOCAL does not support skinning.");
-    //             return dmResource::RESULT_NOT_SUPPORTED;
-    //         }
-    //         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
-    //         if(mesh_set)
-    //         {
-    //             if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshAttachments.m_Count)
-    //             {
-    //                 CreateGPUBuffers(context, resource, mesh_set->m_MeshAttachments[0]);
-    //             }
-    //         }
-    //     }
-
-    //     return result;
-    // }
-
     static void ReleaseResources(dmResource::HFactory factory, BufferResource* resource)
     {
-        // if (resource->m_VertexBuffer != 0x0)
-        // {
-        //     dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
-        //     resource->m_VertexBuffer = 0x0;
-        // }
-        // if (resource->m_IndexBuffer != 0x0)
-        // {
-        //     dmGraphics::DeleteVertexBuffer(resource->m_IndexBuffer);
-        //     resource->m_IndexBuffer = 0x0;
-        //     resource->m_ElementCount = 0;
-        // }
         if (resource->m_BufferDDF != 0x0)
             dmDDF::FreeMessage(resource->m_BufferDDF);
         resource->m_BufferDDF = 0x0;
-        // if (resource->m_RigScene != 0x0)
-        //     dmResource::Release(factory, resource->m_RigScene);
-        // resource->m_RigScene = 0x0;
-        // if (resource->m_Material != 0x0)
-        //     dmResource::Release(factory, resource->m_Material);
-        // resource->m_Material = 0x0;
-        // for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        // {
-        //     if (resource->m_Textures[i])
-        //         dmResource::Release(factory, (void*)resource->m_Textures[i]);
-        //     resource->m_Textures[i] = 0x0;
-        // }
     }
 
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params)
@@ -107,15 +25,113 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        // dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
-        // dmResource::PreloadHint(params.m_HintInfo, ddf->m_Vertices);
-        // for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        // {
-        //     dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i]);
-        // }
-
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
+    }
+
+    static bool BuildBuffer(BufferResource* buffer_resource)
+    {
+        // const dmBuffer::StreamDeclaration streams_decl[] = {
+        //     {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+        //     {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_UINT16, 2},
+        //     {dmHashString64("color"), dmBuffer::VALUE_TYPE_UINT8, 4},
+        // };
+        // dmBuffer::HBuffer buffer = 0x0;
+        // dmBuffer::Result r = dmBuffer::Create(1024, streams_decl, 3, &buffer);
+
+        // if (r == dmBuffer::RESULT_OK) {
+        //     // success
+        // } else {
+        //     // handle error
+        // }
+        // buffer_resource
+
+        // Figure out stream count (+ element count, by counting max entries in each stream)
+        uint64_t max_elem = 0;
+        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
+            streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
+            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+
+            assert(streams_decl[i].m_Count > 0);
+
+            // TODO: Look at the correct typed buffer array instead of always float.
+            uint64_t elem_count = ddf_stream.m_FloatData.m_Count / streams_decl[i].m_Count;
+            if (elem_count > max_elem) {
+                max_elem = elem_count;
+            }
+        }
+
+        buffer_resource->m_ElementCount = max_elem;
+
+        dmBuffer::Result r = dmBuffer::Create(max_elem, streams_decl, stream_count, &buffer_resource->m_Buffer);
+
+        if (r != dmBuffer::RESULT_OK) {
+            free(streams_decl);
+            return false;
+        }
+
+        // Figure out buffer elem count
+        for (int s = 0; s < stream_count; ++s)
+        {
+            dmBuffer::StreamDeclaration& stream_decl = streams_decl[s];
+            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[s];
+
+            float* positions = 0x0;
+            uint32_t count = 0;
+            uint32_t components = 0;
+            uint32_t stride = 0;
+
+            dmBuffer::Result r = dmBuffer::GetStream(buffer_resource->m_Buffer, stream_decl.m_Name, (void**)&positions, &count, &components, &stride);
+
+            if (r == dmBuffer::RESULT_OK)
+            {
+                for (int i = 0; i < count; ++i)
+                {
+                    for (int c = 0; c < components; ++c)
+                    {
+                        uint64_t data_i = i*components + c;
+                        if (data_i < ddf_stream.m_FloatData.m_Count) {
+                            positions[c] = ddf_stream.m_FloatData.m_Data[data_i];
+                        } else {
+                            positions[c] = 0.0f;
+                            dmLogError("Trying to get stream data outside of input DDF array.");
+                        }
+                    }
+                    positions += stride;
+                }
+            } else {
+                // TODO Handle error
+                assert(false && "WTF");
+            }
+        }
+
+        // float* positions = 0x0;
+        // uint32_t size = 0;
+        // uint32_t components = 0;
+        // uint32_t stride = 0;
+        // dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), (void**)&positions, &count, &components, &stride);
+
+        // if (r == dmBuffer::RESULT_OK) {
+        //     for (int i = 0; i < count; ++i)
+        //     {
+        //         for (int c = 0; c < components; ++c)
+        //         {
+        //              positions[c] *= 1.1f;
+        //         }
+        //         positions += stride;
+        //     }
+        // } else {
+        //     // handle error
+        // }
+
+        free(streams_decl);
+
+        return true;
     }
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams& params)
@@ -124,16 +140,12 @@ namespace dmGameSystem
         memset(buffer_resource, 0, sizeof(BufferResource));
         buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params.m_PreloadData;
         params.m_Resource->m_Resource = (void*) buffer_resource;
-        // dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, buffer_resource, params.m_Filename);
-        // if (r == dmResource::RESULT_OK)
-        // {
-        //     params.m_Resource->m_Resource = (void*) buffer_resource;
-        // }
-        // else
-        // {
-        //     ReleaseResources(params.m_Factory, buffer_resource);
-        //     delete buffer_resource;
-        // }
+
+        if (!BuildBuffer(buffer_resource))
+        {
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
         return dmResource::RESULT_OK;
     }
 
@@ -156,7 +168,13 @@ namespace dmGameSystem
         BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, buffer_resource);
         buffer_resource->m_BufferDDF = ddf;
-        // return AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, buffer_resource, params.m_Filename);
+
+        if (!BuildBuffer(buffer_resource))
+        {
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
+
         return dmResource::RESULT_OK;
     }
 }
