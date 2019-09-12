@@ -61,7 +61,7 @@ namespace dmCrash
         const int name_length = 1024;
 
 
-		char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
+        char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
         SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolbuffer;
         symbol->MaxNameLen = name_length;
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
@@ -76,9 +76,9 @@ namespace dmCrash
             DWORD64 address = (DWORD64)(g_AppState.m_Ptr[i]);
 
             const char* symbolname = "<unknown symbol>";
-		    DWORD64 symboladdress = address;
+            DWORD64 symboladdress = address;
 
-		    DWORD64 symoffset = 0;
+            DWORD64 symoffset = 0;
 
             if (::SymFromAddr(process, address, &symoffset, symbol))
             {
