@@ -161,12 +161,34 @@ message ShaderDesc
         LANGUAGE_MSL    = 3;
     }
 
-    message Shader
+    enum ShaderDataType
     {
-        required Language language  = 1;
-        optional bytes source       = 2;
-        optional bytes binary       = 3;
+        SHADER_TYPE_UNKNOWN   = 0;
+        SHADER_TYPE_VEC2      = 1;
+        SHADER_TYPE_VEC3      = 2;
+        SHADER_TYPE_VEC4      = 3;
+        SHADER_TYPE_MAT2      = 4;
+        SHADER_TYPE_MAT3      = 5;
+        SHADER_TYPE_MAT4      = 6;
+        SHADER_TYPE_SAMPLER2D = 7;
     }
 
-    repeated Shader shaders	= 1;
+    message ResourceBinding
+    {
+        required uint64         name    = 1;
+        required ShaderDataType type    = 2;
+        optional uint32         set     = 3 [default=0];
+        optional uint32         binding = 4 [default=0];
+    }
+
+    message Shader
+    {
+        required Language        language   = 1;
+        optional bytes           source     = 2;
+        optional bytes           binary     = 3;
+        repeated ResourceBinding uniforms   = 4;
+        repeated ResourceBinding attributes = 5;
+    }
+
+    repeated Shader shaders = 1;
 }

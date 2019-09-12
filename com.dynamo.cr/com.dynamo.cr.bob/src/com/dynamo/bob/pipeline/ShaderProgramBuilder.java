@@ -12,8 +12,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -30,8 +33,10 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
+import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
@@ -132,33 +137,24 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         }
     }
 
-    private void compileMSL(ShaderDesc.Shader.Builder builder, File spirvFile, String spirvShaderStage, IResource resource, String resourceOutput, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
-
-        File file_out_msl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".msl");
-        file_out_msl.deleteOnExit();
-
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
-                spirvFile.getAbsolutePath(),
-                "--output", file_out_msl.getAbsolutePath(),
-                "--msl",
-                "--stage", spirvShaderStage
-                );
-        String result_string = getResultString(result);
-        if (soft_fail && result_string != null)
+    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
+    {
+        switch(typeAsString)
         {
-            System.err.println("\nWarning! Compatability issue: " + result_string);
-            return;
-        }
-        else
-        {
-            checkResult(result_string, resource, resourceOutput);
+            case "vec2"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
+            case "vec3"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
+            case "vec4"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
+            case "mat2"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
+            case "mat3"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
+            case "mat4"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
+            case "sampler2D" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+            default: break;
         }
 
-        byte[] msl_data = FileUtils.readFileToByteArray(file_out_msl);
-        builder.setSource(ByteString.copyFrom(msl_data));
+        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
     }
 
-    private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+    private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
 
         // Convert to ES3 (or GL 140+)
@@ -201,35 +197,139 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 );
 
         String result_string = getResultString(result);
-        if (soft_fail && result_string != null)
-        {
+        if (soft_fail && result_string != null) {
             System.err.println("\nWarning! Compatability issue: " + result_string);
             return null;
-        }
-        else
-        {
+        } else {
             checkResult(result_string, resource, resourceOutput);
         }
 
-        // Transpile to target language or output SPIRV
-        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-        builder.setLanguage(targetLanguage);
-        switch(targetLanguage) {
-            case LANGUAGE_MSL:
-                compileMSL(builder, file_out_spv, spirvShaderStage, resource, resourceOutput, isDebug, soft_fail);
-            break;
+        // Generate reflection data
+        File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
+        file_out_refl.deleteOnExit();
 
-            case LANGUAGE_SPIRV:
-                byte[] spv_data = FileUtils.readFileToByteArray(file_out_spv);
-                builder.setBinary(ByteString.copyFrom(spv_data));
-            break;
+        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            file_out_spv.getAbsolutePath(),
+            "--output",file_out_refl.getAbsolutePath(),
+            "--reflect");
 
-            case LANGUAGE_GLSL:
-                throw new CompileExceptionError("GLSL not implemented as SPIRV target language", null);
-
-            default:
-                throw new CompileExceptionError("Unknown compiler target languge", null);
+        result_string = getResultString(result);
+        if (soft_fail && result_string != null) {
+            System.err.println("\nWarning! Compatability issue: " + result_string);
+            return null;
+        } else {
+            checkResult(result_string, resource, resourceOutput);
         }
+
+        String result_json = FileUtils.readFileToString(file_out_refl, StandardCharsets.UTF_8);
+        SPIRVReflector reflector = new SPIRVReflector(result_json);
+
+        // A map of Uniform Set -> List of Bindings for that set
+        HashMap<Integer,ArrayList<Integer>> setBindingMap = new HashMap<Integer,ArrayList<Integer>>();
+
+        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
+        int shaderIssues = 0;
+
+        // Process all uniform blocks
+        // NOTE: For now, we only support a 1-1 mapping between blocks and uniforms, since this is
+        // what our shader elevation does due to simplifiation. While a custom GLSL3+ shader could have
+        // uniform blocks that contain several uniforms, we don't have that setup in our shader output
+        // or any graphics system, so they will fail here.
+        for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
+            ArrayList<Integer> bindingsEntry = setBindingMap.get(ubo.set);
+
+            if (bindingsEntry == null) {
+                bindingsEntry = new ArrayList<Integer>();
+                setBindingMap.put(ubo.set, bindingsEntry);
+            }
+
+            boolean notExactlyOneUniformIssue = ubo.uniforms.size() != 1;
+            boolean bindingsExistIssuse       = bindingsEntry.contains(ubo.binding);
+
+            if (notExactlyOneUniformIssue || bindingsExistIssuse) {
+                if (bindingsExistIssuse)
+                    System.err.println("\nDuplicate binding found for uniform '" + ubo.uniforms.get(0).name + "'");
+                else
+                    System.err.println("\nNot exactly one uniform in uniform block '" + ubo.name + "'");
+                shaderIssues++;
+            } else {
+                SPIRVReflector.Resource uniform = ubo.uniforms.get(0);
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                resourceBindingBuilder.setName(MurmurHash.hash64(uniform.name));
+                resourceBindingBuilder.setType(stringTypeToShaderType(uniform.type));
+                resourceBindingBuilder.setSet(uniform.set);
+                resourceBindingBuilder.setBinding(uniform.binding);
+                builder.addUniforms(resourceBindingBuilder);
+            }
+
+            bindingsEntry.add(ubo.binding);
+        }
+
+        // Process all texture entries
+        for (SPIRVReflector.Resource tex : reflector.getTextures()) {
+            ArrayList<Integer> bindingsEntry = setBindingMap.get(tex.set);
+            ShaderDesc.ShaderDataType type = stringTypeToShaderType(tex.type);
+
+            if (bindingsEntry == null) {
+                bindingsEntry = new ArrayList<Integer>();
+                setBindingMap.put(tex.set, bindingsEntry);
+            }
+
+            boolean bindingsExistIssuse  = bindingsEntry.contains(tex.binding);
+            boolean unsupportedTypeIssue = type != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+
+            if (bindingsExistIssuse || unsupportedTypeIssue) {
+                if (bindingsExistIssuse)
+                    System.err.println("\nDuplicate binding found for texture sampler '" + tex.name + "'");
+                else
+                    System.err.println("\nUnsupported type for texture sampler '" + tex.name + "'");
+                shaderIssues++;
+            } else {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                resourceBindingBuilder.setName(MurmurHash.hash64(tex.name));
+                resourceBindingBuilder.setType(type);
+                resourceBindingBuilder.setSet(tex.set);
+                resourceBindingBuilder.setBinding(tex.binding);
+                builder.addUniforms(resourceBindingBuilder);
+            }
+
+            bindingsEntry.add(tex.binding);
+        }
+
+        // Process all vertex attributes (inputs)
+        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER){
+            ArrayList<Integer> locationsList = new ArrayList<Integer>();
+            for (SPIRVReflector.Resource input : reflector.getInputs()) {
+                if (locationsList.contains(input.binding)) {
+                    System.err.println("\nDuplicate input attributes found for input '" + input.name + "'");
+                    shaderIssues++;
+                } else {
+                    ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                    resourceBindingBuilder.setName(MurmurHash.hash64(input.name));
+                    resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
+                    resourceBindingBuilder.setSet(input.set);
+                    resourceBindingBuilder.setBinding(input.binding);
+                    builder.addAttributes(resourceBindingBuilder);
+                }
+
+                locationsList.add(input.binding);
+            }
+        }
+
+        // This is a soft-fail mechanism just to notify that the shaders won't work in runtime.
+        if (shaderIssues != 0) {
+            String resourcePath = resourceOutput;
+
+            if (resource != null)
+                resourcePath = resource.getPath();
+
+            System.err.println("\nWarning! Found " + shaderIssues + " issues when compiling '" + resourcePath + "' to SPIR-V.");
+            return null;
+        }
+
+        builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
+        byte[] spv_data = FileUtils.readFileToByteArray(file_out_spv);
+        builder.setBinary(ByteString.copyFrom(spv_data));
 
         return builder;
     }
@@ -246,7 +346,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
@@ -259,7 +359,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
@@ -272,7 +372,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
@@ -286,7 +386,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "es", isDebug, soft_fail);
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "es", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
@@ -298,7 +398,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case Arm64Android:
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug, soft_fail);
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);

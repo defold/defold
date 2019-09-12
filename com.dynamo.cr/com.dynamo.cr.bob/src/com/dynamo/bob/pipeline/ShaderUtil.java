@@ -1,13 +1,130 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.io.IOException;
+
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.CompileExceptionError;
 
 
 public class ShaderUtil {
+
+    public static class SPIRVReflector {
+        private static JsonNode root;
+
+        public SPIRVReflector(String json) throws IOException
+        {
+            this.root = (new ObjectMapper()).readTree(json);
+        }
+
+        public static class Resource
+        {
+            public String name;
+            public String type;
+            public int    binding;
+            public int    set;
+            public int    offset;
+        }
+
+        public static class UniformBlock extends Resource
+        {
+            public ArrayList<Resource> uniforms;
+        }
+
+        public static ArrayList<UniformBlock> getUniformBlocks()
+        {
+            ArrayList<UniformBlock> uniformBlocks = new ArrayList<UniformBlock>();
+
+            JsonNode uboNode   = root.get("ubos");
+            JsonNode typesNode = root.get("types");
+
+            if (uboNode == null || typesNode == null) {
+                return uniformBlocks;
+            }
+
+            Iterator<JsonNode> uniformBlockNodeIt = uboNode.getElements();
+            while (uniformBlockNodeIt.hasNext()) {
+                JsonNode uniformBlockNode = uniformBlockNodeIt.next();
+
+                UniformBlock ubo = new UniformBlock();
+                ubo.name         = uniformBlockNode.get("name").asText();
+                ubo.set          = uniformBlockNode.get("set").asInt();
+                ubo.binding      = uniformBlockNode.get("binding").asInt();
+                ubo.uniforms     = new ArrayList<Resource>();
+
+                JsonNode typeNode    = typesNode.get(uniformBlockNode.get("type").asText());
+                JsonNode membersNode = typeNode.get("members");
+
+                for (Iterator<JsonNode> membersNodeIt = membersNode.getElements(); membersNodeIt.hasNext();) {
+                    JsonNode uniformNode   = membersNodeIt.next();
+                    String uniformNodeName = uniformNode.get("name").asText();
+                    String uniformNodeType = uniformNode.get("type").asText();
+                    int uniformNodeOffset  = uniformNode.get("offset").asInt();
+
+                    Resource res = new Resource();
+                    res.name     = uniformNode.get("name").asText();
+                    res.type     = uniformNode.get("type").asText();
+                    res.offset   = uniformNode.get("offset").asInt();
+                    res.binding  = 0;
+                    res.set      = 0;
+                    ubo.uniforms.add(res);
+                }
+
+                uniformBlocks.add(ubo);
+            }
+
+            return uniformBlocks;
+        }
+
+        public static ArrayList<Resource> getTextures() {
+            ArrayList<Resource> textures = new ArrayList<Resource>();
+
+            JsonNode texturesNode = root.get("textures");
+
+            if (texturesNode == null) {
+                return textures;
+            }
+
+            for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
+                JsonNode textureNode = iter.next();
+                Resource res = new Resource();
+                res.name     = textureNode.get("name").asText();
+                res.type     = textureNode.get("type").asText();
+                res.binding  = textureNode.get("binding").asInt();
+                res.set      = textureNode.get("set").asInt();
+                res.offset   = 0;
+                textures.add(res);
+            }
+
+            return textures;
+        }
+
+        public static ArrayList<Resource> getInputs() {
+            ArrayList<Resource> inputs = new ArrayList<Resource>();
+
+            JsonNode inputsNode = root.get("inputs");
+
+            if (inputsNode == null) {
+                return inputs;
+            }
+
+            for (Iterator<JsonNode> iter = inputsNode.getElements(); iter.hasNext();) {
+                JsonNode inputNode = iter.next();
+                Resource res = new Resource();
+                res.name     = inputNode.get("name").asText();
+                res.type     = inputNode.get("type").asText();
+                res.binding  = inputNode.get("location").asInt();
+                inputs.add(res);
+            }
+
+            return inputs;
+        }
+    }
 
     public static class ES2ToES3Converter {
 
@@ -79,6 +196,8 @@ public class ShaderUtil {
                 return result;
             }
 
+            int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
+
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
             int patchLineIndex = 0;
@@ -137,8 +256,15 @@ public class ShaderUtil {
                                     break;
                                 }
                             }
-                            if(!isOpaque) {
-                                line = "\n" + (layout == null ? "" : (layout + " ")) + keyword + " " + glUBRep + ubIndex++ + " { " +
+
+                            if (layout == null) {
+                                layout = "layout(set=" + layoutSet + ")";
+                            }
+
+                            if (isOpaque){
+                                line = layout + " " + line;
+                            } else {
+                                line = "\n" + layout + " " + keyword + " " + glUBRep + ubIndex++ + " { " +
                                 (precision == null ? "" : (precision + " ")) + type + " " + identifier + " " + (any == null ? "" : (any + " ")) + "; };";
                             }
                         }
