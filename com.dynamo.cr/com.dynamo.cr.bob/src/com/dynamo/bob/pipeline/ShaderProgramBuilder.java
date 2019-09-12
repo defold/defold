@@ -215,7 +215,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         result_string = getResultString(result);
         if (soft_fail && result_string != null) {
-            System.err.println("\nWarning! Compatability issue: " + result_string);
+            System.err.println("\nWarning! Unable to get reflection data: " + result_string);
             return null;
         } else {
             checkResult(result_string, resource, resourceOutput);
@@ -247,11 +247,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             boolean bindingsExistIssuse       = bindingsEntry.contains(ubo.binding);
 
             if (notExactlyOneUniformIssue || bindingsExistIssuse) {
-                if (bindingsExistIssuse)
+                if (bindingsExistIssuse) {
                     System.err.println("\nDuplicate binding found for uniform '" + ubo.uniforms.get(0).name + "'");
-                else
+                    shaderIssues++;
+                }
+
+                if (notExactlyOneUniformIssue) {
                     System.err.println("\nNot exactly one uniform in uniform block '" + ubo.name + "'");
-                shaderIssues++;
+                    shaderIssues++;
+                }
             } else {
                 SPIRVReflector.Resource uniform = ubo.uniforms.get(0);
                 ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
@@ -279,11 +283,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             boolean unsupportedTypeIssue = type != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
 
             if (bindingsExistIssuse || unsupportedTypeIssue) {
-                if (bindingsExistIssuse)
+                if (bindingsExistIssuse) {
                     System.err.println("\nDuplicate binding found for texture sampler '" + tex.name + "'");
-                else
+                    shaderIssues++;
+                }
+
+                if (unsupportedTypeIssue) {
                     System.err.println("\nUnsupported type for texture sampler '" + tex.name + "'");
-                shaderIssues++;
+                    shaderIssues++;
+                }
             } else {
                 ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
                 resourceBindingBuilder.setName(MurmurHash.hash64(tex.name));

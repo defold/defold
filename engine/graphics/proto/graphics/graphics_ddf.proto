@@ -158,7 +158,6 @@ message ShaderDesc
     {
         LANGUAGE_GLSL   = 1;
         LANGUAGE_SPIRV  = 2;
-        LANGUAGE_MSL    = 3;
     }
 
     enum ShaderDataType
