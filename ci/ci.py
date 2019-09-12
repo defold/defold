@@ -2,6 +2,7 @@
 
 import sys
 import subprocess
+import platform
 from argparse import ArgumentParser
 
 def call(args):
@@ -16,8 +17,8 @@ def aptget(package):
     call("sudo apt-get install --no-install-recommends " + package)
 
 
-def install(platform):
-    if platform == 'linux' or platform == 'linux-64':
+def install():
+    if platform.system() == "Linux":
         call("sudo apt-get update")
         call("sudo apt-get install -y software-properties-common")
         aptget("gcc-5")
@@ -55,7 +56,7 @@ def install(platform):
         aptget("valgrind")
 
 
-def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_codesign = True, skip_docs = True, skip_builtins = True, branch = None, archive = False, org = 'defold', name = None):
+def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_codesign = True, skip_docs = True, skip_builtins = True, archive = False):
     args = 'python scripts/build.py distclean install_ext'.split()
     sub_args = []
 
@@ -119,13 +120,10 @@ def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan =
     if sub_args:
         cmd += ' -- ' + ' '.join(sub_args)
 
-    if name is None:
-        name = 'engine-%s' % (platform)
-
     call(cmd)
 
 
-def build_editor(channel = None, branch = None, release = False, engine_artifacts = None):
+def build_editor(channel = None, release = False, engine_artifacts = None):
     args = 'python scripts/build.py distclean install_ext build_editor2 archive_editor2'.split()
 
     if release:
@@ -149,11 +147,10 @@ def build_editor(channel = None, branch = None, release = False, engine_artifact
     call(cmd)
 
 
-def build_bob(platform, branch, channel, autorelease = False):
-    release_str = 'release' if autorelease else ''
+def build_bob(branch = None, channel = None, release = False):
     args = "python scripts/build.py distclean install_ext sync_archive build_bob archive_bob".split()
 
-    if autorelease:
+    if release:
         args.append("release")
 
     args.append("--")
@@ -184,16 +181,19 @@ def main(argv):
     branch = args.branch.replace("refs/heads/", "")
     if branch == "master":
         channel = "stable"
-        autorelease = False
+        release = False
     elif branch == "beta":
         channel = "beta"
-        autorelease = False
+        release = False
     elif branch == "dev":
         channel = "alpha"
-        autorelease = True
+        release = True
+    elif branch == "editor-dev":
+        channel = "alpha"
+        release = False
     else:
         channel = None
-        autorelease = False
+        release = False
 
     print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
     # if not args.platform:
@@ -205,14 +205,21 @@ def main(argv):
         if command == "engine":
             build_engine(platform)
         elif command == "editor":
-            release = False
-            build_editor(channel = channel, branch = branch, release = release, engine_artifacts = "archived")
+            if branch == "master" or branch == "beta" or branch == "dev":
+                build_editor(channel = channel, release = True, engine_artifacts = "archived")
+            else if branch == "editor-dev":
+                build_editor(channel = "editor-alpha", release = True)
+            else:
+                build_editor(release = False, engine_artifacts = "archived")
         elif command == "bob":
-            build_bob(platform, branch, channel)
+            if branch == "master" or branch == "beta" or branch == "dev":
+                build_bob(branch = branch, channel = channel, release = release)
+            else:
+                build_bob()
         elif command == "sdk":
             build_sdk()
         elif command == "install":
-            install(platform)
+            install()
         else:
             print("Unknown command {0}".format(command))
 
