@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - test_ci
+
+jobs:
+  build:
+
+    runs-on: ubuntu-16.04
+    
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+        architecture: 'x64'
+    - name: Start CI
+      run: |
+        echo Add other actions to build,
+        python ci/ci.py --platform=linux

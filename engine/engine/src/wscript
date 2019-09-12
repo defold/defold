@@ -57,7 +57,7 @@ def build(bld):
 
     # Set graphics library to use (at some point both GL/VK should be used)
     graphics_lib = 'GRAPHICS'
-    if not 'web' in bld.env['PLATFORM'] and Options.options.with_vulkan:
+    if Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
@@ -88,7 +88,6 @@ def build(bld):
     extra_packages = 'com.google.android.gms:com.google.android.gms.common:com.android.support'
 
     android_jar_paths = [
-              '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
               '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
@@ -126,7 +125,6 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
-        bld.install_files('${PREFIX}/share/java', 'dmengine.android/r.jar')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(

@@ -13,16 +13,13 @@
 #include <sys/param.h>
 #endif
 
-#include <axtls/config/config.h>
-#include <axtls/crypto/os_int.h>
-#include <axtls/ssl/crypto_misc.h>
-
 #if defined(_WIN32)
 #include <malloc.h>
 #define alloca(_SIZE) _alloca(_SIZE)
 #endif
 
 #include <dlib/dstrings.h>
+#include <dlib/crypt.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
@@ -490,36 +487,16 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
     return RESULT_OK;
 }
 
-Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len)
+Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
 {
-    dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
-    out_digest_len = 0;
+    uint32_t signature_hash_len = HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
 
-    dmAxTls::RSA_CTX* rsa_parameters = 0x0;
-    int ret = dmAxTls::asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
-    if (ret != 0) {
-        dmLogError("Failed to parse public key during manifest verification.");
-        RSA_free(rsa_parameters);
+    dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
+    if (r != dmCrypt::RESULT_OK) {
         return RESULT_INVALID_DATA;
     }
-
-    uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
-    ret = dmAxTls::RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
-    if(ret != 0) {
-        dmLogError("Failed to decrypt manifest signature for verification");
-        free(hash_decrypted);
-        return RESULT_INVALID_DATA;
-    }
-    uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
-    memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
-
-    out_digest_len = signature_hash_len;
-    out_digest = (char*)hash;
-
-    free(hash_decrypted);
     return RESULT_OK;
 }
 
@@ -536,7 +513,7 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     char game_dir[DMPATH_MAX_PATH];
     uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
     uint8_t* pub_key_buf = 0x0;
-    char* hash_decrypted = 0x0;
+    uint8_t* hash_decrypted = 0x0;
 
     // Load public key
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
@@ -566,7 +543,7 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
         return RESULT_IO_ERROR;
     }
 
-    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hash_decrypted, hash_decrypted_len);
+    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, &hash_decrypted, &hash_decrypted_len);
     if (res != RESULT_OK)
     {
         return res;
@@ -2053,6 +2030,38 @@ void IterateResources(HFactory factory, FResourceIterator callback, void* user_c
     DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
     ResourceIteratorCallbackInfo callback_info = {callback, user_ctx, true};
     factory->m_Resources->Iterate<>(&ResourceIteratorCallback, &callback_info);
+}
+
+const char* ResultToString(Result r)
+{
+    #define DM_RESOURCE_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    switch (r)
+    {
+        DM_RESOURCE_RESULT_TO_STRING_CASE(OK);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(INVALID_DATA);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(DDF_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(RESOURCE_NOT_FOUND);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(MISSING_FILE_EXTENSION);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(ALREADY_REGISTERED);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(INVAL);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(UNKNOWN_RESOURCE_TYPE);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(OUT_OF_MEMORY);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(IO_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(NOT_LOADED);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(OUT_OF_RESOURCES);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(STREAMBUFFER_TOO_SMALL);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(FORMAT_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(CONSTANT_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(NOT_SUPPORTED);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(RESOURCE_LOOP_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(PENDING);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(VERSION_MISMATCH);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(SIGNATURE_MISMATCH);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+        default: break;
+    }
+    #undef DM_RESOURCE_RESULT_TO_STRING_CASE
+    return "RESULT_UNDEFINED";
 }
 
 }

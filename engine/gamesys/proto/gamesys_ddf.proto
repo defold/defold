@@ -84,17 +84,35 @@ message SetViewProjection
 /* Documented in comp_sound.cpp */
 message PlaySound
 {
-    optional float delay = 1 [default=0.0];
-    optional float gain = 2 [default=1.0];
+    optional float delay    = 1 [default=0.0];
+    optional float gain     = 2 [default=1.0];
+    optional float pan      = 3 [default=0.0];
+    optional float speed    = 4 [default=1.0];
+    optional uint32 play_id = 5 [default=0xffffffff]; // Must be same as dmSound::INVALID_PLAY_ID
 }
 
 message StopSound
 {
 }
 
+message SoundDone
+{
+    optional int32 play_id = 1 [default = 0];
+}
+
 message SetGain
 {
     optional float gain = 1 [default=1.0];
+}
+
+message SetPan
+{
+    optional float pan = 1 [default=0.0];
+}
+
+message SetSpeed
+{
+    optional float speed = 1 [default=1.0];
 }
 
 /* Documented in scripts/script_particlefx.cpp */

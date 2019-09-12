@@ -1,6 +1,7 @@
 #include "dns.h"
 #include "dns_private.h"
 #include "socket.h"
+#include "dstrings.h"
 
 #include "time.h"
 #include "atomic.h"
@@ -9,7 +10,7 @@
 #include <ares.h>
 #include <assert.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__)
     #include <netdb.h>
 #endif
 
@@ -47,6 +48,7 @@ namespace dmDNS
             case ARES_ENOTFOUND:
             case ARES_ENOTIMP:
             case ARES_EREFUSED:
+            case ARES_ECONNREFUSED:
             case ARES_ETIMEOUT:
                 res = RESULT_HOST_NOT_FOUND;
                 break;
@@ -359,4 +361,21 @@ namespace dmDNS
 
         return AresStatusToDNSResult(req.m_Status);
     }
+
+    #define DM_DNS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_DNS_RESULT_TO_STRING_CASE(OK);
+            DM_DNS_RESULT_TO_STRING_CASE(INIT_ERROR);
+            DM_DNS_RESULT_TO_STRING_CASE(HOST_NOT_FOUND);
+            DM_DNS_RESULT_TO_STRING_CASE(CANCELLED);
+            DM_DNS_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+            default:
+                break;
+        }
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_DNS_RESULT_TO_STRING_CASE
 }

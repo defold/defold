@@ -17,8 +17,6 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_VERSION=21 # Android 5.0
 ANDROID_64_GCC_VERSION='4.9'
 
-FLASCC=~/local/FlasCC1.0/sdk
-
 MAKEFILE=Makefile
 
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
@@ -111,7 +109,6 @@ function cmi_cross() {
     if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work
         # Unknown host in reported by configure script
-        # TODO: Use another target, e.g. i386-freebsd as for as3-web?
         cmi_do $1
     else
         cmi_do $1 "--host=$2"
@@ -355,16 +352,6 @@ function cmi() {
             export LD=${EMSCRIPTEN}/em++
             export RANLIB=${EMSCRIPTEN}/emranlib
             cmi_cross $1 $1
-            ;;
-
-        as3-web)
-            export CPP="$FLASCC/usr/bin/cpp"
-            export CC=$FLASCC/usr/bin/gcc
-            export CXX=$FLASCC/usr/bin/g++
-            export AR=$FLASCC/usr/bin/ar
-            export RANLIB=$FLASCC/usr/bin/ranlib
-            # NOTE: We use a fake platform in order to make configure-scripts happy
-            cmi_cross $1 i386-freebsd
             ;;
 
         *)
