@@ -65,13 +65,15 @@ jobs:
             platform: android-64
     runs-on: ${{ matrix.os }}
     steps:
-    - name: Build engine
+    - name: Checkout
       uses: actions/checkout@v1
       with:
         fetch-depth: 1
+    - name: Install Python
       uses: actions/setup-python@v1
       with:
         python-version: '2.x'
         architecture: 'x64'
+    - name: Build engine
       run: python ci/ci.py --platform=${{ matrix.platform }} --branch=${GITHUB_REF} install engine
 
