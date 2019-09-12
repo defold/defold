@@ -6,19 +6,74 @@ on:
       - test_ci
 
 jobs:
-  build:
-
-    runs-on: ubuntu-18.04
-    
+  build-engine:
+    strategy:
+      matrix:
+        os: [macOS-10.14, windows-2016, ubuntu-18.04]
+        platform: [linux-64, win32, win32-64, darwin-64, ios, ios-64, ios-simulator, android, android-64, js-web, wasm-web]
+        exclude:
+          # macOS excludes
+          - os: macOS-10.14
+            platform: linux-64
+          - os: macOS-10.14
+            platform: win32
+          - os: macOS-10.14
+            platform: win32-64
+          - os: macOS-10.14
+            platform: android
+          - os: macOS-10.14
+            platform: android-64
+          - os: macOS-10.14
+            platform: js-web
+          - os: macOS-10.14
+            platform: wasm-web
+          # windows excludes
+          - os: windows-2016
+            platform: linux-64
+          - os: windows-2016
+            platform: darwin-64
+          - os: windows-2016
+            platform: ios
+          - os: windows-2016
+            platform: ios-64
+          - os: windows-2016
+            platform: ios-simulator
+          - os: windows-2016
+            platform: android
+          - os: windows-2016
+            platform: android-64
+          - os: windows-2016
+            platform: js-web
+          - os: windows-2016
+            platform: wasm-web
+          # ubuntu excludes
+          - os: ubuntu-18.04
+            platform: win32
+          - os: ubuntu-18.04
+            platform: win32-64
+          - os: ubuntu-18.04
+            platform: darwin-64
+          - os: ubuntu-18.04
+            platform: ios
+          - os: ubuntu-18.04
+            platform: ios-64
+          - os: ubuntu-18.04
+            platform: ios-simulator
+          - os: ubuntu-18.04
+            platform: android
+          - os: ubuntu-18.04
+            platform: android-64
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v1
+    - name: Checkout
+      uses: actions/checkout@v1
       with:
         fetch-depth: 1
-    - uses: actions/setup-python@v1
+    - name: Install Python
+      uses: actions/setup-python@v1
       with:
         python-version: '2.x'
         architecture: 'x64'
-    - name: Start CI
-      run: |
-        echo Add other actions to build,
-        python ci/ci.py --platform=linux-64 install build
+    - name: Build engine
+      run: python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine
+
