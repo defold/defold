@@ -76,4 +76,52 @@ jobs:
         architecture: 'x64'
     - name: Build engine
       run: python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine
-
+  
+  build-bob:
+    needs: build-engine
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - name: Install Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+        architecture: 'x64'
+    - name: Build bob
+      run: python ci/ci.py --platform=foobar --branch=$GITHUB_REF install bob   
+  
+  build-sdk:
+    needs: build-engine
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - name: Install Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+        architecture: 'x64'
+    - name: Build SDK
+      run: python ci/ci.py --platform=foobar --branch=$GITHUB_REF install sdk   
+  
+  build-editor:
+    needs: [build-bob,build-sdk]
+    runs-on: macOS-10.14
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - name: Install Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: '2.x'
+        architecture: 'x64'
+    - name: Build editor
+      run: python ci/ci.py --platform=foobar --branch=$GITHUB_REF install editor   
+  
