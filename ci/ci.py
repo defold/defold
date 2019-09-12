@@ -180,21 +180,22 @@ def main(argv):
     parser.add_argument("--branch", dest="branch", required=True, help="The branch to build for")
     args = parser.parse_args()
 
-
-    if args.branch == "master":
+    platform = args.platform
+    branch = args.branch.replace("refs/heads/", "")
+    if branch == "master":
         channel = "stable"
         autorelease = False
-    elif args.branch == "beta":
+    elif branch == "beta":
         channel = "beta"
         autorelease = False
-    elif args.branch == "dev":
+    elif branch == "dev":
         channel = "alpha"
         autorelease = True
     else:
         channel = None
         autorelease = False
 
-    print("Platform: %s Branch: %s Channel: %s" % (args.platform, args.branch, channel))
+    print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
     # if not args.platform:
     #     raise Exception("No --platform specified.")
 
@@ -202,16 +203,16 @@ def main(argv):
 
     for command in args.commands:
         if command == "engine":
-            build_engine(args.platform)
+            build_engine(platform)
         elif command == "editor":
             release = False
-            build_editor(channel = args.channel, branch = args.branch, release = release, engine_artifacts = "archived")
+            build_editor(channel = channel, branch = branch, release = release, engine_artifacts = "archived")
         elif command == "bob":
-            build_bob(args.platform, args.branch, arg.channel)
+            build_bob(platform, branch, channel)
         elif command == "sdk":
             build_sdk()
         elif command == "install":
-            install(args.platform)
+            install(platform)
         else:
             print("Unknown command {0}".format(command))
 
