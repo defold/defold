@@ -6,19 +6,27 @@ on:
       - test_ci
 
 jobs:
-  build:
-
-    runs-on: ubuntu-18.04
-    
+  build-engine:
+    strategy:
+      matrix:
+        os: [macOS-10.14, windows-2016, ubuntu-18.04]
+        platform: [linux-64, win32, win32-64, darwin-64, ios, ios-64, ios-simulator, android, android-64, js-web, wasm-web]
+        exclude:
+          - os: macOS-10.14
+            platform: [linux-64, win32, win32-64, android, android-64, js-web, wasm-web]
+          - os: windows-2016
+            platform: [linux-64, darwin-64, ios, ios-64, ios-simulator, android, android-64, js-web, wasm-web]
+          - os: ubuntu-18.04
+            platform: [win32, win32-64, darwin-64, ios, ios-64, ios-simulator, android, android-64]
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v1
+    - name: Build engine
+      uses: actions/checkout@v1
       with:
         fetch-depth: 1
-    - uses: actions/setup-python@v1
+      uses: actions/setup-python@v1
       with:
         python-version: '2.x'
         architecture: 'x64'
-    - name: Start CI
-      run: |
-        echo Add other actions to build,
-        python ci/ci.py --platform=linux-64 install build
+      run: python ci/ci.py --platform=${{ matrix.platform }} --branch=${GITHUB_REF} install engine
+
