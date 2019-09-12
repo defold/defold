@@ -194,6 +194,7 @@ def main(argv):
         channel = None
         autorelease = False
 
+    print("Platform: %s Branch: %s Channel: %s" % (args.platform, args.branch, channel))
     # if not args.platform:
     #     raise Exception("No --platform specified.")
 
