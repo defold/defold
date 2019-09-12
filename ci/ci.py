@@ -6,6 +6,8 @@ import subprocess
 from argparse import ArgumentParser
 
 def call(args):
+    if type(args) == "str":
+        args = args.split(" ")
     print(' '.join(args))
     subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
 
@@ -41,11 +43,6 @@ def install(platform):
         call("update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 1000")
         call("update-alternatives --config clang")
         call("update-alternatives --config clang++")
-        call("")
-        call("")
-        call("")
-        call("")
-        call("")
         aptget("tofrodos")
         aptget("cmake")
         aptget("curl")
@@ -123,7 +120,7 @@ def make_engine_builder(platform, skip_tests = True, with_valgrind = False, with
     if name is None:
         name = 'engine-%s' % (platform)
 
-    call(cmd.split(" "))
+    call(cmd)
     # return make_builder(name, slaves, cmd, branch = branch, org = org)
 
 
