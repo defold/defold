@@ -252,7 +252,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                     shaderIssues++;
                 }
 
-                if (notExactlyOneUniformIssue) {
+                if (notExactlyOneUniformIssue) {
                     System.err.println("\nNot exactly one uniform in uniform block '" + ubo.name + "'");
                     shaderIssues++;
                 }
