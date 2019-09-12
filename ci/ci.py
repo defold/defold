@@ -6,8 +6,11 @@ import subprocess
 from argparse import ArgumentParser
 
 def call(args):
+    print("args is type", type(args))
     if type(args) == "str":
         args = args.split(" ")
+
+    print("args", args)
     print(' '.join(args))
     subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
 
