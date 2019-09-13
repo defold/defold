@@ -6,11 +6,10 @@ import platform
 from argparse import ArgumentParser
 
 def call(args):
-    if type(args) is str:
-        args = args.split(" ")
-
-    print(' '.join(args))
-    # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
+    args.replace("--release", "")
+    print(args)
+    args = args.split(" ")
+    subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
 
 
 def aptget(package):
@@ -85,8 +84,6 @@ def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan =
         args.append('--platform=win32')
     elif platform == 'win32-64':
         args.append('--platform=x86_64-win32')
-    elif platform == 'linux':
-        args.append('--platform=linux')
     elif platform == 'linux-64':
         args.append('--platform=x86_64-linux')
     else:
@@ -170,7 +167,7 @@ def build_bob(branch = None, channel = None, release = False):
 
 
 def build_sdk():
-    call('python scripts/build.py build_sdk')
+    call('python scripts/build.py build_sdk --no-colors')
 
 
 def smoke_test():
@@ -182,6 +179,9 @@ def main(argv):
     parser.add_argument('commands', nargs="+", help="The command to execute")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--branch", dest="branch", help="The branch to build for (when building engine and editor)")
+    parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
+    parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     args = parser.parse_args()
 
     platform = args.platform
@@ -208,10 +208,9 @@ def main(argv):
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
-            build_engine(platform)
+            with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
+            build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua)
         elif command == "editor":
-            if not branch:
-                raise Exception("No --branch specified.")
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
             elif branch == "editor-dev":
@@ -219,8 +218,6 @@ def main(argv):
             else:
                 build_editor(release = False, engine_artifacts = "archived")
         elif command == "bob":
-            if not branch:
-                raise Exception("No --branch specified.")
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)
             else:
