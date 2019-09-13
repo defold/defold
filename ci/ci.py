@@ -16,8 +16,13 @@ def aptget(package):
     call("sudo apt-get install --no-install-recommends " + package)
 
 
+def choco(package):
+    call("choco install " + package)
+
+
 def install():
     system = platform.system()
+    print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
         call("sudo apt-get update")
         call("sudo apt-get install -y software-properties-common")
@@ -55,7 +60,8 @@ def install():
         aptget("silversearcher-ag")
         aptget("valgrind")
     elif system == "Windows":
-        print("Windows")
+        choco("visualstudio2017-workload-vctools")
+
 
 
 def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_codesign = True, skip_docs = True, skip_builtins = True, archive = False):
