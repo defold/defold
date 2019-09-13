@@ -46,6 +46,7 @@ PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 PACKAGES_NODE_MODULE_XHR2="xhr2-0.1.0-common"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
+PACKAGES_ANDROID_SDK="android-sdk"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -470,8 +471,13 @@ class Configuration(object):
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
         if target_platform in ('armv7-android', 'arm64-android'):
+            host = self.host
+            if 'win32' in host:
+                host = 'windows'
             # Android NDK
-            download_sdk('%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, self.host2), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            # Android SDK
+            download_sdk('%s/%s-%s-android-29.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)

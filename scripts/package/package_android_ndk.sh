@@ -29,10 +29,6 @@ ANDROID_TOOLS_URL=https://dl.google.com/android/repository/${ANDROID_TOOLS_FILEN
 PWD=`pwd`
 TMP=${PWD}/_tmpdir/$HOST
 
-if [ ! -e "${ANDROID_SDK_INSTALLDIR}" ]; then
-	mkdir -p ${ANDROID_SDK_INSTALLDIR}
-fi
-
 if [ ! -e "${TMP}" ]; then
 	mkdir -p ${TMP}
 fi
@@ -52,7 +48,7 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	echo "Cleaning NDK" ${TMP}/${ANDROID_NDK}
 
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/prebuilt)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sources)
+	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/sources) // android_native_app_glue.h
 
 	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-16)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-17)
