@@ -9,7 +9,9 @@ from argparse import ArgumentParser
 def call(args):
     args.replace("--release", "")
     print(args)
-    os.system(args)
+    ret = os.system(args)
+    if ret != 0:
+        exit(ret)
     # subprocess.check_call(args, shell=True)
     # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
 
