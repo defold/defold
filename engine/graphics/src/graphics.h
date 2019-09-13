@@ -8,11 +8,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#if defined(__AVM2__)
-#include "flash/graphics_flash_defines.h"
-#else
 #include "opengl/graphics_opengl_defines.h"
-#endif
 
 namespace dmGraphics
 {
@@ -404,7 +400,9 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
-        bool          m_VerifyGraphicsCalls;
+        uint8_t       m_VerifyGraphicsCalls : 1;
+        uint8_t       m_RenderDocSupport : 1;
+        uint8_t       : 6;
     };
 
     /** Creates a graphics context

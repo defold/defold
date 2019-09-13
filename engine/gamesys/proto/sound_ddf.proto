@@ -10,6 +10,8 @@ message SoundDesc
 {
     required string sound       = 1 [(resource)=true];
     optional int32  looping     = 2 [default = 0];
-    optional string  group       = 3 [default = "master"];
-    optional float gain        = 4 [default = 1.0];
+    optional string group       = 3 [default = "master"];
+    optional float  gain        = 4 [default = 1.0];
+    optional float  pan         = 5 [default = 0.0];
+    optional float  speed       = 6 [default = 1.0];
 }

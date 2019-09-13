@@ -6,7 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
-#include <dlib/md5.h>
+#include <dlib/crypt.h>
 #include "script_private.h"
 
 extern "C"
@@ -53,7 +53,7 @@ namespace dmScript
      * end
      * ```
      */
-    int Script_Hash(lua_State* L)
+    static int Script_Hash(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -88,7 +88,7 @@ namespace dmScript
      * print(hexstr) --> a2bc06d97f580aab
      * ```
      */
-    int Script_HashToHex(lua_State* L)
+    static int Script_HashToHex(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -101,21 +101,17 @@ namespace dmScript
         return 1;
     }
 
-    int Script_HashMD5(lua_State* L)
+    static int Script_HashMD5(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        dmMD5::State s;
-        dmMD5::Init(&s);
-
         size_t len;
         const char* str = luaL_checklstring(L, 1, &len);
-        dmMD5::Update(&s, str, len);
-        dmMD5::Digest digest;
-        dmMD5::Final(&s, &digest);
-        uint8_t* d = &digest.m_Digest[0];
 
-        char md5[DM_MD5_SIZE * 2 + 1]; // We need a terminal zero for snprintf
+        uint8_t d[16];
+        dmCrypt::HashMd5((const uint8_t*)str, len, d);
+
+        char md5[16 * 2 + 1]; // We need a terminal zero for snprintf
         DM_SNPRINTF(md5, sizeof(md5), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                     d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
         lua_pushstring(L, md5);
@@ -245,7 +241,7 @@ namespace dmScript
         return buffer;
     }
 
-    int Script_eq(lua_State* L)
+    static int Script_eq(lua_State* L)
     {
         void* userdata_1 = lua_touserdata(L, 1);
         void* userdata_2 = lua_touserdata(L, 2);

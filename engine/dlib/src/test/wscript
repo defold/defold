@@ -29,7 +29,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp',
         'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib axtls',
+        'uselib_local': 'dlib mbedtls',
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
@@ -51,7 +51,7 @@ def build(bld):
                      classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
                      source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
+    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
     extra_defines = []
     if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
@@ -144,7 +144,6 @@ def build(bld):
                 extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
-    create_test(bld, 'test_md5', extra_libs = ['THREAD'])
     create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_crypt')

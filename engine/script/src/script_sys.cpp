@@ -483,13 +483,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android.
-     *
-     * `ad_ident`
-     * : [type:string] [icon:ios] "advertisingIdentifier" on iOS. [icon:android] advertising ID provided by Google Play on Android.
-     *
-     * `ad_tracking_enabled`
-     * : [type:boolean] `true` if ad tracking is enabled, `false` otherwise.
+     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
@@ -542,12 +536,6 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "device_ident");
         lua_pushstring(L, info.m_DeviceIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "ad_ident");
-        lua_pushstring(L, info.m_AdIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "ad_tracking_enabled");
-        lua_pushboolean(L, info.m_AdTrackingEnabled);
         lua_rawset(L, -3);
         lua_pushliteral(L, "user_agent");
         lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");

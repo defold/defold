@@ -321,6 +321,8 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nm.a = 1"));
     // mul
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
+    // translation
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_translation()"));
 }
 
 

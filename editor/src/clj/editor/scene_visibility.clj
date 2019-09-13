@@ -3,18 +3,60 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
+            [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
             [editor.util :as util]
             [internal.util :as iutil]
             [schema.core :as s])
-  (:import [javafx.geometry Point2D Pos]
+  (:import [javafx.geometry Insets Point2D Pos]
            [javafx.scene Parent]
-           [javafx.scene.control CheckBox Label PopupControl]
-           [javafx.scene.layout HBox Priority VBox]))
+           [javafx.scene.control CheckBox Label PopupControl Separator]
+           [javafx.scene.layout HBox Priority Region StackPane VBox]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private renderable-tag-toggles-info
+  (cond-> [{:label "Collision Shapes" :tag :collision-shape}
+           #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
+           {:label "GUI Bounds" :tag :gui-bounds}
+           {:label "GUI Shapes" :tag :gui-shape}
+           {:label "GUI Particle Effects" :tag :gui-particlefx}
+           {:label "GUI Spine Scenes" :tag :gui-spine}
+           {:label "GUI Text" :tag :gui-text}
+           {:label "Models" :tag :model}
+           {:label "Particle Effects" :tag :particlefx}
+           {:label "Skeletons" :tag :skeleton}
+           {:label "Spine Scenes" :tag :spine}
+           {:label "Sprites" :tag :sprite}
+           {:label "Text" :tag :text}
+           {:label "Tile Maps" :tag :tilemap}]
+
+          (system/defold-dev?)
+          (into [{:label :separator}
+                 {:label "Scene Visibility Bounds" :tag :dev-visibility-bounds :appear-filtered false}])))
+
+(def ^:private appear-filtered-renderable-tags
+  (into #{}
+        (keep (fn [{:keys [appear-filtered tag]
+                    :or {appear-filtered true}}]
+                (when appear-filtered
+                  tag)))
+        renderable-tag-toggles-info))
+
+(defn filters-appear-active?
+  "Returns true if some parts of the scene are hidden due to visibility filters.
+  Does not consider scene elements that you'd not typically expect to be there,
+  such as debug rendering of bounding volumes, etc."
+  ([scene-visibility]
+   (g/with-auto-evaluation-context evaluation-context
+     (filters-appear-active? scene-visibility evaluation-context)))
+  ([scene-visibility evaluation-context]
+   (boolean
+     (and (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
+          (some appear-filtered-renderable-tags
+                (g/node-value scene-visibility :filtered-renderable-tags evaluation-context))))))
 
 ;; -----------------------------------------------------------------------------
 ;; SceneVisibilityNode
@@ -59,7 +101,7 @@
 
 (g/defnode SceneVisibilityNode
   (property visibility-filters-enabled? g/Bool (default true))
-  (property filtered-renderable-tags types/RenderableTags (default #{}))
+  (property filtered-renderable-tags types/RenderableTags (default #{:dev-visibility-bounds}))
 
   (input active-resource-node g/NodeID)
   (input active-scene g/Any :substitute nil)
@@ -237,24 +279,6 @@
                    (ui/value! check-box checked))]
       [hbox update])))
 
-(def ^:private tag-toggles-info
-  [{:label "Collision Shapes" :tag :collision-shape}
-   #_{:label "GUI Elements" :tag :gui}
-   {:label "GUI Bounds" :tag :gui-bounds}
-   {:label "GUI Shapes" :tag :gui-shape}
-   {:label "GUI Particle Effects" :tag :gui-particlefx}
-   {:label "GUI Spine Scenes" :tag :gui-spine}
-   {:label "GUI Text" :tag :gui-text}
-   {:label "Models" :tag :model}
-   {:label "Particle Effects" :tag :particlefx}
-   {:label "Skeletons" :tag :skeleton}
-   {:label "Spine Scenes" :tag :spine}
-   {:label "Sprites" :tag :sprite}
-   {:label "Text" :tag :text}
-   {:label "Tile Maps" :tag :tilemap}])
-
-(def toggleable-tags (into #{} (map :tag) tag-toggles-info))
-
 (defn set-tag-visibility! [scene-visibility tag visible]
   (g/update-property! scene-visibility :filtered-renderable-tags (if visible disj conj) tag))
 
@@ -270,33 +294,56 @@
 (defn toggle-filters-enabled! [scene-visibility]
   (g/update-property! scene-visibility :visibility-filters-enabled? not))
 
-(defn- make-visibility-toggles-list ^VBox [scene-visibility]
-  (let [tag-toggles (map (fn [info]
-                           (let [[toggle-box update-fn] (make-toggle {:label (:label info)
-                                                                      :on-change (fn [checked] (set-tag-visibility! scene-visibility (:tag info) checked))
-                                                                      :acc ""})
-                                 update-from-hidden-tags (fn [hidden-tags enabled] (update-fn (not (contains? hidden-tags (:tag info))) enabled))]
-                             [toggle-box update-from-hidden-tags]))
-                         tag-toggles-info)
-        enabled-toggle (let [[^HBox toggle-box update-fn] (make-toggle {:label "Visibility Filters"
-                                                                        :on-change (fn [checked] (set-filters-enabled! scene-visibility checked))
-                                                                        :acc (keymap/key-combo->display-text "Shift+Shortcut+I")})]
-                         (ui/add-style! toggle-box "first-entry")
-                         [toggle-box update-fn])
-        toggle-boxes (into [(first enabled-toggle)]
-                           (map first)
-                           tag-toggles)]
-    (let [box (doto (VBox.)
-                (ui/add-style! "visibility-toggles-list")
-                (.setMinWidth 230)
-                (ui/children! toggle-boxes))
-          update-fn (fn []
-                      (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
-                            visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
-                        ((second enabled-toggle) visibility-filters-enabled? true)
-                        (doseq [tag-toggle tag-toggles]
-                          ((second tag-toggle) filtered-tags visibility-filters-enabled?))))]
-      [box update-fn])))
+(defn- make-visibility-toggles-list
+  ^Region [scene-visibility]
+  (let [make-control
+        (fn [{:keys [label tag]}]
+          (if (= :separator label)
+            [(Separator.) nil]
+            (let [[control update-fn]
+                  (make-toggle {:label label
+                                :acc ""
+                                :on-change (fn [checked]
+                                             (set-tag-visibility! scene-visibility tag checked))})
+                  update-from-hidden-tags
+                  (fn [hidden-tags enabled]
+                    (let [checked (not (contains? hidden-tags tag))]
+                      (update-fn checked enabled)))]
+              [control update-from-hidden-tags])))
+
+        tag-toggles (mapv make-control renderable-tag-toggles-info)
+        tag-toggle-update-fns (into [] (keep second) tag-toggles)
+
+        update-tag-toggles
+        (fn [hidden-tags enabled]
+          (doseq [update-fn tag-toggle-update-fns]
+            (update-fn hidden-tags enabled)))
+
+        [filters-enabled-control filters-enabled-update-fn]
+        (make-toggle {:label "Visibility Filters"
+                      :acc (keymap/key-combo->display-text "Shift+Shortcut+I")
+                      :on-change (fn [checked]
+                                   (set-filters-enabled! scene-visibility checked))})
+
+        container (doto (StackPane.)
+                    (.setMinWidth 230)
+                    (ui/children! [(doto (Region.)
+                                     ;; Move drop shadow down a bit so it does not interfere with toolbar clicks.
+                                     (StackPane/setMargin (Insets. 16.0 0.0 0.0 0.0))
+                                     (ui/add-style! "visibility-toggles-shadow"))
+                                   (doto (VBox.)
+                                     (ui/add-style! "visibility-toggles-list")
+                                     (ui/children! (into [filters-enabled-control]
+                                                         (map first)
+                                                         tag-toggles)))]))
+
+        update-fn (fn []
+                    (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
+                          visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)]
+                      (filters-enabled-update-fn visibility-filters-enabled? true)
+                      (update-tag-toggles filtered-tags visibility-filters-enabled?)))]
+    (ui/add-style! filters-enabled-control "first-entry")
+    [container update-fn]))
 
 (defn- pref-popup-position
   ^Point2D [^Parent container width y-gap]
@@ -307,7 +354,7 @@
 (defn show-visibility-settings! [^Parent owner scene-visibility]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
-    (let [[^VBox toggles update-fn] (make-visibility-toggles-list scene-visibility)
+    (let [[^Region toggles update-fn] (make-visibility-toggles-list scene-visibility)
           popup (popup/make-popup owner toggles)
           anchor (pref-popup-position owner (.getMinWidth toggles) -5)
           refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _] (update-fn)))]

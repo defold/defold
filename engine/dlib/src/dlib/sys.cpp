@@ -577,20 +577,6 @@ namespace dmSys
         return RESULT_OK;
     }
 
-#elif defined(__AVM2__)
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        // TODO: Hack
-        dmStrlCpy(path, ".", path_len);
-        return RESULT_OK;
-    }
-
-    Result OpenURL(const char* url)
-    {
-        // TODO:
-        return RESULT_UNKNOWN;
-    }
-
 #endif
 
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
@@ -741,7 +727,7 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__EMSCRIPTEN__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
@@ -853,20 +839,6 @@ namespace dmSys
         } else {
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
-
-        jclass def_activity_class = env->GetObjectClass(g_AndroidApp->activity->clazz);
-        jmethodID getAdId = env->GetMethodID(def_activity_class, "getAdId", "()Ljava/lang/String;");
-        jstring val = (jstring) env->CallObjectMethod(g_AndroidApp->activity->clazz, getAdId);
-        if (val)
-        {
-            const char *id = env->GetStringUTFChars(val, NULL);
-            dmStrlCpy(info->m_AdIdentifier, id, sizeof(info->m_AdIdentifier));
-            env->ReleaseStringUTFChars(val, id);
-            env->DeleteLocalRef(val);
-        }
-
-        jmethodID get_limit_ad_tracking = env->GetMethodID(def_activity_class, "getLimitAdTracking", "()Z");
-        info->m_AdTrackingEnabled = !env->CallBooleanMethod(g_AndroidApp->activity->clazz, get_limit_ad_tracking);
 
         activity->vm->DetachCurrentThread();
     }

@@ -1,64 +1,36 @@
 (ns editor.curve-view
-  (:require [clojure.set :as set]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.background :as background]
-            [editor.camera :as c]
-            [editor.scene-selection :as selection]
+            [editor.camera :as camera]
             [editor.colors :as colors]
-            [editor.core :as core]
+            [editor.curve-grid :as curve-grid]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.curve-grid :as curve-grid]
-            [editor.input :as i]
-            [editor.math :as math]
-            [util.profiler :as profiler]
-            [editor.scene-cache :as scene-cache]
-            [editor.scene-tools :as scene-tools]
+            [editor.handler :as handler]
+            [editor.properties :as properties]
+            [editor.rulers :as rulers]
+            [editor.scene :as scene]
+            [editor.scene-selection :as selection]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.handler :as handler]
-            [editor.gl.pass :as pass]
-            [editor.ui :as ui]
-            [editor.scene :as scene]
-            [editor.properties :as properties]
-            [editor.camera :as camera]
-            [editor.rulers :as rulers]
-            [util.id-vec :as iv]
-            [service.log :as log])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util GLPixelStorageModes]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region Rect]
+            [util.id-vec :as iv])
+  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable]
            [editor.properties Curve CurveSpread]
-           [java.awt Font]
-           [java.awt.image BufferedImage DataBufferByte DataBufferInt]
-           [javafx.animation AnimationTimer]
-           [javafx.application Platform]
+           [editor.types AABB Rect Region]
+           [java.lang Runnable]
            [javafx.beans.property SimpleBooleanProperty]
-           [javafx.beans.value ChangeListener]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler]
-           [javafx.geometry BoundingBox Pos VPos HPos]
-           [javafx.scene Scene Group Node Parent]
-           [javafx.scene.control Tab Button ListView ListCell SelectionMode]
+           [javafx.scene Node Parent]
+           [javafx.scene.control ListCell ListView SelectionMode]
            [javafx.scene.control.cell CheckBoxListCell]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
-           [javafx.scene.layout AnchorPane Pane StackPane]
-           [javafx.scene.paint Color]
+           [javafx.scene.image ImageView]
+           [javafx.scene.layout AnchorPane]
            [javafx.util Callback StringConverter]
-           [java.lang Runnable Math]
-           [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
-           [sun.awt.image IntegerComponentRaster]
-           [java.util.concurrent Executors]))
+           [javax.vecmath Matrix4d Point3d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -558,12 +530,11 @@
   (let [aabb (if (empty? selection)
                (g/node-value view :aabb)
                (g/node-value view :selected-aabb))]
-    (when (geom/null-aabb? aabb)
-      (let [graph (g/node-id->graph-id view)
-            camera (g/node-feeding-into view :camera)
+    (when-not (geom/null-aabb? aabb)
+      (let [camera (g/node-feeding-into view :camera)
             viewport (g/node-value view :viewport)
             local-cam (g/node-value camera :local-camera)
-            end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
+            end-camera (camera/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
         (scene/set-camera! camera local-cam end-camera animate?)))))
 
 (defn- camera-filter-fn [camera]
@@ -611,7 +582,7 @@
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Background
-                                                       camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
+                                                       camera     [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
                                                        grid       curve-grid/Grid
                                                        rulers     [rulers/Rulers]]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
