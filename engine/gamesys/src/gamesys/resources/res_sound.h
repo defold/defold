@@ -16,6 +16,7 @@ namespace dmGameSystem
         dmSound::HSoundData m_SoundData;
         float               m_Gain;
         float               m_Pan;
+        float               m_Speed;
         uint8_t             m_Looping:1;
     };
 
