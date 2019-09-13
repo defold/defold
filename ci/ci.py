@@ -173,11 +173,15 @@ def build_sdk():
     call('python scripts/build.py build_sdk')
 
 
+def smoke_test():
+    call('python scripts/build.py distclean install_ext smoke_test --no-colors')
+
+
 def main(argv):
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
-    parser.add_argument("--branch", dest="branch", required=True, help="The branch to build for")
+    parser.add_argument("--branch", dest="branch", help="The branch to build for (when building engine and editor)")
     args = parser.parse_args()
 
     platform = args.platform
@@ -200,14 +204,14 @@ def main(argv):
 
     print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
 
-    # smoke test on any branch builder
-
     for command in args.commands:
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
             build_engine(platform)
         elif command == "editor":
+            if not branch:
+                raise Exception("No --branch specified.")
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
             elif branch == "editor-dev":
@@ -215,12 +219,16 @@ def main(argv):
             else:
                 build_editor(release = False, engine_artifacts = "archived")
         elif command == "bob":
+            if not branch:
+                raise Exception("No --branch specified.")
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)
             else:
                 build_bob()
         elif command == "sdk":
             build_sdk()
+        elif command == "smoke":
+            smoke_test()
         elif command == "install":
             install()
         else:
