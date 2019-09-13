@@ -377,6 +377,18 @@ namespace dmGameSystem
         world->m_Components.Push(component);
         *params.m_UserData = (uintptr_t) component;
 
+        uint32_t num_layers = 0;
+        uint32_t n = world->m_Components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            TileGridComponent* component = world->m_Components[i];
+
+            // TODO: Update this when going into the ResourceProperties branch
+            dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_Resource->m_TileGrid;
+            num_layers += tile_grid_ddf->m_Layers.m_Count;
+        }
+        world->m_RenderObjects.SetCapacity(num_layers);
+
         ReHash(component);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -568,10 +580,6 @@ namespace dmGameSystem
         TextureSetResource* texture_set = resource->m_TextureSet;
 
         dmRender::RenderObject& ro = *world->m_RenderObjects.End();
-        if (world->m_RenderObjects.Remaining() == 0)
-        {
-            world->m_RenderObjects.OffsetCapacity(4);
-        }
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
         // Fill in vertex buffer
