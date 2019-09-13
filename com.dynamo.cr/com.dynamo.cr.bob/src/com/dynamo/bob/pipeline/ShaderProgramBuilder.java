@@ -141,13 +141,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     {
         switch(typeAsString)
         {
-            case "vec2"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
+            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
+            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
+            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
+            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
+            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
+            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
             default: break;
         }
 
