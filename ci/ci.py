@@ -18,7 +18,8 @@ def aptget(package):
 
 
 def install():
-    if platform.system() == "Linux":
+    system = platform.system()
+    if system == "Linux":
         call("sudo apt-get update")
         call("sudo apt-get install -y software-properties-common")
         aptget("gcc-5")
@@ -54,6 +55,8 @@ def install():
         aptget("tree")
         aptget("silversearcher-ag")
         aptget("valgrind")
+    elif system == "Windows":
+        print("Windows")
 
 
 def build_engine(platform, skip_tests = True, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_codesign = True, skip_docs = True, skip_builtins = True, archive = False):
@@ -173,7 +176,7 @@ def build_sdk():
 def main(argv):
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute")
-    parser.add_argument("--platform", dest="platform", required=True, help="Platform to build for")
+    parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--branch", dest="branch", required=True, help="The branch to build for")
     args = parser.parse_args()
 
@@ -196,18 +199,18 @@ def main(argv):
         release = False
 
     print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
-    # if not args.platform:
-    #     raise Exception("No --platform specified.")
 
     # smoke test on any branch builder
 
     for command in args.commands:
         if command == "engine":
+            if not platform:
+                raise Exception("No --platform specified.")
             build_engine(platform)
         elif command == "editor":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
-            else if branch == "editor-dev":
+            elif branch == "editor-dev":
                 build_editor(channel = "editor-alpha", release = True)
             else:
                 build_editor(release = False, engine_artifacts = "archived")
