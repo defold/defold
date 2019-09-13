@@ -74,8 +74,8 @@ protected:
         shader_ddf.m_Source.m_Data  = (uint8_t*)"foo";
         shader_ddf.m_Source.m_Count = 3;
 
-        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, shader_ddf);
-        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, shader_ddf);
+        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader_ddf);
+        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader_ddf);
 
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
