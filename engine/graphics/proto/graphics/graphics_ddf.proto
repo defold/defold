@@ -184,7 +184,6 @@ message ShaderDesc
     {
         required Language        language   = 1;
         optional bytes           source     = 2;
-        optional bytes           binary     = 3;
         repeated ResourceBinding uniforms   = 4;
         repeated ResourceBinding attributes = 5;
     }

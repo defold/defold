@@ -231,10 +231,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         int shaderIssues = 0;
 
         // Process all uniform blocks
-        // NOTE: For now, we only support a 1-1 mapping between blocks and uniforms, since this is
-        // what our shader elevation does due to simplifiation. While a custom GLSL3+ shader could have
+        // NOTE: Currently, we only support a 1-1 mapping between blocks and uniforms, since this is
+        // what the shader elevation does (due to simplifiation). While a custom GLSL3+ shader could have
         // uniform blocks that contain several uniforms, we don't have that setup in our shader output
-        // or any graphics system, so they will fail here.
+        // or in any of the graphics systems, so they will fail here.
         for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
             ArrayList<Integer> bindingsEntry = setBindingMap.get(ubo.set);
 
@@ -337,7 +337,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
         byte[] spv_data = FileUtils.readFileToByteArray(file_out_spv);
-        builder.setBinary(ByteString.copyFrom(spv_data));
+        builder.setSource(ByteString.copyFrom(spv_data));
 
         return builder;
     }
