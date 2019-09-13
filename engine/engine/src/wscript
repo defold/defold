@@ -93,8 +93,7 @@ def build(bld):
               '%s/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/iap_android.jar' % (dynamo_home),
-              '%s/share/java/sound_android.jar' % (dynamo_home),
-              '%s/share/java/iac_android.jar' % (dynamo_home)]
+              '%s/share/java/sound_android.jar' % (dynamo_home)]
 
     web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_facebook_iap.js', 'library_sound.js']
 
