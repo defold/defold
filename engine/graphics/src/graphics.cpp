@@ -79,7 +79,7 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    dmGraphics::ShaderDesc::Shader* GetShaderProgram(HContext context, dmGraphics::ShaderDesc* shader_desc)
+    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
         ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
