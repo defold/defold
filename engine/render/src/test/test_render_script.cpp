@@ -68,8 +68,14 @@ protected:
         params.m_MaxInstances = 64;
         params.m_MaxCharacters = 32;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
-        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, "foo", 3);
-        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, "foo", 3);
+
+        dmGraphics::ShaderDesc::Shader shader_ddf;
+        memset(&shader_ddf,0,sizeof(shader_ddf));
+        shader_ddf.m_Source.m_Data  = (uint8_t*)"foo";
+        shader_ddf.m_Source.m_Count = 3;
+
+        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, shader_ddf);
+        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, shader_ddf);
 
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
