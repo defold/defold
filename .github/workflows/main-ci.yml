@@ -15,7 +15,8 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine' }]
+      { name: 'Install dependencies', run: 'python ci/ci.py install' },
+      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF engine' }]
 
   build-engine-on-windows:
     strategy:
@@ -25,7 +26,8 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine' }]
+      { name: 'Install dependencies', run: 'python ci/ci.py install' },
+      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF engine' }]
 
   build-engine-on-linux:
     strategy:
@@ -35,7 +37,8 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine' }]
+      { name: 'Install dependencies', run: 'python ci/ci.py install' },
+      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF engine' }]
 
   build-bob:
     needs: [build-engine-on-macos, build-engine-on-windows, build-engine-on-linux]
@@ -43,7 +46,8 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build bob', run: 'python ci/ci.py --branch=$GITHUB_REF install bob' }]
+      { name: 'Install dependencies', run: 'python ci/ci.py install' },
+      { name: 'Build bob', run: 'python ci/ci.py --branch=$GITHUB_REF bob' }]
   
   build-sdk:
     needs: [build-engine-on-macos, build-engine-on-windows, build-engine-on-linux]
@@ -51,7 +55,8 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build SDK', run: 'python ci/ci.py --branch=$GITHUB_REF install sdk' }]
+      { name: 'Install dependencies', run: 'python ci/ci.py install' },
+      { name: 'Build SDK', run: 'python ci/ci.py --branch=$GITHUB_REF sdk' }]
   
   build-editor-and-smoke-test:
     needs: [build-bob,build-sdk]
@@ -59,5 +64,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build editor', run: 'python ci/ci.py --branch=$GITHUB_REF install editor' },
-      { name: 'Smoke-test', run: 'python ci/ci.py --branch=$GITHUB_REF install smoke' }]
+      { name: 'Install dependencies', run: 'python ci/ci.py install' },
+      { name: 'Build editor', run: 'python ci/ci.py --branch=$GITHUB_REF editor' },
+      { name: 'Smoke-test', run: 'python ci/ci.py --branch=$GITHUB_REF smoke' }]
