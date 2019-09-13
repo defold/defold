@@ -356,8 +356,8 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, sizeof(vertex_data));
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, sizeof(fragment_data));
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, strlen(fragment_data));
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
