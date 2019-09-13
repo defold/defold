@@ -8,8 +8,8 @@ from argparse import ArgumentParser
 def call(args):
     args.replace("--release", "")
     print(args)
-    args = args.split(" ")
-    subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
+    subprocess.check_call(args, shell=True)
+    # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
 
 
 def aptget(package):
