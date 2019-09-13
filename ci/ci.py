@@ -9,7 +9,7 @@ def call(args):
     args.replace("--release", "")
     print(args)
     args = args.split(" ")
-    subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=False)
+    subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
 
 
 def aptget(package):
