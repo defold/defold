@@ -1,13 +1,12 @@
 (ns editor.texture.engine
-  (:require [editor.image-util :refer [image-pixels image-convert-type image-color-components]]
-            [editor.types :refer [map->EngineFormatTexture]]
-            [editor.buffers :refer [little-endian new-byte-buffer]]
-            [editor.texture.math :refer [closest-power-of-two]])
+  (:require [editor.buffers :refer [little-endian new-byte-buffer]]
+            [editor.image-util :refer [image-color-components image-convert-type image-pixels]]
+            [editor.texture.math :refer [closest-power-of-two]]
+            [editor.types :refer [map->EngineFormatTexture]])
   (:import [java.awt.image BufferedImage ColorModel]
            [java.nio ByteBuffer]
-           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat Graphics$TextureFormatAlternative$CompressionLevel]
-           [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat TexcLibrary$CompressionType TexcLibrary$DitherType]
-           [com.sun.jna Pointer]))
+           [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]
+           [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$CompressionLevel TexcLibrary$CompressionType TexcLibrary$DitherType TexcLibrary$PixelFormat]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
@@ -16,6 +15,15 @@
 (def L8       TexcLibrary$PixelFormat/L8)
 (def R8G8B8   TexcLibrary$PixelFormat/R8G8B8)
 (def R8G8B8A8 TexcLibrary$PixelFormat/R8G8B8A8)
+
+(def CL_FAST   TexcLibrary$CompressionLevel/CL_FAST)
+(def CL_NORMAL TexcLibrary$CompressionLevel/CL_NORMAL)
+(def CL_HIGH   TexcLibrary$CompressionLevel/CL_HIGH)
+(def CL_BEST   TexcLibrary$CompressionLevel/CL_BEST)
+
+(def CT_DEFAULT    TexcLibrary$CompressionType/CT_DEFAULT)
+(def CT_WEBP       TexcLibrary$CompressionType/CT_WEBP)
+(def CT_WEBP_LOSSY TexcLibrary$CompressionType/CT_WEBP_LOSSY)
 
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
@@ -30,6 +38,12 @@
   {1 [L8       TEXTURE_FORMAT_LUMINANCE]
    3 [R8G8B8   TEXTURE_FORMAT_RGB]
    4 [R8G8B8A8 TEXTURE_FORMAT_RGBA]})
+
+(defn- channel-count->pixel-format [^long channel-count]
+  (case channel-count
+    1 L8
+    3 R8G8B8
+    4 R8G8B8A8))
 
 (defn- image->byte-buffer
   "This is specialized for use in texture writing. It assumes the image
@@ -112,3 +126,21 @@
            :mipmap-offsets (mipmap-offsets mipmap-sizes)}))
       (finally
         (TexcLibrary/TEXC_Destroy texture)))))
+
+(defn webp-compress-rgba-buffer
+  ^ByteBuffer [^ByteBuffer rgba-buffer ^long width ^long height ^long channel-count]
+  (assert (pos? width))
+  (assert (pos? height))
+  (assert (pos? channel-count))
+  (assert (= (* width height channel-count) (.remaining rgba-buffer)) "Buffer size mismatch.")
+  (let [rgba-buffer-size (.remaining rgba-buffer)
+        bits-per-pixel (* 8 channel-count)
+        pixel-format (channel-count->pixel-format channel-count)
+        compressed-texture (TexcLibrary/TEXC_CompressWebPBuffer width height bits-per-pixel rgba-buffer rgba-buffer-size pixel-format CL_BEST CT_WEBP)]
+    (try
+      (let [compressed-size (TexcLibrary/TEXC_GetTotalBufferDataSize compressed-texture)
+            compressed-buffer (ByteBuffer/allocateDirect compressed-size)]
+        (TexcLibrary/TEXC_GetBufferData compressed-texture compressed-buffer compressed-size)
+        compressed-buffer)
+      (finally
+        (TexcLibrary/TEXC_DestroyBuffer compressed-texture)))))
