@@ -45,7 +45,7 @@ jobs:
       { name: 'Build bob', run: 'python ci/ci.py --branch=$GITHUB_REF install bob' }]
   
   build-sdk:
-    needs: build-engine
+    needs: [build-engine-on-macos, build-engine-on-windows, build-engine-on-linux]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
