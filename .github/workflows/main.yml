@@ -12,8 +12,8 @@ jobs:
         platform: [darwin-64, ios, ios-64, ios-simulator]
     runs-on: macOS-10.14
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: {python-version: 2.x, architecture: x64} },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine' }]
 
   build-engine-on-windows:
@@ -22,8 +22,8 @@ jobs:
         platform: [win32, win32-64]
     runs-on: windows-2016
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: {python-version: 2.x, architecture: x64} },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine' }]
 
   build-engine-on-linux:
@@ -32,30 +32,30 @@ jobs:
         platform: [linux-64, android, android-64, js-web, wasm-web]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: {python-version: 2.x, architecture: x64} },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF install engine' }]
 
   build-bob:
     needs: [build-engine-on-macos, build-engine-on-windows, build-engine-on-linux]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: {python-version: 2.x, architecture: x64} },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build bob', run: 'python ci/ci.py --branch=$GITHUB_REF install bob' }]
   
   build-sdk:
     needs: [build-engine-on-macos, build-engine-on-windows, build-engine-on-linux]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: {python-version: 2.x, architecture: x64} },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build SDK', run: 'python ci/ci.py --branch=$GITHUB_REF install sdk' }]
   
   build-editor:
     needs: [build-bob,build-sdk]
     runs-on: macOS-10.14
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: {fetch-depth: 1} },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: {python-version: 2.x, architecture: x64} },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build editor', run: 'python ci/ci.py --branch=$GITHUB_REF install editor' }]
