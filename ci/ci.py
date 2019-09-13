@@ -3,12 +3,14 @@
 import sys
 import subprocess
 import platform
+import os
 from argparse import ArgumentParser
 
 def call(args):
     args.replace("--release", "")
     print(args)
-    subprocess.check_call(args, shell=True)
+    os.system(args)
+    # subprocess.check_call(args, shell=True)
     # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
 
 
