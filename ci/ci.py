@@ -20,6 +20,10 @@ def choco(package):
     call("choco install " + package)
 
 
+def mingwget(package):
+    call("mingw-get install " + package)
+
+
 def install():
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
@@ -61,6 +65,10 @@ def install():
         aptget("valgrind")
     elif system == "Windows":
         choco("visualstudio2017-workload-vctools")
+        choco("mingw")
+        mingwget("msys-wget-bin")
+        mingwget("msys-zip")
+        mingwget("msys-unzip")
 
 
 
@@ -191,7 +199,9 @@ def main(argv):
     args = parser.parse_args()
 
     platform = args.platform
-    branch = args.branch.replace("refs/heads/", "")
+    branch = args.branch
+    if branch:
+        branch = branch.replace("refs/heads/", "")
     if branch == "master":
         channel = "stable"
         release = False
