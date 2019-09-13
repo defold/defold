@@ -17,7 +17,7 @@ def aptget(package):
 
 
 def choco(package):
-    call("choco install " + package)
+    call("choco install " + package + " -y")
 
 
 def mingwget(package):
