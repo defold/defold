@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - test_ci
+      - '!DEFEDIT-*'
+      - '!master'
+      - '!dev'
+      - '!beta'
 
 jobs:
   build-engine-on-macos:
@@ -52,10 +56,11 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build SDK', run: 'python ci/ci.py --branch=$GITHUB_REF install sdk' }]
   
-  build-editor:
+  build-editor-and-smoke-test:
     needs: [build-bob,build-sdk]
     runs-on: macOS-10.14
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build editor', run: 'python ci/ci.py --branch=$GITHUB_REF install editor' }]
+      { name: 'Build editor', run: 'python ci/ci.py --branch=$GITHUB_REF install editor' },
+      { name: 'Smoke-test', run: 'python ci/ci.py --branch=$GITHUB_REF install smoke' }]
