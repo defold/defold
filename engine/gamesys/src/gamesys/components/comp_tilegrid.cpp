@@ -387,11 +387,7 @@ namespace dmGameSystem
             dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_Resource->m_TileGrid;
             num_layers += tile_grid_ddf->m_Layers.m_Count;
         }
-
-        if (world->m_RenderObjects.Capacity() != num_layers)
-        {
-            world->m_RenderObjects.SetCapacity(num_layers);
-        }
+        world->m_RenderObjects.SetCapacity(num_layers);
 
         ReHash(component);
         return dmGameObject::CREATE_RESULT_OK;
