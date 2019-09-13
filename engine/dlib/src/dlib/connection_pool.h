@@ -126,10 +126,10 @@ namespace dmConnectionPool
     dmSocket::Socket GetSocket(HPool pool, HConnection connection);
 
     /**
-     * Get ssl-handle. The returned value is an SSL* (axTLS)
+     * Get ssl-handle. The returned value is an mbedtls_ssl_context* (mbedtls)
      * @param pool
      * @param connection
-     * @return An SSL* pointer on success
+     * @return An mbedtls_ssl_context* pointer on success
      */
     void* GetSSLConnection(HPool pool, HConnection connection);
 

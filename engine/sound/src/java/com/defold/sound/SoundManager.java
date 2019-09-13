@@ -5,8 +5,6 @@ import android.content.Context;
 import android.media.AudioManager;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
-import android.support.v4.content.ContextCompat;
-import android.Manifest;
 import android.content.pm.PackageManager;
 import android.util.Log;
 
@@ -48,7 +46,8 @@ public class SoundManager {
             // To avoid this we manually check if we have the permission and only register the listener below if the
             // permission is available. However, can't react to incoming phone calls ringing. As soon as the call is
             // picked up Android will switch out the app and silence it.
-            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            // It works only < Android 6. Starting Android 6 user have to request permission READ_PHONE_STATE manually.
+            if (activity.checkCallingOrSelfPermission("android.permission.READ_PHONE_STATE") != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "App is missing the READ_PHONE_STATE permission. Audio will continue while phone call is active.");
             } else {
                 activity.runOnUiThread(new Runnable() {

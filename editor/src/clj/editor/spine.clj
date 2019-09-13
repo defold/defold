@@ -180,6 +180,7 @@
     (cond
       (= "stepped" curve) nil
       (and (vector? curve) (= 4 (count curve))) curve
+      (number? curve) [curve (get key "c2" 0.0) (get key "c3" 0.0) (get key "c4" 1.0)]
       :else [0 0 1 1])))
 
 (defn- sample [type keys duration sample-rate spf val-fn default-val interpolate?]
@@ -188,10 +189,10 @@
         default-val (if (nil? default-val) (default-vals pb-field) default-val)
         sample-count (Math/ceil (+ 1 (* duration sample-rate)))
         ; Sort keys
-        keys (vec (sort-by #(get % "time") keys))
+        keys (vec (sort-by #(get % "time" 0.0) keys))
         vals (mapv #(if-some [v (val-fn type %)] v default-val) keys)
         ; Add dummy key for 0
-        [keys vals] (if (or (empty? keys) (> (get (first keys) "time") 0.0))
+        [keys vals] (if (or (empty? keys) (> (get (first keys) "time" 0.0) 0.0))
                       [(vec (cons {"time" 0.0
                                    "curve" "stepped"} keys))
                        (vec (cons default-val vals))]
@@ -202,7 +203,7 @@
                vals)
         ; Accumulate key counts into sample slots
         key-counts (reduce (fn [counts key]
-                             (let [sample (int (* (get key "time") sample-rate))]
+                             (let [sample (int (* (get key "time" 0.0) sample-rate))]
                                (update-in counts [sample] inc))) (vec (repeat sample-count 0)) keys)
         ; LUT from sample to key index
         sample->key-idx (loop [key-counts key-counts
@@ -222,10 +223,10 @@
                     v (if (and k0 (not interpolate?))
                         v0
                         (if (some? k1)
-                          (if (>= cursor (get k1 "time"))
+                          (if (>= cursor (get k1 "time" 0.0))
                             v1
                             (if-let [c (key->curve-data k0)]
-                              (let [t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
+                              (let [t (/ (- cursor (get k0 "time" 0.0)) (- (get k1 "time" 0.0) (get k0 "time" 0.0)))
                                     rate (curve c t)]
                                 (interpolate v0 v1 rate))
                               v0))
@@ -284,7 +285,7 @@
         do-by-slot (into {} (map (fn [[slot timeline]]
                                    [slot {"drawOrder" timeline}])
                              (reduce (fn [m timeline]
-                                      (let [t (get timeline "time")
+                                      (let [t (get timeline "time" 0.0)
                                             explicit (reduce (fn [m offset]
                                                                (assoc m (get offset "slot") [{"time" t "offset" (get offset "offset")}]))
                                                              {} (get timeline "offsets"))
@@ -332,7 +333,7 @@
           (let [default (merge {"int" 0 "float" 0 "string" ""} (get event-name->event-props event-name))]
             {:event-id (murmur/hash64 event-name)
              :keys (mapv (fn [k]
-                           {:t (get k "time")
+                           {:t (get k "time" 0.0)
                             :integer (get k "int" (get default "int"))
                             :float (get k "float" (get default "float"))
                             :string (murmur/hash64 (get k "string" (get default "string")))})
@@ -355,19 +356,24 @@
   [anim]
   (reduce max 0
           (concat (for [[bone-name timelines] (get anim "bones")
-                        [timline-type key-frames] timelines
-                        {:strs [time]} key-frames]
+                        [timeline-type key-frames] timelines
+                        {:strs [time]} key-frames
+                        :when (some? time)]
                     time)
                   (for [[slot-name timelines] (get anim "slots")
-                        [timline-type key-frames] timelines
-                        {:strs [time]} key-frames]
+                        [timeline-type key-frames] timelines
+                        {:strs [time]} key-frames
+                        :when (some? time)]
                     time)
                   (for [[ik-name key-frames] (get anim "ik")
-                        {:strs [time]} key-frames]
+                        {:strs [time]} key-frames
+                        :when (some? time)]
                     time)
-                  (for [{:strs [time]} (get anim "events")]
+                  (for [{:strs [time]} (get anim "events")
+                        :when (some? time)]
                     time)
-                  (for [{:strs [time]} (get anim "drawOrder")]
+                  (for [{:strs [time]} (get anim "drawOrder")
+                        :when (some? time)]
                     time))))
 
 (defn- bone->transform [bone]
@@ -537,16 +543,15 @@
         (get spine-scene "ik")))
 
 (defn- read-base-slots
-  [spine-scene bone-id->index bone-index->world-transform]
-  (let [skins (get spine-scene "skins")
-        attachment-points-by-slot-name (transduce (comp (mapcat second)
+  [skins-json slots-json bone-id->index bone-index->world-transform]
+  (let [attachment-points-by-slot-name (transduce (comp (mapcat second)
                                                         (map (fn [[slot-name attachment-points]]
                                                                {slot-name (into (sorted-set)
                                                                                 (map first)
                                                                                 attachment-points)})))
                                                   (partial merge-with into)
                                                   {}
-                                                  skins)]
+                                                  skins-json)]
     (into {}
           (map-indexed (fn [i slot]
                          (let [slot-name (get slot "name")
@@ -565,7 +570,7 @@
                              :default-attachment default-attachment
                              :active-attachment (index-of attachment-names default-attachment)}])))
 
-          (get spine-scene "slots"))))
+          slots-json)))
 
 (defn- attachment-entry->named-attachment [[attachment-name attachment slot-name]]
   (assoc attachment
@@ -631,6 +636,18 @@
         (recur (rest bones) (conj wt world-t)))
       wt)))
 
+(defn skins-json [spine-scene]
+  ;; The file format changed in Spine 3.8. This returns the skins in a pre-3.8
+  ;; format, which is a map of skin names to their attachments.
+  (let [skins (get spine-scene "skins")]
+    (if (map? skins)
+      skins
+      (into {}
+            (map (fn [entry]
+                   [(get entry "name")
+                    (get entry "attachments")]))
+            skins))))
+
 (g/defnk produce-spine-scene-pb [_node-id spine-json spine-scene anim-data sample-rate]
   (let [spf (/ 1.0 sample-rate)
         ;; Bone data
@@ -651,14 +668,15 @@
         ik-id->index (zipmap (map :id iks) (range))
 
         ;; Slot data
-        base-slots (read-base-slots spine-scene bone-id->index bone-index->world-transform)
-        slot-count (count (get spine-scene "slots"))
+        skins-json (skins-json spine-scene)
+        slots-json (get spine-scene "slots")
+        base-slots (read-base-slots skins-json slots-json bone-id->index bone-index->world-transform)
+        slot-count (count slots-json)
 
         ;; Skin and mesh data
-        skins-j (get spine-scene "skins" {})
-        meshes (read-distinct-meshes skins-j)
-        default-skin-x (load-default-skin (get skins-j "default") base-slots meshes)
-        skins-x (load-rest-skins (filter (fn [[skin _]] (not= "default" skin)) skins-j) default-skin-x meshes)
+        meshes (read-distinct-meshes skins-json)
+        default-skin-x (load-default-skin (get skins-json "default") base-slots meshes)
+        skins-x (load-rest-skins (filter (fn [[skin _]] (not= "default" skin)) skins-json) default-skin-x meshes)
         all-skins (conj skins-x ["" default-skin-x])
 
         ;; Protobuf
@@ -1177,7 +1195,7 @@
   (input content g/Any)
   (output structure g/Any :cached (g/fnk [skeleton content]
                                          {:skeleton (update-transforms (math/->mat4) skeleton)
-                                          :skins (vec (sort (keys (get content "skins"))))
+                                          :skins (vec (sort (keys (skins-json content))))
                                           :animations (keys (get content "animations"))})))
 
 (defn accept-spine-scene-json [content]

@@ -367,6 +367,21 @@ namespace dmGameSystem
      *
      * `pan`
      * : [type:number] sound pan between -1 and 1, default is 0. The final gain of the sound will be an addition of this pan and the sound pan.
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the sound has finished playing.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"sound_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:number] `play_id` - the sequential play identifier that was given by the sound.play function.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the sound component.
      *
      * @examples
      *
@@ -375,17 +390,36 @@ namespace dmGameSystem
      * ```lua
      * sound.play("#sound", { delay = 1, gain = 0.5, pan = -1.0 } )
      * ```
+     *
+     * Using the callback argument, you can chain several sounds together:
+     *
+     * ```lua
+     * local function sound_done(self, message_id, message, sender)
+     *   -- play 'boom' sound fx when the countdown has completed
+     *   if message_id == hash("sound_done") and message.play_id == self.countdown_id then
+     *     sound.play("#boom", nil, sound_done)
+     *   end
+     * end
+     *
+     * function init(self)
+     *   self.countdown_id = sound.play("#countdown", nil, sound_done)
+     * end
+     * ```
      */
     static int Sound_Play(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 1);
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        float delay = 0.0f, gain = 1.0f, pan = 0.0f;
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+        float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
+        uint32_t play_id = dmSound::INVALID_PLAY_ID;
 
-        if (top > 1) // table with args
+        if (top > 1 && !lua_isnil(L,2)) // table with args
         {
             luaL_checktype(L, 2, LUA_TTABLE);
             lua_pushvalue(L, 2);
@@ -402,20 +436,36 @@ namespace dmGameSystem
             pan = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "speed");
+            speed = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
-        dmGameSystemDDF::PlaySound msg;
-        msg.m_Delay = delay;
-        msg.m_Gain = gain;
-        msg.m_Pan = pan;
+        if (top > 2) // completed cb
+        {
+            if (lua_isfunction(L, 3))
+            {
+                lua_pushvalue(L, 3);
+                play_id = dmSound::GetAndIncreasePlayCounter();
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
+            }
+        }
 
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
+        dmGameSystemDDF::PlaySound msg;
+        msg.m_Delay  = delay;
+        msg.m_Gain   = gain;
+        msg.m_Pan    = pan;
+        msg.m_Speed = speed;
+        msg.m_PlayId = play_id;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        return 0;
+
+        lua_pushnumber(L, (double) msg.m_PlayId);
+
+        return 1;
     }
 
     /*# stop a playing a sound(s)

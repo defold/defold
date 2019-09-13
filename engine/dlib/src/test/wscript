@@ -29,7 +29,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp',
         'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib axtls',
+        'uselib_local': 'dlib mbedtls',
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
@@ -144,7 +144,6 @@ def build(bld):
                 extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
-    create_test(bld, 'test_md5', extra_libs = ['THREAD'])
     create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_crypt')
