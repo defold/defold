@@ -91,7 +91,7 @@ jobs:
         python-version: '2.x'
         architecture: 'x64'
     - name: Build bob
-      run: python ci/ci.py --platform=foobar --branch=$GITHUB_REF install bob   
+      run: python ci/ci.py --branch=$GITHUB_REF install bob   
   
   build-sdk:
     needs: build-engine
@@ -107,7 +107,7 @@ jobs:
         python-version: '2.x'
         architecture: 'x64'
     - name: Build SDK
-      run: python ci/ci.py --platform=foobar --branch=$GITHUB_REF install sdk   
+      run: python ci/ci.py --branch=$GITHUB_REF install sdk   
   
   build-editor:
     needs: [build-bob,build-sdk]
@@ -123,5 +123,5 @@ jobs:
         python-version: '2.x'
         architecture: 'x64'
     - name: Build editor
-      run: python ci/ci.py --platform=foobar --branch=$GITHUB_REF install editor   
+      run: python ci/ci.py --branch=$GITHUB_REF install editor   
   
