@@ -3,7 +3,8 @@ name: CI - Editor Only
 on:
   push:
     branches:
-      - 'DEFEDIT-*'
+      - test_ci
+      # - 'DEFEDIT-*'
 
 jobs:
   build-and-test-editor:
