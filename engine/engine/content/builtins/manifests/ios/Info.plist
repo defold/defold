@@ -107,12 +107,6 @@
 
         <key>CFBundleURLTypes</key>
         <array>
-                <dict>
-                        <key>CFBundleURLSchemes</key>
-                        <array>
-                                {{#url-schemes}}<string>{{.}}</string>{{/url-schemes}}
-                        </array>
-                </dict>
         </array>
 
         <key>LSApplicationQueriesSchemes</key>
