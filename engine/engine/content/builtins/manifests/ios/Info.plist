@@ -105,16 +105,6 @@
                 <string>UIInterfaceOrientation{{.}}</string>{{/orientation-support}}
         </array>
 
-        <key>CFBundleURLTypes</key>
-        <array>
-                <dict>
-                        <key>CFBundleURLSchemes</key>
-                        <array>
-                                {{#url-schemes}}<string>{{.}}</string>{{/url-schemes}}
-                        </array>
-                </dict>
-        </array>
-
         <key>LSApplicationQueriesSchemes</key>
         <array>
                 {{#application-queries-schemes}}<string>{{.}}</string>{{/application-queries-schemes}}
