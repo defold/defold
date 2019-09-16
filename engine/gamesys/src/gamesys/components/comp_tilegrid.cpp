@@ -38,6 +38,12 @@ namespace dmGameSystem
         uint8_t :6;
     };
 
+    struct TileGridLayer
+    {
+        uint8_t m_IsVisible:1;
+        uint8_t :7;
+    };
+
     struct TileGridComponent
     {
         struct Flags
@@ -64,6 +70,7 @@ namespace dmGameSystem
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;
         dmArray<TileGridRegion>     m_Regions;
+        dmArray<TileGridLayer>      m_Layers;
         uint32_t                    m_MixedHash;
         CompRenderConstants         m_RenderConstants;
         dmRender::HMaterial         m_Material;
@@ -71,10 +78,10 @@ namespace dmGameSystem
         TileGridResource*           m_Resource;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
         uint16_t                    m_RegionsY; // number of regions in the y dimension
+        uint16_t                    m_Occupied; // Number of occupied regions (regions with visible tiles)
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_AddedToUpdate : 1;
-        uint8_t                     m_Occupied : 1; // Does the component have any tiles set at all?
-        uint8_t                     : 5;
+        uint8_t                     : 6;
     };
 
     struct TileGridVertex
@@ -101,12 +108,11 @@ namespace dmGameSystem
 
         uint32_t                        m_MaxTilemapCount;
         uint32_t                        m_MaxTileCount;
-        uint32_t                        m_NumLayers; // total count to allocate for in render stage
     };
 
     static void TileGridWorldAllocate(TileGridWorld* world)
     {
-        world->m_RenderObjects.SetCapacity(world->m_MaxTilemapCount);
+        world->m_RenderObjects.SetCapacity(4);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(world->m_RenderContext);
         // TODO: Everything below here should be move to the "universe" when available
@@ -134,7 +140,6 @@ namespace dmGameSystem
 
         world->m_Components.SetCapacity(world->m_MaxTilemapCount);
 
-        world->m_NumLayers = 0;
         world->m_VertexDeclaration = 0;
 
         *params.m_World = world;
@@ -190,6 +195,12 @@ namespace dmGameSystem
         return cell;
     }
 
+    void SetLayerVisible(TileGridComponent* component, uint32_t layer_index, bool visible)
+    {
+        TileGridLayer* layer = &component->m_Layers[layer_index];
+        layer->m_IsVisible = visible;
+    }
+
     static void SetRegionDirty(TileGridComponent* component, int32_t cell_x, int32_t cell_y)
     {
         uint32_t region_x = cell_x / TILEGRID_REGION_SIZE;
@@ -221,6 +232,7 @@ namespace dmGameSystem
         HashState32 state;
         TileGridResource* resource = component->m_Resource;
 
+        // NOTE: Use the same order as comp_sprite, since they both use the "tile" tag by default
         dmHashInit32(&state, false);
         dmHashUpdateBuffer32(&state, GetMaterial(component), sizeof(dmRender::HMaterial));
         dmHashUpdateBuffer32(&state, GetTextureSet(component), sizeof(TextureSetResource));
@@ -263,29 +275,31 @@ namespace dmGameSystem
         int32_t max_x = dmMath::Min(min_x + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellX + (int32_t)column_count);
         int32_t max_y = dmMath::Min(min_y + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellY + (int32_t)row_count);
 
+        region->m_Occupied = 0;
+
         uint32_t visible_tiles = 0;
         for (uint32_t j = 0; j < n_layers; ++j)
         {
-            dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[j];
+            TileGridLayer* layer = &component->m_Layers[j];
+            if (!layer->m_IsVisible)
+                continue;
 
-            if (layer_ddf->m_IsVisible)
+            for (int32_t y = min_y; y < max_y; ++y)
             {
-                for (int32_t y = min_y; y < max_y; ++y)
+                for (int32_t x = min_x; x < max_x; ++x)
                 {
-                    for (int32_t x = min_x; x < max_x; ++x)
+                    uint32_t cell = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
+                    uint16_t tile = component->m_Cells[cell];
+                    if (tile != 0xffff)
                     {
-                        uint32_t cell_index = CalculateCellIndex(j, x - resource->m_MinCellX, y - resource->m_MinCellY, column_count, row_count);
-                        uint16_t tile = component->m_Cells[cell_index];
-                        if (tile != 0xffff)
-                        {
-                            ++visible_tiles;
-                        }
+                        ++visible_tiles;
+                        region->m_Occupied = 1;
+                        return region->m_Occupied;
                     }
                 }
             }
         }
 
-        region->m_Occupied = visible_tiles ? 1 : 0;
         return region->m_Occupied;
     }
 
@@ -294,48 +308,55 @@ namespace dmGameSystem
         uint32_t occupied = 0;
         for (uint32_t region_y = 0; region_y < component->m_RegionsY; ++region_y) {
             for (uint32_t region_x = 0; region_x < component->m_RegionsX; ++region_x) {
-                occupied |= UpdateRegion(component, region_x, region_y);
+                occupied += UpdateRegion(component, region_x, region_y);
             }
         }
         return occupied;
     }
 
-    static uint32_t CreateTileGrid(TileGridComponent* tile_grid)
+    static uint32_t CreateTileGrid(TileGridComponent* component)
     {
-        TileGridResource* resource = tile_grid->m_Resource;
+        TileGridResource* resource = component->m_Resource;
         dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
         uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
         uint32_t cell_count = resource->m_ColumnCount * resource->m_RowCount * n_layers;
-        if (tile_grid->m_Cells != 0x0)
+        if (component->m_Cells != 0x0)
         {
-            delete [] tile_grid->m_Cells;
+            delete [] component->m_Cells;
         }
-        tile_grid->m_Cells = new uint16_t[cell_count];
-        memset(tile_grid->m_Cells, 0xff, cell_count * sizeof(uint16_t));
-        if (tile_grid->m_CellFlags != 0x0)
+        component->m_Cells = new uint16_t[cell_count];
+        memset(component->m_Cells, 0xff, cell_count * sizeof(uint16_t));
+        if (component->m_CellFlags != 0x0)
         {
-            delete [] tile_grid->m_CellFlags;
+            delete [] component->m_CellFlags;
         }
-        tile_grid->m_CellFlags = new TileGridComponent::Flags[cell_count];
-        memset(tile_grid->m_CellFlags, 0, cell_count * sizeof(TileGridComponent::Flags));
+        component->m_CellFlags = new TileGridComponent::Flags[cell_count];
+        memset(component->m_CellFlags, 0, cell_count * sizeof(TileGridComponent::Flags));
         int32_t min_x = resource->m_MinCellX;
         int32_t min_y = resource->m_MinCellY;
         uint32_t column_count = resource->m_ColumnCount;
         uint32_t row_count = resource->m_RowCount;
+
+        component->m_Layers.SetCapacity(n_layers);
+        component->m_Layers.SetSize(n_layers);
+
         for (uint32_t i = 0; i < n_layers; ++i)
         {
             dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[i];
+
+            component->m_Layers[i].m_IsVisible = layer_ddf->m_IsVisible;
+
             uint32_t n_cells = layer_ddf->m_Cell.m_Count;
             for (uint32_t j = 0; j < n_cells; ++j)
             {
                 dmGameSystemDDF::TileCell* cell = &layer_ddf->m_Cell[j];
                 uint32_t cell_index = CalculateCellIndex(i, cell->m_X - min_x, cell->m_Y - min_y, column_count, row_count);
-                tile_grid->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
+                component->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
             }
         }
 
-        CreateRegions(tile_grid, resource);
-        UpdateRegions(tile_grid);
+        CreateRegions(component, resource);
+        component->m_Occupied = UpdateRegions(component);
         return n_layers;
     }
 
@@ -366,9 +387,18 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        world->m_NumLayers += layer_count;
         world->m_Components.Push(component);
         *params.m_UserData = (uintptr_t) component;
+
+        uint32_t num_layers = 0;
+        uint32_t n = world->m_Components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            TileGridComponent* component = world->m_Components[i];
+            dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_Resource->m_TileGrid;
+            num_layers += tile_grid_ddf->m_Layers.m_Count;
+        }
+        world->m_RenderObjects.SetCapacity(num_layers);
 
         ReHash(component);
         return dmGameObject::CREATE_RESULT_OK;
@@ -388,9 +418,6 @@ namespace dmGameSystem
                 if (tile_grid->m_TextureSet) {
                     dmResource::Release(dmGameObject::GetFactory(params.m_Instance), tile_grid->m_TextureSet);
                 }
-
-                dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid->m_Resource->m_TileGrid;
-                world->m_NumLayers -= tile_grid_ddf->m_Layers.m_Count;
 
                 delete [] tile_grid->m_Cells;
                 delete [] tile_grid->m_CellFlags;
@@ -649,6 +676,29 @@ namespace dmGameSystem
         }
     }
 
+    // Estimates the number of render entries needed
+    static uint32_t CalcNumVisibleRegions(TileGridComponent** components, uint32_t num_components)
+    {
+        uint32_t num_render_entries = 0;
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            const TileGridComponent* component = components[i];
+            if (!component->m_Enabled || !component->m_AddedToUpdate || !component->m_Occupied) {
+                continue;
+            }
+            uint32_t n_layers = component->m_Layers.Size();
+            for (uint32_t l = 0; l < n_layers; ++l)
+            {
+                const TileGridLayer* layer = &component->m_Layers[l];
+                if (!layer->m_IsVisible)
+                    continue;
+
+                num_render_entries += component->m_RegionsY * component->m_RegionsX;
+            }
+        }
+        return num_render_entries;
+    }
+
     dmGameObject::UpdateResult CompTileGridRender(const dmGameObject::ComponentsRenderParams& params)
     {
         TilemapContext* context = (TilemapContext*)params.m_Context;
@@ -661,8 +711,9 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_OK;
         }
 
+        uint32_t num_render_entries = CalcNumVisibleRegions(&components[0], n);
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, world->m_NumLayers);
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, num_render_entries);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
@@ -688,10 +739,11 @@ namespace dmGameSystem
             uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
             for (uint32_t l = 0; l < n_layers; ++l)
             {
-                dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[l];
-                if (!layer_ddf->m_IsVisible)
+                TileGridLayer* layer = &component->m_Layers[l];
+                if (!layer->m_IsVisible)
                     continue;
 
+                dmGameSystemDDF::TileLayer* layer_ddf = &tile_grid_ddf->m_Layers[l];
                 for (uint32_t y = 0, region_index = 0; y < component->m_RegionsY; ++y) {
                     for (uint32_t x = 0; x < component->m_RegionsX; ++x, ++region_index) {
 
@@ -715,7 +767,8 @@ namespace dmGameSystem
             }
         }
 
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        if (render_list != write_ptr)
+            dmRender::RenderListSubmit(render_context, render_list, write_ptr);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

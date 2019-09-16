@@ -2100,7 +2100,7 @@
         h (:height scene-dims)
         scene {:node-id _node-id
                :aabb geom/null-aabb
-               :default-aabb (geom/coords->aabb [0 0 0] [w h 0])
+               :visibility-aabb (geom/coords->aabb [0 0 0] [w h 0])
                :renderable {:render-fn render-lines
                             :tags #{:gui :gui-bounds}
                             :passes [pass/transparent]

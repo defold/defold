@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <ostream>
 
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 #include <sys/socket.h>
 #include <errno.h>
 #include <sys/select.h>
@@ -155,7 +155,7 @@ namespace dmSocket
      */
     enum ShutdownType
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
         SHUTDOWNTYPE_READ      = SHUT_RD,
         SHUTDOWNTYPE_WRITE     = SHUT_WR,
         SHUTDOWNTYPE_READWRITE = SHUT_RDWR,

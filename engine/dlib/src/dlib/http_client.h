@@ -268,6 +268,13 @@ namespace dmHttpClient
      * permanently breaking for subsequent requests.
     */
     void ReopenConnectionPool();
+
+    /**
+     * Convert result value to string
+     * @param result Result to convert
+     * @return Result as string
+     */
+    const char* ResultToString(Result result);
 }
 
 #endif // DM_HTTP_CLIENT_H

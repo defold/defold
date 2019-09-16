@@ -64,23 +64,48 @@ namespace dmEngineVersion
     sound_lib = 'sound'
     if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
+
+        # For Vulkan/MoltenVK
+        if Options.options.with_vulkan and architecture == 'x86_64':
+            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface'])
+
+            # Note: To get validation layers to work, replace MoltenVK with 'vulkan'. For more info, see README.md in engine/graphics/src/vulkan
+            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
+
+            # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
+            conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
+
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
+
+        # For Vulkan/MoltenVK
+        if Options.options.with_vulkan and architecture == 'arm64':
+            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STATICLIB_CPP_RUNTIME'] = 'c++_static'
+
+        # For Vulkan
+        if Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['-lvulkan'])
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
+
+        if Options.options.with_vulkan:
+            conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
     elif operating_sys == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+        # For Vulkan
+        if Options.options.with_vulkan:
+            conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
     elif 'web' in operating_sys:
         pass
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'

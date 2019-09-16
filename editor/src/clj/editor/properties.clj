@@ -50,7 +50,8 @@
         [x y tx ty]))))
 
 (defprotocol Sampler
-  (sample [this]))
+  (sample [this])
+  (sample-range [this]))
 
 (defn- curve-aabbs
   ([curve]
@@ -103,9 +104,33 @@
                                       y (.getY p)]
                                   (assoc v 0 x 1 y)))))))
 
+(defn curve-vals [curve]
+  (iv/iv-vals (:points curve)))
+
+(defn curve-range [curve]
+  (let [curve-vals (curve-vals curve)]
+    (assert (seq curve-vals) "Invalid curve")
+    (if (= 1 (count curve-vals))
+      (let [sample (curve-vals 0)
+            value (sample 1)] ; Extract Y component.
+        [value value])
+      (let [spline (->spline curve-vals)]
+        (loop [t 0.0
+               min-value Double/MAX_VALUE
+               max-value Double/MIN_VALUE]
+          (let [sample (spline-cp spline t) ; Clamps t to [0, 1] internally.
+                ^double value (sample 1)] ; Extract Y component.
+            (if (>= t 1.0)
+              [(min min-value value)
+               (max max-value value)]
+              (recur (+ t 0.01)
+                     (min min-value value)
+                     (max max-value value)))))))))
+
 (defrecord Curve [points]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
+  (sample-range [this] (curve-range this))
   t/GeomCloud
   (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
@@ -114,9 +139,11 @@
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
 
-(defrecord CurveSpread [points spread]
+(defrecord CurveSpread [points ^double spread]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
+  (sample-range [this] (let [[^double min ^double max] (curve-range this)]
+                         [(- min spread) (+ max spread)]))
   t/GeomCloud
   (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
@@ -134,9 +161,6 @@
   (CurveSpread. (iv/iv-vec control-points) spread))
 
 (def default-curve-spread (->curve-spread [[0.0 0.0 1.0 0.0]] 0.0))
-
-(defn curve-vals [curve]
-  (iv/iv-vals (:points curve)))
 
 (core/register-read-handler!
  (.getName Curve)

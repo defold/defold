@@ -1,4 +1,5 @@
 #include "res_sound.h"
+#include <string.h>
 
 #include <dlib/log.h>
 #include <sound/sound.h>
@@ -6,6 +7,11 @@
 
 namespace dmGameSystem
 {
+    Sound::Sound()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     dmResource::Result AcquireResources(dmResource::HFactory factory,
                                         dmSoundDDF::SoundDesc* sound_desc,
                                         Sound** sound)
@@ -14,11 +20,13 @@ namespace dmGameSystem
         dmResource::Result fr = dmResource::Get(factory, sound_desc->m_Sound, (void**) &sound_data);
         if (fr == dmResource::RESULT_OK)
         {
-            Sound*s = new Sound();
+            Sound* s = new Sound();
             s->m_SoundData = sound_data;
             s->m_Looping = sound_desc->m_Looping;
             s->m_GroupHash = dmHashString64(sound_desc->m_Group);
             s->m_Gain = sound_desc->m_Gain;
+            s->m_Pan = sound_desc->m_Pan;
+            s->m_Speed = sound_desc->m_Speed;
 
             dmSound::Result result = dmSound::AddGroup(sound_desc->m_Group);
             if (result != dmSound::RESULT_OK) {

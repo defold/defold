@@ -50,8 +50,8 @@ relevant for a select few of users. This also means that the extensions will be
 available in full source code, enabling external developers to review and
 contribute to them.
 
-Moving the `push` module part of this goal, and with the 1.2.160
-release of Defold will no longer be part of the core functionality.
+Moving the `push` module is part of this goal, and with the 1.2.160
+release of Defold it will no longer be part of the core functionality.
 
 
 ## Migrating to the external `push` extension

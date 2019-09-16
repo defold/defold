@@ -11,15 +11,12 @@ import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.spine.proto.Spine;
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationTrack;
 import com.dynamo.rig.proto.Rig.Bone;
 import com.dynamo.rig.proto.Rig.EventTrack;
-import com.dynamo.rig.proto.Rig.Mesh;
 import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
@@ -156,7 +153,6 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         src.append("spine_json: \"/skeleton.json\"");
         src.append(" atlas: \"/skeleton_atlas.atlas\"");
         List<Message> outputs = build("/test.spinescene", src.toString());
-        Rig.RigScene scene = (Rig.RigScene)outputs.get(0);
         Rig.Skeleton skeleton = (Rig.Skeleton)outputs.get(1);
         Rig.MeshSet meshset = (Rig.MeshSet)outputs.get(2);
         Rig.AnimationSet animationset = (Rig.AnimationSet)outputs.get(3);
@@ -212,5 +208,20 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
                 assertGT(xLinear, x);
             }
         }
+    }
+
+    // Simple test to make sure our parser+builder can read the updated Spine format >3.8
+    @Test
+    public void testSpine38Format() throws Exception {
+        addImage("/128x128.png", 128, 128);
+        addImage("/circle_128.png", 128, 128);
+        StringBuilder src = new StringBuilder();
+        src.append("images { image:  \"/128x128.png\"\nimage:  \"/circle_128.png\" }");
+        build("/format38.atlas", src.toString());
+
+        src = new StringBuilder();
+        src.append("spine_json: \"/format38.json\"");
+        src.append(" atlas: \"/format38.atlas\"");
+        List<Message> outputs = build("/test.spinescene", src.toString());
     }
 }

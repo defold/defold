@@ -166,7 +166,7 @@
     (.scale n)))
 
 (defn add-vector
-  ^Vector3d [^Vector3d v1 ^Vector3d v2]
+  ^Vector3d [^Tuple3d v1 ^Tuple3d v2]
   (doto (Vector3d. v1)
     (.add v2)))
 

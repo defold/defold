@@ -431,19 +431,7 @@ public class BundleHelper {
         File javaROutput = new File(tmpDir, "rjava");
         javaROutput.mkdir();
 
-        // Include built-in/default facebook and gms resources
-        resourceDirectories.add(Bob.getPath("res/com.android.support.support-compat-27.1.1"));
-        resourceDirectories.add(Bob.getPath("res/com.android.support.support-core-ui-27.1.1"));
-        resourceDirectories.add(Bob.getPath("res/com.android.support.support-media-compat-27.1.1"));
-        resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-base-16.0.1"));
-        resourceDirectories.add(Bob.getPath("res/com.google.android.gms.play-services-basement-16.0.1"));
-
         List<String> extraPackages = new ArrayList<>();
-
-        extraPackages.add("com.google.firebase");
-        extraPackages.add("com.google.android.gms");
-        extraPackages.add("com.google.android.gms.common");
-        extraPackages.add("com.android.support");
 
         if (bundleContext != null) {
             List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());

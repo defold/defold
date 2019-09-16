@@ -92,7 +92,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int TileMap_SetConstant(lua_State* L)
+    static int TileMap_SetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -136,7 +136,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int TileMap_ResetConstant(lua_State* L)
+    static int TileMap_ResetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -192,7 +192,7 @@ namespace dmGameSystem
      * tilemap.set_tile("/level#tilemap", "foreground", self.player_x, self.player_y, 0)
      * ```
      */
-    int TileMap_SetTile(lua_State* L)
+    static int TileMap_SetTile(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -307,7 +307,7 @@ namespace dmGameSystem
      * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
      * ```
      */
-    int TileMap_GetTile(lua_State* L)
+    static int TileMap_GetTile(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -373,7 +373,7 @@ namespace dmGameSystem
      * local x, y, w, h = tilemap.get_bounds("/level#tilemap")
      * ```
      */
-    int TileMap_GetBounds(lua_State* L)
+    static int TileMap_GetBounds(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -396,6 +396,43 @@ namespace dmGameSystem
         return 4;
     }
 
+    /*# set the visibility of a layer
+     * Sets the visibility of the tilemap layer
+     *
+     * @name tilemap.set_visible
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param visible [type:boolean] should the layer be visible
+     * @examples
+     *
+     * ```lua
+     * -- Disable rendering of the layer
+     * tilemap.set_visible("/level#tilemap", "foreground", false)
+     * ```
+     */
+    static int TileMap_SetVisible(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
+        TileGridComponent* component = (TileGridComponent*) user_data;
+
+        dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
+        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        if (layer_index == ~0u)
+        {
+            return DM_LUA_ERROR("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
+        }
+
+        bool visible = lua_toboolean(L, 3);
+        SetLayerVisible(component, layer_index, visible);
+        return 0;
+    }
+
     static const luaL_reg TILEMAP_FUNCTIONS[] =
     {
         {"set_constant",    TileMap_SetConstant},
@@ -403,6 +440,7 @@ namespace dmGameSystem
         {"set_tile",        TileMap_SetTile},
         {"get_tile",        TileMap_GetTile},
         {"get_bounds",      TileMap_GetBounds},
+        {"set_visible",     TileMap_SetVisible},
         {0, 0}
     };
 

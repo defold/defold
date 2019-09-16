@@ -112,9 +112,6 @@ The following smoke tests are currently performed by the team on each platform (
         $ git push
 
     This will trigger a build of the engines and editors for stable.
-
- 1. Wait for the editor build: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master).
-
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
 
  1. Fetch editor via:

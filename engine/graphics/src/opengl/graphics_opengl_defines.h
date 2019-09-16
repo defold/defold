@@ -3,6 +3,7 @@
 
 #if defined(__linux__) && !defined(ANDROID)
 
+#define GL_HAS_RENDERDOC_SUPPORT
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
@@ -18,6 +19,7 @@
 
 #elif defined (_WIN32)
 
+#define GL_HAS_RENDERDOC_SUPPORT
 #include <dlib/safe_windows.h>
 #include <stdlib.h>
 #include <GL/gl.h>
@@ -56,12 +58,12 @@
 #define DMGRAPHICS_STATE_DEPTH_TEST                         (GL_DEPTH_TEST)
 #define DMGRAPHICS_STATE_SCISSOR_TEST                       (GL_SCISSOR_TEST)
 #define DMGRAPHICS_STATE_STENCIL_TEST                       (GL_STENCIL_TEST)
-#define DMGRAPHICS_STATE_ALPHA_TEST                         (GL_ALPHA_TEST)
 #define DMGRAPHICS_STATE_BLEND                              (GL_BLEND)
 #define DMGRAPHICS_STATE_CULL_FACE                          (GL_CULL_FACE)
 #define DMGRAPHICS_STATE_POLYGON_OFFSET_FILL                (GL_POLYGON_OFFSET_FILL)
 #define DMGRAPHICS_STATE_POLYGON_OFFSET_LINE                (GL_POLYGON_OFFSET_LINE)
 #define DMGRAPHICS_STATE_POLYGON_OFFSET_POINT               (GL_POLYGON_OFFSET_POINT)
+#define DMGRAPHICS_STATE_ALPHA_TEST                         (GL_ALPHA_TEST)
 
 // Types
 #define DMGRAPHICS_TYPE_BYTE                                (GL_BYTE)
@@ -127,8 +129,13 @@
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
 // We check this at runtime through extensions supported
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_RED)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_RG)
+#else
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_LUMINANCE)
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
+#endif
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA                      (GL_RGBA)
 

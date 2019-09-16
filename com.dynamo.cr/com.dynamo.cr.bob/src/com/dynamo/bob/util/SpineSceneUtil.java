@@ -59,6 +59,7 @@ public class SpineSceneUtil {
     public static int slotSignalUnchanged = 0x10CCED;
 
     public String spineVersion = null;
+    public String[] spineVersionParts = null;
     public boolean localBoneScaling = true;
 
     public List<Bone> bones = new ArrayList<Bone>();
@@ -339,7 +340,7 @@ public class SpineSceneUtil {
         while (keyIt.hasNext()) {
             JsonNode keyNode =  keyIt.next();
             AnimationKey key = new AnimationKey();
-            key.t = keyNode.get("time").asDouble();
+            key.t = JsonUtil.get(keyNode, "time", (Double)0.0);
             switch (track.property) {
             case POSITION:
                 key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f), 0.0f};
@@ -365,6 +366,13 @@ public class SpineSceneUtil {
                     curve.x1 = (float)curveIt.next().asDouble();
                     curve.y1 = (float)curveIt.next().asDouble();
                     key.curve = curve;
+                } else if (curveNode.isNumber()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    curve.x0 = JsonUtil.get(keyNode, "curve", 0.0f);
+                    curve.y0 = JsonUtil.get(keyNode, "c2", 0.0f);
+                    curve.x1 = JsonUtil.get(keyNode, "c3", 0.0f);
+                    curve.y1 = JsonUtil.get(keyNode, "c4", 1.0f);
+                    key.curve = curve;
                 } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
                     key.stepped = true;
                 }
@@ -378,7 +386,7 @@ public class SpineSceneUtil {
         while (keyIt.hasNext()) {
             JsonNode keyNode =  keyIt.next();
             IKAnimationKey key = new IKAnimationKey();
-            key.t = keyNode.get("time").asDouble();
+            key.t = JsonUtil.get(keyNode, "time", (Double)0.0);
             key.mix = (float)JsonUtil.get(keyNode, "mix", 1.0f);
             key.positive = JsonUtil.get(keyNode, "bendPositive", true);
             if (keyNode.has("curve")) {
@@ -390,6 +398,13 @@ public class SpineSceneUtil {
                     curve.y0 = (float)curveIt.next().asDouble();
                     curve.x1 = (float)curveIt.next().asDouble();
                     curve.y1 = (float)curveIt.next().asDouble();
+                    key.curve = curve;
+                } else if (curveNode.isNumber()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    curve.x0 = JsonUtil.get(keyNode, "curve", 0.0f);
+                    curve.y0 = JsonUtil.get(keyNode, "c2", 0.0f);
+                    curve.x1 = JsonUtil.get(keyNode, "c3", 0.0f);
+                    curve.y1 = JsonUtil.get(keyNode, "c4", 1.0f);
                     key.curve = curve;
                 } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
                     key.stepped = true;
@@ -404,7 +419,7 @@ public class SpineSceneUtil {
         while (keyIt.hasNext()) {
             JsonNode keyNode =  keyIt.next();
             SlotAnimationKey key = new SlotAnimationKey();
-            key.t = keyNode.get("time").asDouble();
+            key.t = JsonUtil.get(keyNode, "time", (Double)0.0);
             switch (track.property) {
             case COLOR:
                 // Hex to RGBA
@@ -440,6 +455,13 @@ public class SpineSceneUtil {
                     curve.y0 = (float)curveIt.next().asDouble();
                     curve.x1 = (float)curveIt.next().asDouble();
                     curve.y1 = (float)curveIt.next().asDouble();
+                    key.curve = curve;
+                } else if (curveNode.isNumber()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    curve.x0 = JsonUtil.get(keyNode, "curve", 0.0f);
+                    curve.y0 = JsonUtil.get(keyNode, "c2", 0.0f);
+                    curve.x1 = JsonUtil.get(keyNode, "c3", 0.0f);
+                    curve.y1 = JsonUtil.get(keyNode, "c4", 1.0f);
                     key.curve = curve;
                 } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
                     key.stepped = true;
@@ -528,7 +550,7 @@ public class SpineSceneUtil {
                 }
                 Event event = getEvent(eventId);
                 EventKey key = new EventKey();
-                key.t = keyNode.get("time").asDouble();
+                key.t = JsonUtil.get(keyNode, "time", (Double)0.0);
                 key.intPayload = JsonUtil.get(keyNode, "int", event.intPayload);
                 key.floatPayload = JsonUtil.get(keyNode, "float", event.floatPayload);
                 key.stringPayload = JsonUtil.get(keyNode, "string", event.stringPayload);
@@ -762,6 +784,32 @@ public class SpineSceneUtil {
         }
     }
 
+    private static JsonNode findDefaultSkin(String[] spineVersionParts, JsonNode skinsNode) {
+        // Since Spine 3.8 the skins node will be an array of dict, instead of
+        // a dict with skin name as a key, and skin content as value.
+
+        JsonNode defaultNode = null;
+        if (spineVersionParts != null &&
+            Integer.parseInt(spineVersionParts[0]) >= 3 &&
+            Integer.parseInt(spineVersionParts[1]) >= 8) {
+            // Spine version 3.8 and above
+            Iterator<JsonNode> skinIt = skinsNode.getElements();
+            while (skinIt.hasNext()) {
+                JsonNode skinNode = skinIt.next();
+                String skinName = JsonUtil.get(skinNode, "name", "");
+                if (skinName.equals("default")) {
+                    defaultNode = skinNode.get("attachments");
+                    break;
+                }
+            }
+        } else {
+            // Spine version below 3.8
+            defaultNode = JsonUtil.get(skinsNode, "default");
+        }
+
+        return defaultNode;
+    }
+
     public static SpineSceneUtil loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
         SpineSceneUtil scene = new SpineSceneUtil();
         ObjectMapper m = new ObjectMapper();
@@ -831,27 +879,52 @@ public class SpineSceneUtil {
 
             // If Spine version is 3 and above it uses a different scaling model than 2.x.
             if (scene.spineVersion != null) {
-                String[] versionParts = scene.spineVersion.split("\\.");
-                if (versionParts != null && Integer.parseInt(versionParts[0]) >= 3) {
+                scene.spineVersionParts = scene.spineVersion.split("\\.");
+                if (scene.spineVersionParts != null && Integer.parseInt(scene.spineVersionParts[0]) >= 3) {
                     scene.localBoneScaling = false;
                 }
             }
 
             // Load default skin first since other skins will be based on this.
-            JsonNode defaultSkinNode = node.get("skins").get("default");
+            JsonNode defaultSkinNode = findDefaultSkin(scene.spineVersionParts, node.get("skins"));
+            if (defaultSkinNode == null) {
+                throw new LoadException("No default skin found!");
+            }
             scene.defaultSkin = loadSkin(scene, "default", defaultSkinNode, uvTransformProvider);
 
-            Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
-            while (skinIt.hasNext()) {
-                Map.Entry<String, JsonNode> entry = skinIt.next();
-                String skinName = entry.getKey();
-                JsonNode skinNode = entry.getValue();
-                if (!skinName.equals("default"))
-                {
-                    List<SkinSlot> skin = loadSkin(scene, skinName, skinNode, uvTransformProvider);
-                    scene.skins.put(skinName, skin);
+            // Since Spine 3.8 the skins node will be an array of dict, instead of
+            // a dict with skin name as a key, and skin content as value.
+            if (scene.spineVersionParts != null &&
+                Integer.parseInt(scene.spineVersionParts[0]) >= 3 &&
+                Integer.parseInt(scene.spineVersionParts[1]) >= 8) {
+
+                Iterator<JsonNode> skinIt = node.get("skins").getElements();
+                while (skinIt.hasNext()) {
+                    JsonNode skinNode = skinIt.next();
+                    String skinName = JsonUtil.get(skinNode, "name", "");
+                    JsonNode attachments = skinNode.get("attachments");
+
+                    if (!skinName.equals("default"))
+                    {
+                        List<SkinSlot> skin = loadSkin(scene, skinName, attachments, uvTransformProvider);
+                        scene.skins.put(skinName, skin);
+                    }
+                }
+            } else {
+                // Spine version below 3.8
+                Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
+                while (skinIt.hasNext()) {
+                    Map.Entry<String, JsonNode> entry = skinIt.next();
+                    String skinName = entry.getKey();
+                    JsonNode skinNode = entry.getValue();
+                    if (!skinName.equals("default"))
+                    {
+                        List<SkinSlot> skin = loadSkin(scene, skinName, skinNode, uvTransformProvider);
+                        scene.skins.put(skinName, skin);
+                    }
                 }
             }
+
             if (!node.has("animations")) {
                 return scene;
             }
@@ -927,6 +1000,10 @@ public class SpineSceneUtil {
 
         public static boolean get(JsonNode n, String name, boolean defaultVal) {
             return n.has(name) ? n.get(name).asBoolean() : defaultVal;
+        }
+
+        public static JsonNode get(JsonNode n, String name) {
+            return n.has(name) ? n.get(name) : null;
         }
 
         public static void hexToRGBA(String hex, float[] value) {
