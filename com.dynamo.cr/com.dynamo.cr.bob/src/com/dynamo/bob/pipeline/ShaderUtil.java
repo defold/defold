@@ -28,7 +28,6 @@ public class ShaderUtil {
             public String type;
             public int    binding;
             public int    set;
-            public int    offset;
         }
 
         public static class UniformBlock extends Resource
@@ -64,12 +63,10 @@ public class ShaderUtil {
                     JsonNode uniformNode   = membersNodeIt.next();
                     String uniformNodeName = uniformNode.get("name").asText();
                     String uniformNodeType = uniformNode.get("type").asText();
-                    int uniformNodeOffset  = uniformNode.get("offset").asInt();
 
                     Resource res = new Resource();
                     res.name     = uniformNode.get("name").asText();
                     res.type     = uniformNode.get("type").asText();
-                    res.offset   = uniformNode.get("offset").asInt();
                     res.binding  = 0;
                     res.set      = 0;
                     ubo.uniforms.add(res);
@@ -97,7 +94,6 @@ public class ShaderUtil {
                 res.type     = textureNode.get("type").asText();
                 res.binding  = textureNode.get("binding").asInt();
                 res.set      = textureNode.get("set").asInt();
-                res.offset   = 0;
                 textures.add(res);
             }
 

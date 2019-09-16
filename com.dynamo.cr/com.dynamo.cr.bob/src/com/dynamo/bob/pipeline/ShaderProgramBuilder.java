@@ -270,7 +270,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 uniform.type    = firstUniform.type;
                 uniform.binding = ubo.binding;
                 uniform.set     = ubo.set;
-                uniform.offset  = 0;
                 bindingEntry.add(uniform);
             }
         }
