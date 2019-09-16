@@ -820,19 +820,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
           android:label="IAP">
         </activity>
 
-        <!-- For IAC Invocations -->
-        <activity android:name="com.defold.iac.IACActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-               <action android:name="android.intent.action.VIEW" />
-               <category android:name="android.intent.category.DEFAULT" />
-               <category android:name="android.intent.category.BROWSABLE" />
-               <data android:scheme="%(package)s" />
-            </intent-filter>
-        </activity>
-
         <!-- For Amazon IAP -->
         <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
             <intent-filter>
@@ -844,6 +831,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->

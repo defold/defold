@@ -41,7 +41,7 @@
         checkmark_elem.className = "showCheckmark";
     }
 </script>
-# Push notifications has been moved
+# Inter-app communication has been moved
 
 We are in the process of moving a few of Defolds features from core
 functionality into external native extensions. The goal is to keep the engine
@@ -50,28 +50,27 @@ relevant for a select few of users. This also means that the extensions will be
 available in full source code, enabling external developers to review and
 contribute to them.
 
-Moving the `push` module is part of this goal, and with the 1.2.160
+Moving the `iac` module is part of this goal, and with the 1.2.163
 release of Defold it will no longer be part of the core functionality.
 
 
-## Migrating to the external `push` extension
-If you previously were using the `push` module, click the button below to add the
+## Migrating to the external `iac` extension
+If you previously were using the `iac` module, click the button below to add the
 library to your project.
 
-<a id="add_dependency" href="defold://add-dependency?url=https://github.com/defold/extension-push/archive/master.zip,https://github.com/defold/extension-firebase-core/archive/master.zip" onclick="showCheckmark(event)">Add Library</a> <span id="checkmark">&#10004;</span>
+<a id="add_dependency" href="defold://add-dependency?url=https://github.com/defold/extension-iac/archive/master.zip" onclick="showCheckmark(event)">Add Library</a> <span id="checkmark">&#10004;</span>
 
 
 ### Adding Manually
 You can also get the library manually by adding the following URLs to your [game.project](defold://open?path=/game.project) dependencies:
 ```
-https://github.com/defold/extension-push/archive/master.zip
-https://github.com/defold/extension-firebase-core/archive/master.zip
+https://github.com/defold/extension-iac/archive/master.zip
 ```
 
 It has the same API and functionality as before.
 
 The documentation is now available on GitHub:
-[https://defold.github.io/extension-push/](https://defold.github.io/extension-push/)
+[https://defold.github.io/extension-iac/](https://defold.github.io/extension-iac/)
 
 The source code can be viewed on the public GitHub repository:
-[https://github.com/defold/extension-push](https://github.com/defold/extension-push)
+[https://github.com/defold/extension-iac](https://github.com/defold/extension-iac)

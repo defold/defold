@@ -51,7 +51,7 @@ available in full source code, enabling external developers to review and
 contribute to them.
 
 The `webview` module is the first step towards this goal, and with the 1.2.146
-release of Defold will no longer be part of the core functionality.
+release of Defold it will no longer be part of the core functionality.
 
 
 
