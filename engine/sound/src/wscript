@@ -37,8 +37,7 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)
         bld.install_files('${PREFIX}/bin/%s' % bld.env['PLATFORM'], 'flash/defold_sound.swf', postpone = False)
     elif re.match('arm.*?android', bld.env['PLATFORM']):
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
-                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME]
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
         bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'
         bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')

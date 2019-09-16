@@ -20,8 +20,6 @@
 #define DM_PLATFORM DM_PLATFORM_WINDOWS
 #elif defined(__EMSCRIPTEN__)
 #define DM_PLATFORM DM_PLATFORM_WEB
-#elif defined(__AVM2__)
-#define DM_PLATFORM DM_PLATFORM_WEB
 #else
 #error "Unsupported platform"
 #endif

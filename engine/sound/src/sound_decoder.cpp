@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <assert.h>
 
 #include "sound_codec.h"
 #include "sound_decoder.h"
@@ -18,7 +19,7 @@ namespace dmSoundCodec
         info->m_Next = g_FirstDecoder;
         g_FirstDecoder = info;
     }
-    
+
     const DecoderInfo* FindDecoderByName(const char *name)
     {
         const DecoderInfo *decoder = g_FirstDecoder;

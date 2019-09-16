@@ -1,94 +1,30 @@
 #! /usr/bin/env python
 
 import os, re, sys
+import Options
 from TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files
+from waf_dynamo import dmsdk_add_files, remove_flag
 
 def set_options(opt):
     pass
 
+
+@feature('config_neon')
+@after('configure')
+def config_neon(conf):
+    conf.env.append_unique('CCFLAGS', '-mfpu=neon')
+
+def configure(conf):
+    if 'web' in conf.env.PLATFORM:
+        conf.env.append_unique('CCDEFINES', 'WEBP_FORCE_ALIGNED')
+        conf.env.append_unique('CXXDEFINES', 'WEBP_FORCE_ALIGNED')
+
 def build(bld):
-    bld.add_subdirs('test')
-
-    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
-
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache_verify.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/md5.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
-
-    bld.install_files('${PREFIX}/include/axtls/config', 'axtls/config/config.h')
-    bld.install_files('${PREFIX}/include/axtls/crypto', 'axtls/crypto/bigint.h')
-    bld.install_files('${PREFIX}/include/axtls/crypto', 'axtls/crypto/bigint_impl.h')
-    bld.install_files('${PREFIX}/include/axtls/crypto', 'axtls/crypto/crypto.h')
-    bld.install_files('${PREFIX}/include/axtls/crypto', 'axtls/crypto/os_int.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/cert.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/crypto_misc.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/os_port.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/private_key.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/ssl.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/tls1.h')
-    bld.install_files('${PREFIX}/include/axtls/ssl', 'axtls/ssl/version.h')
-
-    bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
-    bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
-    bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
-
-    if 'web' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
 
     source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
-    axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
+    mbedtls_dirs = 'mbedtls/crypto/library mbedtls/library'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
@@ -102,8 +38,7 @@ def build(bld):
     elif 'web' in bld.env.PLATFORM:
         source_dirs.append('dlib/js')
 
-    # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
-    extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
+    extra_defines = ['ZLIB_CONST']
 
     if 'win32' not in bld.env.PLATFORM:
         extra_defines.append('Z_HAVE_UNISTD_H')
@@ -140,7 +75,7 @@ def build(bld):
         source_dirs.extend(webp_source_dirs)
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib',
-                            includes = '.',
+                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                             add_objects = local_objs,
                             target = 'dlib',
                             defines= ['VALGRIND'] + extra_defines)
@@ -149,25 +84,39 @@ def build(bld):
 
     # Create a separate library, in order to separate it from the ASAN builds
     dlib_noasan = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan',
-                            includes = '.',
+                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                             add_objects = local_objs,
                             target = 'dlib_noasan',
                             defines= ['VALGRIND'] + extra_defines)
     dlib_noasan.find_sources_in_dirs(source_dirs)
     dlib_noasan.source.extend(webp_source_no_neon)
 
-    axtls = bld.new_task_gen(features = 'cxx cstaticlib',
-                            includes = '.',
-                            target = 'axtls',
+    # If we have optimizations on, let's minimize this library
+    opt_level = getattr(Options.options, 'opt_level', '')
+    FLAG_ST = '/O%s' if 'win' == bld.env.BUILD_PLATFORM else '-O%s'
+    remove_flags = {}
+    if opt_level in ['3','2']:
+        remove_flags['CCFLAGS'] = []
+        remove_flags['CCFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        # if in release mode we'll only keep a (non verbose) print function
+        extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
+    else:
+        extra_defines += ['MBEDTLS_ERROR_C']
+
+    mbedtls = bld.new_task_gen(features = 'cc cstaticlib remove_flags',
+                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                            target = 'mbedtls',
+                            remove_flags = remove_flags,
                             defines= ['VALGRIND'] + extra_defines)
-    axtls.find_sources_in_dirs(axtls_dirs)
+    mbedtls.find_sources_in_dirs(mbedtls_dirs)
+    mbedtls.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
-    axtls_noasan = bld.new_task_gen(features = 'cxx cstaticlib skip_asan',
-                            includes = '.',
-                            target = 'axtls_noasan',
+    mbedtls_noasan = bld.new_task_gen(features = 'cc cstaticlib skip_asan',
+                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                            target = 'mbedtls_noasan',
                             defines= ['VALGRIND'] + extra_defines)
-    axtls_noasan.find_sources_in_dirs(axtls_dirs)
+    mbedtls_noasan.find_sources_in_dirs(mbedtls_dirs)
 
     if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -176,12 +125,8 @@ def build(bld):
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
         dlib_noasan.source = [x for x in dlib.source if not x.endswith('.mm')]
 
-    if bld.env.PLATFORM == 'as3-web':
-        dlib.source.remove(os.path.join('dlib', 'socket.cpp'))
-        dlib_noasan.source.remove(os.path.join('dlib', 'socket.cpp'))
-    else:
-        dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-        dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
+    dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
+    dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if 'web' in bld.env['PLATFORM']:
         dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
@@ -190,34 +135,30 @@ def build(bld):
         dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
         dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
-    if bld.env['PLATFORM'] != 'as3-web':
-        uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
+    uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
 
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
-                                includes = '.',
-                                add_objects = local_objs,
-                                uselib_local = 'axtls_noasan',
-                                target = 'dlib_shared',
-                                defines= ['VALGRIND'] + extra_defines,
-                                uselib = uselib)
+    dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
+                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                            add_objects = local_objs,
+                            uselib_local = 'mbedtls_noasan',
+                            target = 'dlib_shared',
+                            defines= ['VALGRIND'] + extra_defines,
+                            uselib = uselib)
 
-        dlib.find_sources_in_dirs(source_dirs)
-        dlib.source.extend(webp_source_no_neon)
-        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
-            # NOTE: See comment above
-            dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
+    dlib.find_sources_in_dirs(source_dirs)
+    dlib.source.extend(webp_source_no_neon)
+    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
+        # NOTE: See comment above
+        dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
-        if bld.env.PLATFORM == 'as3-web':
-            dlib.source.remove(os.path.join('dlib','socket.cpp'))
-        else:
-            dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
+    dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
-        if 'web' in bld.env['PLATFORM']:
-            dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
-        else:
-            dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+    if 'web' in bld.env['PLATFORM']:
+        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+    else:
+        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
-    if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
+    if 'win32' not in bld.env['PLATFORM']:
         dlib = bld.new_task_gen(features = 'cc cxx cshlib',
                                 source='dlib/memprofile.cpp',
                                 includes = '.',
@@ -246,12 +187,66 @@ def build(bld):
                      classpath=classpath  + os.pathsep + 'default/src/java',
                      source_root='java_test')
 
-@feature('config_neon')
-@after('configure')
-def config_neon(conf):
-    conf.env.append_unique('CCFLAGS', '-mfpu=neon')
+    # the dmsdk_add_files needs to be after a build group for some reason
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-def configure(conf):
-    if 'web' in conf.env.PLATFORM:
-        conf.env.append_unique('CCDEFINES', 'WEBP_FORCE_ALIGNED')
-        conf.env.append_unique('CXXDEFINES', 'WEBP_FORCE_ALIGNED')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache_verify.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/webp.h')
+
+    bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
+    bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
+    bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
+
+    if 'web' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')

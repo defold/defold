@@ -24,11 +24,11 @@ PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-v4 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-v4 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -50,7 +50,6 @@ NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
@@ -412,10 +411,6 @@ class Configuration(object):
                 self._extract_tgz(path, self.ext)
             installed_packages.update(target_package_paths)
 
-        # Is as3-web a supported platform? doesn't say so in --platform?
-        print("Installing flash packages")
-        self._extract_packages('as3-web', PACKAGES_FLASH)
-
         print("Installing python eggs")
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
@@ -631,8 +626,7 @@ class Configuration(object):
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Android Jars (external)
-            external_jars = ("android-support-v4.jar",
-                             "android-support-multidex.jar",
+            external_jars = ("android-support-multidex.jar",
                              "android.jar",
                              "in-app-purchasing-2.0.61.jar")
             jardir = os.path.join(self.dynamo_home, 'ext/share/java')
@@ -974,7 +968,6 @@ class Configuration(object):
                     self._copy(src_path, dst_path)
             if m:
                 add_missing(type, m)
-        self.exec_env_command(['jar', 'cfM', 'lib/android-res.zip', '-C', '%s/ext/share/java/' % (self.dynamo_home), 'res'], cwd = cwd)
         if missing:
             print('*** NOTE! There are missing artefacts.')
             print(json.dumps(missing, indent=2))

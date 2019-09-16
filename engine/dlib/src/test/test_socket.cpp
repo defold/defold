@@ -5,7 +5,7 @@
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 #include <arpa/inet.h>
 #endif
 

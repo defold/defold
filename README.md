@@ -213,7 +213,7 @@ See [README.md](editor/README.md) in the editor folder.
 * **Sony Vectormath Library**: [https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
 * **zlib**: [http://www.zlib.net](http://www.zlib.net) - **zlib**
-* **axTLS**: [http://axtls.sourceforge.net](http://axtls.sourceforge.net) - **BSD**
+* **mbedTLS**: [https://github.com/ARMmbed/mbedtls](https://github.com/ARMmbed/mbedtls) - **Apache 2.0**
 * **stb_image** [http://nothings.org/](http://nothings.org) **Public domain**
 * **stb_vorbis** [http://nothings.org/](http://nothings.org) **Public domain**
 * **tremolo** [http://wss.co.uk/pinknoise/tremolo/](http://wss.co.uk/pinknoise/tremolo/) **BSD**
@@ -414,13 +414,6 @@ adb forward tcp:6000 localfilesystem:/data/local/debugger-socket
 ```
 In that web app manager, you can see the console output, take screenshots or show other web developer options for the phone.
 
-
-## Flash
-
-**TODO**
-
-* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
-* Verify that exceptions are disabled
 
 ## Asset loading
 

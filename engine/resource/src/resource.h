@@ -712,6 +712,10 @@ namespace dmResource
      * @param user_ctx  The user defined context which is passed along with each callback
      */
     void IterateResources(HFactory factory, FResourceIterator callback, void* user_ctx);
+
+    /**
+     */
+    const char* ResultToString(Result result);
 }
 
 #endif // RESOURCE_H

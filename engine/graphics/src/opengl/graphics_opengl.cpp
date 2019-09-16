@@ -119,6 +119,12 @@ PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
 PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+PFNGLGETSTRINGIPROC glGetStringi = NULL;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+#endif
+
 #elif defined(__EMSCRIPTEN__)
 #include <GL/glext.h>
 #if defined GL_ES_VERSION_2_0
@@ -280,8 +286,9 @@ static void LogFrameBufferError(GLenum status)
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
-        m_ModificationVersion = 1;
-        m_VerifyGraphicsCalls = params.m_VerifyGraphicsCalls;
+        m_ModificationVersion     = 1;
+        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         // Formats supported on all platforms
@@ -361,6 +368,8 @@ static void LogFrameBufferError(GLenum status)
 
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
+        assert(extension && extensions);
+
         // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
         const GLubyte *start;
 
@@ -510,6 +519,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        }
+#endif
+
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
@@ -582,6 +601,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
         GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
+            GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
+            GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
+        }
+#endif
 
 #undef GET_PROC_ADDRESS
 #endif
@@ -631,8 +658,49 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             (void) SetFrontProcess( &psn );
 #endif
 
-        // Extension support
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        char* extensions_ptr = 0;
+        if (context->m_RenderDocSupport)
+        {
+            GLint n;
+            glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+            if (n > 0)
+            {
+                int max_len = 0;
+                int cursor = 0;
+
+                for (GLint i = 0; i < n; i++)
+                {
+                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                    max_len += strlen((const char*)ext) + 1;
+                }
+
+                extensions_ptr = (char*) malloc(max_len);
+
+                for (GLint i = 0; i < n; i++)
+                {
+                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                    int str_len = strlen((const char*)ext);
+
+                    strcpy(extensions_ptr + cursor, ext);
+
+                    cursor += str_len;
+                    extensions_ptr[cursor] = ' ';
+
+                    cursor += 1;
+                }
+            }
+        }
+        else
+        {
+            extensions_ptr = (char*) glGetString(GL_EXTENSIONS);
+        }
+
+        const GLubyte* extensions = (const GLubyte*) extensions_ptr;
+#else
+        // Check texture format support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+#endif
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
 
@@ -722,6 +790,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 JobQueueFinalize();
             }
         }
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            if (extensions_ptr)
+            {
+                free(extensions_ptr);
+            }
+
+            GLuint vao;
+            glGenVertexArrays(1, &vao);
+            glBindVertexArray(vao);
+        }
+#endif
+
         return WINDOW_RESULT_OK;
     }
 
@@ -2207,7 +2290,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         assert(texture);
 
-#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (!context->m_RenderDocSupport)
+        {
+            glEnable(GL_TEXTURE_2D);
+            CHECK_GL_ERROR
+        }
+#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -2224,7 +2313,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
 
-#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (!context->m_RenderDocSupport)
+        {
+            glEnable(GL_TEXTURE_2D);
+            CHECK_GL_ERROR
+        }
+#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -2249,6 +2344,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     void EnableState(HContext context, State state)
     {
         assert(context);
+    #if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport && state == DMGRAPHICS_STATE_ALPHA_TEST)
+        {
+            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
+            return;
+        }
+    #endif
         glEnable(state);
         CHECK_GL_ERROR
     }
@@ -2256,6 +2358,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     void DisableState(HContext context, State state)
     {
         assert(context);
+    #if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport && state == DMGRAPHICS_STATE_ALPHA_TEST)
+        {
+            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
+            return;
+        }
+    #endif
         glDisable(state);
         CHECK_GL_ERROR
     }

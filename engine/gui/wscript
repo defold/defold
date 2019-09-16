@@ -23,7 +23,7 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_RIG'] = 'rig'

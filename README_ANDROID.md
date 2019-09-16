@@ -254,7 +254,7 @@ E.g. when an APK produces a crash, backing it up is always a good idea before yo
 ## Upgrading SDK (i.e. API LEVEL)
 
 In essence, updating the "sdk" means to update the supported api level.
-This is done by updating the `defold/packages/android-<android version>-<arch>.tar.gz` and `defold/packages/android-support-v4-<android version>-<arch>.tar.gz` etc
+This is done by updating the `defold/packages/android-<android version>-<arch>.tar.gz` etc
 
 Some relevant links:
 
@@ -288,21 +288,11 @@ Creating a new android package is straight forward:
     cp android-$APILEVEL-armv7-android.tar.gz ~/work/defold/packages
 
 
-#### Support libs?
-
-The android-support-v4.jar is apparently needed by our facebook api, and hopefully, we won't need to update that.
-
-### Facebook SDK
-
-Current SDK used is 4.7.0. It is located in `<defold>/packages/facebook/facebook-<fb-sdk-version>-armv7-android.tar.gz`. A patch to facebook's SDK is applied in order to run on Android API levels < 11. (***REMOVED***).
-
-Apply the patch by downloading the appropriate Facebook Android SDK (https://developers.facebook.com/docs/android/downloads/). Modify the source files as needed and build the sdk using the grade scripts bundled with the SDK. Copy `classes.jar` from `<fb-sdk-dir>/facebook/build/` directory to you facebook sdk package dir and rename it to `facebooksdk.jar`.
-
 ### Update build script
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-support-v4 android-23 ...".split()
+    PACKAGES_ANDROID="... android-23 ...".split()
 
 ###
 

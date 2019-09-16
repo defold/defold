@@ -2,7 +2,6 @@
 #define DM_GAMESYS_RES_SOUND_H
 
 #include <stdint.h>
-#include <string.h>
 
 #include <sound/sound.h>
 #include <resource/resource.h>
@@ -11,15 +10,14 @@ namespace dmGameSystem
 {
     struct Sound
     {
-        Sound()
-        {
-            memset(this, 0, sizeof(*this));
-        }
+        Sound();
 
+        dmhash_t            m_GroupHash;
         dmSound::HSoundData m_SoundData;
-        bool m_Looping;
-        dmhash_t m_GroupHash;
-        float    m_Gain;
+        float               m_Gain;
+        float               m_Pan;
+        float               m_Speed;
+        uint8_t             m_Looping:1;
     };
 
     dmResource::Result ResSoundPreload(const dmResource::ResourcePreloadParams& params);
