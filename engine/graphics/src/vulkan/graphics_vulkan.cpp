@@ -425,6 +425,8 @@ namespace dmGraphics
             dmLogError("Could not create main rendering resources for Vulkan, reason: %s", VkResultToStr(res));
             goto bail;
         }
+        
+        return WINDOW_RESULT_OK;
 bail:
         if (context->m_SwapChain)
             delete context->m_SwapChain;

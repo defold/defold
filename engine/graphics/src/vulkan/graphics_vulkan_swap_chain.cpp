@@ -55,6 +55,7 @@ namespace dmGraphics
         , m_Surface(surface)
         , m_QueueFamily(queueFamily)
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
+        , m_SwapChain(VK_NULL_HANDLE)
     {
     }
 
