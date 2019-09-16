@@ -59,6 +59,167 @@ namespace dmGraphics
         return "UNKNOWN_ERROR";
     }
 
+    static inline void SynchronizeDevice(const VkDevice vk_device)
+    {
+        vkDeviceWaitIdle(vk_device);
+    }
+
+    static const VkFormat GetSupportedTilingFormat(const VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
+        const uint32_t vk_num_format_candidates, const VkImageTiling vk_tiling_type, const VkFormatFeatureFlags vk_format_flags)
+    {
+        #define HAS_FLAG(v,flag) ((v & flag) == flag)
+
+        for (uint32_t i=0; i < vk_num_format_candidates; i++)
+        {
+            VkFormatProperties format_properties;
+            VkFormat formatCandidate = vk_format_candidates[i];
+
+            vkGetPhysicalDeviceFormatProperties(vk_physical_device, formatCandidate, &format_properties);
+
+            if ((vk_tiling_type == VK_IMAGE_TILING_LINEAR && HAS_FLAG(format_properties.linearTilingFeatures, vk_format_flags)) ||
+                (vk_tiling_type == VK_IMAGE_TILING_OPTIMAL && HAS_FLAG(format_properties.optimalTilingFeatures, vk_format_flags)))
+            {
+                return formatCandidate;
+            }
+        }
+
+        #undef HAS_FLAG
+
+        return VK_FORMAT_UNDEFINED;
+    }
+
+    static VkResult CreateRenderPass(RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
+    {
+        return VK_SUCCESS;
+    }
+
+    static VkResult AllocateTexture2D(const VkPhysicalDevice vk_physical_device, const VkDevice vk_device,
+        const uint32_t imageWidth, const uint32_t imageHeight,
+        const VkFormat vk_format, const VkImageTiling vk_tiling,
+        const VkImageUsageFlags vk_usage, Texture* textureOut)
+    {
+        assert(textureOut);
+        assert(textureOut->m_ImageView == VK_NULL_HANDLE);
+        assert(textureOut->m_DeviceMemory.m_Memory == VK_NULL_HANDLE && textureOut->m_DeviceMemory.m_MemorySize == 0);
+
+        VkImageFormatProperties vk_format_properties;
+
+        VkResult res = vkGetPhysicalDeviceImageFormatProperties(
+            vk_physical_device, vk_format, VK_IMAGE_TYPE_2D,
+            VK_IMAGE_TILING_OPTIMAL, vk_usage, 0, &vk_format_properties);
+
+        VkImageCreateInfo vk_image_create_info;
+        memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
+
+        vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
+        vk_image_create_info.extent.width  = imageWidth;
+        vk_image_create_info.extent.height = imageHeight;
+        vk_image_create_info.extent.depth  = 1;
+        vk_image_create_info.mipLevels     = 1; // TODO
+        vk_image_create_info.arrayLayers   = 1;
+        vk_image_create_info.format        = vk_format;
+        vk_image_create_info.tiling        = vk_tiling;
+        vk_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        vk_image_create_info.usage         = vk_usage;
+        vk_image_create_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+        vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+
+        res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkImageViewCreateInfo vk_view_create_info;
+        memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
+
+        vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        vk_view_create_info.image                           = textureOut->m_Image;
+        vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+        vk_view_create_info.format                          = vk_format;
+        vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
+        vk_view_create_info.subresourceRange.baseMipLevel   = 0;
+        vk_view_create_info.subresourceRange.levelCount     = 1;
+        vk_view_create_info.subresourceRange.baseArrayLayer = 0;
+        vk_view_create_info.subresourceRange.layerCount     = 1;
+
+        textureOut->m_Format = vk_format;
+
+        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);;
+    }
+
+    static void ResetTexture(const VkDevice vk_device, Texture* textureOut)
+    {
+        vkDestroyImageView(vk_device, textureOut->m_ImageView, 0);
+        vkDestroyImage(vk_device, textureOut->m_Image, 0);
+        vkFreeMemory(vk_device, textureOut->m_DeviceMemory.m_Memory, 0);
+        textureOut->m_ImageView             = VK_NULL_HANDLE;
+        textureOut->m_Image                 = VK_NULL_HANDLE;
+        textureOut->m_DeviceMemory.m_Memory = VK_NULL_HANDLE;
+    }
+
+    static VkResult AllocateDepthStencilTexture(const VkPhysicalDevice vk_physical_device, const VkDevice vk_device, const uint32_t width, const uint32_t height, Texture* depthStencilTextureOut)
+    {
+        // Depth formats are optional, so we need to query
+        // what available formats we have.
+        VkFormat vk_format_list_default[] = {
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM_S8_UINT,
+            VK_FORMAT_D16_UNORM
+        };
+
+        const size_t vk_format_list_size = sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
+
+        VkImageTiling vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
+        VkFormat vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_format_list_default[0],
+            vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+        if (vk_depth_format == VK_FORMAT_UNDEFINED)
+        {
+            vk_image_tiling = VK_IMAGE_TILING_LINEAR;
+            vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_format_list_default[0],
+                vk_format_list_size, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+        }
+
+        assert(vk_depth_format != VK_FORMAT_UNDEFINED);
+
+        return AllocateTexture2D(vk_physical_device, vk_device, width, height,
+            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut);
+    }
+
+    static VkResult CreateMainRenderingResources(HContext context)
+    {
+        VkResult res = AllocateDepthStencilTexture(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            context->m_SwapChain->m_ImageExtent.width, context->m_SwapChain->m_ImageExtent.height,
+            &context->m_MainTextureDepthStencil);
+        assert(res == VK_SUCCESS);
+
+        return res;
+    }
+
+    static void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
+    {
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+        // Flush all current commands
+        SynchronizeDevice(vk_device);
+        VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
+        assert(res == VK_SUCCESS);
+
+        // Reset & create main Depth/Stencil buffer
+        ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
+        res = AllocateDepthStencilTexture(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            context->m_SwapChain->m_ImageExtent.width, context->m_SwapChain->m_ImageExtent.height,
+            &context->m_MainTextureDepthStencil);
+        assert(res == VK_SUCCESS);
+
+        // Flush once again to make sure all transitions are complete
+        SynchronizeDevice(vk_device);
+    }
+
     HContext NewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
@@ -257,7 +418,13 @@ namespace dmGraphics
 
         delete[] device_list;
 
-        return WINDOW_RESULT_OK;
+        // Create framebuffers, default renderpass etc.
+        res = CreateMainRenderingResources(context);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create main rendering resources for Vulkan, reason: %s", VkResultToStr(res));
+            goto bail;
+        }
 bail:
         if (context->m_SwapChain)
             delete context->m_SwapChain;
@@ -272,13 +439,17 @@ bail:
         assert(context);
         if (context->m_WindowOpened)
         {
+            VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
             glfwCloseWindow();
+
+            ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
 
             ResetSwapChain(context->m_SwapChain);
 
             ResetPhysicalDevice(&context->m_PhysicalDevice);
 
-            vkDestroyDevice(context->m_LogicalDevice.m_Device, 0);
+            vkDestroyDevice(vk_device, 0);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
@@ -340,8 +511,8 @@ bail:
         if (context->m_WindowOpened)
         {
             uint32_t wanted_width = width;
-            uint32_t wanted_height  = height;
-            UpdateSwapChain(context->m_SwapChain, &wanted_width, &wanted_height, true, context->m_SwapChainCapabilities);
+            uint32_t wanted_height = height;
+            SwapChainChanged(context, &wanted_width, &wanted_height);
             glfwSetWindowSize((int)wanted_width, (int)wanted_height);
         }
     }
