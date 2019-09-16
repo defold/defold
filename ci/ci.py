@@ -56,18 +56,18 @@ def install():
         # call("update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30")
         # call("update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30")
         # call("update-alternatives --set c++ /usr/bin/g++")
-        aptget("clang-6.0")
+        # aptget("clang-6.0") # part of GitHub CI virtual environment
         # call("update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 1000")
         # call("update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 1000")
         # call("update-alternatives --config clang")
         # call("update-alternatives --config clang++")
         aptget("tofrodos")
-        aptget("cmake")
-        aptget("curl")
+        # aptget("cmake") # part of GitHub CI virtual environment
+        # aptget("curl") # part of GitHub CI virtual environment
         aptget("tree")
         aptget("silversearcher-ag")
         aptget("valgrind")
-    elif system == "Windows":
+    # elif system == "Windows":
         # choco("visualstudio2017-workload-vctools")
         # choco("mingw")
         # choco("mingw-get")
