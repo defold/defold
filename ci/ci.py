@@ -68,12 +68,12 @@ def install():
         aptget("silversearcher-ag")
         aptget("valgrind")
     elif system == "Windows":
-        choco("visualstudio2017-workload-vctools")
-        choco("mingw")
-        choco("mingw-get")
-        mingwget("msys-wget-bin")
-        mingwget("msys-zip")
-        mingwget("msys-unzip")
+        # choco("visualstudio2017-workload-vctools")
+        # choco("mingw")
+        # choco("mingw-get")
+        # mingwget("msys-wget-bin")
+        # mingwget("msys-zip")
+        # mingwget("msys-unzip")
 
 
 
