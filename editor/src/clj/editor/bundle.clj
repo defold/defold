@@ -1,27 +1,18 @@
 (ns editor.bundle
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as shell]
-            [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.client :as client]
-            [editor.fs :as fs]
-            [editor.fxui :as fxui]
-            [editor.login :as login]
-            [editor.ui :as ui]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
+            [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
-            [editor.engine :as engine]
-            [editor.error-reporting :as error-reporting]
-            [editor.engine.build-errors :as engine-build-errors]
-            [editor.git :as git]
             [editor.system :as system]
+            [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [clojure.lang ExceptionInfo]
-           [java.io File]
-           [java.net URL]
+  (:import [java.io File]
            [javafx.scene Parent Scene]
-           [javafx.stage Stage Modality]
+           [javafx.stage Modality Stage]
            [org.apache.commons.configuration.plist XMLPropertyListConfiguration]))
 
 (set! *warn-on-reflection* true)
@@ -34,21 +25,6 @@
         (throw (ex-info (format "Shell call failed:\n%s" args) result))))
     (catch Exception e
       (throw (ex-info (format "Shell call failed:\n%s" args) {} e)))))
-
-(defn- cr-project-id [workspace]
-  (when-let [git (git/try-open (workspace/project-path workspace))]
-    (try
-      (when-let [remote-url (git/remote-origin-url git)]
-        (when-let [^URL url (try (URL. remote-url) (catch Exception _ nil))]
-          (let [host (.getHost url)]
-            (when (or (= host "cr.defold.se") (= host "cr.defold.com"))
-              (let [path (.getPath url)]
-                (try
-                  (Long/parseLong (subs path (inc (string/last-index-of path "/"))))
-                  (catch NumberFormatException e
-                    nil)))))))
-      (finally
-        (.close git)))))
 
 (handler/defhandler ::select-provisioning-profile :dialog
   (enabled? [] true)
@@ -210,25 +186,6 @@
     (catch Exception e
       {:err e :message "Failed to create directories for bundling."})))
 
-(g/defnk upload-ipa [^File ipa cr-project-id prefs]
-  (try
-    (let [client (client/make-client prefs)]
-      (when-let [user-id (some-> client
-                           (client/user-info)
-                           (:id))]
-        (with-open [in (io/input-stream ipa)]
-          (try
-            (client/upload-engine client user-id cr-project-id "ios" in)
-            {:uploaded true}
-            (catch ExceptionInfo e
-              (let [message (if (= 403 (:status (ex-data e)))
-                              "You are not authorized to upload a signed ipa to the project dashboard."
-                              "Failed to upload a signed ipa to the project dashboard.")]
-                {:err e
-                 :message message}))))))
-    (catch Exception e
-      {:err e :message "Failed to upload a signed ipa to the project dashboard."})))
-
 (g/defnk open-ipa-directory [^File ipa-file]
   (when-let [directory (.getParentFile ipa-file)]
     (ui/open-file directory))
@@ -236,10 +193,16 @@
 
 (g/defnk noop [])
 
+(defn- ensure-directory-exists! [^File dir]
+  (or (.isDirectory dir)
+      (try
+        (.mkdirs dir)
+        (catch Exception _
+          false))))
+
 (handler/defhandler ::sign :dialog
   (enabled? [controls] (and (ui/selection (:identities controls))
-                            (.exists (io/file (ui/text (:provisioning-profile controls))))
-                            (.isDirectory (io/file (ui/text (:build-dir controls))))))
+                            (.exists (io/file (ui/text (:provisioning-profile controls))))))
   (run [workspace prefs dashboard-client ^Stage stage root controls project result]
     ;; TODO: make all of this async, with progress bar & notification when done.
     (let [settings (g/node-value project :settings)
@@ -253,22 +216,29 @@
                           "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
                          {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
                           "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
-          props {"CFBundleDisplayName" name
-                 "CFBundleExecutable" "dmengine"
-                 "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
+          props (merge orient-props
+                       {"CFBundleDisplayName" name
+                        "CFBundleExecutable" "dmengine"
+                        "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")})
           identity (get (ui/selection (:identities controls)) 0)
           identity-id (get identity 0)
-          profile (ui/text (:provisioning-profile controls))
-          cr-project-id (cr-project-id workspace)]
+          profile (ui/text (:provisioning-profile controls))]
       (prefs/set-prefs prefs "last-identity" identity)
       (prefs/set-prefs prefs "last-provisioning-profile" profile)
       (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
-      ;; if project hosted by us, make sure we're logged in first
-      (when (or (nil? cr-project-id)
-                (login/sign-in! dashboard-client :sign-ios-app))
-        (ui/disable! root true)
+      (if-not (ensure-directory-exists! (io/file ipa-dir))
+        (dialogs/make-info-dialog
+          {:title "Write Error"
+           :size :small
+           :icon :icon/triangle-error
+           :header "Failed to create output directory"
+           :content {:pref-row-count 4
+                     :wrap-text true
+                     :text (str "Something went wrong when creating a directory at '"
+                                ipa-dir
+                                "'.\n\n"
+                                "Ensure parent directories are writable and retry.")}})
         (let [initial-env {:ipa-file (io/file ipa)
-                           :cr-project-id cr-project-id
                            :project project
                            :profile profile
                            :identity-id identity-id
@@ -285,18 +255,8 @@
                           assemble-ios-app
                           sign-ios-app
                           package-ipa
-                          ;; only upload if hosted by us
-                          (if cr-project-id upload-ipa open-ipa-directory)
-                          (if cr-project-id
-                            (g/fnk []
-                              (dialogs/make-info-dialog
-                                {:title "Upload Successful"
-                                 :icon :icon/circle-check
-                                 :header "Upload successful"
-                                 :content {:fx/type fxui/label
-                                           :style-class "dialog-content-padding"
-                                           :text "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."}}))
-                            noop)]]
+                          open-ipa-directory]]
+          (ui/disable! root true)
           (loop [steps sign-steps
                  env initial-env]
             (when-let [step (first steps)]

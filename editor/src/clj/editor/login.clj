@@ -484,7 +484,6 @@
   (case sign-in-intent
     :access-projects "You need to sign in to access your\nprojects in the Defold cloud."
     :fetch-libraries "You need to sign in to fetch libraries\nthat are hosted in the Defold cloud."
-    :sign-ios-app    "You need to sign in to upload the\nsigned app to the Defold cloud."
     :synchronize     "You need to sign in to synchronize\nyour project with the Defold cloud."))
 
 (defn- show-login-fields! [sign-in-state-property]
