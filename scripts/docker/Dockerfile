@@ -79,8 +79,3 @@ RUN  useradd -r -u 2222 builder && \
 USER builder
 WORKDIR /home/builder
 RUN mkdir -p /home/builder
-
-USER root
-RUN /bin/bash -c echo "echo \"HELLO THERE!\"" > /home/builder/.bashrc
-
-USER builder
