@@ -57,11 +57,18 @@
 (g/defnk grid-renderable
   [camera grid]
   (when grid
-    {pass/transparent
-     [{:world-transform  geom/Identity4d
-       :render-fn        render-grid
+    {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
+     [{:world-transform geom/Identity4d
+       :tags #{:grid}
+       :render-fn render-grid
        :user-render-data {:camera camera
-                          :grid   grid}}]}))
+                          :grid grid}}]
+     pass/transparent ; Grid lines potentially intersecting scene geometry.
+     [{:world-transform geom/Identity4d
+       :tags #{:grid}
+       :render-fn render-grid
+       :user-render-data {:camera camera
+                          :grid grid}}]}))
 
 (defn frustum-plane-projection
   [^Vector4d plane1 ^Vector4d plane2]
