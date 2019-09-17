@@ -539,9 +539,16 @@ namespace dmPhysics
 
     void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
+
         b2Body* body = (b2Body*) collision_object;
-        b2GridShape* grid_shape = GetGridShape(body, shape_index);
+        b2Fixture* fixture = GetFixture(body, shape_index);
+        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
         grid_shape->m_enabled = enable;
+
+        if (!enable)
+        {
+            body->PurgeContacts(fixture);
+        }
     }
 
     void SetCollisionObjectFilter(HCollisionObject2D collision_shape,
