@@ -295,11 +295,31 @@
                     :label "Count"
                     :type :integer
                     :default 3}
-                   {:path [:float-data]
-                    :label "Float Data"
+                   {:path [:f]
+                    :label "Float"
                     :type :list
                     :element {:type :number
-                              :default 0.0}}]}]}]}))
+                              :default 0.0}}
+                   {:path [:i]
+                    :label "Int"
+                    :type :list
+                    :element {:type :integer
+                              :default 0}}
+                   {:path [:ui]
+                    :label "UInt"
+                    :type :list
+                    :element {:type :integer
+                              :default 0}}
+                   {:path [:i64]
+                    :label "Int64"
+                    :type :list
+                    :element {:type :integer
+                              :default 0}}
+                   {:path [:ui64]
+                    :label "UInt64"
+                    :type :list
+                    :element {:type :integer
+                              :default 0}}]}]}]}))
 
 (defn produce-form-data
   ([node-id pb def]

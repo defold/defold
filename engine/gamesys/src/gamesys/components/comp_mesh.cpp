@@ -57,9 +57,6 @@ namespace dmGameSystem
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
 
     static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
-    static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
-        dmHashString64("texture0"), dmHashString64("texture1"), dmHashString64("texture2"), dmHashString64("texture3"), dmHashString64("texture4"), dmHashString64("texture5"), dmHashString64("texture6"), dmHashString64("texture7"), dmHashString64("texture8"), dmHashString64("texture9"), dmHashString64("texture10"), dmHashString64("texture11"), dmHashString64("texture12"), dmHashString64("texture13"), dmHashString64("texture14"), dmHashString64("texture15"), dmHashString64("texture16"), dmHashString64("texture17"), dmHashString64("texture18"), dmHashString64("texture19"), dmHashString64("texture20"), dmHashString64("texture21"), dmHashString64("texture22"), dmHashString64("texture23"), dmHashString64("texture24"), dmHashString64("texture25"), dmHashString64("texture26"), dmHashString64("texture27"), dmHashString64("texture28"), dmHashString64("texture29"), dmHashString64("texture30"), dmHashString64("texture31")
-    };
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     // static void DestroyComponent(ModelWorld* world, uint32_t index);
@@ -463,6 +460,11 @@ namespace dmGameSystem
         // (void)OnResourceReloaded(world, component, index);
     }
 
+    // static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
+    //     assert(index < MAX_TEXTURE_COUNT);
+    //     return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
+    // }
+
     dmGameObject::PropertyResult CompMeshGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
@@ -476,14 +478,13 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 
-        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (params.m_PropertyId == PROP_TEXTURE[i]) {
-                // FIXME(andsve)
-                // out_value.m_Variant = dmGameObject::PropertyVar(component->m_Resource->m_TexturePaths[i]);
-                return dmGameObject::PROPERTY_RESULT_OK;
-            }
-        }
+        // for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        // {
+        //     if (params.m_PropertyId == PROP_TEXTURE[i])
+        //     {
+        //         return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
+        //     }
+        // }
 
         // return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompMeshGetConstantCallback, component);
         return dmGameObject::PropertyResult::PROPERTY_RESULT_NOT_FOUND;

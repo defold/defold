@@ -29,6 +29,67 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    static uint32_t GetValueCount(const dmBufferDDF::StreamDesc& ddf_stream)
+    {
+        switch (ddf_stream.m_ValueType)
+        {
+            case dmBufferDDF::VALUE_TYPE_UINT8:
+            case dmBufferDDF::VALUE_TYPE_UINT16:
+            case dmBufferDDF::VALUE_TYPE_UINT32:
+                return ddf_stream.m_Ui.m_Count;
+
+            case dmBufferDDF::VALUE_TYPE_UINT64:
+                return ddf_stream.m_Ui64.m_Count;
+
+            case dmBufferDDF::VALUE_TYPE_INT8:
+            case dmBufferDDF::VALUE_TYPE_INT16:
+            case dmBufferDDF::VALUE_TYPE_INT32:
+                return ddf_stream.m_I.m_Count;
+
+            case dmBufferDDF::VALUE_TYPE_INT64:
+                return ddf_stream.m_I64.m_Count;
+
+            case dmBufferDDF::VALUE_TYPE_FLOAT32:
+                return ddf_stream.m_F.m_Count;
+
+            default:
+                assert(false && "Unknown value type of stream, cannot get value count.");
+                return 0;
+        }
+    }
+
+#define MAKE_STREAM_BUILDER(F_NAME, C_DATA_TYPE, C_DEFAULT, DDF_FIELD) \
+    static void Build##F_NAME##Stream(void* out_data, const uint32_t count, uint32_t components, uint32_t stride, const dmBufferDDF::StreamDesc& ddf_stream) \
+    { \
+        C_DATA_TYPE* out_data_typed = (C_DATA_TYPE*)out_data; \
+        for (int i = 0; i < count; ++i) \
+        { \
+            for (int c = 0; c < components; ++c) \
+            { \
+                uint64_t data_i = i*components + c; \
+                if (data_i < ddf_stream.DDF_FIELD.m_Count) { \
+                    out_data_typed[c] = ddf_stream.DDF_FIELD.m_Data[data_i]; \
+                } else { \
+                    out_data_typed[c] = C_DEFAULT; \
+                    dmLogError("Trying to get stream data outside of input DDF array."); \
+                } \
+            } \
+            out_data_typed += stride; \
+        } \
+    }
+
+    MAKE_STREAM_BUILDER(UINT8, uint8_t, 0, m_Ui)
+    MAKE_STREAM_BUILDER(UINT16, uint16_t, 0, m_Ui)
+    MAKE_STREAM_BUILDER(UINT32, uint32_t, 0, m_Ui)
+    MAKE_STREAM_BUILDER(UINT64, uint64_t, 0, m_Ui)
+    MAKE_STREAM_BUILDER(INT8, int8_t, 0, m_I)
+    MAKE_STREAM_BUILDER(INT16, int16_t, 0, m_I)
+    MAKE_STREAM_BUILDER(INT32, int32_t, 0, m_I)
+    MAKE_STREAM_BUILDER(INT64, int64_t, 0, m_I)
+    MAKE_STREAM_BUILDER(FLOAT32, float, 0.0f, m_F)
+
+#undef MAKE_STREAM_BUILDER
+
     static bool BuildBuffer(BufferResource* buffer_resource)
     {
         // const dmBuffer::StreamDeclaration streams_decl[] = {
@@ -60,7 +121,8 @@ namespace dmGameSystem
             assert(streams_decl[i].m_Count > 0);
 
             // TODO: Look at the correct typed buffer array instead of always float.
-            uint64_t elem_count = ddf_stream.m_FloatData.m_Count / streams_decl[i].m_Count;
+            // uint64_t elem_count = ddf_stream.m_F.m_Count / streams_decl[i].m_Count;
+            uint64_t elem_count = GetValueCount(ddf_stream) / streams_decl[i].m_Count;
             if (elem_count > max_elem) {
                 max_elem = elem_count;
             }
@@ -81,29 +143,66 @@ namespace dmGameSystem
             dmBuffer::StreamDeclaration& stream_decl = streams_decl[s];
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[s];
 
-            float* positions = 0x0;
+            void* data = 0x0;
             uint32_t count = 0;
             uint32_t components = 0;
             uint32_t stride = 0;
 
-            dmBuffer::Result r = dmBuffer::GetStream(buffer_resource->m_Buffer, stream_decl.m_Name, (void**)&positions, &count, &components, &stride);
+            dmBuffer::Result r = dmBuffer::GetStream(buffer_resource->m_Buffer, stream_decl.m_Name, &data, &count, &components, &stride);
 
             if (r == dmBuffer::RESULT_OK)
             {
-                for (int i = 0; i < count; ++i)
+                switch (ddf_stream.m_ValueType)
                 {
-                    for (int c = 0; c < components; ++c)
-                    {
-                        uint64_t data_i = i*components + c;
-                        if (data_i < ddf_stream.m_FloatData.m_Count) {
-                            positions[c] = ddf_stream.m_FloatData.m_Data[data_i];
-                        } else {
-                            positions[c] = 0.0f;
-                            dmLogError("Trying to get stream data outside of input DDF array.");
-                        }
-                    }
-                    positions += stride;
+                    case dmBufferDDF::VALUE_TYPE_UINT8:
+                        BuildUINT8Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_UINT16:
+                        BuildUINT16Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_UINT32:
+                        BuildUINT32Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_UINT64:
+                        BuildUINT64Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_INT8:
+                        BuildINT8Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_INT16:
+                        BuildINT16Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_INT32:
+                        BuildINT32Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_INT64:
+                        BuildINT64Stream(data, count, components, stride, ddf_stream);
+                        break;
+                    case dmBufferDDF::VALUE_TYPE_FLOAT32:
+                        BuildFLOAT32Stream(data, count, components, stride, ddf_stream);
+                        break;
+
+                    default:
+                        assert(false && "Could not build stream data of unknown type.");
+                        break;
                 }
+
+                    // float* out_float = (float*)data;
+                    // for (int i = 0; i < count; ++i)
+                    // {
+                    //     for (int c = 0; c < components; ++c)
+                    //     {
+                    //         uint64_t data_i = i*components + c;
+                    //         if (data_i < ddf_stream.m_F.m_Count) {
+                    //             out_float[c] = ddf_stream.m_F.m_Data[data_i];
+                    //         } else {
+                    //             out_float[c] = 0.0f;
+                    //             dmLogError("Trying to get stream data outside of input DDF array.");
+                    //         }
+                    //     }
+                    //     out_float += stride;
+                    // }
+
             } else {
                 // TODO Handle error
                 assert(false && "WTF");

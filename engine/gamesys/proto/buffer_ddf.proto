@@ -26,11 +26,11 @@ message StreamDesc
     required ValueType value_type = 2;
     required uint32 value_count = 3;
     /*optional bytes data = 4;*/
-    repeated uint32 uint32_data = 4;
-    repeated int32  int32_data  = 5;
-    repeated uint64 uint64_data = 6;
-    repeated int64  int64_data  = 7;
-    repeated float  float_data  = 8;
+    repeated uint32 ui   = 4;
+    repeated int32  i    = 5;
+    repeated uint64 ui64 = 6;
+    repeated int64  i64  = 7;
+    repeated float  f    = 8;
 }
 
 message BufferDesc
