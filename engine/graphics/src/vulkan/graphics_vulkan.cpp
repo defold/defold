@@ -1074,7 +1074,7 @@ bail:
 
     uint32_t GetMaxTextureSize(HContext context)
     {
-        return 0;
+        return context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;;
     }
 
     uint32_t GetTextureStatusFlags(HTexture texture)
