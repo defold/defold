@@ -59,12 +59,12 @@ namespace dmGraphics
         return "UNKNOWN_ERROR";
     }
 
-    static inline void SynchronizeDevice(const VkDevice vk_device)
+    static inline void SynchronizeDevice(VkDevice vk_device)
     {
         vkDeviceWaitIdle(vk_device);
     }
 
-    static VkResult CreateCommandBuffers(const VkDevice vk_device, const uint32_t numBuffersToCreate, const VkCommandPool vk_command_pool, VkCommandBuffer* vk_command_buffers_out)
+    static VkResult CreateCommandBuffers(VkDevice vk_device, uint32_t numBuffersToCreate, VkCommandPool vk_command_pool, VkCommandBuffer* vk_command_buffers_out)
     {
         VkCommandBufferAllocateInfo vk_buffers_allocate_info;
         memset(&vk_buffers_allocate_info, 0, sizeof(VkCommandBufferAllocateInfo));
@@ -80,11 +80,9 @@ namespace dmGraphics
     // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
     // Optimal is always sought after since it should be the most performant (depending on hardware),
     // but is not always supported.
-    static const VkFormat GetSupportedTilingFormat(const VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
-        const uint32_t vk_num_format_candidates, const VkImageTiling vk_tiling_type, const VkFormatFeatureFlags vk_format_flags)
+    static const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
+        uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags)
     {
-        #define HAS_FLAG(v,flag) ((v & flag) == flag)
-
         for (uint32_t i=0; i < vk_num_format_candidates; i++)
         {
             VkFormatProperties format_properties;
@@ -92,20 +90,18 @@ namespace dmGraphics
 
             vkGetPhysicalDeviceFormatProperties(vk_physical_device, formatCandidate, &format_properties);
 
-            if ((vk_tiling_type == VK_IMAGE_TILING_LINEAR && HAS_FLAG(format_properties.linearTilingFeatures, vk_format_flags)) ||
-                (vk_tiling_type == VK_IMAGE_TILING_OPTIMAL && HAS_FLAG(format_properties.optimalTilingFeatures, vk_format_flags)))
+            if ((vk_tiling_type == VK_IMAGE_TILING_LINEAR && (format_properties.linearTilingFeatures & vk_format_flags)) ||
+                (vk_tiling_type == VK_IMAGE_TILING_OPTIMAL && (format_properties.optimalTilingFeatures & vk_format_flags)))
             {
                 return formatCandidate;
             }
         }
 
-        #undef HAS_FLAG
-
         return VK_FORMAT_UNDEFINED;
     }
 
-    static VkResult TransitionImageLayout(const VkDevice vk_device, const VkCommandPool vk_command_pool, const VkQueue vk_graphics_queue, const VkImage vk_image,
-        const VkImageAspectFlags vk_image_aspect, const VkImageLayout vk_from_layout, const VkImageLayout vk_to_layout)
+    static VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout)
     {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
@@ -196,10 +192,10 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static VkResult AllocateTexture2D(const VkPhysicalDevice vk_physical_device, const VkDevice vk_device,
-        const uint32_t imageWidth, const uint32_t imageHeight, const uint16_t imageMips,
-        const VkFormat vk_format, const VkImageTiling vk_tiling,
-        const VkImageUsageFlags vk_usage, Texture* textureOut)
+    static VkResult AllocateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
+        VkFormat vk_format, VkImageTiling vk_tiling,
+        VkImageUsageFlags vk_usage, Texture* textureOut)
     {
         assert(textureOut);
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
@@ -258,7 +254,7 @@ namespace dmGraphics
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);;
     }
 
-    static void ResetTexture(const VkDevice vk_device, Texture* textureOut)
+    static void ResetTexture(VkDevice vk_device, Texture* textureOut)
     {
         vkDestroyImageView(vk_device, textureOut->m_ImageView, 0);
         vkDestroyImage(vk_device, textureOut->m_Image, 0);
@@ -268,7 +264,7 @@ namespace dmGraphics
         textureOut->m_DeviceMemory.m_Memory = VK_NULL_HANDLE;
     }
 
-    static VkResult AllocateDepthStencilTexture(HContext context, const uint32_t width, const uint32_t height, Texture* depthStencilTextureOut)
+    static VkResult AllocateDepthStencilTexture(HContext context, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
     {
         // Depth formats are optional, so we need to query
         // what available formats we have.
@@ -317,7 +313,7 @@ namespace dmGraphics
         return res;
     }
 
-    static VkResult CreateRenderPass(const VkDevice vk_device, RenderPassAttachment* colorAttachments, const uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
+    static VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
 
