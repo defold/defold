@@ -6,9 +6,20 @@
 
 namespace dmGraphics
 {
+    struct DeviceMemory
+    {
+        VkDeviceMemory m_Memory;
+        size_t         m_MemorySize;
+    };
+
     struct Texture
     {
-        uint32_t dummy;
+        VkImage      m_Image;
+        VkImageView  m_ImageView;
+        VkFormat     m_Format;
+        DeviceMemory m_DeviceMemory;
+        uint16_t     m_Width;
+        uint16_t     m_Height;
     };
 
     struct VertexDeclaration
@@ -19,6 +30,12 @@ namespace dmGraphics
     struct RenderTarget
     {
         uint32_t dummy;
+    };
+
+    struct RenderPassAttachment
+    {
+        VkFormat      m_Format;
+        VkImageLayout m_ImageLayout;
     };
 
     struct QueueFamily
@@ -89,10 +106,15 @@ namespace dmGraphics
     {
         SwapChain*            m_SwapChain;
         SwapChainCapabilities m_SwapChainCapabilities;
-        VkInstance            m_Instance;
-        VkSurfaceKHR          m_WindowSurface;
         PhysicalDevice        m_PhysicalDevice;
         LogicalDevice         m_LogicalDevice;
+        VkInstance            m_Instance;
+        VkSurfaceKHR          m_WindowSurface;
+
+        // Main device rendering constructs
+        VkCommandPool         m_MainCommandPool;
+        VkRenderPass          m_MainRenderPass;
+        Texture               m_MainTextureDepthStencil;
         uint32_t              m_WindowOpened : 1;
         uint32_t              : 31;
     };
