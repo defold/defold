@@ -88,13 +88,8 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
-    static VkResult CreateRenderPass(RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
-    {
-        return VK_SUCCESS;
-    }
-
     static VkResult AllocateTexture2D(const VkPhysicalDevice vk_physical_device, const VkDevice vk_device,
-        const uint32_t imageWidth, const uint32_t imageHeight,
+        const uint32_t imageWidth, const uint32_t imageHeight, const uint16_t imageMips,
         const VkFormat vk_format, const VkImageTiling vk_tiling,
         const VkImageUsageFlags vk_usage, Texture* textureOut)
     {
@@ -116,7 +111,7 @@ namespace dmGraphics
         vk_image_create_info.extent.width  = imageWidth;
         vk_image_create_info.extent.height = imageHeight;
         vk_image_create_info.extent.depth  = 1;
-        vk_image_create_info.mipLevels     = 1; // TODO
+        vk_image_create_info.mipLevels     = imageMips;
         vk_image_create_info.arrayLayers   = 1;
         vk_image_create_info.format        = vk_format;
         vk_image_create_info.tiling        = vk_tiling;
@@ -187,8 +182,13 @@ namespace dmGraphics
 
         assert(vk_depth_format != VK_FORMAT_UNDEFINED);
 
-        return AllocateTexture2D(vk_physical_device, vk_device, width, height,
+        return AllocateTexture2D(vk_physical_device, vk_device, width, height, 1,
             vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut);
+    }
+
+    static VkResult CreateRenderPass(RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
+    {
+        return VK_SUCCESS;
     }
 
     static VkResult CreateMainRenderingResources(HContext context)
@@ -196,7 +196,6 @@ namespace dmGraphics
         VkResult res = AllocateDepthStencilTexture(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             context->m_SwapChain->m_ImageExtent.width, context->m_SwapChain->m_ImageExtent.height,
             &context->m_MainTextureDepthStencil);
-        assert(res == VK_SUCCESS);
 
         return res;
     }
@@ -425,7 +424,7 @@ namespace dmGraphics
             dmLogError("Could not create main rendering resources for Vulkan, reason: %s", VkResultToStr(res));
             goto bail;
         }
-        
+
         return WINDOW_RESULT_OK;
 bail:
         if (context->m_SwapChain)
