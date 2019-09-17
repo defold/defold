@@ -112,7 +112,7 @@ namespace dmGameSystem
 
 /*# [type:vector3] label size
  *
- * Returns the size of the label. The size will constrain the text if line break is enabled
+ * Returns the size of the label. The size will constrain the text if line break is enabled.
  * The type of the property is vector3.
  *
  * @name size
@@ -133,6 +133,45 @@ namespace dmGameSystem
  * ```
  */
 
+/*# [type:hash] label material
+ *
+ * The material used when rendering the label. The type of the property is hash.
+ *
+ * @name material
+ * @property
+ *
+ * @examples
+ *
+ * How to set material using a script property (see [ref:resource.material])
+ *
+ * ```lua
+ * go.property("my_material", resource.material("/material.material"))
+ *
+ * function init(self)
+ *   go.set("#label", "material", self.my_material)
+ * end
+ * ```
+ */
+
+/*# [type:hash] label font
+ *
+ * The font used when rendering the label. The type of the property is hash.
+ *
+ * @name font
+ * @property
+ *
+ * @examples
+ *
+ * How to set font using a script property (see [ref:resource.font])
+ *
+ * ```lua
+ * go.property("my_font", resource.font("/font.font"))
+ *
+ * function init(self)
+ *   go.set("#label", "font", self.my_font)
+ * end
+ * ```
+ */
 
 /*# set the text for a label
  *

@@ -240,29 +240,10 @@
             (update :nodes-added (partial filterv #(not= node-id %)))))
       ctx)))
 
-(def ^:private reduce-conj (partial reduce conj))
-
-(defn- cascade-delete-sources
-  [basis node-id]
-  (if-let [node (gt/node-by-id-at basis node-id)]
-    (let [override-id (gt/override-id node)]
-      (loop [inputs (some-> node
-                            (gt/node-type basis)
-                            in/cascade-deletes)
-             result (vec (ig/get-overrides basis node-id))]
-        (if-let [input (first inputs)]
-          (let [explicit (map first (ig/explicit-sources basis node-id input))
-                implicit (filter (fn [node-id] (when-let [node (gt/node-by-id-at basis node-id)]
-                                                 (= override-id (gt/override-id node))))
-                                 (map first (gt/sources basis node-id input)))]
-            (recur (rest inputs) (-> result (reduce-conj explicit) (reduce-conj implicit))))
-          result)))
-    []))
-
 (defn- ctx-delete-node [ctx node-id]
   (when *tx-debug*
     (println (txerrstr ctx "deleting " node-id)))
-  (let [to-delete (ig/pre-traverse (:basis ctx) [node-id] cascade-delete-sources)]
+  (let [to-delete (ig/pre-traverse (:basis ctx) [node-id] ig/cascade-delete-sources)]
     (when (and *tx-debug* (not (empty? to-delete)))
       (println (txerrstr ctx "cascading delete of " (pr-str to-delete))))
     (reduce delete-single ctx to-delete)))

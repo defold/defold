@@ -2737,6 +2737,11 @@ namespace dmGameObject
             return 0x0;
     }
 
+    dmResource::HFactory GetFactory(HInstance instance)
+    {
+        return instance->m_Collection->m_Factory;
+    }
+
     HRegister GetRegister(HCollection hcollection)
     {
         if (hcollection && hcollection->m_Collection)

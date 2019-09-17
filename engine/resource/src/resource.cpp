@@ -942,6 +942,7 @@ Result RegisterType(HFactory factory,
         return RESULT_ALREADY_REGISTERED;
 
     SResourceType resource_type;
+    resource_type.m_ExtensionHash = dmHashString64(extension);
     resource_type.m_Extension = extension;
     resource_type.m_Context = context;
     resource_type.m_PreloadFunction = preload_function;
@@ -1728,6 +1729,31 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
     }
 }
 
+Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor)
+{
+    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(hashed_name);
+    if (!tmp_descriptor) {
+        return RESULT_NOT_LOADED;
+    }
+
+    SResourceType* type = (SResourceType*) tmp_descriptor->m_ResourceType;
+    bool ext_match = ext_count == 0;
+    if (!ext_match) {
+        for (uint32_t i = 0; i < ext_count; ++i) {
+            if (type->m_ExtensionHash == exts[i]) {
+                ext_match = true;
+                break;
+            }
+        }
+    }
+    if (ext_match) {
+        *descriptor = *tmp_descriptor;
+        return RESULT_OK;
+    } else {
+        return RESULT_INVALID_FILE_EXTENSION;
+    }
+}
+
 void IncRef(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
@@ -1837,7 +1863,6 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
 }
-
 
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
 {

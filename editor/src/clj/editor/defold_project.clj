@@ -22,7 +22,6 @@
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.placeholder-resource :as placeholder-resource]
-            [editor.properties :as properties]
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
@@ -263,7 +262,7 @@
                                            :as opts}]
   (render-progress! (progress/make "Writing files..."))
   (if (g/error? save-data)
-    (throw (Exception. ^String (properties/error-message save-data)))
+    (throw (Exception. ^String (g/error-message save-data)))
     (do
       (progress/progress-mapv
         (fn [{:keys [resource content value node-id]} _]
@@ -460,7 +459,15 @@
 
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
-    (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+    (let [collected-properties-by-resource
+          (g/with-auto-evaluation-context evaluation-context
+            (into {}
+                  (map (fn [[resource old-node-id]]
+                         [resource
+                          (g/collect-overridden-properties old-node-id evaluation-context)]))
+                  (:transfer-overrides plan)))
+
+          old-nodes-by-path (g/node-value project :nodes-by-resource-path)
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
@@ -474,7 +481,7 @@
                                                     [(resource/proj-path resource) resource-node]))
                                                 new-nodes))
           resource->new-node (comp resource-path->new-node resource/proj-path)
-          ;; when transfering overrides and arcs, the target is either a newly created or already (still!)
+          ;; when transferring overrides and arcs, the target is either a newly created or already (still!)
           ;; existing node.
           resource->node (fn [resource]
                            (or (resource->new-node resource)
@@ -526,6 +533,18 @@
                                   (map (fn [[output _]] [node output]) (gu/explicit-outputs node)))
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
+
+      ;; restore overridden properties.
+      (let [restore-properties-tx-data
+            (g/with-auto-evaluation-context evaluation-context
+              (into []
+                    (mapcat (fn [[resource collected-properties]]
+                              (when-some [new-node-id (resource->new-node resource)]
+                                (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
+                    collected-properties-by-resource))]
+        (when (seq restore-properties-tx-data)
+          (g/transact
+            restore-properties-tx-data)))
 
       (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))
             dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]

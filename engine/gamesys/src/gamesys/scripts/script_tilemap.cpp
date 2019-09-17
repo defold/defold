@@ -30,6 +30,44 @@ namespace dmGameSystem
      * @namespace tilemap
      */
 
+    /*# [type:hash] tile source
+     *
+     * The tile source used when rendering the tile map. The type of the property is hash.
+     *
+     * @name tile_source
+     * @property
+     *
+     * @examples
+     *
+     * How to set tile source using a script property (see [ref:resource.tile_source])
+     *
+     * ```lua
+     * go.property("my_tile_source", resource.tile_source("/tilesource.tilesource"))
+     * function init(self)
+     *   go.set("#tilemap", "tile_source", self.my_tile_source)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] tile map material
+     *
+     * The material used when rendering the tile map. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     * function init(self)
+     *   go.set("#tilemap", "material", self.my_material)
+     * end
+     * ```
+     */
+
     /*# set a shader constant for a tile map
      * Sets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.
