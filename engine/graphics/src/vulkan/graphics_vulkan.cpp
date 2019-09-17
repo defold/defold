@@ -246,7 +246,7 @@ namespace dmGraphics
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain    = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
+        context->m_SwapChain = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
 
         res = UpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
         if (res != VK_SUCCESS)
@@ -335,7 +335,16 @@ bail:
     {}
 
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
-    {}
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            uint32_t wanted_width = width;
+            uint32_t wanted_height  = height;
+            UpdateSwapChain(context->m_SwapChain, &wanted_width, &wanted_height, true, context->m_SwapChainCapabilities);
+            glfwSetWindowSize((int)wanted_width, (int)wanted_height);
+        }
+    }
 
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {}
