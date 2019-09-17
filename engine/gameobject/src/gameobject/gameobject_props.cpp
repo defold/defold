@@ -86,6 +86,35 @@ namespace dmGameObject
         return PROPERTY_RESULT_NOT_FOUND;
     }
 
+    dmResource::Result LoadPropertyResources(dmResource::HFactory factory, const char** resource_paths, uint32_t resource_path_count, dmArray<void*>& out_resources)
+    {
+        assert(out_resources.Size() == 0);
+        out_resources.SetCapacity(resource_path_count);
+        for(uint32_t i = 0; i < resource_path_count; ++i)
+        {
+            void* resource;
+            dmResource::Result res = dmResource::Get(factory, resource_paths[i], &resource);
+            if(res != dmResource::RESULT_OK)
+            {
+                dmLogError("Could not load property resource '%s' (%d)", resource_paths[i], res);
+                UnloadPropertyResources(factory, out_resources);
+                return res;
+            }
+            out_resources.Push(resource);
+        }
+        return dmResource::RESULT_OK;
+    }
+
+    void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& resources)
+    {
+        for(uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            dmResource::Release(factory, resources[i]);
+        }
+        resources.SetSize(0);
+        resources.SetCapacity(0);
+    }
+
     enum PropertyContainerType
     {
         PROPERTY_CONTAINER_TYPE_NUMBER = 0,
@@ -505,5 +534,4 @@ namespace dmGameObject
         }
         DestroyPropertyContainer((HPropertyContainer)user_data);
     }
-
 }

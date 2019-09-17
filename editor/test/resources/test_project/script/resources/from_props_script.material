@@ -1,0 +1,3 @@
+name: "from_props_script"
+vertex_program: "/builtins/materials/sprite.vp"
+fragment_program: "/builtins/materials/sprite.fp"

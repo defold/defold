@@ -59,9 +59,10 @@ namespace dmResource
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
         RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
         RESULT_PENDING                   = -17,  //!< RESULT_PENDING
-        RESULT_VERSION_MISMATCH          = -18,  //!< RESULT_VERSION_MISMATCH
-        RESULT_SIGNATURE_MISMATCH        = -19,  //!< RESULT_SIGNATURE_MISMATCH
-        RESULT_UNKNOWN_ERROR             = -20,  //!< RESULT_UNKNOWN_ERROR
+        RESULT_INVALID_FILE_EXTENSION    = -18,  //!< RESULT_INVALID_FILE_EXTENSION
+        RESULT_VERSION_MISMATCH          = -19,  //!< RESULT_VERSION_MISMATCH
+        RESULT_SIGNATURE_MISMATCH        = -20,  //!< RESULT_SIGNATURE_MISMATCH
+        RESULT_UNKNOWN_ERROR             = -21,  //!< RESULT_UNKNOWN_ERROR
     };
 
     /**
@@ -90,13 +91,6 @@ namespace dmResource
     {
         /// Hash of resource name
         uint64_t m_NameHash;
-
-        /// Union of DDF descriptor and resource name
-        union
-        {
-            dmDDF::Descriptor* m_Descriptor;
-            const char*        m_ResourceTypeName;
-        };
 
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
@@ -479,6 +473,17 @@ namespace dmResource
     Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
     /**
+     * Get resource descriptor from resource (hash) with supplied extensions
+     * @param factory Factory handle
+     * @param hashed_name Resource name hash
+     * @param exts Allowed extension hashes
+     * @param ext_count Count of exts
+     * @param descriptor pointer to write result to in case of RESULT_OK
+     * @return RESULT_OK on success
+     */
+    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
+
+    /**
      * Increase resource reference count
      * @param factory Factory handle
      * @param resource Resource
@@ -597,9 +602,11 @@ namespace dmResource
 
 
     /**
-     * Returns the hashed name of a resource
+     * Returns the canonical path hash of a resource
      * @param factory Factory handle
      * @param resource Resource
+     * @param hash Returned hash
+     * @return RESULT_OK on success
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
 

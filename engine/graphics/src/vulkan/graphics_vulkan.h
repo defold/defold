@@ -73,6 +73,7 @@ namespace dmGraphics
     struct SwapChain
     {
         dmArray<VkImage>     m_Images;
+        dmArray<VkImageView> m_ImageViews;
         const LogicalDevice* m_LogicalDevice;
         const VkSurfaceKHR   m_Surface;
         const QueueFamily    m_QueueFamily;

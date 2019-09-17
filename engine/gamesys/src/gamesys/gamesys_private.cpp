@@ -2,6 +2,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include "gamesys_private.h"
+#include "components/comp_private.h"
 
 namespace dmGameSystem
 {
@@ -139,4 +140,5 @@ namespace dmGameSystem
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
+
 }

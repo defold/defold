@@ -2,7 +2,7 @@
 
 import sys, os
 
-import Task, TaskGen
+import Task, TaskGen, Options
 from TaskGen import extension, declare_extension
 
 sys.path.insert(0, "src")
@@ -92,5 +92,5 @@ def build(bld):
     test_task_gen.find_sources_in_dirs('. ' + ' '.join(dirs), exts)
     test_task_gen.install_path = None
 
-    if not bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'arm64-android', 'x86_64-ios'):
+    if not bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'arm64-android', 'x86_64-ios') and not Options.options.with_vulkan:
         bld.add_subdirs('fontview')

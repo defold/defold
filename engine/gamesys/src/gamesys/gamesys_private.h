@@ -14,12 +14,37 @@ namespace dmScript
 
 namespace dmGameSystem
 {
-#define SPINE_MODEL_EXT "spinemodelc"
-#define MODEL_EXT "modelc"
-#define TILE_MAP_EXT "tilemapc"
-#define FACTORY_EXT "factoryc"
-#define COLLECTION_FACTORY_EXT "collectionfactoryc"
-#define COLLISION_OBJECT_EXT "collisionobjectc"
+#define EXT_CONSTANTS(prefix, ext)\
+    static const char* prefix##_EXT = ext;\
+    static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
+
+    EXT_CONSTANTS(COLLECTION_FACTORY, "collectionfactoryc")
+    EXT_CONSTANTS(COLLISION_OBJECT, "collisionobjectc")
+    EXT_CONSTANTS(FACTORY, "factoryc")
+    EXT_CONSTANTS(FONT, "fontc")
+    EXT_CONSTANTS(MATERIAL, "materialc")
+    EXT_CONSTANTS(MODEL, "modelc")
+    EXT_CONSTANTS(SPINE_MODEL, "spinemodelc")
+    EXT_CONSTANTS(TEXTURE, "texturec")
+    EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
+    EXT_CONSTANTS(TILE_MAP, "tilemapc")
+
+#undef EXT_CONSTANTS
+
+    static const dmhash_t PROP_FONT = dmHashString64("font");
+    static const dmhash_t PROP_IMAGE = dmHashString64("image");
+    static const dmhash_t PROP_MATERIAL = dmHashString64("material");
+    static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
+        dmHashString64("texture0"),
+        dmHashString64("texture1"),
+        dmHashString64("texture2"),
+        dmHashString64("texture3"),
+        dmHashString64("texture4"),
+        dmHashString64("texture5"),
+        dmHashString64("texture6"),
+        dmHashString64("texture7")
+    };
+    static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
     struct EmitterStateChangedScriptData
     {
@@ -66,7 +91,6 @@ namespace dmGameSystem
      * Helper function to set material constants of components that use them: sprite, label, tile maps, spine and models
      */
     dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
-
 
 }
 

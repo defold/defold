@@ -2296,7 +2296,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glEnable(GL_TEXTURE_2D);
             CHECK_GL_ERROR
         }
-#else
+#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -2319,7 +2319,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glEnable(GL_TEXTURE_2D);
             CHECK_GL_ERROR
         }
-#else
+#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif

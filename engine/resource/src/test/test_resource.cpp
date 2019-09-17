@@ -25,6 +25,14 @@ extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
+#define EXT_CONSTANTS(prefix, ext)\
+    static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
+
+    EXT_CONSTANTS(CONT, "cont")
+    EXT_CONSTANTS(FOO, "foo")
+
+#undef EXT_CONSTANTS
+
 class ResourceTest : public jc_test_base_class
 {
 protected:
@@ -439,6 +447,54 @@ TEST_P(GetResourceTest, Loop)
     e = PreloaderGet(m_Factory, "/root_loop.cont", (void**) &test_resource_cont);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, e);
     ASSERT_EQ((void*) 0, test_resource_cont);
+}
+
+TEST_P(GetResourceTest, GetDescriptorWithExt)
+{
+    dmResource::Result e;
+
+    void* resource = (void*) 0;
+    e = dmResource::Get(m_Factory, m_ResourceName, &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*) 0, resource);
+    dmhash_t name_hash = dmHashString64(m_ResourceName);
+
+    dmResource::SResourceDescriptor descriptor;
+    // No exts means any ext
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, 0, 0, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // One ext
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // Two exts
+    dmhash_t two_exts[] = {CONT_EXT_HASH, FOO_EXT_HASH};
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts, 2, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // Two exts, reversed order
+    dmhash_t two_exts_rev[] = {FOO_EXT_HASH, CONT_EXT_HASH};
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts_rev, 2, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // No match
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &FOO_EXT_HASH, 1, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+
+    // No match, two exts
+    dmhash_t two_exts_inv[] = {FOO_EXT_HASH, 0};
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts_inv, 2, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+
+    dmResource::Release(m_Factory, resource);
+
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
 const char* params_resource_paths[] = {"build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"};

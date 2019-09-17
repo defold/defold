@@ -131,6 +131,26 @@ namespace dmGameSystem
      * ```
      */
 
+    /*# [type:hash] spine material
+     *
+     * The material used when rendering the spine model. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     * function init(self)
+     *   go.set("#spinemodel", "material", self.my_material)
+     * end
+     * ```
+     */
+
+
     int SpineComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);

@@ -55,6 +55,8 @@ namespace dmGameSystem
 
         TileGridComponent()
         : m_Instance(0)
+        , m_Material(0)
+        , m_TextureSet(0)
         , m_Resource(0)
         , m_Cells(0)
         , m_CellFlags(0)
@@ -65,13 +67,15 @@ namespace dmGameSystem
         Vectormath::Aos::Quat       m_Rotation;
         Vectormath::Aos::Matrix4    m_World;
         dmGameObject::HInstance     m_Instance;
-        TileGridResource*           m_Resource;
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;
         dmArray<TileGridRegion>     m_Regions;
         dmArray<TileGridLayer>      m_Layers;
         uint32_t                    m_MixedHash;
         CompRenderConstants         m_RenderConstants;
+        dmRender::HMaterial         m_Material;
+        TextureSetResource*         m_TextureSet;
+        TileGridResource*           m_Resource;
         uint16_t                    m_RegionsX; // number of regions in the x dimension
         uint16_t                    m_RegionsY; // number of regions in the y dimension
         uint16_t                    m_Occupied; // Number of occupied regions (regions with visible tiles)
@@ -155,6 +159,14 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static inline dmRender::HMaterial GetMaterial(const TileGridComponent* component) {
+        return component->m_Material ? component->m_Material : component->m_Resource->m_Material;
+    }
+
+    static inline TextureSetResource* GetTextureSet(const TileGridComponent* component) {
+        return component->m_TextureSet ? component->m_TextureSet : component->m_Resource->m_TextureSet;
+    }
+
     uint32_t CalculateCellIndex(uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t column_count, uint32_t row_count)
     {
         return layer * row_count * column_count + (cell_x + cell_y * column_count);
@@ -212,7 +224,7 @@ namespace dmGameSystem
     }
 
     uint16_t GetTileCount(const TileGridComponent* component) {
-        return component->m_Resource->m_TextureSet->m_TextureSet->m_TileCount;
+        return GetTextureSet(component)->m_TextureSet->m_TileCount;
     }
 
     static void ReHash(TileGridComponent* component)
@@ -220,9 +232,10 @@ namespace dmGameSystem
         HashState32 state;
         TileGridResource* resource = component->m_Resource;
 
+        // NOTE: Use the same order as comp_sprite, since they both use the "tile" tag by default
         dmHashInit32(&state, false);
-        dmHashUpdateBuffer32(&state, &resource->m_TextureSet, sizeof(resource->m_TextureSet));
-        dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
+        dmHashUpdateBuffer32(&state, GetMaterial(component), sizeof(dmRender::HMaterial));
+        dmHashUpdateBuffer32(&state, GetTextureSet(component), sizeof(TextureSetResource));
         dmHashUpdateBuffer32(&state, &resource->m_TileGrid->m_BlendMode, sizeof(resource->m_TileGrid->m_BlendMode));
         ReHashRenderConstants(&component->m_RenderConstants, &state);
 
@@ -382,8 +395,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             TileGridComponent* component = world->m_Components[i];
-
-            // TODO: Update this when going into the ResourceProperties branch
             dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_Resource->m_TileGrid;
             num_layers += tile_grid_ddf->m_Layers.m_Count;
         }
@@ -401,6 +412,13 @@ namespace dmGameSystem
         {
             if (world->m_Components[i] == tile_grid)
             {
+                if (tile_grid->m_Material) {
+                    dmResource::Release(dmGameObject::GetFactory(params.m_Instance), tile_grid->m_Material);
+                }
+                if (tile_grid->m_TextureSet) {
+                    dmResource::Release(dmGameObject::GetFactory(params.m_Instance), tile_grid->m_TextureSet);
+                }
+
                 delete [] tile_grid->m_Cells;
                 delete [] tile_grid->m_CellFlags;
                 world->m_Components.EraseSwap(i);
@@ -577,7 +595,7 @@ namespace dmGameSystem
         assert(first->m_Enabled);
 
         TileGridResource* resource = first->m_Resource;
-        TextureSetResource* texture_set = resource->m_TextureSet;
+        TextureSetResource* texture_set = GetTextureSet(first);
 
         dmRender::RenderObject& ro = *world->m_RenderObjects.End();
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
@@ -592,7 +610,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
-        ro.m_Material = resource->m_Material;
+        ro.m_Material = GetMaterial(first);
         ro.m_Textures[0] = texture_set->m_Texture;
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
@@ -712,11 +730,11 @@ namespace dmGameSystem
             }
 
             TileGridResource* resource = component->m_Resource;
-            dmGameSystemDDF::TextureSet* texture_set = resource->m_TextureSet->m_TextureSet;
+            dmGameSystemDDF::TextureSet* texture_set_ddf = GetTextureSet(component)->m_TextureSet;
             dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
 
-            uint32_t tile_width = texture_set->m_TileWidth;
-            uint32_t tile_height = texture_set->m_TileHeight;
+            uint32_t tile_width = texture_set_ddf->m_TileWidth;
+            uint32_t tile_height = texture_set_ddf->m_TileHeight;
 
             uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
             for (uint32_t l = 0; l < n_layers; ++l)
@@ -738,7 +756,7 @@ namespace dmGameSystem
 
                         write_ptr->m_WorldPosition = Point3(trans.getXYZ());
                         write_ptr->m_UserData = EncodeRegionInfo(i, l, x, y);
-                        write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component->m_Resource->m_Material);
+                        write_ptr->m_TagMask = dmRender::GetMaterialTagMask(GetMaterial(component));
                         write_ptr->m_BatchKey = component->m_MixedHash;
                         write_ptr->m_Dispatch = dispatch;
                         write_ptr->m_MinorOrder = 0;
@@ -768,6 +786,8 @@ namespace dmGameSystem
         return ~0u;
     }
 
+    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
@@ -793,9 +813,10 @@ namespace dmGameSystem
             {
                 cell = dmTransform::ApplyNoScaleZ(inv_world, cell);
             }
+
             TileGridResource* resource = component->m_Resource;
-            dmGameSystemDDF::TextureSet* texture_set = resource->m_TextureSet->m_TextureSet;
-            cell = mulPerElem(cell, Point3(1.0f / texture_set->m_TileWidth, 1.0f / texture_set->m_TileHeight, 0.0f));
+            dmGameSystemDDF::TextureSet* texture_set_ddf = GetTextureSet(component)->m_TextureSet;
+            cell = mulPerElem(cell, Point3(1.0f / texture_set_ddf->m_TileWidth, 1.0f / texture_set_ddf->m_TileHeight, 0.0f));
             int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
             int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
             if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
@@ -835,7 +856,7 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
-            SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, ddf->m_NameHash, 0, ddf->m_Value);
+            SetRenderConstant(&component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, ddf->m_Value);
             ReHash(component);
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
@@ -873,19 +894,35 @@ namespace dmGameSystem
     static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         TileGridComponent* component = (TileGridComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component), name_hash, element_index, var);
         ReHash(component);
     }
 
     dmGameObject::PropertyResult CompTileGridGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompTileGridGetConstantCallback, component);
+        if (params.m_PropertyId == PROP_MATERIAL)
+        {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component), out_value);
+        }
+        if (params.m_PropertyId == PROP_TILE_SOURCE)
+        {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component), out_value);
+        }
+        return GetMaterialConstant(GetMaterial(component), params.m_PropertyId, out_value, true, CompTileGridGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
-        return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompTileGridSetConstantCallback, component);
+        if (params.m_PropertyId == PROP_MATERIAL)
+        {
+            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+        }
+        if (params.m_PropertyId == PROP_TILE_SOURCE)
+        {
+            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
+        }
+        return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, CompTileGridSetConstantCallback, component);
     }
 }

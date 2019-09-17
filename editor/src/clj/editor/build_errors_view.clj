@@ -2,7 +2,6 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
-            [editor.defold-project :as project]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.outline :as outline]
@@ -47,6 +46,20 @@
       (when-some [remaining-errors (next errors)]
         (recur evaluation-context remaining-errors origin-override-depth origin-override-id))))
 
+(defn- error-outline-node-id
+  "This deals with the fact that the Property Editor can display properties from
+  other nodes than the actually selected node so that they appear to belong to
+  the selected node. An example of this is the :value property of the
+  ScriptPropertyNode type, which appear in the Property Editor for the owning
+  ScriptNode. When focusing on such an error, we want to select the OutlineNode
+  that displays the property."
+  [basis errors origin-override-depth]
+  (some (fn [error]
+          (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id error))]
+            (when (g/node-instance? basis outline/OutlineNode node-id)
+              node-id)))
+        errors))
+
 (defn- find-override-value-origin [basis node-id label depth]
   (if (and node-id (g/override? basis node-id))
     (if-not (g/property-overridden? basis node-id label)
@@ -74,10 +87,11 @@
         basis (:basis evaluation-context)
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
+        outline-node-id (error-outline-node-id basis errors origin-override-depth)
         parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
         cursor-range (or cursor-range (error-cursor-range error))]
     (cond-> {:parent parent
-             :node-id origin-node-id
+             :node-id outline-node-id
              :message (:message error)
              :severity (:severity error severity)}
 
@@ -173,29 +187,33 @@
     {:graphic (HBox. (ui/node-array [image text]))
      :style style}))
 
-(defn- error-selection
-  [node-id resource]
-  (when node-id
-    (if (g/node-instance? outline/OutlineNode node-id)
-      [node-id]
-      (let [project (project/get-project node-id)]
-        (when-some [resource-node (project/get-resource-node project resource)]
-          [resource-node])))))
+(defn- find-outline-node [resource-node-id error-node-id]
+  (if-not (g/node-instance? outline/OutlineNode error-node-id)
+    resource-node-id
+    (some (fn [{:keys [node-id] :as node-outline}]
+            (when (or (= error-node-id node-id)
+                      (= error-node-id (:node-id (:alt-outline node-outline))))
+              node-id))
+          (tree-seq (comp sequential? :children)
+                    :children
+                    (g/node-value resource-node-id :node-outline)))))
 
-(defn- open-error [open-resource-fn selection]
-  (when-some [error-item (first selection)]
-    (if (= :resource (:type error-item))
-      (let [{:keys [node-id resource]} (:value error-item)]
-        (when (and (resource/openable-resource? resource) (resource/exists? resource))
-          (ui/run-later
-            (open-resource-fn resource [node-id] {}))))
-      (let [resource (-> error-item :parent :resource)
-            node-id (:node-id error-item)
-            selection (error-selection node-id resource)
-            opts (select-keys error-item [:cursor-range])]
-        (when (and (resource/openable-resource? resource) (resource/exists? resource))
-          (ui/run-later
-            (open-resource-fn resource selection opts)))))))
+(defn error-item-open-info
+  "Returns data describing how an error should be opened when double-clicked.
+  Having this as data simplifies writing unit tests."
+  [error-item]
+  (if (= :resource (:type error-item))
+    (let [{resource :resource resource-node-id :node-id} (:value error-item)]
+      (when (and (resource/openable-resource? resource)
+                 (resource/exists? resource))
+        [resource resource-node-id {}]))
+    (let [{resource :resource resource-node-id :node-id} (:parent error-item)]
+      (when (and (resource/openable-resource? resource)
+                 (resource/exists? resource))
+        (let [error-node-id (:node-id error-item)
+              outline-node-id (find-outline-node resource-node-id error-node-id)
+              opts (select-keys error-item [:cursor-range])]
+          [resource outline-node-id opts])))))
 
 (defn- error-line-for-clipboard [error-item]
   (let [message (:message error-item)
@@ -237,8 +255,8 @@
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
-                     (when-let [selection (ui/selection errors-tree)]
-                       (open-error open-resource-fn selection))))
+                     (when-some [[resource selected-node-id opts] (some-> errors-tree ui/selection first error-item-open-info)]
+                       (open-resource-fn resource [selected-node-id] opts))))
     (ui/register-context-menu ::build-errors-menu)
     (ui/context! :build-errors-view
                  {:build-errors-view errors-tree}
