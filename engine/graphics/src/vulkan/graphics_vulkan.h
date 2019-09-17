@@ -106,12 +106,15 @@ namespace dmGraphics
     {
         SwapChain*            m_SwapChain;
         SwapChainCapabilities m_SwapChainCapabilities;
-        VkInstance            m_Instance;
-        VkSurfaceKHR          m_WindowSurface;
-        VkRenderPass          m_MainRenderPass;
-        Texture               m_MainTextureDepthStencil;
         PhysicalDevice        m_PhysicalDevice;
         LogicalDevice         m_LogicalDevice;
+        VkInstance            m_Instance;
+        VkSurfaceKHR          m_WindowSurface;
+
+        // Main device rendering constructs
+        VkCommandPool         m_MainCommandPool;
+        VkRenderPass          m_MainRenderPass;
+        Texture               m_MainTextureDepthStencil;
         uint32_t              m_WindowOpened : 1;
         uint32_t              : 31;
     };
