@@ -455,12 +455,12 @@ bail:
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {}
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         return (HVertexProgram) new uint32_t;
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         return (HFragmentProgram) new uint32_t;
     }
@@ -475,12 +475,12 @@ bail:
         delete (uint32_t*) program;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         return true;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
         return true;
     }
