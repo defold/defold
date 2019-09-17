@@ -10,12 +10,12 @@ jobs:
     runs-on: macOS-10.14
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1, ref: dev } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build engine', run: 'python ci/ci.py --platform=darwin-64 --branch=dev --with-asan --with-vanilla-lua install engine' }]
 
   build-engine-linux-64:
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1, ref: dev } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Build engine', run: 'python ci/ci.py --platform=linux-64 --branch=dev --with-valgrind --with-vanilla-lua install engine' }]
