@@ -177,7 +177,7 @@ namespace dmBuffer
     void Destroy(HBuffer buffer);
 
     /*# check buffer handle
-     * 
+     *
      * Checks if a handle is still valid
      * @name dmBuffer::IsBufferValid
      * @param buffer [type:dmBuffer::HBuffer] The buffer
@@ -299,7 +299,7 @@ namespace dmBuffer
     Result GetCount(HBuffer buffer, uint32_t* count);
 
     /*# get stream type and type count
-     * 
+     *
      * Gets the stream type
      *
      * @name dmBuffer::GetStreamType
@@ -322,7 +322,7 @@ namespace dmBuffer
     uint32_t GetSizeForValueType(dmBuffer::ValueType type);
 
     /*# result to string
-     * 
+     *
      * Converts result to string
      *
      * @name dmBuffer::GetResultString
@@ -332,7 +332,7 @@ namespace dmBuffer
     const char* GetResultString(Result result);
 
     /*# value type to string
-     * 
+     *
      * Converts a value type to string
      *
      * @name dmBuffer::GetValueTypeString

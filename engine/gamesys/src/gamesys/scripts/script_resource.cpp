@@ -9,6 +9,7 @@
 #include <liveupdate/liveupdate.h>
 #include "../gamesys.h"
 #include "script_resource_liveupdate.h"
+#include "../resources/res_buffer.h"
 
 
 namespace dmGameSystem
@@ -391,12 +392,100 @@ static int SetTexture(lua_State* L)
 //     return 0;
 // }
 
+static int GetBuffer(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+
+    dmResource::SResourceDescriptor* rd = dmResource::GetByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(g_ResourceModule.m_Factory, rd->m_Resource, &resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    dmResource::ResourceType buffer_resource_type;
+    r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "bufferc", &buffer_resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    if (resource_type != buffer_resource_type) {
+        return luaL_error(L, "Resource %s is not of bufferc type.", dmHashReverseSafe64(path_hash));
+    }
+
+    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+
+    // dmBuffer::HBuffer buffer_copy = 0x0;
+    // uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
+    // dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
+    // for (uint32_t i = 0; i < stream_count; ++i)
+    // {
+    //     const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+    //     streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
+    //     streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
+    //     streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+
+    //     assert(streams_decl[i].m_Count > 0);
+    // }
+
+    // dmBuffer::Result br = dmBuffer::Create(buffer_resource->m_ElementCount, streams_decl, stream_count, &buffer_resource->m_Buffer);
+
+    // if (br != dmBuffer::RESULT_OK) {
+    //     free(streams_decl);
+    //     return luaL_error(L, "Could not create copy of buffer for %s", dmHashReverseSafe64(path_hash));
+    // }
+
+    dmScript::LuaHBuffer luabuf = { buffer_resource->m_Buffer, false };
+    PushBuffer(L, luabuf);
+
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
+
+static int SetBuffer(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
+
+    dmResource::SResourceDescriptor* rd = dmResource::GetByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(g_ResourceModule.m_Factory, rd->m_Resource, &resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    dmResource::ResourceType buffer_resource_type;
+    r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "bufferc", &buffer_resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    if (resource_type != buffer_resource_type) {
+        return luaL_error(L, "Resource %s is not of bufferc type.", dmHashReverseSafe64(path_hash));
+    }
+
+    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+
+    dmBuffer::Destroy(buffer_resource->m_Buffer);
+
+    // FIXME this aint safe at all
+    buffer_resource->m_Buffer = luabuf->m_Buffer;
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
     // {"set_mesh", SetMesh},
+    {"get_buffer", GetBuffer},
+    {"set_buffer", SetBuffer},
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},

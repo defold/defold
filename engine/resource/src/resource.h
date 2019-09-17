@@ -401,6 +401,8 @@ namespace dmResource
      */
     Result Get(HFactory factory, const char* name, void** resource);
 
+    SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
+
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
      * The returned resource data must be deallocated with free()

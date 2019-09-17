@@ -30,6 +30,7 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         // void*                           m_VertexBufferData;
         uint32_t                        m_ElementCount;
+        uint64_t                        m_VertSize;
     };
 
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params);

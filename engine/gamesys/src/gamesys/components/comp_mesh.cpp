@@ -56,7 +56,7 @@ namespace dmGameSystem
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
 
-    static const dmhash_t PROP_MESH = dmHashString64("mesh");
+    static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
     static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
         dmHashString64("texture0"), dmHashString64("texture1"), dmHashString64("texture2"), dmHashString64("texture3"), dmHashString64("texture4"), dmHashString64("texture5"), dmHashString64("texture6"), dmHashString64("texture7"), dmHashString64("texture8"), dmHashString64("texture9"), dmHashString64("texture10"), dmHashString64("texture11"), dmHashString64("texture12"), dmHashString64("texture13"), dmHashString64("texture14"), dmHashString64("texture15"), dmHashString64("texture16"), dmHashString64("texture17"), dmHashString64("texture18"), dmHashString64("texture19"), dmHashString64("texture20"), dmHashString64("texture21"), dmHashString64("texture22"), dmHashString64("texture23"), dmHashString64("texture24"), dmHashString64("texture25"), dmHashString64("texture26"), dmHashString64("texture27"), dmHashString64("texture28"), dmHashString64("texture29"), dmHashString64("texture30"), dmHashString64("texture31")
     };
@@ -246,7 +246,14 @@ namespace dmGameSystem
 
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
+            const BufferResource* br = mr->m_BufferResource;
             assert(mr->m_VertexBuffer);
+
+            uint8_t* bytes = 0x0;
+            uint32_t size = 0;
+            dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&bytes, &size);
+            assert(r == dmBuffer::RESULT_OK);
+            dmGraphics::SetVertexBufferData(mr->m_VertexBuffer, mr->m_VertSize * br->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
             ro.Init();
             // ro.m_VertexDeclaration = world->m_VertexDeclaration;
@@ -339,6 +346,7 @@ namespace dmGameSystem
     // //                 total_size += vb_size;
     //             }
     //             DM_COUNTER("MeshVertexBuffer", total_size);
+
                 break;
             }
             default:
@@ -460,9 +468,9 @@ namespace dmGameSystem
         MeshWorld* world = (MeshWorld*)params.m_World;
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
-        if (params.m_PropertyId == PROP_MESH) {
+        if (params.m_PropertyId == PROP_VERTICES) {
             dmhash_t mesh_path = 0x0;
-            dmResource::Result r = dmResource::GetPath(world->m_ResourceFactory, component->m_Resource, &mesh_path);
+            dmResource::Result r = dmResource::GetPath(world->m_ResourceFactory, component->m_Resource->m_BufferResource, &mesh_path);
             assert(r == dmResource::RESULT_OK);
             out_value.m_Variant = dmGameObject::PropertyVar(mesh_path);
             return dmGameObject::PROPERTY_RESULT_OK;

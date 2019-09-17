@@ -48,7 +48,7 @@ namespace dmResource
     uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
     uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
-    SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
+    // SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
     SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);

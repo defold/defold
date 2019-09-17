@@ -131,6 +131,8 @@ namespace dmGameSystem
             vert_size += StreamTypeToSize(ddf_stream.m_ValueType) * ddf_stream.m_ValueCount;
         }
 
+        mesh_resource->m_VertSize = vert_size;
+
         // Init vertex declaration
         // sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         mesh_resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, vert_decls, stream_count);
@@ -171,10 +173,10 @@ namespace dmGameSystem
             return false;
         }
 
-        assert(size == vert_size * buffer_resource->m_ElementCount);
+        assert(size == mesh_resource->m_VertSize * buffer_resource->m_ElementCount);
         mesh_resource->m_ElementCount = buffer_resource->m_ElementCount;
 
-        mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, vert_size * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh_resource->m_VertSize * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         return true;
     }
