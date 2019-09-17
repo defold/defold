@@ -33,6 +33,8 @@
   (resource-hash [this])
   (openable? [this]))
 
+(def resource? (partial satisfies? Resource))
+
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 

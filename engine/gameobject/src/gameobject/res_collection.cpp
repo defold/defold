@@ -9,6 +9,7 @@
 #include "gameobject_props_ddf.h"
 
 #include "../proto/gameobject/gameobject_ddf.h"
+#include "gameobject_props.h"
 
 namespace dmGameObject
 {
@@ -17,17 +18,27 @@ namespace dmGameObject
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmResource::Result res = dmResource::RESULT_OK;
 
+        uint32_t created_instances = 0;
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
 
+        Collection* collection = 0;
         HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity);
         if (hcollection == 0)
         {
-            return dmResource::RESULT_OUT_OF_RESOURCES;
+            res = dmResource::RESULT_OUT_OF_RESOURCES;
+            goto bail;
         }
-        Collection* collection = hcollection->m_Collection;
+
+        collection = hcollection->m_Collection;
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
-        uint32_t created_instances = 0;
+        res = LoadPropertyResources(factory, collection_desc->m_PropertyResources.m_Data, collection_desc->m_PropertyResources.m_Count, collection->m_PropertyResources);
+        if(res != dmResource::RESULT_OK)
+        {
+            goto bail;
+        }
+
+        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
@@ -177,6 +188,7 @@ namespace dmGameObject
 bail:
         if (res != dmResource::RESULT_OK)
         {
+            UnloadPropertyResources(factory, collection->m_PropertyResources);
             // Loading of root-collection is responsible for deleting
             DeleteCollection(collection);
             collection = 0;
@@ -196,13 +208,20 @@ bail:
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        const dmGameObjectDDF::InstanceDesc* instances = collection_desc->m_Instances.m_Data;
+        uint32_t n_instances = collection_desc->m_Instances.m_Count;
+        for (uint32_t i = 0; i < n_instances; ++i)
         {
-            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
-            if (instance_desc.m_Prototype != 0x0)
+            if (instances[i].m_Prototype != 0x0)
             {
-                dmResource::PreloadHint(params.m_HintInfo, instance_desc.m_Prototype);
+                dmResource::PreloadHint(params.m_HintInfo, instances[i].m_Prototype);
             }
+        }
+        const char** resources = collection_desc->m_PropertyResources.m_Data;
+        uint32_t n_resources = collection_desc->m_PropertyResources.m_Count;
+        for (uint32_t i = 0; i < n_resources; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
         }
 
         *params.m_PreloadData = collection_desc;
@@ -242,6 +261,7 @@ bail:
     dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
+        UnloadPropertyResources(params.m_Factory, hcollection->m_Collection->m_PropertyResources);
         DeleteCollection(hcollection); // delay delete
         return dmResource::RESULT_OK;
     }

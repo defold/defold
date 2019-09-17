@@ -103,16 +103,44 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] model texture0
+    /*# [type:hash] model textureN where N is 0-7
      *
-     * [mark:READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
+     * The texture hash id of the model. Used for getting/setting model texture for unit 0-7
      *
-     * @name texture0
+     * @name textureN
      * @property
      *
      * @examples
      *
+     * How to set texture using a script property (see [ref:resource.texture]):
+     *
+     * ```lua
+     * go.property("my_texture", texture("/texture.png"))
+     * function init(self)
+     *   go.set("#model", "texture0", self.my_texture)
+     * end
+     * ```
+     *
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
+     */
+
+    /*# [type:hash] model material
+     *
+     * The material used when rendering the model. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material]):
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     * function init(self)
+     *   go.set("#model", "material", self.my_material)
+     * end
+     * ```
      */
 
     int LuaModelComp_Play(lua_State* L)
