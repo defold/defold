@@ -24,12 +24,12 @@
 
 (def ^:private mesh-icon "icons/32/Icons_22-Model.png")
 
-(g/defnk produce-pb-msg [name material vertices textures]
+(g/defnk produce-pb-msg [position-stream material vertices textures]
   (cond-> {:material (resource/resource->proj-path material)
            :vertices (resource/resource->proj-path vertices)
            :textures (mapv resource/resource->proj-path textures)}
-    (not (str/blank? name))
-    (assoc :name name)))
+    (not (str/blank? position-stream))
+    (assoc :position-stream position-stream)))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -57,7 +57,7 @@
                not-empty
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
-            pb-msg (select-keys pb-msg [:material :vertices :textures])
+            pb-msg (select-keys pb-msg [:material :vertices :textures :position-stream])
             dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
@@ -149,6 +149,9 @@
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
 
+  (property position-stream g/Str
+            (dynamic edit-type (g/constantly {:type g/Str})))
+
   (input material-resource resource/Resource)
   (input samplers g/Any)
   (input vertices-resource resource/Resource)
@@ -188,7 +191,7 @@
 
 (defn load-mesh [project self resource pb]
   (concat
-    (g/set-property self :name (:name pb))
+    (g/set-property self :position-stream (:position-stream pb))
     (for [res [:material :vertices [:textures]]]
       (if (vector? res)
         (let [res (first res)]

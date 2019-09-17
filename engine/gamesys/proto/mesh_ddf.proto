@@ -11,4 +11,5 @@ message MeshDesc
     required string material = 1 [(resource)=true];
     required string vertices = 2 [(resource)=true];
     repeated string textures = 3 [(resource)=true];
+    optional string position_stream = 4;
 }

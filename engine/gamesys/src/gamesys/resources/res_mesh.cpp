@@ -9,30 +9,6 @@
 
 namespace dmGameSystem
 {
-    // static void ReleaseVertexBuffer(MeshContext* context, MeshResource* resource)
-    // {
-    //     dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    //     dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
-    //     dmGraphics::DeleteVertexDeclaration(resource->m_VertexDeclaration);
-    // }
-
-    // static void CreateVertexBuffer(MeshContext* context, MeshResource* resource)
-    // {
-    //     if (resource->m_VertexBuffer != 0x0)
-    //     {
-    //         ReleaseVertexBuffer(context, resource);
-    //     }
-
-    //     void* data = (void*)resource->m_Mesh->m_DataPtr;
-    //     uint64_t data_size = resource->m_Mesh->m_DataSize;
-    //     dmGraphics::VertexElement* vert_decl = (dmGraphics::VertexElement*)resource->m_Mesh->m_VertDeclPtr;
-    //     uint32_t vert_decl_count = resource->m_Mesh->m_VertDeclCount;
-    //     uint64_t elem_count = resource->m_Mesh->m_ElemCount;
-
-    //     resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(context->m_RenderContext), vert_decl, vert_decl_count);
-    //     resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(context->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-    //     dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, data_size, data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    // }
 
     static dmGraphics::Type StreamTypeToGraphicsType(dmBufferDDF::ValueType value_type)
     {
@@ -111,12 +87,6 @@ namespace dmGameSystem
         const uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
         dmGraphics::VertexElement* vert_decls = (dmGraphics::VertexElement*)malloc(stream_count * sizeof(dmGraphics::VertexElement));
 
-        // Setup vertex declaration
-        // dmGraphics::VertexElement ve[] =
-        // {
-        //         {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-        //         {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-        // };
         uint32_t vert_size = 0;
         for (uint32_t i = 0; i < stream_count; ++i)
         {
@@ -243,28 +213,17 @@ namespace dmGameSystem
 
         BuildVertices(context, resource);
 
+        // dmLogError("position_stream: %s", resource->m_MeshDDF->m_PositionStream);
+        resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
+
         return result;
     }
 
     static void ReleaseResources(dmResource::HFactory factory, MeshResource* resource)
     {
-        // if (resource->m_VertexBuffer != 0x0)
-        // {
-        //     dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
-        //     resource->m_VertexBuffer = 0x0;
-        // }
-        // if (resource->m_IndexBuffer != 0x0)
-        // {
-        //     dmGraphics::DeleteVertexBuffer(resource->m_IndexBuffer);
-        //     resource->m_IndexBuffer = 0x0;
-        //     resource->m_ElementCount = 0;
-        // }
         if (resource->m_MeshDDF != 0x0)
             dmDDF::FreeMessage(resource->m_MeshDDF);
         resource->m_MeshDDF = 0x0;
-        // if (resource->m_RigScene != 0x0)
-        //     dmResource::Release(factory, resource->m_RigScene);
-        // resource->m_RigScene = 0x0;
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
         resource->m_Material = 0x0;

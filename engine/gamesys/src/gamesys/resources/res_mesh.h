@@ -31,6 +31,7 @@ namespace dmGameSystem
         // void*                           m_VertexBufferData;
         uint32_t                        m_ElementCount;
         uint64_t                        m_VertSize;
+        dmhash_t                        m_PositionStreamId;
     };
 
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params);
