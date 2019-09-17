@@ -85,7 +85,7 @@ public class TextureGenerator {
 
     // pickOptimalFormat will try to pick a texture format with the same number of channels as componentCount,
     // while still using a texture format within the same "family".
-    public static TextureFormat pickOptimalFormat(int componentCount, TextureFormat targetFormat) {
+    private static TextureFormat pickOptimalFormat(int componentCount, TextureFormat targetFormat) {
 
         switch (targetFormat) {
 

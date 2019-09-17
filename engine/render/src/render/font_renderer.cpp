@@ -577,29 +577,32 @@ namespace dmRender
                 tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
 
                 uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+                uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
                 uint8_t is_compressed = *glyph_data++;
 
                 if (is_compressed) {
-                    uint32_t bpp;
+
+                    uint32_t bytes_per_pixel;
                     dmWebP::TextureEncodeFormat encode_format;
                     switch (font_map->m_CacheFormat) {
-                        case dmGraphics::TEXTURE_FORMAT_RGB:        bpp = 3;
-                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGB565;
+                        case dmGraphics::TEXTURE_FORMAT_RGB:        bytes_per_pixel = 3;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGB888;
                                                                     break;
-                        case dmGraphics::TEXTURE_FORMAT_RGBA:       bpp = 4;
-                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGBA4444;
+                        case dmGraphics::TEXTURE_FORMAT_RGBA:       bytes_per_pixel = 4;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGBA8888;
                                                                     break;
                         case dmGraphics::TEXTURE_FORMAT_LUMINANCE:
-                        default:                                    bpp = 1;
+                        default:                                    bytes_per_pixel = 1;
                                                                     encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_L8;
                     };
 
                     dmWebP::Result result = dmWebP::DecodeCompressedTexture(glyph_data,
-                                                g->m_GlyphDataSize-1,
+                                                glyph_data_size,
                                                 font_map->m_CellTempData,
                                                 font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4, // the max size
-                                                tex_params.m_Width,
+                                                tex_params.m_Width*bytes_per_pixel,
                                                 encode_format);
+
                     if (result != dmWebP::RESULT_OK) {
                         dmLogWarning("Failed to decompress glyph: %d", result);
                     }

@@ -10,7 +10,7 @@
 
 namespace dmTexc
 {
-    static bool CompressWebPInternal(WebPConfig* config, uint32_t width, uint32_t height, uint32_t bpp, uint8_t* srcbuffer, uint32_t srcsize, uint8_t** outbuffer, uint32_t* outsize, PixelFormat pixel_format, CompressionLevel compression_level, CompressionType compression_type)
+    static bool CompressWebPInternal(WebPConfig* config, uint32_t width, uint32_t height, uint32_t bits_per_pixel, uint8_t* srcbuffer, uint32_t srcsize, uint8_t** outbuffer, uint32_t* outsize, PixelFormat pixel_format, CompressionLevel compression_level, CompressionType compression_type)
     {
         // setup memorywriter method for compression
         WebPMemoryWriter memory_writer;
@@ -64,7 +64,7 @@ namespace dmTexc
             delete []rgba;
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGBA from ETC1 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGBA from ETC1 (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
         }
@@ -104,7 +104,7 @@ namespace dmTexc
             delete []rgba;
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGBA from PVRTC (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGBA from PVRTC (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
         }
@@ -116,7 +116,7 @@ namespace dmTexc
             delete []lum;
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGB from L8 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGB from L8 (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
         }
@@ -128,7 +128,7 @@ namespace dmTexc
             delete []luma;
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGB from L8A8 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGB from L8A8 (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
             if((compression_type == dmTexc::CT_WEBP_LOSSY) || (config->exact == 0))
@@ -144,7 +144,7 @@ namespace dmTexc
             delete []rgb;
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGB from RGB565 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGB from RGB565 (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
         }
@@ -156,7 +156,7 @@ namespace dmTexc
             delete []rgba;
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGBA from RGBA444 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGBA from RGBA444 (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
             if((compression_type == dmTexc::CT_WEBP_LOSSY) || (config->exact == 0))
@@ -164,9 +164,9 @@ namespace dmTexc
                 WebPCleanupTransparentArea(&pic);
             }
         }
-        else if(bpp >= 24)
+        else if(bits_per_pixel >= 24)
         {
-            if(bpp == 32)
+            if(bits_per_pixel == 32)
             {
                 if(!WebPPictureImportRGBA(&pic, (const uint8_t*) srcbuffer, width*4))
                 {
@@ -178,9 +178,9 @@ namespace dmTexc
                     WebPCleanupTransparentArea(&pic);
                 }
             }
-            else if(bpp == 24)
+            else if(bits_per_pixel == 24)
             {
-                if(!WebPPictureImportRGB(&pic, (const uint8_t*) srcbuffer, width*(bpp>>3)))
+                if(!WebPPictureImportRGB(&pic, (const uint8_t*) srcbuffer, width*(bits_per_pixel>>3)))
                 {
                     dmLogError("WebPPictureImportRGB failed, code %d.", pic.error_code);
                     return false;
@@ -188,7 +188,7 @@ namespace dmTexc
             }
             else
             {
-                dmLogError("WebP failed to import image with %dbpp, unsupported bit-depth.", bpp);
+                dmLogError("WebP failed to import image with %dbpp, unsupported bit-depth.", bits_per_pixel);
                 return false;
             }
         }
@@ -197,24 +197,24 @@ namespace dmTexc
             // Check to be able to compress by 4-byte aligned stride (RGBA)
             if(width & 4)
             {
-                dmLogError("WebP compression with %d bpp requires width to be a multiple of 32.", bpp);
+                dmLogError("WebP compression with %d bpp requires width to be a multiple of 32.", bits_per_pixel);
                 return false;
             }
 
             // Require lossless compression
             if(compression_type == dmTexc::CT_WEBP_LOSSY)
             {
-                dmLogError("WebP compression with %d bpp requires lossless compression.", bpp);
+                dmLogError("WebP compression with %d bpp requires lossless compression.", bits_per_pixel);
                 return false;
             }
 
             // Exact compression
             config->exact = 1;
-            uint32_t stride = (width*bpp) >> 3;
+            uint32_t stride = (width*bits_per_pixel) >> 3;
             bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) srcbuffer, stride);
             if(!ok)
             {
-                dmLogError("WebPPictureImportRGBA (%dbpp) failed, code %d.", bpp, pic.error_code);
+                dmLogError("WebPPictureImportRGBA (%dbpp) failed, code %d.", bits_per_pixel, pic.error_code);
                 return false;
             }
         }
@@ -255,7 +255,7 @@ namespace dmTexc
         pvrtexture::CPVRTexture* pt = (pvrtexture::CPVRTexture*)t->m_PVRTexture;
         uint32_t mip_maps = t->m_PVRTexture->getNumMIPLevels();
         uint32_t mip_map = 0;
-        uint32_t bpp = pt->getBitsPerPixel();
+        uint32_t bits_per_pixel = pt->getBitsPerPixel();
 
         // validate dimensions
         if((pt->getWidth() > WEBP_MAX_DIMENSION) || (pt->getHeight() > WEBP_MAX_DIMENSION))
@@ -314,7 +314,7 @@ namespace dmTexc
             uint8_t* data = (uint8_t*) pt->getDataPtr(mip_map);
             uint32_t outsize;
             TextureData ctd;
-            if (!CompressWebPInternal(&config, mip_width, mip_height, bpp, data, datasize, &ctd.m_Data, &outsize, pixel_format, compression_level, compression_type)) {
+            if (!CompressWebPInternal(&config, mip_width, mip_height, bits_per_pixel, data, datasize, &ctd.m_Data, &outsize, pixel_format, compression_level, compression_type)) {
                 dmLogError("Failed to compress mip %d", mip_map);
                 mip_map = mip_maps;
                 break;
@@ -340,7 +340,7 @@ namespace dmTexc
     }
 
 
-    HBuffer CompressWebPBuffer(uint32_t width, uint32_t height, uint32_t bpp, void* data, uint32_t size, PixelFormat pixel_format, CompressionLevel compression_level, CompressionType compression_type)
+    HBuffer CompressWebPBuffer(uint32_t width, uint32_t height, uint32_t bits_per_pixel, void* data, uint32_t size, PixelFormat pixel_format, CompressionLevel compression_level, CompressionType compression_type)
     {
         WebPConfig config;
         if(compression_type == dmTexc::CT_WEBP)
@@ -348,6 +348,7 @@ namespace dmTexc
             uint32_t quality_lut[CL_ENUM] = {3,6,9,9};
             WebPConfigInit(&config);
             WebPConfigLosslessPreset(&config, quality_lut[compression_level]);
+            config.exact = 1; // expect lossless to not alter alpha values
         }
         else
         {
@@ -367,7 +368,7 @@ namespace dmTexc
         uint32_t outsize = 0;
         TextureData* out = new TextureData;
 
-        if (!CompressWebPInternal(&config, width, height, bpp, (uint8_t*)data, size, &out->m_Data, &outsize, pixel_format, compression_level, compression_type)) {
+        if (!CompressWebPInternal(&config, width, height, bits_per_pixel, (uint8_t*)data, size, &out->m_Data, &outsize, pixel_format, compression_level, compression_type)) {
             if (outsize == 0xFFFFFFFF) {
                 out->m_IsCompressed = 0;
                 out->m_ByteSize = size;
