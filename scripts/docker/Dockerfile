@@ -7,7 +7,8 @@ RUN \
   apt-get install -y software-properties-common && \
   add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
-  apt-get install -y openjdk-11-jdk
+  apt-get install -y openjdk-11-jdk && \
+  apt install -y openjdk-8-jdk
 
 # We still use GCC-5: https://askubuntu.com/a/1087368
 
@@ -66,29 +67,7 @@ RUN \
   sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install" && \
   chmod +x /usr/local/bin/easy_install
 
-RUN apt install -y openjdk-8-jdk
-
-
-# builder@ubuntu:~$ alias jdk11=`unset JAVA_HOME; export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64; export PATH=$JAVA_HOME/bin:$PATH; echo "#$PATH"; echo "#$JAVA_HOME;"`
-# builder@ubuntu:~$ alias java8=`export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; export PATH=$JAVA_HOME/bin:$PATH`
-
-# RUN add-apt-repository ppa:webupd8team/java && \
-#     apt-get update && \
-#     apt-get install oracle-java8-installer && \
-
-# RUN wget https://download.java.net/java/GA/jdk10/10.0.2/19aef61b38124481863b1413dce1855f/13/openjdk-10.0.2_linux-x64_bin.tar.gz && \
-#   tar -xf openjdk-10.0.2_linux-x64_bin.tar.gz && \
-#   mkdir -p /usr/lib/jdk && \
-#   mv jdk-10.0.2 /usr/lib/jdk && \
-#   update-alternatives --install "/usr/bin/java" "java" "/usr/lib/jdk/jdk-10.0.2/bin/java" 1 && \
-#   update-alternatives --install "/usr/bin/java" "java" "/usr/lib/jdk/jdk-10.0.2/bin/javac" 1 && \
-#   rm *.tar.gz
-
 RUN apt-get autoremove
-
-# RUN
-# alias jdk11='export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-11.0.2.jdk/Contents/Home'
-# alias jdk8='export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk1.8.0_60.jdk/Contents/Home'
 
 # Add builder user
 RUN  useradd -r -u 2222 builder && \
