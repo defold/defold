@@ -474,6 +474,8 @@ class Configuration(object):
             host = self.host
             if 'win32' in host:
                 host = 'windows'
+            elif 'linux' in host:
+                host = 'linux'
             # Android NDK
             download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
