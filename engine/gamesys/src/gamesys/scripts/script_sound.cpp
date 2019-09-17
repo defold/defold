@@ -366,7 +366,12 @@ namespace dmGameSystem
      * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
      *
      * `pan`
-     * : [type:number] sound pan between -1 and 1, default is 0. The final gain of the sound will be an addition of this pan and the sound pan.
+     * : [type:number] sound pan between -1 and 1, default is 0. The final pan of the sound will be an addition of this pan and the sound pan.
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the sound has finished playing.
+     *
+     * `speed`
+     * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. The final speed of the sound will be a multiplication of this speed and the sound speed.
+     *
      * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the sound has finished playing.
      *
      * `self`
