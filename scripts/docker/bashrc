@@ -1,8 +1,5 @@
 #!/usr/bash
 
-# builder@ubuntu:~$ alias jdk11=`unset JAVA_HOME; export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64; export PATH=$JAVA_HOME/bin:$PATH; echo "#$PATH"; echo "#$JAVA_HOME;"`
-# builder@ubuntu:~$ alias java8=`export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64; export PATH=$JAVA_HOME/bin:$PATH`
-
 function _setjdk {
 	export PATH=$JAVA_HOME/bin:$PATH
 	java -version
