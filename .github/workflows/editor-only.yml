@@ -11,6 +11,6 @@ jobs:
     runs-on: macOS-10.14
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
       { name: 'Build editor', run: 'python ci/ci.py --branch=$GITHUB_REF install editor' },
       { name: 'Smoke test editor', run: 'python ci/ci.py --branch=$GITHUB_REF install smoke' }]
