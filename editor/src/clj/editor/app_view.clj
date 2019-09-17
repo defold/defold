@@ -1585,7 +1585,7 @@ If you do not specifically require different script states, consider changing th
              render-save-progress! (make-render-task-progress :save-all)]
          (if (changes-view/project-is-git-repo? changes-view)
 
-           ;; The project is a Git repo. Assume the project is hosted by us.
+           ;; The project is a Git repo.
            ;; Check if there are locked files below the project folder before proceeding.
            ;; If so, we abort the sync and notify the user, since this could cause problems.
            (when (changes-view/ensure-no-locked-files! changes-view)
@@ -1596,12 +1596,29 @@ If you do not specifically require different script states, consider changing th
                                    (when (changes-view/regular-sync! changes-view dashboard-client)
                                      (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
 
-           ;; The project is not a Git repo. Offer to push it to our servers.
-           (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                             (fn [successful?]
-                               (when successful?
-                                 (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
-                                 (changes-view/first-sync! changes-view dashboard-client project))))))))
+           ;; The project is not a Git repo.
+           ;; Show a dialog with info about how to set this up.
+           (dialogs/make-info-dialog
+             {:title "Version Control"
+              :size :default
+              :icon :icon/git
+              :header "This project does not use Version Control"
+              :content {:fx/type :text-flow
+                        :style-class "dialog-content-padding"
+                        :children [{:fx/type :text
+                                    :text (str "A project under Version Control "
+                                               "keeps a history of changes and "
+                                               "enables you to collaborate with "
+                                               "others by pushing changes to a "
+                                               "server.\n\nYou can read about "
+                                               "how to configure Version Control "
+                                               "in the ")}
+                                   {:fx/type :hyperlink
+                                    :text "Defold Manual"
+                                    :on-action (fn [_]
+                                                 (ui/open-url "https://www.defold.com/manuals/version-control/"))}
+                                   {:fx/type :text
+                                    :text "."}]}})))))
 
 (handler/defhandler :save-all :global
   (enabled? [] (not (bob/build-in-progress?)))

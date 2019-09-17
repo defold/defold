@@ -17,7 +17,7 @@
            [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
-           [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
+           [org.eclipse.jgit.transport CredentialsProvider UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
            [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
@@ -298,7 +298,7 @@
 
 (defn clone!
   "Clone a repository into the specified directory."
-  [^UsernamePasswordCredentialsProvider creds ^String remote-url ^File directory ^ProgressMonitor progress-monitor]
+  [^CredentialsProvider creds ^String remote-url ^File directory ^ProgressMonitor progress-monitor]
   (try
     (with-open [_ (.call (doto (Git/cloneRepository)
                            (.setCredentialsProvider creds)
@@ -313,7 +313,7 @@
       (when-not (.isCancelled progress-monitor)
         (throw e)))))
 
-(defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
+(defn pull [^Git git ^CredentialsProvider creds]
   (-> (.pull git)
       (.setCredentialsProvider creds)
       (.call)))
@@ -354,7 +354,7 @@
    "Writing objects" 1
    "remote: Updating references" 1})
 
-(defn push [^Git git ^UsernamePasswordCredentialsProvider creds & {:keys [timeout on-progress]}]
+(defn push [^Git git ^CredentialsProvider creds & {:keys [timeout on-progress]}]
   (let [pc ^PushCommand (.push git)]
     (do
       (doto pc

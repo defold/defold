@@ -121,13 +121,13 @@
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-info-dialog
-    {:title "Internal Files Under Source Control"
+    {:title "Internal Files Under Version Control"
      :size :large
      :icon :icon/triangle-error
-     :header "Internal files were placed under source control"
+     :header "Internal files were placed under version control"
      :content {:pref-row-count 6
                :wrap-text true
-               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
+               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under version control.\n"
                           "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
                           "\n"
                           "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}}))
