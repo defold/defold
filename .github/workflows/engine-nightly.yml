@@ -18,4 +18,4 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1, ref: dev } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=x86_64-linux --branch=dev --with-valgrind --with-vanilla-lua install engine' }]
+      { name: 'Build engine', run: 'python ci/ci.py --platform=x86_64-linux --branch=dev --with-valgrind install engine' }]
