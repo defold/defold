@@ -29,15 +29,15 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        RenderTarget()
+        RenderTarget(const uint32_t rtId)
         : m_RenderPass(VK_NULL_HANDLE)
         , m_Framebuffer(VK_NULL_HANDLE)
-        , m_Id(0xfffffff)
+        , m_Id(rtId)
         {}
 
-        VkRenderPass  m_RenderPass;
-        VkFramebuffer m_Framebuffer;
-        uint32_t      m_Id;
+        VkRenderPass   m_RenderPass;
+        VkFramebuffer  m_Framebuffer;
+        const uint32_t m_Id;
     };
 
     struct RenderPassAttachment
@@ -125,6 +125,7 @@ namespace dmGraphics
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
     void        ResetLogicalDevice(LogicalDevice* device);
+    void        ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the

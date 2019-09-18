@@ -75,6 +75,30 @@ namespace dmGraphics
         memset((void*)device, 0, sizeof(*device));
     }
 
+    void ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
+    {
+        assert(logicalDevice);
+        assert(renderTarget);
+        if (renderTarget->m_Framebuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyFramebuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer, 0);
+            renderTarget->m_Framebuffer = VK_NULL_HANDLE;
+        }
+
+        if (renderTarget->m_RenderPass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass, 0);
+            renderTarget->m_RenderPass = VK_NULL_HANDLE;
+        }
+    }
+
+    void ResetLogicalDevice(LogicalDevice* device)
+    {
+        vkDestroyDevice(device->m_Device, 0);
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        memset(device, 0, sizeof(*device));
+    }
+
     #define QUEUE_FAMILY_INVALID 0xffff
 
     // All GPU operations are pushed to various queues. The physical device can have multiple
@@ -132,12 +156,6 @@ namespace dmGraphics
 
         delete[] vk_present_queues;
         return qf;
-    }
-
-    void ResetLogicalDevice(LogicalDevice* device)
-    {
-        vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
-        memset(device, 0, sizeof(*device));
     }
 
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,

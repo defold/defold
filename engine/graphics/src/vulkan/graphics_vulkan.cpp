@@ -20,6 +20,14 @@ namespace dmGraphics
 
     struct Context
     {
+        Context(const ContextParams& params, const VkInstance vk_instance)
+        : m_Instance(vk_instance)
+        , m_MainRenderTarget(0)
+        , m_DefaultTextureMinFilter(params.m_DefaultTextureMinFilter)
+        , m_DefaultTextureMagFilter(params.m_DefaultTextureMagFilter)
+        , m_VerifyGraphicsCalls(params.m_VerifyGraphicsCalls)
+        {}
+
         SwapChain*            m_SwapChain;
         SwapChainCapabilities m_SwapChainCapabilities;
         PhysicalDevice        m_PhysicalDevice;
@@ -28,11 +36,11 @@ namespace dmGraphics
         VkSurfaceKHR          m_WindowSurface;
 
         // Main device rendering constructs
-        dmArray<RenderTarget> m_MainFramebuffers;
-        VkCommandPool         m_MainCommandPool;
-        VkRenderPass          m_MainRenderPass;
-        Texture               m_MainTextureDepthStencil;
-        RenderTarget          m_MainRenderTarget;
+        dmArray<VkFramebuffer> m_MainFramebuffers;
+        VkCommandPool          m_MainCommandPool;
+        VkRenderPass           m_MainRenderPass;
+        Texture                m_MainTextureDepthStencil;
+        RenderTarget           m_MainRenderTarget;
 
         TextureFilter         m_DefaultTextureMinFilter;
         TextureFilter         m_DefaultTextureMagFilter;
@@ -96,8 +104,14 @@ namespace dmGraphics
 
     static inline uint32_t GetNextRenderTargetId()
     {
-        static uint32_t next_id = 0;
-        return next_id++;
+        static uint32_t next_id = 1;
+
+        if (++next_id == 0)
+        {
+            next_id = 1;
+        }
+
+        return next_id;
     }
 
     static VkResult CreateCommandBuffers(VkDevice vk_device, uint32_t numBuffersToCreate, VkCommandPool vk_command_pool, VkCommandBuffer* vk_command_buffers_out)
@@ -456,7 +470,7 @@ namespace dmGraphics
         return res;
     }
 
-    static VkResult CreateMainFrameBuffers(HContext context)
+    static VkResult CreateMainRenderTarget(HContext context)
     {
         assert(context);
         assert(context->m_SwapChain);
@@ -478,16 +492,15 @@ namespace dmGraphics
             VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
             CHECK_VK_ERROR(res, CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, sizeof(vk_image_attachments) / sizeof(vk_image_attachments[0]), &context->m_MainFramebuffers[i].m_Framebuffer))
+                vk_image_attachments, sizeof(vk_image_attachments) / sizeof(vk_image_attachments[0]), &context->m_MainFramebuffers[i]))
         }
 
-        // Create a dummy rendertarget for the main framebuffer
+        // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
         RenderTarget& rt = context->m_MainRenderTarget;
         rt.m_RenderPass  = context->m_MainRenderPass;
-        rt.m_Framebuffer = context->m_MainFramebuffers[0].m_Framebuffer;
-        rt.m_Id          = GetNextRenderTargetId();
+        rt.m_Framebuffer = context->m_MainFramebuffers[0];
 
         return res;
     }
@@ -511,7 +524,7 @@ namespace dmGraphics
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         CHECK_VK_ERROR(res, CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass))
-        CHECK_VK_ERROR(res, CreateMainFrameBuffers(context))
+        CHECK_VK_ERROR(res, CreateMainRenderTarget(context))
 
         return res;
     }
@@ -530,6 +543,17 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             &context->m_MainTextureDepthStencil))
+
+        // Reset main rendertarget (but not the render pass)
+        RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
+        mainRenderTarget->m_RenderPass = VK_NULL_HANDLE;
+        for (uint8_t i=0; i < context->m_MainFramebuffers.Size(); i++)
+        {
+            mainRenderTarget->m_Framebuffer = context->m_MainFramebuffers[i];
+            ResetRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
+        }
+
+        CHECK_VK_ERROR(res, CreateMainRenderTarget(context))
 
         // Flush once again to make sure all transitions are complete
         SynchronizeDevice(vk_device);
@@ -560,11 +584,7 @@ namespace dmGraphics
                 return 0x0;
             }
 
-            g_Context = new Context();
-            g_Context->m_Instance                = vk_instance;
-            g_Context->m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-            g_Context->m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-            g_Context->m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+            g_Context = new Context(params, vk_instance);
 
             return g_Context;
         }
@@ -765,15 +785,17 @@ bail:
 
             ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
 
+            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
+
+            for (uint8_t i=0; i < context->m_MainFramebuffers.Size(); i++)
+            {
+                vkDestroyFramebuffer(vk_device, context->m_MainFramebuffers[i], 0);
+            }
+
             ResetSwapChain(context->m_SwapChain);
 
             ResetLogicalDevice(&context->m_LogicalDevice);
-
-            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
-
             ResetPhysicalDevice(&context->m_PhysicalDevice);
-
-            vkDestroyDevice(vk_device, 0);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
@@ -1076,7 +1098,7 @@ bail:
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        return new RenderTarget;
+        return new RenderTarget(GetNextRenderTargetId());
     }
 
     void DeleteRenderTarget(HRenderTarget render_target)
