@@ -12,10 +12,8 @@ if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
 
-HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
-#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
-ANDROID_ROOT=os.path.join(HOME, 'android')
+SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
@@ -916,13 +914,13 @@ def android_package(task):
             return 1
     else:
         dex_input = dx_jars
-    
+
     if dex_input:
         ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
         if ret != 0:
             error('Error running dx')
             return 1
-    
+
     if os.path.exists(task.classes_dex.abspath(task.env)):
         with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
             zip.write(task.classes_dex.abspath(task.env), 'classes.dex')

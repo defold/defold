@@ -467,14 +467,15 @@
 (g/defnk produce-font-map [_node-id font type font-resource-map pb-msg]
   (make-font-map _node-id font type pb-msg (make-font-resource-resolver font font-resource-map)))
 
-(defn- build-font [resource dep-resources user-data]
+(defn- build-font [resource _dep-resources user-data]
   (let [{:keys [font type font-resource-map pb-msg]} user-data
         font-resource-resolver (make-font-resource-resolver font font-resource-map)
         font-map (make-font-map nil font type pb-msg font-resource-resolver)]
     (g/precluding-errors
       [font-map]
-      (let [font-map (assoc font-map :textures [(resource/proj-path (second (first dep-resources)))])]
-        {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))))
+      (let [compressed-font-map (font-gen/compress font-map)]
+        {:resource resource
+         :content (protobuf/map->bytes Font$FontMap compressed-font-map)}))))
 
 (g/defnk produce-build-targets [_node-id resource font type font-resource-map font-resource-hashes pb-msg material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
@@ -729,9 +730,7 @@
                                  (assoc m glyph ::not-available)
                                  (let [x (* (mod cell w) cache-cell-width)
                                        y (+ (* (int (/ cell w)) cache-cell-height) (- cache-cell-max-ascent (:ascent glyph)))
-                                       p (* 2 (:glyph-padding font-map))
-                                       w (+ (:width glyph) p)
-                                       h (+ (:ascent glyph) (:descent glyph) p)
+                                       {w :width h :height} (:glyph-cell-wh glyph)
                                        ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
                                                                 ^ByteBuffer (.position (int (:glyph-data-offset glyph)))
                                                                 (.slice)

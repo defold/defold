@@ -12,6 +12,7 @@
 #include <dlib/profile.h>
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
+#include <dlib/webp.h>
 #include <graphics/graphics_util.h>
 
 #include "font_renderer.h"
@@ -72,6 +73,7 @@ namespace dmRender
         , m_CacheCursor(0)
         , m_CacheColumns(0)
         , m_CacheRows(0)
+        , m_CellTempData(0)
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
         , m_CacheCellMaxAscent(0)
@@ -88,6 +90,9 @@ namespace dmRender
             }
             if (m_Cache) {
                 free(m_Cache);
+            }
+            if (m_CellTempData) {
+                free(m_CellTempData);
             }
             dmGraphics::DeleteTexture(m_Texture);
         }
@@ -119,6 +124,8 @@ namespace dmRender
 
         uint32_t                m_CacheColumns;
         uint32_t                m_CacheRows;
+
+        uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
 
         uint32_t                m_CacheCellWidth;
         uint32_t                m_CacheCellHeight;
@@ -197,6 +204,8 @@ namespace dmRender
         font_map->m_CacheRows = params.m_CacheHeight / params.m_CacheCellHeight;
         uint32_t cell_count = font_map->m_CacheColumns * font_map->m_CacheRows;
 
+        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
+
         switch (params.m_GlyphChannels)
         {
             case 1:
@@ -272,6 +281,7 @@ namespace dmRender
         if (font_map->m_GlyphData) {
             free(font_map->m_GlyphData);
             free(font_map->m_Cache);
+            free(font_map->m_CellTempData);
         }
 
         font_map->m_ShadowX = params.m_ShadowX;
@@ -299,6 +309,8 @@ namespace dmRender
         font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
         font_map->m_CacheRows = params.m_CacheHeight / params.m_CacheCellHeight;
         uint32_t cell_count = font_map->m_CacheColumns * font_map->m_CacheRows;
+
+        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
 
         switch (params.m_GlyphChannels)
         {
@@ -564,7 +576,41 @@ namespace dmRender
                 // Upload glyph data to GPU
                 tex_params.m_Width = g->m_Width + font_map->m_CacheCellPadding*2;
                 tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
-                tex_params.m_Data = (uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+
+                uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+                uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
+                uint8_t is_compressed = *glyph_data++;
+
+                if (is_compressed) {
+
+                    uint32_t bytes_per_pixel;
+                    dmWebP::TextureEncodeFormat encode_format;
+                    switch (font_map->m_CacheFormat) {
+                        case dmGraphics::TEXTURE_FORMAT_RGB:        bytes_per_pixel = 3;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGB888;
+                                                                    break;
+                        case dmGraphics::TEXTURE_FORMAT_RGBA:       bytes_per_pixel = 4;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGBA8888;
+                                                                    break;
+                        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:
+                        default:                                    bytes_per_pixel = 1;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_L8;
+                    };
+
+                    dmWebP::Result result = dmWebP::DecodeCompressedTexture(glyph_data,
+                                                glyph_data_size,
+                                                font_map->m_CellTempData,
+                                                font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4, // the max size
+                                                tex_params.m_Width*bytes_per_pixel,
+                                                encode_format);
+
+                    if (result != dmWebP::RESULT_OK) {
+                        dmLogWarning("Failed to decompress glyph: %d", result);
+                    }
+                    tex_params.m_Data = font_map->m_CellTempData;
+                } else {
+                    tex_params.m_Data = glyph_data;
+                }
 
                 tex_params.m_X = g->m_X;
                 tex_params.m_Y = g->m_Y + g_offset_y;

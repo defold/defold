@@ -11,7 +11,7 @@ def call(args):
     print(args)
     ret = os.system(args)
     if ret != 0:
-        exit(ret)
+        exit(1)
     # subprocess.check_call(args, shell=True)
     # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
 
