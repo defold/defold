@@ -11,8 +11,7 @@
 
 set -e
 
-DEFOLD_HOME="${DYNAMO_HOME}/../.."
-TARGET_DIR="${DEFOLD_HOME}/new_packages"
+TARGET_DIR="new_packages"
 
 PLATFORMS="/Applications/Xcode.app/Contents/Developer/Platforms"
 XCODE="/Applications/Xcode.app/Contents/Developer/Toolchains"
