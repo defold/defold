@@ -73,6 +73,9 @@ public class FontBuilder extends Builder<Void>  {
         } catch (FontFormatException e) {
             task.output(0).remove();
             throw new CompileExceptionError(task.input(0), 0, e.getMessage());
+        } catch (TextureGeneratorException e) {
+            task.output(0).remove();
+            throw new CompileExceptionError(task.input(0), 0, e.getMessage());
         } finally {
             fontStream.close();
         }
