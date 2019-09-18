@@ -13,7 +13,7 @@ TEST(dmTime, GetTime)
     uint64_t start = dmTime::GetTime();
     dmTime::Sleep(200000);
     uint64_t end = dmTime::GetTime();
-    ASSERT_NEAR((double) 200000, (double) (end-start), (double) 40000);
+    ASSERT_NEAR((double) 200000, (double) (end-start), (double) 90000);
 }
 
 int main(int argc, char **argv)
@@ -21,4 +21,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-
