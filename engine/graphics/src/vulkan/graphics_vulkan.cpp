@@ -492,7 +492,7 @@ namespace dmGraphics
             VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
             CHECK_VK_ERROR(res, CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, sizeof(vk_image_attachments) / sizeof(vk_image_attachments[0]), &context->m_MainFramebuffers[i]))
+                vk_image_attachments, 2, &context->m_MainFramebuffers[i]))
         }
 
         // Initialize the dummy rendertarget for the main framebuffer
