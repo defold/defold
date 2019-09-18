@@ -258,8 +258,8 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static VkResult AllocateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
+    static VkResult AllocateTexture(VkDevice vk_device,
+        uint32_t imageWidth, uint32_t imageHeight, uint32_t imageDepth, uint16_t imageMips,
         VkFormat vk_format, VkImageTiling vk_tiling,
         VkImageUsageFlags vk_usage, Texture* textureOut)
     {
@@ -267,17 +267,7 @@ namespace dmGraphics
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
         assert(textureOut->m_DeviceMemory.m_Memory == VK_NULL_HANDLE && textureOut->m_DeviceMemory.m_MemorySize == 0);
 
-        VkImageFormatProperties vk_format_properties;
-
-        VkResult res = vkGetPhysicalDeviceImageFormatProperties(
-            vk_physical_device, vk_format, VK_IMAGE_TYPE_2D,
-            VK_IMAGE_TILING_OPTIMAL, vk_usage, 0, &vk_format_properties);
-
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
-
+        VkResult res;
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
 
@@ -285,7 +275,7 @@ namespace dmGraphics
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
         vk_image_create_info.extent.width  = imageWidth;
         vk_image_create_info.extent.height = imageHeight;
-        vk_image_create_info.extent.depth  = 1;
+        vk_image_create_info.extent.depth  = imageDepth;
         vk_image_create_info.mipLevels     = imageMips;
         vk_image_create_info.arrayLayers   = 1;
         vk_image_create_info.format        = vk_format;
@@ -296,11 +286,7 @@ namespace dmGraphics
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
-        res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
+        CHECK_VK_ERROR(res, vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image))
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -343,12 +329,12 @@ namespace dmGraphics
         };
 
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
-        const VkDevice vk_device = context->m_LogicalDevice.m_Device;
+        const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
+        const size_t vk_format_list_size          = sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
 
-        const size_t vk_format_list_size = sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
-
+        // Check format support
         VkImageTiling vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
-        VkFormat vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_format_list_default[0],
+        VkFormat vk_depth_format      = GetSupportedTilingFormat(vk_physical_device, &vk_format_list_default[0],
             vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
         if (vk_depth_format == VK_FORMAT_UNDEFINED)
@@ -359,7 +345,7 @@ namespace dmGraphics
         }
 
         VkResult res;
-        CHECK_VK_ERROR(res, AllocateTexture2D(vk_physical_device, vk_device, width, height, 1,
+        CHECK_VK_ERROR(res, AllocateTexture(vk_device, width, height, 1, 1,
             vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut));
 
         if (res == VK_SUCCESS)
