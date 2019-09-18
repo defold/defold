@@ -252,8 +252,24 @@ union SaveLoadBuffer
      * Find a path where we can store data (the example path is on the macOS platform):
      *
      * ```lua
+     * -- macOS: /Applications/my_game.app
      * local application_path = sys.get_application_path()
      * print(application_path) --> /Applications/my_game.app
+     *
+     * -- Windows: C:\Program Files\my_game\my_game.exe
+     * print(application_path) --> C:\Program Files\my_game
+     *
+     * -- Linux: /home/foobar/my_game/my_game
+     * print(application_path) --> /home/foobar/my_game
+     *
+     * -- Android package name: com.foobar.my_game
+     * print(application_path) --> /data/user/0/com.foobar.my_game
+     *
+     * -- iOS: my_game.app
+     * print(application_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     *
+     * -- HTML5: http://www.foobar.com/my_game/
+     * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
     int Sys_GetApplicationPath(lua_State* L)
@@ -467,13 +483,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android.
-     *
-     * `ad_ident`
-     * : [type:string] [icon:ios] "advertisingIdentifier" on iOS. [icon:android] advertising ID provided by Google Play on Android.
-     *
-     * `ad_tracking_enabled`
-     * : [type:boolean] `true` if ad tracking is enabled, `false` otherwise.
+     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
@@ -526,12 +536,6 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "device_ident");
         lua_pushstring(L, info.m_DeviceIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "ad_ident");
-        lua_pushstring(L, info.m_AdIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "ad_tracking_enabled");
-        lua_pushboolean(L, info.m_AdTrackingEnabled);
         lua_rawset(L, -3);
         lua_pushliteral(L, "user_agent");
         lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");

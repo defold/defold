@@ -17,29 +17,29 @@
 
 (set! *warn-on-reflection* true)
 
-(defmulti manip-movable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta]
-                       (:key @(g/node-type* (:basis evaluation-context) node-id))))
-(defmulti manip-move-manips (fn [node-id] (:key @(g/node-type* node-id))))
+                       (g/node-type-kw (:basis evaluation-context) node-id)))
+(defmulti manip-move-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-move-manips :default
   [_]
   [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
 
-(defmulti manip-rotatable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmulti manip-rotatable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-rotatable? :default [_] false)
 (defmulti manip-rotate (fn [evaluation-context node-id ^Quat4d delta]
-                         (:key @(g/node-type* (:basis evaluation-context) node-id))))
-(defmulti manip-rotate-manips (fn [node-id] (:key @(g/node-type* node-id))))
+                         (g/node-type-kw (:basis evaluation-context) node-id)))
+(defmulti manip-rotate-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-rotate-manips :default
   [_]
   [:rot-x :rot-y :rot-z :rot-screen])
 
-(defmulti manip-scalable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmulti manip-scalable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-scalable? :default [_] false)
 (defmulti manip-scale (fn [evaluation-context node-id ^Vector3d delta]
-                        (:key @(g/node-type* (:basis evaluation-context) node-id))))
-(defmulti manip-scale-manips (fn [node-id] (:key @(g/node-type* node-id))))
+                        (g/node-type-kw (:basis evaluation-context) node-id)))
+(defmulti manip-scale-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-scale-manips :default
   [node-id]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])

@@ -61,10 +61,7 @@ namespace dmGameSystem
 
     struct CompRenderConstants
     {
-        CompRenderConstants()
-        {
-            memset(this, 0x0, sizeof(*this));
-        }
+        CompRenderConstants();
         dmRender::Constant          m_RenderConstants[MAX_COMP_RENDER_CONSTANTS];
         Vectormath::Aos::Vector4    m_PrevRenderConstants[MAX_COMP_RENDER_CONSTANTS];
         uint32_t                    m_ConstantCount;
@@ -76,12 +73,15 @@ namespace dmGameSystem
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const Vectormath::Aos::Vector4& ref_value, const PropVector4& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vectormath::Aos::Vector4& set_value, const PropVector4& property);
 
+    dmGameObject::PropertyResult GetResourceProperty(dmResource::HFactory factory, void* resource, dmGameObject::PropertyDesc& out_value);
+    dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t ext, void** out_resource);
+    dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t* exts, uint32_t ext_count, void** out_resource);
+
     bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant);
     void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial material, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
     int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
     void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state);
     int  AreRenderConstantsUpdated(CompRenderConstants* constants);
-
 
 #define DM_GAMESYS_PROP_VECTOR3(var_name, prop_name, readOnly)\
     static const dmGameSystem::PropVector3 var_name(dmHashString64(#prop_name),\

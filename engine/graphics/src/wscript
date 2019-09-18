@@ -8,29 +8,18 @@ def set_options(opt):
     pass
 
 def build(bld):
-    if bld.env.PLATFORM != 'as3-web':
-        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
-                               includes = ['. opengl', '../proto'],
-                               proto_gen_py = True,
-                               protoc_includes = '../proto',
-                               uselib = 'DDF DLIB',
-                               target = 'graphics')
+    obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                           includes = ['. opengl', '../proto'],
+                           proto_gen_py = True,
+                           protoc_includes = '../proto',
+                           uselib = 'DDF DLIB',
+                           target = 'graphics')
 
-        obj.find_sources_in_dirs('. opengl ../proto/graphics')
-        if 'web' in bld.env.PLATFORM:
-             obj.source.append('opengl/async/job_queue_sync.cpp');
-        else:
-             obj.source.append('opengl/async/job_queue_threaded.cpp');
-
+    obj.find_sources_in_dirs('. opengl ../proto/graphics')
+    if 'web' in bld.env.PLATFORM:
+         obj.source.append('opengl/async/job_queue_sync.cpp');
     else:
-        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
-                               includes = ['. flash', '../proto'],
-                               proto_gen_py = True,
-                               protoc_includes = '../proto',
-                               uselib = 'DDF DLIB',
-                               target = 'graphics')
-
-        obj.find_sources_in_dirs('. flash ../proto/graphics')
+         obj.source.append('opengl/async/job_queue_threaded.cpp');
 
     if Options.options.with_vulkan:
       obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
@@ -41,6 +30,17 @@ def build(bld):
                              target = 'graphics_vulkan')
 
       obj.find_sources_in_dirs('. vulkan ../proto/graphics')
+
+      if bld.env.PLATFORM == 'x86_64-darwin':
+        obj.source.append('vulkan/macosx/graphics_vulkan_macosx_surface.mm')
+      elif bld.env.PLATFORM == 'armv7-darwin' or bld.env.PLATFORM == 'arm64-darwin':
+        obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
+      elif bld.env.PLATFORM == 'armv7-android' or bld.env.PLATFORM == 'arm64-android':
+        obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
+      elif bld.env.PLATFORM == 'x86_64-linux':
+        obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
+      elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
+        obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                            includes = ['. null', '../proto'],

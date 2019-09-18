@@ -5,7 +5,7 @@
 #include "profile.h"
 #include "memprofile.h"
 
-#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
+#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__))
 
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -51,7 +51,7 @@ namespace dmMemProfile
     {
         if (!dLib::IsDebugMode())
             return;
-#if defined(__MACH__) || defined(__linux__) && !defined(ANDROID) && !defined(__EMSCRIPTEN__) && !defined(__AVM2__)
+#if defined(__MACH__) || defined(__linux__) && !defined(ANDROID) && !defined(__EMSCRIPTEN__)
         void (*init)(dmMemProfile::InternalData*) = (void (*)(dmMemProfile::InternalData*)) dlsym(RTLD_DEFAULT, "dmMemProfileInitializeLibrary");
         if (init)
         {
@@ -87,7 +87,7 @@ namespace dmMemProfile
 // Code belonging to libdlib_profile. Not part of libdlib.
 
 // Not available on WIN32 or Android - yet.
-#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
+#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__))
 
 #ifdef __linux__
 static void *null_calloc(size_t /*count*/, size_t /*size*/)

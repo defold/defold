@@ -1,6 +1,7 @@
 #include "dns.h"
 #include "dns_private.h"
 #include "socket.h"
+#include "dstrings.h"
 
 #include "time.h"
 #include "atomic.h"
@@ -9,7 +10,7 @@
 #include <ares.h>
 #include <assert.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__)
     #include <netdb.h>
 #endif
 
@@ -47,6 +48,7 @@ namespace dmDNS
             case ARES_ENOTFOUND:
             case ARES_ENOTIMP:
             case ARES_EREFUSED:
+            case ARES_ECONNREFUSED:
             case ARES_ETIMEOUT:
                 res = RESULT_HOST_NOT_FOUND;
                 break;
@@ -71,7 +73,7 @@ namespace dmDNS
             // so that we can attempt to make a connection anyway.
             req->m_Status = ARES_SUCCESS;
         }
-        else if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
+        else if (status != ARES_ECANCELLED && status != ARES_EDESTRUCTION)
         {
             // we cannot guarantee that the request data is still alive if the
             // request is either cancelled or destroyed. If so, we don't touch
@@ -107,7 +109,7 @@ namespace dmDNS
         RequestInfo* req = (RequestInfo*) arg;
 
         // Same as ares_gethost_callback, we need to trust the req pointer.
-        if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
+        if (status != ARES_ECANCELLED && status != ARES_EDESTRUCTION)
         {
             req->m_Status = (uint32_t) status;
         }
@@ -232,6 +234,16 @@ namespace dmDNS
         }
     }
 
+    Result RefreshChannel(HChannel channel)
+    {
+        if (channel && ares_init(&((Channel*)channel)->m_Handle) == ARES_SUCCESS)
+        {
+            return RESULT_OK;
+        }
+
+        return RESULT_INIT_ERROR;
+    }
+
     // Note: This function should ultimately replace the dmSocket::GetHostByName, but there's a few places
     //       left in the engine where the old version is still used. This is because we need to pass along a
     //       dns channel to this function, which needs to be stored somewhere that's easily reachable by
@@ -349,4 +361,21 @@ namespace dmDNS
 
         return AresStatusToDNSResult(req.m_Status);
     }
+
+    #define DM_DNS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_DNS_RESULT_TO_STRING_CASE(OK);
+            DM_DNS_RESULT_TO_STRING_CASE(INIT_ERROR);
+            DM_DNS_RESULT_TO_STRING_CASE(HOST_NOT_FOUND);
+            DM_DNS_RESULT_TO_STRING_CASE(CANCELLED);
+            DM_DNS_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+            default:
+                break;
+        }
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_DNS_RESULT_TO_STRING_CASE
 }

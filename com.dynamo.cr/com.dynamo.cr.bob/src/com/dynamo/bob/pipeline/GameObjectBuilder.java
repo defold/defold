@@ -3,6 +3,8 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 
 import org.apache.commons.io.FilenameUtils;
@@ -60,16 +62,24 @@ public class GameObjectBuilder extends Builder<Void> {
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder b = loadPrototype(input);
-        PrototypeDesc proto = b.build();
 
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
 
+        for (ComponentDesc cd : b.getComponentsList()) {
+            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
+            for(String r : resources) {
+                IResource resource = BuilderUtil.checkResource(this.project, input, "resource", r);
+                taskBuilder.addInput(resource);
+            }
+        }
+
         int i = 0;
         String name = FilenameUtils.getBaseName(input.getPath());
         List<Task<?>> embedTasks = new ArrayList<Task<?>>();
+        PrototypeDesc proto = b.build();
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
 
             String embedName = String.format("%s_generated_%d.%s", name, i, ec.getType());
@@ -165,6 +175,8 @@ public class GameObjectBuilder extends Builder<Void> {
     private PrototypeDesc.Builder transformGo(IResource resource,
             PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
 
+        protoBuilder.clearPropertyResources();
+        Collection<String> propertyResources = new HashSet<String>();
         List<ComponentDesc> newList = new ArrayList<ComponentDesc>();
         for (ComponentDesc cd : protoBuilder.getComponentsList()) {
             String c = cd.getComponent();
@@ -173,7 +185,7 @@ public class GameObjectBuilder extends Builder<Void> {
             }
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
             for (PropertyDesc desc : cd.getPropertiesList()) {
-                if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties)) {
+                if (!PropertiesUtil.transformPropertyDesc(project, desc, properties, propertyResources)) {
                     throw new CompileExceptionError(resource, 0, String.format("The property %s.%s has an invalid format: %s", cd.getId(), desc.getId(), desc.getValue()));
                 }
             }
@@ -182,6 +194,7 @@ public class GameObjectBuilder extends Builder<Void> {
             compBuilder.setPropertyDecls(properties);
             newList.add(compBuilder.build());
         }
+        protoBuilder.addAllPropertyResources(propertyResources);
         protoBuilder.clearComponents();
         protoBuilder.addAllComponents(newList);
 

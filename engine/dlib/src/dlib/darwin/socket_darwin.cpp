@@ -73,18 +73,7 @@ namespace dmSocket
                 a->m_Flags |= FLAGS_RUNNING;
             }
 
-            if (family == AF_LINK) {
-                unsigned char* ptr = (unsigned char *)LLADDR((struct sockaddr_dl *)(ifa)->ifa_addr);
-                if (ptr[0] || ptr[1] || ptr[2] || ptr[3] || ptr[4] || ptr[5]) {
-                    a->m_Flags |= FLAGS_LINK;
-                    a->m_MacAddress[0] = ptr[0];
-                    a->m_MacAddress[1] = ptr[1];
-                    a->m_MacAddress[2] = ptr[2];
-                    a->m_MacAddress[3] = ptr[3];
-                    a->m_MacAddress[4] = ptr[4];
-                    a->m_MacAddress[5] = ptr[5];
-                }
-            } else if (family == AF_INET) {
+            if (family == AF_INET) {
                 sockaddr_in* sock_addr = (sockaddr_in*) ifa->ifa_addr;
                 a->m_Flags |= FLAGS_INET;
                 a->m_Address.m_family = DOMAIN_IPV4;
@@ -94,6 +83,18 @@ namespace dmSocket
                 a->m_Flags |= FLAGS_INET;
                 a->m_Address.m_family = DOMAIN_IPV6;
                 memcpy(IPv6(&a->m_Address), &sock_addr->sin6_addr, sizeof(struct in6_addr));
+            } else if (family == AF_LINK) {
+                a->m_Flags |= FLAGS_LINK;
+            }
+
+            unsigned char* ptr = (unsigned char *)LLADDR((struct sockaddr_dl *)(ifa)->ifa_addr);
+            if (ptr[0] || ptr[1] || ptr[2] || ptr[3] || ptr[4] || ptr[5]) {
+                a->m_MacAddress[0] = ptr[0];
+                a->m_MacAddress[1] = ptr[1];
+                a->m_MacAddress[2] = ptr[2];
+                a->m_MacAddress[3] = ptr[3];
+                a->m_MacAddress[4] = ptr[4];
+                a->m_MacAddress[5] = ptr[5];
             }
         }
         freeifaddrs(ifaddr);

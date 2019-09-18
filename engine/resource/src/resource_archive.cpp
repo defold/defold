@@ -20,7 +20,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>

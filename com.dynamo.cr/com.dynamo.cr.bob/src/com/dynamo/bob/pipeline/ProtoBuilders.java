@@ -43,11 +43,20 @@ import com.dynamo.tile.proto.Tile.TileGrid;
 public class ProtoBuilders {
 
     private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
+    private static String[] textureSetSrcExts = {".atlas", ".tileset", ".tilesource"};
 
-    static String replaceTextureName(String str) {
+    public static String replaceTextureName(String str) {
         String out = str;
         for (String srcExt : textureSrcExts) {
             out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
+        }
+        return out;
+    }
+
+    public static String replaceTextureSetName(String str) {
+        String out = str;
+        for (String srcExt : textureSetSrcExts) {
+            out = BuilderUtil.replaceExt(out, srcExt, ".texturesetc");
         }
         return out;
     }

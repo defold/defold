@@ -1,4 +1,4 @@
-#include "comp_model.h"
+#include "comp_sound.h"
 
 #include <string.h>
 
@@ -19,8 +19,11 @@ namespace dmGameSystem
         dmResource::HFactory    m_Factory;
         Sound*                  m_Sound;
         dmSound::HSoundInstance m_SoundInstance;
-        float                   m_Delay;
+        dmMessage::URL          m_Listener;
+        dmMessage::URL          m_Receiver;
         dmGameObject::HInstance m_Instance;
+        float                   m_Delay;
+        uint32_t                m_PlayId;
         uint32_t                m_StopRequested : 1;
     };
 
@@ -125,6 +128,30 @@ namespace dmGameSystem
                             dmLogError("Error deleting sound: (%d)", r);
                             update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
+                        else if (entry.m_PlayId != dmSound::INVALID_PLAY_ID && entry.m_Listener.m_Fragment != 0x0)
+                        {
+                            dmhash_t message_id = dmGameSystemDDF::SoundDone::m_DDFDescriptor->m_NameHash;
+                            dmGameSystemDDF::SoundDone message;
+
+                            dmMessage::URL receiver = entry.m_Listener;
+                            dmMessage::URL sender = entry.m_Receiver;
+
+                            if (dmMessage::IsSocketValid(sender.m_Socket) && dmMessage::IsSocketValid(receiver.m_Socket))
+                            {
+                                uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SoundDone::m_DDFDescriptor;
+                                uint32_t data_size = sizeof(dmGameSystemDDF::SoundDone);
+
+                                message.m_PlayId = entry.m_PlayId;
+
+                                if (dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0) != dmMessage::RESULT_OK)
+                                {
+                                    dmLogError("Could not send sound_done to listener.");
+                                }
+                            }
+
+                            dmMessage::ResetURL(entry.m_Receiver);
+                            dmMessage::ResetURL(entry.m_Listener);
+                        }
                     }
                     else if (entry.m_StopRequested)
                     {
@@ -163,6 +190,7 @@ namespace dmGameSystem
      * @name play_sound
      * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
      * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @param [play_id] [type:number] the identifier of the sound, can be used to distinguish between consecutive plays from the same component.
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
@@ -206,6 +234,15 @@ namespace dmGameSystem
      * ```
      */
 
+    /*# reports when a sound has finished playing
+     * This message is sent back to the sender of a `play_sound` message, if the sound
+     * could be played to completion.
+     *
+     * @message
+     * @name sound_done
+     * @param [play_id] [type:number] id number supplied when the message was posted.
+     */
+
     dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor)
@@ -225,7 +262,10 @@ namespace dmGameSystem
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
                 entry.m_Instance = params.m_Instance;
+                entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
+                entry.m_PlayId = play_sound->m_PlayId;
+                dmMessage::ResetURL(entry.m_Listener);
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {
@@ -235,8 +275,14 @@ namespace dmGameSystem
                     }
 
                     float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
+                    float pan = play_sound->m_Pan + entry.m_Sound->m_Pan;
+                    float speed = play_sound->m_Speed * entry.m_Sound->m_Speed;
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(speed, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
+
+                    entry.m_Listener = params.m_Message->m_Sender;
                 }
                 else
                 {
@@ -273,10 +319,29 @@ namespace dmGameSystem
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
                     float gain = set_gain->m_Gain * entry.m_Sound->m_Gain;
-                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vector4(gain, 0, 0, 0));
+                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     if (r != dmSound::RESULT_OK)
                     {
                         dmLogError("Fail to set gain on sound");
+                    }
+                }
+            }
+        }
+        else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor)
+        {
+            World* world = (World*)params.m_World;
+            dmGameSystemDDF::SetPan* ddf = (dmGameSystemDDF::SetPan*)params.m_Message->m_Data;
+
+            for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
+            {
+                PlayEntry& entry = world->m_Entries[i];
+                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
+                {
+                    float pan = ddf->m_Pan + entry.m_Sound->m_Pan;
+                    dmSound::Result r = dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(pan, 0, 0, 0));
+                    if (r != dmSound::RESULT_OK)
+                    {
+                        dmLogError("Fail to set pan on sound");
                     }
                 }
             }

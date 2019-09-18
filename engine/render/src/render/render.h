@@ -114,7 +114,7 @@ namespace dmRender
         void Init();
         void ClearConstants();
 
-        static const uint32_t MAX_TEXTURE_COUNT = 32;
+        static const uint32_t MAX_TEXTURE_COUNT = 8;
         static const uint32_t MAX_CONSTANT_COUNT = 16;
         Constant                        m_Constants[MAX_CONSTANT_COUNT];
         Matrix4                         m_WorldTransform;
@@ -173,7 +173,7 @@ namespace dmRender
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagMask;
-        uintptr_t m_UserData;
+        uint64_t m_UserData;
         uint32_t m_MinorOrder:4;
         uint32_t m_MajorOrder:2;
         uint32_t m_Dispatch:8;
