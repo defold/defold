@@ -11,6 +11,36 @@
 
 namespace dmGraphics
 {
+    #define CHECK_VK_ERROR(result, stmt) \
+        result = stmt; \
+        if(g_Context->m_VerifyGraphicsCalls && result != VK_SUCCESS) { \
+            dmLogError("Vulkan Error (%s:%d): \n%s", __FILE__, __LINE__, #stmt); \
+            assert(0); \
+        }
+
+    struct Context
+    {
+        SwapChain*            m_SwapChain;
+        SwapChainCapabilities m_SwapChainCapabilities;
+        PhysicalDevice        m_PhysicalDevice;
+        LogicalDevice         m_LogicalDevice;
+        VkInstance            m_Instance;
+        VkSurfaceKHR          m_WindowSurface;
+
+        // Main device rendering constructs
+        dmArray<RenderTarget> m_MainFramebuffers;
+        VkCommandPool         m_MainCommandPool;
+        VkRenderPass          m_MainRenderPass;
+        Texture               m_MainTextureDepthStencil;
+        RenderTarget          m_MainRenderTarget;
+
+        TextureFilter         m_DefaultTextureMinFilter;
+        TextureFilter         m_DefaultTextureMagFilter;
+        uint32_t              m_WindowOpened        : 1;
+        uint32_t              m_VerifyGraphicsCalls : 1;
+        uint32_t              : 30;
+    };
+
     static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
     static const uint8_t g_validation_layer_count = 1;
 
@@ -64,6 +94,12 @@ namespace dmGraphics
         vkDeviceWaitIdle(vk_device);
     }
 
+    static inline uint32_t GetNextRenderTargetId()
+    {
+        static uint32_t next_id = 0;
+        return next_id++;
+    }
+
     static VkResult CreateCommandBuffers(VkDevice vk_device, uint32_t numBuffersToCreate, VkCommandPool vk_command_pool, VkCommandBuffer* vk_command_buffers_out)
     {
         VkCommandBufferAllocateInfo vk_buffers_allocate_info;
@@ -75,6 +111,22 @@ namespace dmGraphics
         vk_buffers_allocate_info.commandBufferCount = numBuffersToCreate;
 
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
+    }
+
+    static VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass, uint32_t width, uint32_t height, VkImageView* vk_attachments, uint8_t attachmentCount, VkFramebuffer* vk_framebuffer_out)
+    {
+        VkFramebufferCreateInfo vk_framebuffer_create_info;
+        memset(&vk_framebuffer_create_info, 0, sizeof(vk_framebuffer_create_info));
+
+        vk_framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        vk_framebuffer_create_info.renderPass      = vk_render_pass;
+        vk_framebuffer_create_info.attachmentCount = attachmentCount;
+        vk_framebuffer_create_info.pAttachments    = vk_attachments;
+        vk_framebuffer_create_info.width           = width;
+        vk_framebuffer_create_info.height          = height;
+        vk_framebuffer_create_info.layers          = 1;
+
+        return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
     // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
@@ -292,8 +344,9 @@ namespace dmGraphics
                 vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
 
-        VkResult res = AllocateTexture2D(vk_physical_device, vk_device, width, height, 1,
-            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut);
+        VkResult res;
+        CHECK_VK_ERROR(res, AllocateTexture2D(vk_physical_device, vk_device, width, height, 1,
+            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut));
 
         if (res == VK_SUCCESS)
         {
@@ -306,7 +359,7 @@ namespace dmGraphics
                 vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
 
-            TransitionImageLayout(vk_device, context->m_MainCommandPool, context->m_LogicalDevice.m_GraphicsQueue, depthStencilTextureOut->m_Image, vk_aspect,
+            TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depthStencilTextureOut->m_Image, vk_aspect,
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
         }
 
@@ -394,7 +447,8 @@ namespace dmGraphics
         render_pass_create_info.dependencyCount = 1;
         render_pass_create_info.pDependencies   = &vk_sub_pass_dependency;
 
-        VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
+        VkResult res;
+        CHECK_VK_ERROR(res,vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut))
 
         delete[] vk_attachment_desc;
         delete[] vk_attachment_color_ref;
@@ -402,23 +456,52 @@ namespace dmGraphics
         return res;
     }
 
+    static VkResult CreateMainFrameBuffers(HContext context)
+    {
+        assert(context);
+        assert(context->m_SwapChain);
+
+        // We need to create a framebuffer per swap chain image
+        // so that they can be used in different states in the rendering pipeline
+        context->m_MainFramebuffers.SetCapacity(context->m_SwapChain->m_Images.Size());
+        context->m_MainFramebuffers.SetSize(context->m_SwapChain->m_Images.Size());
+
+        SwapChain* swapChain = context->m_SwapChain;
+        VkResult res;
+
+        for (uint8_t i=0; i < context->m_MainFramebuffers.Size(); i++)
+        {
+            // All swap chain images can share the same depth buffer,
+            // that's why we create a single depth buffer at the start and reuse it.
+            VkImageView&   vk_image_view_color     = swapChain->m_ImageViews[i];
+            VkImageView&   vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
+            VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
+            CHECK_VK_ERROR(res, CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
+                swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
+                vk_image_attachments, sizeof(vk_image_attachments) / sizeof(vk_image_attachments[0]), &context->m_MainFramebuffers[i].m_Framebuffer))
+        }
+
+        // Create a dummy rendertarget for the main framebuffer
+        // The m_Framebuffer construct will be rotated sequentially
+        // with the framebuffer objects created per swap chain.
+        RenderTarget& rt = context->m_MainRenderTarget;
+        rt.m_RenderPass  = context->m_MainRenderPass;
+        rt.m_Framebuffer = context->m_MainFramebuffers[0].m_Framebuffer;
+        rt.m_Id          = GetNextRenderTargetId();
+
+        return res;
+    }
+
     static VkResult CreateMainRenderingResources(HContext context)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-
-        // Create command pool
-        VkCommandPoolCreateInfo vk_create_pool_info;
-        memset(&vk_create_pool_info, 0, sizeof(vk_create_pool_info));
-        vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        vk_create_pool_info.queueFamilyIndex = (uint32_t) context->m_SwapChain->m_QueueFamily.m_GraphicsQueueIx;
-        vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        VkResult res = vkCreateCommandPool(context->m_LogicalDevice.m_Device, &vk_create_pool_info, 0, &context->m_MainCommandPool);
+        VkResult res;
 
         // Create depth/stencil buffer
-        res = AllocateDepthStencilTexture(context,
+        CHECK_VK_ERROR(res, AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
-            &context->m_MainTextureDepthStencil);
+            &context->m_MainTextureDepthStencil))
 
         // Create main render pass with two attachments
         RenderPassAttachment attachments[2];
@@ -426,7 +509,9 @@ namespace dmGraphics
         attachments[0].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         attachments[1].m_Format      = context->m_MainTextureDepthStencil.m_Format;
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        res = CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass);
+
+        CHECK_VK_ERROR(res, CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass))
+        CHECK_VK_ERROR(res, CreateMainFrameBuffers(context))
 
         return res;
     }
@@ -434,18 +519,17 @@ namespace dmGraphics
     static void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
+        VkResult res;
         // Flush all current commands
         SynchronizeDevice(vk_device);
-        VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
-        assert(res == VK_SUCCESS);
+        CHECK_VK_ERROR(res, UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities))
 
         // Reset & create main Depth/Stencil buffer
         ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
-        res = AllocateDepthStencilTexture(context,
+        CHECK_VK_ERROR(res, AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
-            &context->m_MainTextureDepthStencil);
-        assert(res == VK_SUCCESS);
+            &context->m_MainTextureDepthStencil))
 
         // Flush once again to make sure all transitions are complete
         SynchronizeDevice(vk_device);
@@ -477,7 +561,10 @@ namespace dmGraphics
             }
 
             g_Context = new Context();
-            g_Context->m_Instance = vk_instance;
+            g_Context->m_Instance                = vk_instance;
+            g_Context->m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+            g_Context->m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+            g_Context->m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
 
             return g_Context;
         }
@@ -680,7 +767,7 @@ bail:
 
             ResetSwapChain(context->m_SwapChain);
 
-            vkDestroyCommandPool(vk_device, context->m_MainCommandPool, 0);
+            ResetLogicalDevice(&context->m_LogicalDevice);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -755,7 +842,10 @@ bail:
     }
 
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {}
+    {
+        out_min_filter = context->m_DefaultTextureMinFilter;
+        out_mag_filter = context->m_DefaultTextureMagFilter;
+    }
 
     void Flip(HContext context)
     {}

@@ -134,6 +134,12 @@ namespace dmGraphics
         return qf;
     }
 
+    void ResetLogicalDevice(LogicalDevice* device)
+    {
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        memset(device, 0, sizeof(*device));
+    }
+
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
@@ -186,6 +192,14 @@ namespace dmGraphics
         {
             vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_GraphicsQueueIx, 0, &logicalDeviceOut->m_GraphicsQueue);
             vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_PresentQueueIx, 0, &logicalDeviceOut->m_PresentQueue);
+
+            // Create command pool
+            VkCommandPoolCreateInfo vk_create_pool_info;
+            memset(&vk_create_pool_info, 0, sizeof(vk_create_pool_info));
+            vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx;
+            vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPool);
         }
 
         return res;
