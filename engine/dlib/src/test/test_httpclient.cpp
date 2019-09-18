@@ -1033,7 +1033,7 @@ TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
     dmDNS::NewChannel(&params.m_DNSChannel);
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "http://localhost", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
