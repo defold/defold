@@ -36,11 +36,12 @@ namespace dmGraphics
         VkSurfaceKHR          m_WindowSurface;
 
         // Main device rendering constructs
-        dmArray<VkFramebuffer> m_MainFramebuffers;
-        VkCommandPool          m_MainCommandPool;
-        VkRenderPass           m_MainRenderPass;
-        Texture                m_MainTextureDepthStencil;
-        RenderTarget           m_MainRenderTarget;
+        dmArray<VkFramebuffer>   m_MainFrameBuffers;
+        dmArray<VkCommandBuffer> m_MainCommandBuffers;
+        VkCommandPool            m_MainCommandPool;
+        VkRenderPass             m_MainRenderPass;
+        Texture                  m_MainTextureDepthStencil;
+        RenderTarget             m_MainRenderTarget;
 
         TextureFilter         m_DefaultTextureMinFilter;
         TextureFilter         m_DefaultTextureMagFilter;
@@ -366,6 +367,19 @@ namespace dmGraphics
         return res;
     }
 
+    static VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint8_t numBuffersToCreate, VkCommandBuffer* commandBuffersOut)
+    {
+        VkCommandBufferAllocateInfo vk_allocate_info;
+        memset(&vk_allocate_info, 0, sizeof(VkCommandBufferAllocateInfo));
+
+        vk_allocate_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        vk_allocate_info.commandPool        = vk_command_pool;
+        vk_allocate_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        vk_allocate_info.commandBufferCount = (uint32_t) numBuffersToCreate;
+
+        return vkAllocateCommandBuffers(vk_device, &vk_allocate_info, commandBuffersOut);
+    }
+
     static VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
@@ -463,13 +477,13 @@ namespace dmGraphics
 
         // We need to create a framebuffer per swap chain image
         // so that they can be used in different states in the rendering pipeline
-        context->m_MainFramebuffers.SetCapacity(context->m_SwapChain->m_Images.Size());
-        context->m_MainFramebuffers.SetSize(context->m_SwapChain->m_Images.Size());
+        context->m_MainFrameBuffers.SetCapacity(context->m_SwapChain->m_Images.Size());
+        context->m_MainFrameBuffers.SetSize(context->m_SwapChain->m_Images.Size());
 
         SwapChain* swapChain = context->m_SwapChain;
         VkResult res;
 
-        for (uint8_t i=0; i < context->m_MainFramebuffers.Size(); i++)
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
         {
             // All swap chain images can share the same depth buffer,
             // that's why we create a single depth buffer at the start and reuse it.
@@ -478,7 +492,7 @@ namespace dmGraphics
             VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
             CHECK_VK_ERROR(res, CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, 2, &context->m_MainFramebuffers[i]))
+                vk_image_attachments, 2, &context->m_MainFrameBuffers[i]))
         }
 
         // Initialize the dummy rendertarget for the main framebuffer
@@ -486,7 +500,7 @@ namespace dmGraphics
         // with the framebuffer objects created per swap chain.
         RenderTarget& rt = context->m_MainRenderTarget;
         rt.m_RenderPass  = context->m_MainRenderPass;
-        rt.m_Framebuffer = context->m_MainFramebuffers[0];
+        rt.m_Framebuffer = context->m_MainFrameBuffers[0];
 
         return res;
     }
@@ -497,6 +511,7 @@ namespace dmGraphics
         VkResult res;
 
         // Create depth/stencil buffer
+        memset(&context->m_MainTextureDepthStencil, 0, sizeof(context->m_MainTextureDepthStencil));
         CHECK_VK_ERROR(res, AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
@@ -511,6 +526,10 @@ namespace dmGraphics
 
         CHECK_VK_ERROR(res, CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass))
         CHECK_VK_ERROR(res, CreateMainRenderTarget(context))
+        CHECK_VK_ERROR(res, CreateCommandBuffers(vk_device,
+                context->m_MainCommandPool,
+                context->m_MainCommandBuffers.Size(),
+                context->m_MainCommandBuffers.Begin()))
 
         return res;
     }
@@ -533,9 +552,9 @@ namespace dmGraphics
         // Reset main rendertarget (but not the render pass)
         RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
         mainRenderTarget->m_RenderPass = VK_NULL_HANDLE;
-        for (uint8_t i=0; i < context->m_MainFramebuffers.Size(); i++)
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
         {
-            mainRenderTarget->m_Framebuffer = context->m_MainFramebuffers[i];
+            mainRenderTarget->m_Framebuffer = context->m_MainFrameBuffers[i];
             ResetRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
         }
 
@@ -773,9 +792,9 @@ bail:
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
-            for (uint8_t i=0; i < context->m_MainFramebuffers.Size(); i++)
+            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
             {
-                vkDestroyFramebuffer(vk_device, context->m_MainFramebuffers[i], 0);
+                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
             }
 
             ResetSwapChain(context->m_SwapChain);
