@@ -12,6 +12,7 @@
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
+#include <dlib/transform.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <gameobject/gameobject_ddf.h>
@@ -22,8 +23,6 @@
 
 #include "gamesys_ddf.h"
 #include "mesh_ddf.h"
-
-using namespace Vectormath::Aos;
 
 namespace dmGameSystem
 {
@@ -50,6 +49,13 @@ namespace dmGameSystem
     struct MeshWorld
     {
         dmResource::HFactory            m_ResourceFactory;
+        // dmArray<dmGraphics::HVertexBuffer> m_WorldVertexBuffers;
+        void*                           m_WorldVertexData;
+        size_t                          m_WorldVertexDataSize;
+        /// Vertex buffer used for meshes that should render vertices in world space.
+        dmGraphics::HVertexBuffer       m_WorldVertexBuffer;
+        // void*                           m_WorldVertexBufferData;
+        // size_t                          m_WorldVertexBufferDataSize;
         dmObjectPool<MeshComponent*>    m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
     };
@@ -70,6 +76,14 @@ namespace dmGameSystem
         world->m_ResourceFactory = context->m_Factory;
         world->m_Components.SetCapacity(context->m_MaxMeshCount);
         world->m_RenderObjects.SetCapacity(context->m_MaxMeshCount);
+
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        // world->m_WorldVertexBuffers.SetCapacity(4);
+        // world->m_WorldVertexBuffers.SetSize(0);
+        world->m_WorldVertexData = 0x0;
+        world->m_WorldVertexDataSize = 0;
+        world->m_WorldVertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        // world->m_WorldVertexBufferData = 0x0;
 
         // dmGraphics::VertexElement ve[] =
         // {
@@ -97,6 +111,7 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompMeshDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
+        // dmGraphics::DeleteVertexBuffer(world->m_WorldVertexBuffer);
         // dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         // for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         // {
@@ -113,18 +128,20 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    // static void ReHash(ModelComponent* component)
-    // {
-    //     // Hash resource-ptr, material-handle, blend mode and render constants
-    //     HashState32 state;
-    //     bool reverse = false;
-    //     ModelResource* resource = component->m_Resource;
-    //     dmHashInit32(&state, reverse);
-    //     dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
-    //     dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
-    //     ReHashRenderConstants(&component->m_RenderConstants, &state);
-    //     component->m_MixedHash = dmHashFinal32(&state);
-    // }
+    static void ReHash(MeshComponent* component)
+    {
+        // Hash resource-ptr, material-handle, blend mode and render constants
+        HashState32 state;
+        bool reverse = false;
+        MeshResource* resource = component->m_Resource;
+        dmHashInit32(&state, reverse);
+        dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
+        dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
+        dmHashUpdateBuffer32(&state, &resource->m_BufferResource, sizeof(resource->m_BufferResource));
+        dmHashUpdateBuffer32(&state, &resource->m_VertexDeclaration, sizeof(resource->m_VertexDeclaration)); // TODO(andsve): does this make sense?
+        ReHashRenderConstants(&component->m_RenderConstants, &state);
+        component->m_MixedHash = dmHashFinal32(&state);
+    }
 
     dmGameObject::CreateResult CompMeshCreate(const dmGameObject::ComponentCreateParams& params)
     {
@@ -148,7 +165,7 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
 
-        // ReHash(component);
+        ReHash(component);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -219,8 +236,8 @@ namespace dmGameSystem
 
             if (dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
-                // FIXME(andsve): figure out what we need to do to rehash a mesh component.
-                // ReHash(&component);
+                // FIXME(andsve): figure out if we need to do this if we change any of the resource properties?
+                ReHash(&component);
             }
 
             component.m_DoRender = 1;
@@ -231,13 +248,165 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void FillRenderObject(dmRender::RenderObject& ro,
+        const dmRender::HMaterial& material,
+        const dmGraphics::HTexture* textures,
+        const dmGraphics::HVertexDeclaration& vert_decl,
+        const dmGraphics::HVertexBuffer& vert_buffer,
+        uint32_t vert_start, uint32_t vert_count,
+        const Matrix4& world_transform,
+        const CompRenderConstants& constants)
+    {
+        ro.Init();
+        ro.m_VertexDeclaration = vert_decl;
+        ro.m_VertexBuffer = vert_buffer;
+        ro.m_Material = material;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart = vert_start;
+        ro.m_VertexCount = vert_count;
+        ro.m_WorldTransform = world_transform;
+
+        // if(mr->m_IndexBuffer)
+        // {
+        //     ro.m_IndexBuffer = mr->m_IndexBuffer;
+        //     ro.m_IndexType = mr->m_IndexBufferElementType;
+        // }
+
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+            ro.m_Textures[i] = textures[i];
+
+        for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
+        {
+            const dmRender::Constant& c = constants.m_RenderConstants[i];
+            dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+        }
+    }
+
+    static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
+        DM_PROFILE(Mesh, "RenderBatchWorld");
+
+        // if (world->m_WorldVertexBuffers.Remaining() == 0) {
+        //     world->m_WorldVertexBuffers.OffsetCapacity(4);
+        // }
+
+        // dmGraphics::HVertexBuffer vert_buffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        // world->m_WorldVertexBuffers.Push(vert_buffer);
+
+        dmRender::RenderObject& ro = *world->m_RenderObjects.End();
+        world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
+
+        const MeshComponent* first_component = (MeshComponent*) buf[*begin].m_UserData;
+        const MeshResource* mr = first_component->m_Resource;
+        const BufferResource* br = mr->m_BufferResource;
+
+        uint32_t batch_size = 0;
+        for (uint32_t *i=begin;i!=end;i++)
+        {
+            batch_size++;
+        }
+
+        // TODO(andsve): prealloc the data buffer to avoid alloc during this loop??
+        if (world->m_WorldVertexDataSize < mr->m_VertSize * br->m_ElementCount * batch_size)
+        {
+            if (world->m_WorldVertexData) {
+                free(world->m_WorldVertexData);
+            }
+            world->m_WorldVertexData = malloc(mr->m_VertSize * br->m_ElementCount * batch_size);
+            world->m_WorldVertexDataSize = mr->m_VertSize * br->m_ElementCount * batch_size;
+        }
+
+        float* dst_data_ptr = (float*)world->m_WorldVertexData;
+        for (uint32_t *i=begin;i!=end;i++)
+        {
+
+            // dmLogError("RenderBatchLocalVS %p", i);
+
+            const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
+
+            float* raw_data = 0x0;
+            uint32_t size = 0;
+            dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&raw_data, &size);
+            if (r != dmBuffer::RESULT_OK) {
+                assert(false && "Megafail 1.");
+            }
+
+
+            // Get position stream to figure out offset and stride etc
+            float* position_data = 0x0;
+            uint32_t count = 0;
+            uint32_t components = 0;
+            uint32_t stride = 0;
+            r = dmBuffer::GetStream(br->m_Buffer, mr->m_PositionStreamId, (void**)&position_data, &count, &components, &stride);
+            if (r != dmBuffer::RESULT_OK) {
+                assert(false && "Megafail 2.");
+            }
+
+            uint8_t* last_p = (uint8_t*)raw_data;
+            uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
+
+            Point3 in_p;
+            Vector4 v;
+            for (int pi = 0; pi < count; ++pi)
+            {
+                // Copy mem from last entry position up to this one
+                uint32_t diff_size = (uint8_t*)position_data - last_p;
+                if (diff_size > 0) {
+                    memcpy(last_dst_p, last_p, diff_size);
+                }
+
+                // Apply world transform to all positions
+                if (components == 3) {
+
+                    in_p[0] = position_data[0];
+                    in_p[1] = position_data[1];
+                    in_p[2] = position_data[2];
+                    v = component->m_World * in_p;
+                    dst_data_ptr[0] = v[0];
+                    dst_data_ptr[1] = v[1];
+                    dst_data_ptr[2] = v[2];
+                } else if (components == 2) {
+
+                    in_p[0] = position_data[0];
+                    in_p[1] = position_data[1];
+                    in_p[2] = 0.0f;
+                    v = component->m_World * in_p;
+                    dst_data_ptr[0] = v[0];
+                    dst_data_ptr[1] = v[1];
+                } else {
+                    assert(false && "Cannot apply world transform on stream with only one component.");
+                }
+
+                // Update memcpy-ptrs so they point to end of last component element.
+                last_dst_p = (uint8_t*)(&dst_data_ptr[components]);
+                last_p = (uint8_t*)(&position_data[components]);
+
+                // Update in/out-ptrs with stride (they will point to next entry in float "list").
+                position_data += stride;
+                dst_data_ptr += stride;
+            }
+
+            // Copy any remaining data
+            uint8_t* raw_data_end = (uint8_t*)raw_data + size;
+            uint32_t diff_size = raw_data_end - last_p;
+            if (diff_size > 0) {
+                memcpy(last_dst_p, last_p, diff_size);
+            }
+
+        }
+
+        FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_WorldVertexBuffer, 0, mr->m_ElementCount * batch_size, Matrix4::identity(), first_component->m_RenderConstants);
+        dmGraphics::SetVertexBufferData(world->m_WorldVertexBuffer, mr->m_VertSize * br->m_ElementCount * batch_size, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmRender::AddToRender(render_context, &ro);
+    }
+
+
     static inline void RenderBatchLocalVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Mesh, "RenderBatchLocal");
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            // dmLogError("RenderBatchLocalVS %p", i);
             dmRender::RenderObject& ro = *world->m_RenderObjects.End();
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
@@ -252,32 +421,7 @@ namespace dmGameSystem
             assert(r == dmBuffer::RESULT_OK);
             dmGraphics::SetVertexBufferData(mr->m_VertexBuffer, mr->m_VertSize * br->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-            ro.Init();
-            // ro.m_VertexDeclaration = world->m_VertexDeclaration;
-            ro.m_VertexDeclaration = mr->m_VertexDeclaration;
-            ro.m_VertexBuffer = mr->m_VertexBuffer;
-            ro.m_Material = material;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_VertexStart = 0;
-            ro.m_VertexCount = mr->m_ElementCount;
-            ro.m_WorldTransform = component->m_World;
-
-            // if(mr->m_IndexBuffer)
-            // {
-            //     ro.m_IndexBuffer = mr->m_IndexBuffer;
-            //     ro.m_IndexType = mr->m_IndexBufferElementType;
-            // }
-
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-                ro.m_Textures[i] = mr->m_Textures[i];
-
-            const CompRenderConstants& constants = component->m_RenderConstants;
-            for (uint32_t i = 0; i < constants.m_ConstantCount; ++i)
-            {
-                const dmRender::Constant& c = constants.m_RenderConstants[i];
-                dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
-            }
-
+            FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, mr->m_VertexBuffer, 0, mr->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
     }
@@ -290,9 +434,9 @@ namespace dmGameSystem
         dmRender::HMaterial material = first->m_Resource->m_Material;
         switch(dmRender::GetMaterialVertexSpace(material))
         {
-            // case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
-            //     RenderBatchWorldVS(world, material, render_context, buf, begin, end);
-            // break;
+            case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
+                RenderBatchWorldVS(world, material, render_context, buf, begin, end);
+            break;
 
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL:
                 RenderBatchLocalVS(world, material, render_context, buf, begin, end);
@@ -375,8 +519,6 @@ namespace dmGameSystem
             if (!component.m_DoRender)
                 continue;
 
-            uint64_t vertex_count = component.m_Resource->m_BufferResource->m_ElementCount;
-
             const Vector4 trans = component.m_World.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
@@ -405,9 +547,8 @@ namespace dmGameSystem
     static void CompMeshSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         MeshComponent* component = (MeshComponent*)user_data;
-        // SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
-        // FIXME(andsve): rehash again
-        // ReHash(component);
+        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
+        ReHash(component);
     }
 
     dmGameObject::UpdateResult CompMeshOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -444,7 +585,7 @@ namespace dmGameSystem
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
                 if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    // ReHash(component);
+                    ReHash(component);
                 }
             }
         }
