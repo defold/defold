@@ -29,7 +29,15 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        uint32_t dummy;
+        RenderTarget(const uint32_t rtId)
+        : m_RenderPass(VK_NULL_HANDLE)
+        , m_Framebuffer(VK_NULL_HANDLE)
+        , m_Id(rtId)
+        {}
+
+        VkRenderPass   m_RenderPass;
+        VkFramebuffer  m_Framebuffer;
+        const uint32_t m_Id;
     };
 
     struct RenderPassAttachment
@@ -65,9 +73,10 @@ namespace dmGraphics
 
     struct LogicalDevice
     {
-        VkDevice m_Device;
-        VkQueue  m_GraphicsQueue;
-        VkQueue  m_PresentQueue;
+        VkDevice      m_Device;
+        VkQueue       m_GraphicsQueue;
+        VkQueue       m_PresentQueue;
+        VkCommandPool m_CommandPool;
     };
 
     struct SwapChainCapabilities
@@ -102,23 +111,6 @@ namespace dmGraphics
             const SwapChainCapabilities& capabilities, const QueueFamily queueFamily);
     };
 
-    struct Context
-    {
-        SwapChain*            m_SwapChain;
-        SwapChainCapabilities m_SwapChainCapabilities;
-        PhysicalDevice        m_PhysicalDevice;
-        LogicalDevice         m_LogicalDevice;
-        VkInstance            m_Instance;
-        VkSurfaceKHR          m_WindowSurface;
-
-        // Main device rendering constructs
-        VkCommandPool         m_MainCommandPool;
-        VkRenderPass          m_MainRenderPass;
-        Texture               m_MainTextureDepthStencil;
-        uint32_t              m_WindowOpened : 1;
-        uint32_t              : 31;
-    };
-
     // Implemented in graphics_vulkan_context.cpp
     VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
     void     DestroyInstance(VkInstance* vkInstance);
@@ -132,6 +124,8 @@ namespace dmGraphics
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
+    void        ResetLogicalDevice(LogicalDevice* device);
+    void        ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
