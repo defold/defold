@@ -11,17 +11,21 @@
 
 namespace dmGraphics
 {
-    #define CHECK_VK_ERROR(result, stmt) \
-        result = stmt; \
+    static const char* VkResultToStr(VkResult res);
+    #define CHECK_VK_ERROR(result) \
+    { \
         if(g_Context->m_VerifyGraphicsCalls && result != VK_SUCCESS) { \
-            dmLogError("Vulkan Error (%s:%d): \n%s", __FILE__, __LINE__, #stmt); \
+            dmLogError("Vulkan Error (%s:%d) %s", __FILE__, __LINE__, VkResultToStr(result)); \
             assert(0); \
-        }
+        } \
+    }
 
     struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
         : m_Instance(vk_instance)
+        , m_MainCommandPool(VK_NULL_HANDLE)
+        , m_MainRenderPass(VK_NULL_HANDLE)
         , m_MainRenderTarget(0)
         , m_DefaultTextureMinFilter(params.m_DefaultTextureMinFilter)
         , m_DefaultTextureMagFilter(params.m_DefaultTextureMagFilter)
@@ -116,12 +120,13 @@ namespace dmGraphics
     {
         static uint32_t next_id = 1;
 
-        if (++next_id == 0)
+        // Id 0 is taken for the main framebuffer
+        if (next_id == 0)
         {
             next_id = 1;
         }
 
-        return next_id;
+        return next_id++;
     }
 
     static VkResult CreateCommandBuffers(VkDevice vk_device, uint32_t numBuffersToCreate, VkCommandPool vk_command_pool, VkCommandBuffer* vk_command_buffers_out)
@@ -277,7 +282,6 @@ namespace dmGraphics
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
         assert(textureOut->m_DeviceMemory.m_Memory == VK_NULL_HANDLE && textureOut->m_DeviceMemory.m_MemorySize == 0);
 
-        VkResult res;
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
 
@@ -296,7 +300,8 @@ namespace dmGraphics
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
-        CHECK_VK_ERROR(res, vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image))
+        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
+        CHECK_VK_ERROR(res);
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -354,9 +359,9 @@ namespace dmGraphics
                 vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
 
-        VkResult res;
-        CHECK_VK_ERROR(res, AllocateTexture(vk_device, width, height, 1, 1,
-            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut));
+        VkResult res = AllocateTexture(vk_device, width, height, 1, 1,
+            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut);
+        CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
@@ -470,8 +475,8 @@ namespace dmGraphics
         render_pass_create_info.dependencyCount = 1;
         render_pass_create_info.pDependencies   = &vk_sub_pass_dependency;
 
-        VkResult res;
-        CHECK_VK_ERROR(res,vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut))
+        VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
+        CHECK_VK_ERROR(res);
 
         delete[] vk_attachment_desc;
         delete[] vk_attachment_color_ref;
@@ -499,9 +504,11 @@ namespace dmGraphics
             VkImageView&   vk_image_view_color     = swapChain->m_ImageViews[i];
             VkImageView&   vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
             VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
-            CHECK_VK_ERROR(res, CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
+
+            res = CreateFramebuffer(context->m_LogicalDevice.m_Device,context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, 2, &context->m_MainFrameBuffers[i]))
+                vk_image_attachments, 2, &context->m_MainFrameBuffers[i]);
+            CHECK_VK_ERROR(res);
         }
 
         // Initialize the dummy rendertarget for the main framebuffer
@@ -517,14 +524,14 @@ namespace dmGraphics
     static VkResult CreateMainRenderingResources(HContext context)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        VkResult res;
 
         // Create depth/stencil buffer
         memset(&context->m_MainTextureDepthStencil, 0, sizeof(context->m_MainTextureDepthStencil));
-        CHECK_VK_ERROR(res, AllocateDepthStencilTexture(context,
+        VkResult res = AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
-            &context->m_MainTextureDepthStencil))
+            &context->m_MainTextureDepthStencil);
+        CHECK_VK_ERROR(res);
 
         // Create main render pass with two attachments
         RenderPassAttachment attachments[2];
@@ -533,12 +540,17 @@ namespace dmGraphics
         attachments[1].m_Format      = context->m_MainTextureDepthStencil.m_Format;
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-        CHECK_VK_ERROR(res, CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass))
-        CHECK_VK_ERROR(res, CreateMainRenderTarget(context))
-        CHECK_VK_ERROR(res, CreateCommandBuffers(vk_device,
-                context->m_MainCommandPool,
-                context->m_MainCommandBuffers.Size(),
-                context->m_MainCommandBuffers.Begin()))
+        res = CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass);
+        CHECK_VK_ERROR(res);
+
+        res = CreateMainRenderTarget(context);
+        CHECK_VK_ERROR(res);
+
+        res = CreateCommandBuffers(vk_device,
+            context->m_MainCommandPool,
+            context->m_MainCommandBuffers.Size(),
+            context->m_MainCommandBuffers.Begin());
+        CHECK_VK_ERROR(res);
 
         return res;
     }
@@ -546,17 +558,18 @@ namespace dmGraphics
     static void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        VkResult res;
         // Flush all current commands
         SynchronizeDevice(vk_device);
-        CHECK_VK_ERROR(res, UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities))
+        VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
+        CHECK_VK_ERROR(res);
 
         // Reset & create main Depth/Stencil buffer
         ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
-        CHECK_VK_ERROR(res, AllocateDepthStencilTexture(context,
+        res = AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
-            &context->m_MainTextureDepthStencil))
+            &context->m_MainTextureDepthStencil);
+        CHECK_VK_ERROR(res);
 
         // Reset main rendertarget (but not the render pass)
         RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
@@ -567,7 +580,8 @@ namespace dmGraphics
             ResetRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
         }
 
-        CHECK_VK_ERROR(res, CreateMainRenderTarget(context))
+        res = CreateMainRenderTarget(context);
+        CHECK_VK_ERROR(res);
 
         // Flush once again to make sure all transitions are complete
         SynchronizeDevice(vk_device);
