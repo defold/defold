@@ -28,12 +28,21 @@ namespace dmGraphics
         , m_VerifyGraphicsCalls(params.m_VerifyGraphicsCalls)
         {}
 
-        SwapChain*            m_SwapChain;
-        SwapChainCapabilities m_SwapChainCapabilities;
-        PhysicalDevice        m_PhysicalDevice;
-        LogicalDevice         m_LogicalDevice;
-        VkInstance            m_Instance;
-        VkSurfaceKHR          m_WindowSurface;
+        ~Context()
+        {
+            if (m_Instance != VK_NULL_HANDLE)
+            {
+                vkDestroyInstance(m_Instance, 0);
+                m_Instance = VK_NULL_HANDLE;
+            }
+        }
+
+        SwapChain*               m_SwapChain;
+        SwapChainCapabilities    m_SwapChainCapabilities;
+        PhysicalDevice           m_PhysicalDevice;
+        LogicalDevice            m_LogicalDevice;
+        VkInstance               m_Instance;
+        VkSurfaceKHR             m_WindowSurface;
 
         // Main device rendering constructs
         dmArray<VkFramebuffer>   m_MainFrameBuffers;
@@ -43,11 +52,11 @@ namespace dmGraphics
         Texture                  m_MainTextureDepthStencil;
         RenderTarget             m_MainRenderTarget;
 
-        TextureFilter         m_DefaultTextureMinFilter;
-        TextureFilter         m_DefaultTextureMagFilter;
-        uint32_t              m_WindowOpened        : 1;
-        uint32_t              m_VerifyGraphicsCalls : 1;
-        uint32_t              : 30;
+        TextureFilter            m_DefaultTextureMinFilter;
+        TextureFilter            m_DefaultTextureMagFilter;
+        uint32_t                 m_WindowOpened        : 1;
+        uint32_t                 m_VerifyGraphicsCalls : 1;
+        uint32_t                 : 30;
     };
 
     static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
