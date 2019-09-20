@@ -503,6 +503,20 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
+    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    {
+        uint16_t stream_count = vertex_declaration->m_Count;
+        for (int i = 0; i < stream_count; ++i)
+        {
+            VertexElement& vert_elem = vertex_declaration->m_Elements[i];
+            dmHashUpdateBuffer32(state, vert_elem.m_Name, strlen(vert_elem.m_Name));
+            dmHashUpdateBuffer32(state, &vert_elem.m_Stream, sizeof(vert_elem.m_Stream));
+            dmHashUpdateBuffer32(state, &vert_elem.m_Size, sizeof(vert_elem.m_Size));
+            dmHashUpdateBuffer32(state, &vert_elem.m_Type, sizeof(vert_elem.m_Type));
+            dmHashUpdateBuffer32(state, &vert_elem.m_Normalize, sizeof(vert_elem.m_Normalize));
+        }
+    }
+
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
     {
         const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;

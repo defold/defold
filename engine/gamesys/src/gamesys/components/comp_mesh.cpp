@@ -48,16 +48,17 @@ namespace dmGameSystem
 
     struct MeshWorld
     {
-        dmResource::HFactory            m_ResourceFactory;
-        // dmArray<dmGraphics::HVertexBuffer> m_WorldVertexBuffers;
-        void*                           m_WorldVertexData;
-        size_t                          m_WorldVertexDataSize;
-        /// Vertex buffer used for meshes that should render vertices in world space.
-        dmGraphics::HVertexBuffer       m_WorldVertexBuffer;
-        // void*                           m_WorldVertexBufferData;
-        // size_t                          m_WorldVertexBufferDataSize;
-        dmObjectPool<MeshComponent*>    m_Components;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
+        dmResource::HFactory               m_ResourceFactory;
+        uint32_t                           m_CurrentVertexBuffer;
+        dmArray<dmGraphics::HVertexBuffer> m_VertexBuffers;
+        void*                              m_WorldVertexData;
+        size_t                             m_WorldVertexDataSize;
+        /// Keep track of how much vertex data we have rendered so it can be
+        /// reported to the profiler at end of the render dispatching.
+        uint32_t                           m_RenderedVertexSize;
+
+        dmObjectPool<MeshComponent*>       m_Components;
+        dmArray<dmRender::RenderObject>    m_RenderObjects;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -71,35 +72,25 @@ namespace dmGameSystem
     {
         MeshContext* context = (MeshContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        MeshWorld* world = new MeshWorld();
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
+        MeshWorld* world = new MeshWorld();
         world->m_ResourceFactory = context->m_Factory;
         world->m_Components.SetCapacity(context->m_MaxMeshCount);
         world->m_RenderObjects.SetCapacity(context->m_MaxMeshCount);
 
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        // world->m_WorldVertexBuffers.SetCapacity(4);
-        // world->m_WorldVertexBuffers.SetSize(0);
-        world->m_WorldVertexData = 0x0;
-        world->m_WorldVertexDataSize = 0;
-        world->m_WorldVertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-        // world->m_WorldVertexBufferData = 0x0;
-
-        // dmGraphics::VertexElement ve[] =
-        // {
-        //         {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-        //         {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-        //         {"normal", 2, 3, dmGraphics::TYPE_FLOAT, false},
-        // };
-        // dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        // world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-        // world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
-        // world->m_VertexBuffers = new dmGraphics::HVertexBuffer[VERTEX_BUFFER_MAX_BATCHES];
-        // world->m_VertexBufferData = new dmArray<dmRig::RigModelVertex>[VERTEX_BUFFER_MAX_BATCHES];
-        // for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
+        world->m_CurrentVertexBuffer = 0;
+        world->m_VertexBuffers.SetCapacity(0);
+        world->m_VertexBuffers.SetSize(0);
+        // for(uint32_t i = 0; i < 4; ++i)
         // {
         //     world->m_VertexBuffers[i] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         // }
+
+        world->m_WorldVertexData = 0x0;
+        world->m_WorldVertexDataSize = 0;
+
+        world->m_RenderedVertexSize = 0;
 
         *params.m_World = world;
 
@@ -111,17 +102,17 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompMeshDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
-        // dmGraphics::DeleteVertexBuffer(world->m_WorldVertexBuffer);
-        // dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        // for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
-        // {
-        //     dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i]);
-        // }
+        for(uint32_t i = 0; i < world->m_VertexBuffers.Size(); ++i)
+        {
+            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i]);
+        }
+
+        if (world->m_WorldVertexData)
+        {
+            free(world->m_WorldVertexData);
+        }
 
         dmResource::UnregisterResourceReloadedCallback(((MeshContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
-
-        // delete [] world->m_VertexBufferData;
-        // delete [] world->m_VertexBuffers;
 
         delete world;
 
@@ -137,8 +128,9 @@ namespace dmGameSystem
         dmHashInit32(&state, reverse);
         dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
-        dmHashUpdateBuffer32(&state, &resource->m_BufferResource, sizeof(resource->m_BufferResource));
-        dmHashUpdateBuffer32(&state, &resource->m_VertexDeclaration, sizeof(resource->m_VertexDeclaration)); // TODO(andsve): does this make sense?
+        // dmHashUpdateBuffer32(&state, &resource->m_BufferResource, sizeof(resource->m_BufferResource));
+        // dmHashUpdateBuffer32(&state, &resource->m_VertexDeclaration, sizeof(resource->m_VertexDeclaration));
+        dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
     }
@@ -286,34 +278,38 @@ namespace dmGameSystem
     {
         DM_PROFILE(Mesh, "RenderBatchWorld");
 
-        // if (world->m_WorldVertexBuffers.Remaining() == 0) {
-        //     world->m_WorldVertexBuffers.OffsetCapacity(4);
-        // }
+        if (world->m_VertexBuffers.Capacity() <= world->m_CurrentVertexBuffer) {
+            world->m_VertexBuffers.OffsetCapacity(4);
 
-        // dmGraphics::HVertexBuffer vert_buffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-        // world->m_WorldVertexBuffers.Push(vert_buffer);
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+            for(uint32_t i = 0; i < 4; ++i)
+            {
+                world->m_VertexBuffers.Push(dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW));
+            }
+        }
 
         dmRender::RenderObject& ro = *world->m_RenderObjects.End();
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
         const MeshComponent* first_component = (MeshComponent*) buf[*begin].m_UserData;
-        const MeshResource* mr = first_component->m_Resource;
-        const BufferResource* br = mr->m_BufferResource;
-
-        uint32_t batch_size = 0;
+        // uint32_t batch_size = 0;
+        uint32_t element_count = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
-            batch_size++;
+            const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
+            const BufferResource* br = component->m_Resource->m_BufferResource;
+            element_count += br->m_ElementCount;
+            // batch_size++;
         }
 
-        // TODO(andsve): prealloc the data buffer to avoid alloc during this loop??
-        if (world->m_WorldVertexDataSize < mr->m_VertSize * br->m_ElementCount * batch_size)
+        const MeshResource* mr = first_component->m_Resource;
+        if (world->m_WorldVertexDataSize < mr->m_VertSize * element_count)
         {
             if (world->m_WorldVertexData) {
                 free(world->m_WorldVertexData);
             }
-            world->m_WorldVertexData = malloc(mr->m_VertSize * br->m_ElementCount * batch_size);
-            world->m_WorldVertexDataSize = mr->m_VertSize * br->m_ElementCount * batch_size;
+            world->m_WorldVertexDataSize = mr->m_VertSize * element_count;
+            world->m_WorldVertexData = malloc(world->m_WorldVertexDataSize);
         }
 
         float* dst_data_ptr = (float*)world->m_WorldVertexData;
@@ -323,6 +319,8 @@ namespace dmGameSystem
             // dmLogError("RenderBatchLocalVS %p", i);
 
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
+            const MeshResource* mr = component->m_Resource;
+            const BufferResource* br = mr->m_BufferResource;
 
             float* raw_data = 0x0;
             uint32_t size = 0;
@@ -392,11 +390,16 @@ namespace dmGameSystem
             if (diff_size > 0) {
                 memcpy(last_dst_p, last_p, diff_size);
             }
+            dst_data_ptr = (float*)(last_dst_p+diff_size);
 
         }
 
-        FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_WorldVertexBuffer, 0, mr->m_ElementCount * batch_size, Matrix4::identity(), first_component->m_RenderConstants);
-        dmGraphics::SetVertexBufferData(world->m_WorldVertexBuffer, mr->m_VertSize * br->m_ElementCount * batch_size, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        world->m_RenderedVertexSize += mr->m_VertSize * element_count;
+
+        // FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_WorldVertexBuffer, 0, mr->m_ElementCount * batch_size, Matrix4::identity(), first_component->m_RenderConstants);
+        FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_VertexBuffers[world->m_CurrentVertexBuffer], 0, element_count, Matrix4::identity(), first_component->m_RenderConstants);
+        // dmGraphics::SetVertexBufferData(world->m_WorldVertexBuffer, mr->m_VertSize * br->m_ElementCount * batch_size, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::SetVertexBufferData(world->m_VertexBuffers[world->m_CurrentVertexBuffer++], mr->m_VertSize * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmRender::AddToRender(render_context, &ro);
     }
 
@@ -420,6 +423,8 @@ namespace dmGameSystem
             dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&bytes, &size);
             assert(r == dmBuffer::RESULT_OK);
             dmGraphics::SetVertexBufferData(mr->m_VertexBuffer, mr->m_VertSize * br->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+            world->m_RenderedVertexSize += mr->m_VertSize * br->m_ElementCount;
 
             FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, mr->m_VertexBuffer, 0, mr->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
@@ -457,6 +462,8 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
                 // dmLogError("RenderListDispatch - RENDER_LIST_OPERATION_BEGIN");
+                world->m_RenderedVertexSize = 0;
+                world->m_CurrentVertexBuffer = 0;
                 world->m_RenderObjects.SetSize(0);
                 // for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 // {
@@ -486,7 +493,7 @@ namespace dmGameSystem
     // //                 dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
     // //                 total_size += vb_size;
     //             }
-    //             DM_COUNTER("MeshVertexBuffer", total_size);
+                DM_COUNTER("MeshVertexBuffer", world->m_RenderedVertexSize);
 
                 break;
             }
@@ -529,8 +536,6 @@ namespace dmGameSystem
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
 
-
-            // dmLogError("CompMeshRender - render %d", i);
         }
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);

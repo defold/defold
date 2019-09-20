@@ -1255,6 +1255,43 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    {
+        // struct VertexDeclaration
+        // {
+        //     struct Stream
+        //     {
+        //         const char* m_Name;
+        //         uint16_t    m_LogicalIndex;
+        //         int16_t     m_PhysicalIndex;
+        //         uint16_t    m_Size;
+        //         uint16_t    m_Offset;
+        //         Type        m_Type;
+        //         bool        m_Normalize;
+        //     };
+
+        //     Stream      m_Streams[8];
+        //     uint16_t    m_StreamCount;
+        //     uint16_t    m_Stride;
+        //     HProgram    m_BoundForProgram;
+        //     uint32_t    m_ModificationVersion;
+
+        // };
+        uint16_t stream_count = vertex_declaration->m_StreamCount;
+        for (int i = 0; i < stream_count; ++i)
+        {
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            dmHashUpdateBuffer32(state, stream.m_Name, strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
+            dmHashUpdateBuffer32(state, &stream.m_PhysicalIndex, sizeof(stream.m_PhysicalIndex));
+            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+        }
+        // dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0]));
+    }
+
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
