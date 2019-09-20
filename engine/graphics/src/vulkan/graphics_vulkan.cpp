@@ -371,7 +371,8 @@ namespace dmGraphics
             goto bail;
         }
 
-        vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_DeviceMemory.m_Memory, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_DeviceMemory.m_Memory, 0);
+        CHECK_VK_ERROR(res);
 
         textureOut->m_DeviceMemory.m_MemorySize = vk_memory_req.size;
 
