@@ -92,21 +92,6 @@ namespace dmGameSystem
 
     static bool BuildBuffer(BufferResource* buffer_resource)
     {
-        // const dmBuffer::StreamDeclaration streams_decl[] = {
-        //     {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-        //     {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_UINT16, 2},
-        //     {dmHashString64("color"), dmBuffer::VALUE_TYPE_UINT8, 4},
-        // };
-        // dmBuffer::HBuffer buffer = 0x0;
-        // dmBuffer::Result r = dmBuffer::Create(1024, streams_decl, 3, &buffer);
-
-        // if (r == dmBuffer::RESULT_OK) {
-        //     // success
-        // } else {
-        //     // handle error
-        // }
-        // buffer_resource
-
         // Figure out stream count (+ element count, by counting max entries in each stream)
         uint64_t max_elem = 0;
         uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
@@ -185,46 +170,11 @@ namespace dmGameSystem
                         break;
                 }
 
-                    // float* out_float = (float*)data;
-                    // for (int i = 0; i < count; ++i)
-                    // {
-                    //     for (int c = 0; c < components; ++c)
-                    //     {
-                    //         uint64_t data_i = i*components + c;
-                    //         if (data_i < ddf_stream.m_F.m_Count) {
-                    //             out_float[c] = ddf_stream.m_F.m_Data[data_i];
-                    //         } else {
-                    //             out_float[c] = 0.0f;
-                    //             dmLogError("Trying to get stream data outside of input DDF array.");
-                    //         }
-                    //     }
-                    //     out_float += stride;
-                    // }
-
             } else {
                 // TODO Handle error
                 assert(false && "WTF");
             }
         }
-
-        // float* positions = 0x0;
-        // uint32_t size = 0;
-        // uint32_t components = 0;
-        // uint32_t stride = 0;
-        // dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), (void**)&positions, &count, &components, &stride);
-
-        // if (r == dmBuffer::RESULT_OK) {
-        //     for (int i = 0; i < count; ++i)
-        //     {
-        //         for (int c = 0; c < components; ++c)
-        //         {
-        //              positions[c] *= 1.1f;
-        //         }
-        //         positions += stride;
-        //     }
-        // } else {
-        //     // handle error
-        // }
 
         free(streams_decl);
 

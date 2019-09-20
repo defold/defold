@@ -44,6 +44,7 @@ namespace dmGameSystem
         uint8_t                     m_DoRender : 1;
         /// Added to update or not
         uint8_t                     m_AddedToUpdate : 1;
+        uint8_t                     m_ReHash : 1;
     };
 
     struct MeshWorld
@@ -133,6 +134,7 @@ namespace dmGameSystem
         dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
+        component->m_ReHash = 0;
     }
 
     dmGameObject::CreateResult CompMeshCreate(const dmGameObject::ComponentCreateParams& params)
@@ -226,9 +228,8 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            if (dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
+            if (component.m_ReHash || dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
-                // FIXME(andsve): figure out if we need to do this if we change any of the resource properties?
                 ReHash(&component);
             }
 
@@ -529,7 +530,7 @@ namespace dmGameSystem
     {
         MeshComponent* component = (MeshComponent*)user_data;
         SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
-        ReHash(component);
+        component->m_ReHash = 1;
     }
 
     dmGameObject::UpdateResult CompMeshOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -566,20 +567,75 @@ namespace dmGameSystem
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
                 if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    ReHash(component);
+                    component->m_ReHash = 1;
                 }
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static bool OnResourceReloaded(MeshWorld* world, MeshComponent* component, int index)
+    {
+        // Destroy old rig
+        // dmRig::InstanceDestroyParams destroy_params = {0};
+        // destroy_params.m_Context = rig_context;
+        // destroy_params.m_Instance = component->m_RigInstance;
+        // dmRig::InstanceDestroy(destroy_params);
+
+        // // Delete old bones, recreate with new data.
+        // // Make sure that bone GOs are created before we start the default animation.
+        // dmGameObject::DeleteBones(component->m_Instance);
+        // if (!CreateGOBones(world, component))
+        // {
+        //     dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+        //     DestroyComponent(world, index);
+        //     return false;
+        // }
+
+        // // Create rig instance
+        // dmRig::InstanceCreateParams create_params = {0};
+        // create_params.m_Context = rig_context;
+        // create_params.m_Instance = &component->m_RigInstance;
+
+        // create_params.m_PoseCallback = CompModelPoseCallback;
+        // create_params.m_PoseCBUserData1 = component;
+        // create_params.m_PoseCBUserData2 = 0;
+        // create_params.m_EventCallback = CompModelEventCallback;
+        // create_params.m_EventCBUserData1 = component;
+        // create_params.m_EventCBUserData2 = 0;
+
+        // RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
+        // create_params.m_BindPose         = &rig_resource->m_BindPose;
+        // create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+        // create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
+        // create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
+        // create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
+        // create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
+        // create_params.m_MeshId           = 0; // not implemented for models
+        // create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
+
+        // dmRig::Result res = dmRig::InstanceCreate(create_params);
+        // if (res != dmRig::RESULT_OK) {
+        //     dmLogError("Failed to create a rig instance needed by model: %d.", res);
+        //     if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+        //         dmLogError("Try increasing the model.max_count value in game.project");
+        //     }
+        //     DestroyComponent(world, index);
+        //     return false;
+        // }
+
+        component->m_ReHash = 1;
+
+        return true;
+    }
+
     void CompMeshOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
-        // int index = *params.m_UserData;
-        // ModelComponent* component = world->m_Components.Get(index);
-        // component->m_Resource = (ModelResource*)params.m_Resource;
-        // (void)OnResourceReloaded(world, component, index);
+        int index = *params.m_UserData;
+        MeshComponent* component = world->m_Components.Get(index);
+        component->m_Resource = (MeshResource*)params.m_Resource;
+        (void)OnResourceReloaded(world, component, index);
     }
 
     // static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
@@ -625,26 +681,20 @@ namespace dmGameSystem
     {
         MeshWorld* world = (MeshWorld*) params.m_UserData;
         dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
-        // uint32_t n = components.Size();
-        // for (uint32_t i = 0; i < n; ++i)
-        // {
-        //     MeshComponent* component = components[i];
-        //     if (component->m_Resource)
-        //     {
-        //         if(component->m_Resource == params.m_Resource->m_Resource)
-        //         {
-        //             // Model resource reload
-        //             OnResourceReloaded(world, component, i);
-        //             continue;
-        //         }
-        //         RigSceneResource *rig_scene_res = component->m_Resource->m_RigScene;
-        //         if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == params.m_Resource->m_Resource))
-        //         {
-        //             // Model resource reload because animset used in rig was reloaded
-        //             OnResourceReloaded(world, component, i);
-        //         }
-        //     }
-        // }
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            MeshComponent* component = components[i];
+            if (component->m_Resource)
+            {
+                if(component->m_Resource == params.m_Resource->m_Resource)
+                {
+                    // Mesh resource reload
+                    OnResourceReloaded(world, component, i);
+                    continue;
+                }
+            }
+        }
     }
 
 }
