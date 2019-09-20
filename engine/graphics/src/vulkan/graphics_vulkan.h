@@ -112,7 +112,11 @@ namespace dmGraphics
     };
 
     // Implemented in graphics_vulkan_context.cpp
-    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
+    VkResult CreateInstance(VkInstance* vkInstanceOut,
+        // Validation Layer Names, i.e "VK_LAYER_LUNARG_standard_validation"
+        const char** validationLayers, uint16_t validationLayerCount,
+        // Req. Validation Layer Extensions, i.e "VK_EXT_DEBUG_UTILS_EXTENSION_NAME"
+        const char** validationLayerExtensions, uint16_t validationLayerExtensionCount);
     void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan_device.cpp
