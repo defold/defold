@@ -24,7 +24,7 @@ namespace dmGraphics
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
         : m_Instance(vk_instance)
-        , m_MainCommandPool(VK_NULL_HANDLE)
+        , m_WindowSurface(VK_NULL_HANDLE)
         , m_MainRenderPass(VK_NULL_HANDLE)
         , m_MainRenderTarget(0)
         , m_DefaultTextureMinFilter(params.m_DefaultTextureMinFilter)
@@ -51,7 +51,6 @@ namespace dmGraphics
         // Main device rendering constructs
         dmArray<VkFramebuffer>   m_MainFrameBuffers;
         dmArray<VkCommandBuffer> m_MainCommandBuffers;
-        VkCommandPool            m_MainCommandPool;
         VkRenderPass             m_MainRenderPass;
         Texture                  m_MainTextureDepthStencil;
         RenderTarget             m_MainRenderTarget;
@@ -63,8 +62,10 @@ namespace dmGraphics
         uint32_t                 : 30;
     };
 
-    static const char* g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
-    static const uint8_t g_validation_layer_count = 1;
+    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
+    static const uint8_t g_validation_layer_count     = 1;
+    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    static const uint8_t g_validation_layer_ext_count = 1;
 
     static Context* g_Context = 0;
 
@@ -129,10 +130,10 @@ namespace dmGraphics
         return next_id++;
     }
 
-    static VkResult CreateCommandBuffers(VkDevice vk_device, uint32_t numBuffersToCreate, VkCommandPool vk_command_pool, VkCommandBuffer* vk_command_buffers_out)
+    static VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
     {
         VkCommandBufferAllocateInfo vk_buffers_allocate_info;
-        memset(&vk_buffers_allocate_info, 0, sizeof(VkCommandBufferAllocateInfo));
+        memset(&vk_buffers_allocate_info, 0, sizeof(vk_buffers_allocate_info));
 
         vk_buffers_allocate_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         vk_buffers_allocate_info.commandPool        = vk_command_pool;
@@ -158,6 +159,23 @@ namespace dmGraphics
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
+    static bool FindMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags, uint32_t* memoryIndexOut)
+    {
+        VkPhysicalDeviceMemoryProperties vk_memory_props;
+        vkGetPhysicalDeviceMemoryProperties(vk_physical_device, &vk_memory_props);
+
+        for (uint32_t i = 0; i < vk_memory_props.memoryTypeCount; i++)
+        {
+            if ((typeFilter & (1 << i)) && (vk_memory_props.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags)
+            {
+                *memoryIndexOut = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
     // Optimal is always sought after since it should be the most performant (depending on hardware),
     // but is not always supported.
@@ -171,8 +189,8 @@ namespace dmGraphics
 
             vkGetPhysicalDeviceFormatProperties(vk_physical_device, formatCandidate, &format_properties);
 
-            if ((vk_tiling_type == VK_IMAGE_TILING_LINEAR && (format_properties.linearTilingFeatures & vk_format_flags)) ||
-                (vk_tiling_type == VK_IMAGE_TILING_OPTIMAL && (format_properties.optimalTilingFeatures & vk_format_flags)))
+            if ((vk_tiling_type == VK_IMAGE_TILING_LINEAR && (format_properties.linearTilingFeatures & vk_format_flags) == vk_format_flags) ||
+                (vk_tiling_type == VK_IMAGE_TILING_OPTIMAL && (format_properties.optimalTilingFeatures & vk_format_flags) == vk_format_flags))
             {
                 return formatCandidate;
             }
@@ -186,7 +204,7 @@ namespace dmGraphics
     {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, 1, vk_command_pool, &vk_command_buffer);
+        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
         VkCommandBufferBeginInfo vk_command_buffer_begin_info;
         memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
@@ -273,10 +291,32 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static VkResult AllocateTexture(VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint32_t imageDepth, uint16_t imageMips,
-        VkFormat vk_format, VkImageTiling vk_tiling,
-        VkImageUsageFlags vk_usage, Texture* textureOut)
+    static void ResetTexture(VkDevice vk_device, Texture* texture)
+    {
+        if (texture->m_ImageView != VK_NULL_HANDLE)
+        {
+            vkDestroyImageView(vk_device, texture->m_ImageView, 0);
+            texture->m_ImageView = VK_NULL_HANDLE;
+        }
+
+        if (texture->m_Image != VK_NULL_HANDLE)
+        {
+            vkDestroyImage(vk_device, texture->m_Image, 0);
+            texture->m_Image = VK_NULL_HANDLE;
+        }
+
+        if (texture->m_DeviceMemory.m_Memory != VK_NULL_HANDLE)
+        {
+            vkFreeMemory(vk_device, texture->m_DeviceMemory.m_Memory, 0);
+            texture->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
+            texture->m_DeviceMemory.m_MemorySize = 0;
+        }
+    }
+
+    static VkResult AllocateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
+        VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
+        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut)
     {
         assert(textureOut);
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
@@ -289,7 +329,7 @@ namespace dmGraphics
         vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
         vk_image_create_info.extent.width  = imageWidth;
         vk_image_create_info.extent.height = imageHeight;
-        vk_image_create_info.extent.depth  = imageDepth;
+        vk_image_create_info.extent.depth  = 1;
         vk_image_create_info.mipLevels     = imageMips;
         vk_image_create_info.arrayLayers   = 1;
         vk_image_create_info.format        = vk_format;
@@ -303,6 +343,38 @@ namespace dmGraphics
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
         CHECK_VK_ERROR(res);
 
+        // Allocate GPU memory to hold texture
+        VkMemoryRequirements vk_memory_req;
+        vkGetImageMemoryRequirements(vk_device, textureOut->m_Image, &vk_memory_req);
+
+        VkMemoryAllocateInfo vk_memory_alloc_info;
+        memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
+
+        vk_memory_alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        vk_memory_alloc_info.allocationSize  = vk_memory_req.size;
+        vk_memory_alloc_info.memoryTypeIndex = 0;
+
+        uint32_t memory_type_index = 0;
+        if (!FindMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
+        {
+            res = VK_ERROR_INITIALIZATION_FAILED;
+            goto bail;
+        }
+
+        vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
+
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_DeviceMemory.m_Memory);
+        CHECK_VK_ERROR(res);
+
+        if (res != VK_SUCCESS)
+        {
+            goto bail;
+        }
+
+        vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_DeviceMemory.m_Memory, 0);
+
+        textureOut->m_DeviceMemory.m_MemorySize = vk_memory_req.size;
+
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
 
@@ -310,7 +382,7 @@ namespace dmGraphics
         vk_view_create_info.image                           = textureOut->m_Image;
         vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
         vk_view_create_info.format                          = vk_format;
-        vk_view_create_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
+        vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
         vk_view_create_info.subresourceRange.levelCount     = 1;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
@@ -318,17 +390,10 @@ namespace dmGraphics
 
         textureOut->m_Format = vk_format;
 
-        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);;
-    }
-
-    static void ResetTexture(VkDevice vk_device, Texture* textureOut)
-    {
-        vkDestroyImageView(vk_device, textureOut->m_ImageView, 0);
-        vkDestroyImage(vk_device, textureOut->m_Image, 0);
-        vkFreeMemory(vk_device, textureOut->m_DeviceMemory.m_Memory, 0);
-        textureOut->m_ImageView             = VK_NULL_HANDLE;
-        textureOut->m_Image                 = VK_NULL_HANDLE;
-        textureOut->m_DeviceMemory.m_Memory = VK_NULL_HANDLE;
+        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);
+bail:
+        ResetTexture(vk_device, textureOut);
+        return res;
     }
 
     static VkResult AllocateDepthStencilTexture(HContext context, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
@@ -359,39 +424,29 @@ namespace dmGraphics
                 vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
 
-        VkResult res = AllocateTexture(vk_device, width, height, 1, 1,
-            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthStencilTextureOut);
+        // The aspect flag indicates what the image should be used for,
+        // it is usually color or stencil | depth.
+        VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+        if (vk_depth_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+            vk_depth_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
+            vk_depth_format == VK_FORMAT_D16_UNORM_S8_UINT)
+        {
+            vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+
+        VkResult res = AllocateTexture2D(vk_physical_device, vk_device, width, height, 1,
+            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, depthStencilTextureOut);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
-            VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-            if (vk_depth_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
-                vk_depth_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
-                vk_depth_format == VK_FORMAT_D16_UNORM_S8_UINT)
-            {
-                vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
-            }
-
-            TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depthStencilTextureOut->m_Image, vk_aspect,
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depthStencilTextureOut->m_Image, vk_aspect,
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            CHECK_VK_ERROR(res);
         }
 
         return res;
-    }
-
-    static VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint8_t numBuffersToCreate, VkCommandBuffer* commandBuffersOut)
-    {
-        VkCommandBufferAllocateInfo vk_allocate_info;
-        memset(&vk_allocate_info, 0, sizeof(VkCommandBufferAllocateInfo));
-
-        vk_allocate_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        vk_allocate_info.commandPool        = vk_command_pool;
-        vk_allocate_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        vk_allocate_info.commandBufferCount = (uint32_t) numBuffersToCreate;
-
-        return vkAllocateCommandBuffers(vk_device, &vk_allocate_info, commandBuffersOut);
     }
 
     static VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
@@ -401,7 +456,10 @@ namespace dmGraphics
         uint8_t num_attachments  = numColorAttachments + (depthStencilAttachment ? 1 : 0);
         VkAttachmentDescription* vk_attachment_desc    = new VkAttachmentDescription[num_attachments];
         VkAttachmentReference* vk_attachment_color_ref = new VkAttachmentReference[numColorAttachments];
-        VkAttachmentReference vk_attachment_depth_ref;
+        VkAttachmentReference vk_attachment_depth_ref  = {};
+
+        memset(vk_attachment_desc, 0, sizeof(VkAttachmentDescription) * num_attachments);
+        memset(vk_attachment_color_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
 
         for (uint16_t i=0; i < numColorAttachments; i++)
         {
@@ -546,8 +604,12 @@ namespace dmGraphics
         res = CreateMainRenderTarget(context);
         CHECK_VK_ERROR(res);
 
+        uint32_t num_swap_chain_images = context->m_SwapChain->m_Images.Size();
+        context->m_MainCommandBuffers.SetCapacity(num_swap_chain_images);
+        context->m_MainCommandBuffers.SetSize(num_swap_chain_images);
+
         res = CreateCommandBuffers(vk_device,
-            context->m_MainCommandPool,
+            context->m_LogicalDevice.m_CommandPool,
             context->m_MainCommandBuffers.Size(),
             context->m_MainCommandBuffers.Begin());
         CHECK_VK_ERROR(res);
@@ -597,16 +659,16 @@ namespace dmGraphics
                 return 0x0;
             }
 
-            bool enable_validation = false;
+            uint16_t validation_layer_count = 0;
 
             const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
             if (env_vulkan_validation != 0x0)
             {
-                enable_validation = strtol(env_vulkan_validation, 0, 10);
+                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
             }
 
             VkInstance vk_instance;
-            if (CreateInstance(&vk_instance, g_validation_layers, enable_validation) != VK_SUCCESS)
+            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
@@ -698,11 +760,6 @@ namespace dmGraphics
 
             PhysicalDevice* device = &device_list[i];
 
-            if (selected_device)
-            {
-                RESET_AND_CONTINUE(device)
-            }
-
             // Make sure we have a graphics and present queue available
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
@@ -743,6 +800,7 @@ namespace dmGraphics
 
             selected_device = device;
             selected_queue_family = queue_family;
+            break;
 
             #undef RESET_AND_CONTINUE
         }
@@ -809,11 +867,15 @@ bail:
         {
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
+            SynchronizeDevice(vk_device);
+
             glfwCloseWindow();
 
             ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
+
+            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
 
             for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
             {
