@@ -609,7 +609,7 @@ namespace dmGameSystem
         // }
 
         // return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompMeshGetConstantCallback, component);
-        return dmGameObject::PropertyResult::PROPERTY_RESULT_NOT_FOUND;
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
     dmGameObject::PropertyResult CompMeshSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
