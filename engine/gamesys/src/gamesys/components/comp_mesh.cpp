@@ -618,7 +618,7 @@ namespace dmGameSystem
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
         // return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
-        return dmGameObject::PropertyResult::PROPERTY_RESULT_NOT_FOUND;
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
