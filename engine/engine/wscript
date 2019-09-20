@@ -77,8 +77,6 @@ namespace dmEngineVersion
 
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-        # For IAP
-        conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
 
         # For Vulkan/MoltenVK
         if Options.options.with_vulkan and architecture == 'arm64':
