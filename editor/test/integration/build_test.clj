@@ -724,7 +724,7 @@
                                (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")
 
                                ;; Check so that empty defaults are not included
-                               (check-project-setting built-properties ["tracking" "app_id"] nil)
+                               (check-project-setting built-properties ["resource" "uri"] nil)
 
                                ;; Check so empty custom properties are included as empty strings
                                (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
