@@ -1,0 +1,66 @@
+local EPSILON = 0.001
+
+function make_transform(p,r,s)
+	local trans = vmath.matrix4()
+	local scale = vmath.matrix4()
+	local rot   = vmath.matrix4_from_quat(r)
+
+	scale.m00 = s.x
+	scale.m11 = s.y
+	scale.m22 = s.z
+
+	trans.m03 = p.x
+	trans.m13 = p.y
+	trans.m23 = p.z
+
+	return trans * rot * scale
+end
+
+function init(self)
+	self.child_id  = go.get_id("child")
+	self.parent_id = go.get_id("parent")
+	self.stage     = 0
+
+	go.set_parent(self.child_id, self.parent_id)
+end
+
+function assert_near_vector3(a,b)
+	assert(math.abs(a.x-b.x) < EPSILON)
+	assert(math.abs(a.y-b.y) < EPSILON)
+	assert(math.abs(a.z-b.z) < EPSILON)
+end
+
+function assert_near_vector4(a,b)
+	assert(math.abs(a.x-b.x) < EPSILON)
+	assert(math.abs(a.y-b.y) < EPSILON)
+	assert(math.abs(a.z-b.z) < EPSILON)
+	assert(math.abs(a.w-b.w) < EPSILON)
+end
+
+function assert_near_mat4(a,b)
+	assert_near_vector4(a.c0,b.c0)
+	assert_near_vector4(a.c1,b.c1)
+	assert_near_vector4(a.c2,b.c2)
+	assert_near_vector4(a.c3,b.c3)
+end
+
+function update(self)
+	if self.stage == 0 then
+		assert_near_vector3(go.get_world_position(self.child_id),vmath.vector3())
+	elseif self.stage == 1 then
+		assert_near_vector3(go.get_world_scale(self.child_id),vmath.vector3(1,1,1))
+	elseif self.stage == 2 then
+		assert_near_vector4(go.get_world_rotation(self.child_id),vmath.quat())
+	elseif self.stage == 3 then
+		local pmat       = go.get_world_transform(self.parent_id)
+		local cpos       = go.get_position(self.child_id)
+		local crot       = go.get_rotation(self.child_id)
+		local csca       = go.get_scale(self.child_id)
+		local cmat       = make_transform(cpos,crot,csca)
+		local cmat_world = pmat * cmat
+
+		assert_near_mat4(go.get_world_transform(self.child_id), cmat_world)
+	end
+
+	self.stage = self.stage + 1
+end

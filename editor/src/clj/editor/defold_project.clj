@@ -4,6 +4,7 @@
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.code.script-intelligence :as si]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
@@ -21,7 +22,6 @@
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.placeholder-resource :as placeholder-resource]
-            [editor.properties :as properties]
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
@@ -34,8 +34,9 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private TBreakpoint {:resource s/Any
-                            :line     Long})
+(def ^:private TBreakpoint
+  {:resource s/Any
+   :row Long})
 
 (g/deftype Breakpoints [TBreakpoint])
 
@@ -198,6 +199,13 @@
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
+(defn script-intelligence
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (script-intelligence project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :script-intelligence evaluation-context)))
+
 (defn load-project
   ([project]
    (load-project project (g/node-value project :resources)))
@@ -206,13 +214,15 @@
   ([project resources render-progress!]
    (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
-     (let [nodes (make-nodes! project resources)]
+     (let [nodes (make-nodes! project resources)
+           script-intel (script-intelligence project)]
        (load-nodes! project nodes render-progress! {})
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
+             (g/connect script-intel :build-errors game-project :build-errors)
              (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)             
+             (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -252,7 +262,7 @@
                                            :as opts}]
   (render-progress! (progress/make "Writing files..."))
   (if (g/error? save-data)
-    (throw (Exception. ^String (properties/error-message save-data)))
+    (throw (Exception. ^String (g/error-message save-data)))
     (do
       (progress/progress-mapv
         (fn [{:keys [resource content value node-id]} _]
@@ -449,7 +459,15 @@
 
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
-    (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+    (let [collected-properties-by-resource
+          (g/with-auto-evaluation-context evaluation-context
+            (into {}
+                  (map (fn [[resource old-node-id]]
+                         [resource
+                          (g/collect-overridden-properties old-node-id evaluation-context)]))
+                  (:transfer-overrides plan)))
+
+          old-nodes-by-path (g/node-value project :nodes-by-resource-path)
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
@@ -463,7 +481,7 @@
                                                     [(resource/proj-path resource) resource-node]))
                                                 new-nodes))
           resource->new-node (comp resource-path->new-node resource/proj-path)
-          ;; when transfering overrides and arcs, the target is either a newly created or already (still!)
+          ;; when transferring overrides and arcs, the target is either a newly created or already (still!)
           ;; existing node.
           resource->node (fn [resource]
                            (or (resource->new-node resource)
@@ -516,6 +534,18 @@
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 
+      ;; restore overridden properties.
+      (let [restore-properties-tx-data
+            (g/with-auto-evaluation-context evaluation-context
+              (into []
+                    (mapcat (fn [[resource collected-properties]]
+                              (when-some [new-node-id (resource->new-node resource)]
+                                (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
+                    collected-properties-by-resource))]
+        (when (seq restore-properties-tx-data)
+          (g/transact
+            restore-properties-tx-data)))
+
       (let [old->new (into {} (map (fn [[p n]] [(old-nodes-by-path p) n]) resource-path->new-node))
             dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
         (g/transact
@@ -567,6 +597,7 @@
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
+  (input script-intelligence g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -718,16 +749,18 @@
 
 (defn make-project [graph workspace-id]
   (let [project-id
-        (first
+        (second
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id]]
-                            (g/connect workspace-id :build-settings project :build-settings)
-                            (g/connect workspace-id :resource-list project :resources)
-                            (g/connect workspace-id :resource-map project :resource-map)
-                            (g/connect workspace-id :resource-types project :resource-types)
-                            (g/set-graph-value graph :project-id project)))))]
+                  [script-intelligence si/ScriptIntelligenceNode
+                   project [Project :workspace workspace-id]]
+                (g/connect script-intelligence :_node-id project :script-intelligence)
+                (g/connect workspace-id :build-settings project :build-settings)
+                (g/connect workspace-id :resource-list project :resources)
+                (g/connect workspace-id :resource-map project :resource-map)
+                (g/connect workspace-id :resource-types project :resource-types)
+                (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
@@ -781,6 +814,8 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+      ;; Prime the auto completion cache
+      (g/node-value (script-intelligence project) :lua-completions)
       (cache-save-data! populated-project)
       populated-project)))
 

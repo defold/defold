@@ -1,5 +1,6 @@
 (ns internal.graph.error-values
-  (:require [internal.graph.types :as gt]))
+  (:require [clojure.string :as string]
+            [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
@@ -23,6 +24,13 @@
 (def error-info    (partial error-value :info))
 (def error-warning (partial error-value :warning))
 (def error-fatal   (partial error-value :fatal))
+
+(defn map->error [m]
+  (assert (if-some [node-id (:_node-id m)] (gt/node-id? node-id) true))
+  (assert (if-some [label (:_label m)] (keyword? label) true))
+  (assert (if-some [severity (:severity m)] (contains? severity-levels severity) true))
+  (assert (if-some [message (:message m)] (string? message) true))
+  (map->ErrorValue m))
 
 (defn ->error
   ([node-id label severity value message]
@@ -55,6 +63,15 @@
 (def error-warning? (partial severity? :warning))
 (def error-fatal?   (partial severity? :fatal))
 
+(defn- error-seq [e]
+  (tree-seq :causes :causes e))
+
+(defn- error-messages [e]
+  (distinct (keep :message (error-seq e))))
+
+(defn error-message [e]
+  (string/join "\n" (error-messages e)))
+
 (defn error-aggregate
   ([es]
    (let [max-severity (reduce (fn [result severity] (if (> (severity-levels result) (severity-levels severity))
@@ -71,6 +88,10 @@
     (if (some? packaged-errors)
       (error-severity packaged-errors)
       :info)))
+
+(defn error-package?
+  [value]
+  (instance? ErrorPackage value))
 
 (defn- unpack-if-package [error-or-package]
   (if (instance? ErrorPackage error-or-package)
@@ -102,9 +123,9 @@
 
 (defn flatten-errors [& errors]
   (some->> errors
-           (map unpack-if-package)
            flatten
-           (filter #(instance? ErrorValue %))
+           (map unpack-if-package)
+           (filter error-value?)
            not-empty
            error-aggregate))
 

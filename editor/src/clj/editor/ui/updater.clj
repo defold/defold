@@ -56,8 +56,17 @@
               (updater/download-and-extract! updater))
 
             can-install?
-            (when (dialogs/make-confirm-dialog "Install update and restart?"
-                                               {:owner-window stage})
+            (when (dialogs/make-confirmation-dialog
+                    {:title "Install Update and Restart?"
+                     :icon :icon/circle-question
+                     :header "Install downloaded update and restart?"
+                     :buttons [{:text "Not Now"
+                                :cancel-button true
+                                :result false}
+                               {:text "Install and Restart"
+                                :default-button true
+                                :result true}]
+                     :owner stage})
               (install-and-restart!))))))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)

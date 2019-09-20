@@ -26,14 +26,6 @@ Create a trace report using memprofile.sh
 
     memprofile.sh `which dmengine` memprofile.trace > report.html
 
-axTLS
------
-
-* The os_int.h is replaced by #include <stdint.h>
-* Removed __stdcall on WIN32, see change in os_port.h
-* Changed from rand_r to srand in crypto_misc.c
-* Changed how be64toh is defined in os_port.h
-
 webp
 -----
 

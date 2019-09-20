@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :refer [line-number->CursorRange]]
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
@@ -21,9 +22,9 @@
            [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
-           [javafx.event ActionEvent]
            [javafx.scene Parent]
            [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
@@ -102,6 +103,8 @@
                              (assoc :type (if (zero? i) :current-line :current-frame)))))
           frames)))
 
+(g/deftype History [String])
+
 (g/defnode DebugView
   (inherits core/Scope)
 
@@ -113,6 +116,10 @@
 
   (property console-grid-pane Parent)
   (property right-pane Parent)
+
+  (property evaluation-history History (default []))
+  (property evaluation-history-index g/Int)
+  (property evaluation-stashed-entry-text g/Str)
 
   (input active-resource resource/Resource)
 
@@ -142,12 +149,9 @@
        string/split-lines))
 
 (defn- on-eval-input
-  [debug-view ^ActionEvent event]
+  [debug-view code]
   (when-some [debug-session (g/node-value debug-view :debug-session)]
-    (let [input ^TextField (.getSource event)
-          code  (.getText input)
-          frame (current-stack-frame debug-view)]
-      (.clear input)
+    (let [frame (current-stack-frame debug-view)]
       (assert (= :suspended (mobdebug/state debug-session)))
       (console/append-console-entry! :eval-expression code)
       (future
@@ -209,6 +213,7 @@
 (defn- setup-variables-view!
   [^TreeView debugger-variables]
   (doto debugger-variables
+    (ui/customize-tree-view! {:double-click-expand? true})
     (.setShowRoot false)
     (ui/cell-factory! (fn [{:keys [display-name display-value]}]
                         {:graphic (doto (HBox.)
@@ -241,6 +246,87 @@
     (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
     ret))
 
+(defn- switch-text! [^TextField text-field text]
+  (doto text-field
+    (.setText text)
+    (.end)))
+
+(defn- conj-history-entry [history text]
+  (if (or (string/blank? text)
+          (= (peek history) text))
+    history
+    (conj history text)))
+
+(defn- eval-input! [^TextField text-field debug-view ^KeyEvent e]
+  (let [text (.getText text-field)]
+    (.consume e)
+    (switch-text! text-field "")
+    (g/transact
+      [(g/set-property debug-view :evaluation-history-index nil)
+       (g/set-property debug-view :evaluation-stashed-entry-text nil)
+       (g/update-property debug-view :evaluation-history conj-history-entry text)])
+    (on-eval-input debug-view text)))
+
+(defn- prev-history-entry! [^TextField text-field debug-view ^KeyEvent e]
+  (g/with-auto-evaluation-context ec
+    (let [history (g/node-value debug-view :evaluation-history ec)
+          history-index (g/node-value debug-view :evaluation-history-index ec)]
+      (cond
+        (empty? history)
+        nil
+
+        (nil? history-index)
+        (let [index (dec (count history))
+              text (.getText text-field)]
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            [(g/set-property debug-view :evaluation-stashed-entry-text text)
+             (g/set-property debug-view :evaluation-history-index index)]))
+
+        (zero? history-index)
+        nil
+
+        :else
+        (let [index (dec history-index)]
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            (g/set-property debug-view :evaluation-history-index index)))))))
+
+(defn- next-history-entry! [^TextField text-field debug-view ^KeyEvent e]
+  (g/with-auto-evaluation-context ec
+    (let [history (g/node-value debug-view :evaluation-history ec)
+          history-index (g/node-value debug-view :evaluation-history-index ec)
+          stashed-entry-text (g/node-value debug-view :evaluation-stashed-entry-text ec)]
+      (cond
+        (or (empty? history) (nil? history-index))
+        nil
+
+        (= history-index (dec (count history)))
+        (do
+          (.consume e)
+          (switch-text! text-field stashed-entry-text)
+          (g/transact
+            [(g/set-property debug-view :evaluation-history-index nil)
+             (g/set-property debug-view :evaluation-stashed-entry-text nil)]))
+
+        :else
+        (let [index (inc history-index)]
+          (.consume e)
+          (switch-text! text-field (history index))
+          (g/transact
+            (g/set-property debug-view :evaluation-history-index index)))))))
+
+(defn setup-prompt-field! [debug-view ^TextField text-field]
+  (.addEventFilter text-field KeyEvent/KEY_PRESSED
+                   (ui/event-handler e
+                     (condp = (.getCode ^KeyEvent e)
+                       KeyCode/ENTER (eval-input! text-field debug-view e)
+                       KeyCode/UP (prev-history-entry! text-field debug-view e)
+                       KeyCode/DOWN (next-history-entry! text-field debug-view e)
+                       nil))))
+
 (defn- setup-controls!
   [debug-view ^Parent console-grid-pane ^Parent right-pane]
   (ui/with-controls console-grid-pane [console-tool-bar
@@ -251,7 +337,7 @@
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
-    (ui/on-action! debugger-prompt-field #(on-eval-input debug-view %)))
+    (setup-prompt-field! debug-view debugger-prompt-field))
 
   (ui/with-controls right-pane [debugger-call-stack
                                 ^Parent debugger-data-split
@@ -292,11 +378,11 @@
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
         (when resource
-          (open-resource-fn resource {:line line})))
+          (open-resource-fn resource {:cursor-range (line-number->CursorRange line)})))
       nil)))
 
 (defn- set-breakpoint!
-  [debug-session {:keys [resource line] :as breakpoint}]
+  [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
     ;; NOTE: The filenames returned by debug.getinfo("S").source
     ;; differs between lua/luajit:
@@ -310,16 +396,16 @@
     ;; So, when the breakpoint is being added to a .lua module, we set
     ;; an additional breakpoint on the module name, ensuring we break
     ;; correctly in both cases.
-    (mobdebug/set-breakpoint! debug-session path (inc line))
+    (mobdebug/set-breakpoint! debug-session path (inc row))
     (when (= "lua" (FilenameUtils/getExtension path))
-      (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc line)))))
+      (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
 
 (defn- remove-breakpoint!
-  [debug-session {:keys [resource line] :as breakpoint}]
+  [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
-    (mobdebug/remove-breakpoint! debug-session path (inc line))
+    (mobdebug/remove-breakpoint! debug-session path (inc row))
     (when (= "lua" (FilenameUtils/getExtension path))
-      (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc line)))))
+      (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
 
 (defn- update-breakpoints!
   ([debug-session breakpoints]
@@ -388,25 +474,38 @@
 
 (def ^:private mobdebug-port 8172)
 
+(defn- show-connect-failed-dialog! [target-address ^Exception exception]
+  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
+                 "Check that the game is running and is reachable over the network.\n")]
+    (log/error :msg msg :exception exception)
+    (dialogs/make-info-dialog
+      {:title "Attach Debugger Failed"
+       :icon :icon/triangle-error
+       :header msg
+       :content (.getMessage exception)})))
+
 (defn start-debugger!
   [debug-view project target-address]
-  (mobdebug/connect! target-address mobdebug-port
-                     (fn [debug-session]
-                       (ui/run-now
-                         (g/update-property! debug-view :debug-session
-                                             (fn [old new]
-                                               (when old (mobdebug/close! old))
-                                               new)
-                                             debug-session)
-                         (update-breakpoints! debug-session (g/node-value project :breakpoints))
-                         (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                         (state-changed! debug-view true)))
-                     (fn [_debug-session]
-                       (ui/run-now
-                         (g/set-property! debug-view
-                                          :debug-session nil
-                                          :suspension-state nil)
-                         (state-changed! debug-view false)))))
+  (try
+    (mobdebug/connect! target-address mobdebug-port
+                       (fn [debug-session]
+                         (ui/run-now
+                           (g/update-property! debug-view :debug-session
+                                               (fn [old new]
+                                                 (when old (mobdebug/close! old))
+                                                 new)
+                                               debug-session)
+                           (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                           (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
+                           (state-changed! debug-view true)))
+                       (fn [_debug-session]
+                         (ui/run-now
+                           (g/set-property! debug-view
+                                            :debug-session nil
+                                            :suspension-state nil)
+                           (state-changed! debug-view false))))
+    (catch Exception exception
+      (show-connect-failed-dialog! target-address exception))))
 
 (defn current-session
   ([debug-view]
@@ -456,11 +555,8 @@
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
-                                                "Check that the game is running and is reachable over the network.\n")]
-                                   (log/error :msg msg :exception exception)
-                                   (dialogs/make-error-dialog "Attach Debugger Failed" msg (.getMessage exception))
-                                   false)))]
+                                 (show-connect-failed-dialog! target-address exception)
+                                 false))]
       (when attach-successful?
         (start-debugger! debug-view project target-address)))))
 
@@ -530,9 +626,8 @@
   (enabled? [debug-view prefs evaluation-context]
             (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
-       (let [[ok width height] (dialogs/make-resolution-dialog)]
-         (when ok
-           (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?)))))
+       (when-let [{:keys [width height]} (dialogs/make-resolution-dialog)]
+         (engine/change-resolution! (targets/selected-target prefs) width height @should-rotate-device?))))
 
 (handler/defhandler :set-rotate-device :global
   (enabled? [] true)

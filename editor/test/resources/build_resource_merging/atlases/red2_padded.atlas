@@ -1,0 +1,6 @@
+images {
+  image: "/images/red2/image.png"
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 8

@@ -441,8 +441,10 @@ namespace dmGui
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
-        uint32_t m_IsGamepad : 1;
-        uint32_t m_HasText : 1;
+        uint16_t m_IsGamepad : 1;
+        uint16_t m_GamepadDisconnected : 1;
+        uint16_t m_GamepadConnected : 1;
+        uint16_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
@@ -697,19 +699,6 @@ namespace dmGui
      * @param spine_scene_name Name of the spine scene that will be used in the gui scripts
      */
     void RemoveSpineScene(HScene scene, const char* spine_scene_name);
-
-    /**
-     * Set scene material
-     * @param scene
-     * @param material
-     */
-    void SetMaterial(HScene scene, void* material);
-
-    /**
-     * Get scene material
-     * @param scene
-     */
-    void* GetMaterial(HScene scene);
 
     /**
      * Adds a layer with the specified name to the scene.

@@ -276,7 +276,6 @@ namespace dmGui
         dmParticle::HParticleContext m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
         dmArray<ParticlefxComponent> m_AliveParticlefxs;
-        void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;
         dmArray<void*>          m_LayoutsNodeDescs;
@@ -301,6 +300,8 @@ namespace dmGui
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
+
+    bool IsNodeValid(HScene scene, HNode node);
 
     /** calculates the transform of a node
      * A boundary transform maps the local rectangle (0,1),(0,1) to screen space such that it inclusively encapsulates the node boundaries in screen space.

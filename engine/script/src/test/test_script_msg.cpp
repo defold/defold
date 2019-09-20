@@ -691,6 +691,10 @@ TEST_F(ScriptMsgTest, TestFailPost)
         "msg.post(\"::\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
+    ASSERT_FALSE(RunString(L,
+        "msg.post(nil, \"sub_msg\", {uint_value = 1})\n"
+        ));
+
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     ASSERT_EQ(top, lua_gettop(L));

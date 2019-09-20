@@ -11,6 +11,7 @@ namespace dmHID
         uint32_t m_Index;
         uint32_t m_AxisCount;
         uint32_t m_ButtonCount;
+        uint8_t m_HatCount;
         uint32_t m_Connected : 1;
     };
 
@@ -25,6 +26,9 @@ namespace dmHID
         Gamepad m_Gamepads[MAX_GAMEPAD_COUNT];
         TouchDevicePacket m_TouchDevicePacket;
         AccelerationPacket m_AccelerationPacket;
+        DMHIDGamepadFunc m_GamepadConnectivityCallback;
+        void* m_GamepadConnectivityUserdata;
+
         uint32_t m_KeyboardConnected : 1;
         uint32_t m_MouseConnected : 1;
         uint32_t m_TouchDeviceConnected : 1;

@@ -50,6 +50,7 @@ namespace dmGui
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
+    static inline void ResetInternalNode(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -167,6 +168,16 @@ namespace dmGui
     InputAction::InputAction()
     {
         memset(this, 0, sizeof(InputAction));
+    }
+
+    bool IsNodeValid(HScene scene, HNode node)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        if (index >= scene->m_Nodes.Size())
+            return false;
+        InternalNode* n = &scene->m_Nodes[index];
+        return n->m_Version == version && n->m_Index == index;
     }
 
     InternalNode* GetNode(HScene scene, HNode node)
@@ -363,7 +374,6 @@ namespace dmGui
         scene->m_SpineAnimations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
@@ -767,16 +777,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             nodes[i].m_Node.m_Font = 0;
         }
-    }
-
-    void SetMaterial(HScene scene, void* material)
-    {
-        scene->m_Material = material;
-    }
-
-    void* GetMaterial(HScene scene)
-    {
-        return scene->m_Material;
     }
 
     Result AddLayer(HScene scene, const char* layer_name)
@@ -1281,12 +1281,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                 if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
                 {
+                    HNode hnode = GetNodeHandle(n);
                     uint32_t alive_count = scene->m_AliveParticlefxs.Size();
                     for (uint32_t i = 0; i < alive_count; ++i)
                     {
                         ParticlefxComponent* comp = &scene->m_AliveParticlefxs[i];
-                        InternalNode* comp_node = GetNode(scene, comp->m_Node);
-                        if (comp_node->m_Version == n->m_Version && comp_node->m_NameHash == n->m_NameHash)
+                        if (hnode == comp->m_Node)
                         {
                             uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
 
@@ -1445,11 +1445,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
-        uint32_t n = animations->Size();
 
         uint32_t active_animations = 0;
 
-        for (uint32_t i = 0; i < n; ++i)
+        for (uint32_t i = 0; i < animations->Size(); ++i)
         {
             Animation* anim = &(*animations)[i];
 
@@ -1542,13 +1541,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        n = animations->Size();
+        uint32_t n = animations->Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
 
             if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
             {
+                // If we have cancelled an animation, its callback won't be called which means
+                // we potentially get dangling lua refs in the script system
+                if (anim->m_Cancelled && anim->m_AnimationComplete)
+                {
+                    if (!anim->m_AnimationCompleteCalled)
+                    {
+                        anim->m_AnimationCompleteCalled = 1;
+                        anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                    }
+                }
+
                 animations->EraseSwap(i);
                 i--;
                 n--;
@@ -1975,11 +1985,32 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
             if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
             {
-
-                InternalNode* n = GetNode(scene, c->m_Node);
-                if (n->m_Node.m_ParticleInstance == c->m_Instance)
+                if (c->m_Node != INVALID_HANDLE)
                 {
-                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                    InternalNode* n = GetNode(scene, c->m_Node);
+
+                    if (n->m_Node.m_ParticleInstance == c->m_Instance)
+                    {
+                        n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                    }
+
+                    if (n->m_Node.m_HasHeadlessPfx)
+                    {
+                        // Mark all ParticlefxComponents that reference this node
+                        // so we don't try to delete the same internal node more than once
+                        HNode hnode = c->m_Node;
+                        for (uint32_t i_inner = 0; i_inner < count; ++i_inner)
+                        {
+                            ParticlefxComponent* c_inner = &scene->m_AliveParticlefxs[i_inner];
+                            if (c_inner->m_Node == hnode)
+                            {
+                                c_inner->m_Node = INVALID_HANDLE; // makes the callbacks return nil to the user
+                            }
+                        }
+
+                        n->m_ParentIndex = INVALID_INDEX;
+                        ResetInternalNode(scene, n);
+                    }
                 }
 
                 dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
@@ -2261,6 +2292,21 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             *tail_ptr = n->m_PrevIndex;
     }
 
+    static inline void ResetInternalNode(HScene scene, InternalNode* n)
+    {
+        RemoveFromNodeList(scene, n);
+        uint16_t node_index = n->m_Index;
+        scene->m_NodePool.Push(node_index);
+        if (node_index + 1 == scene->m_Nodes.Size())
+        {
+            scene->m_Nodes.SetSize(node_index);
+        }
+        if (n->m_Node.m_Text)
+            free((void*)n->m_Node.m_Text);
+        memset(n, 0, sizeof(InternalNode));
+        n->m_Index = INVALID_INDEX;
+    }
+
     void DeleteNode(HScene scene, HNode node, bool delete_headless_pfx)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2277,29 +2323,32 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
-        while (i < count)
+        if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
         {
-            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
-            InternalNode* comp_n = GetNode(scene, c->m_Node);
-            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            while (i < count)
             {
-                if (delete_headless_pfx)
+                ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+                if (node == c->m_Node)
                 {
-                    dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
-                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
-                    scene->m_AliveParticlefxs.EraseSwap(i);
-                    --count;
+                    if (delete_headless_pfx)
+                    {
+                        InternalNode* comp_n = GetNode(scene, c->m_Node);
+                        dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
+                        n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                        scene->m_AliveParticlefxs.EraseSwap(i);
+                        --count;
+                    }
+                    else
+                    {
+                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
+                        n->m_Node.m_HasHeadlessPfx = 1;
+                        ++i;
+                    }
                 }
                 else
                 {
-                    dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
-                    n->m_Node.m_HasHeadlessPfx = 1;
                     ++i;
                 }
-            }
-            else
-            {
-                ++i;
             }
         }
 
@@ -2346,17 +2395,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return;
         }
 
-        RemoveFromNodeList(scene, n);
-        uint16_t node_index = n->m_Index;
-        scene->m_NodePool.Push(node_index);
-        if (node_index + 1 == scene->m_Nodes.Size())
-        {
-            scene->m_Nodes.SetSize(node_index);
-        }
-        if (n->m_Node.m_Text)
-            free((void*)n->m_Node.m_Text);
-        memset(n, 0, sizeof(InternalNode));
-        n->m_Index = INVALID_INDEX;
+        ResetInternalNode(scene, n);
     }
 
     void ClearNodes(HScene scene)
@@ -3562,7 +3601,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             const Animation* anim = &scene->m_Animations[i];
             if (value == anim->m_Value)
             {
-                //scene->m_Animations.EraseSwap(i);
+                // Make sure to invoke the callback when we are re-using the
+                // animation index so that we can clean up dangling ref's in
+                // the gui_script module.
+                if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+                {
+                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+                }
+
                 animation_index = i;
                 break;
             }
@@ -3914,11 +3960,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
-        if (!IsNodeEnabledRecursive(scene, node & 0xFFFF))
-        {
-            return false;
-        }
-
         Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
                 (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;

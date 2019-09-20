@@ -6,6 +6,7 @@
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
+            [editor.code.data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -16,6 +17,7 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.fxui :as fxui]
             [editor.game-project :as game-project]
             [editor.github :as github]
             [editor.graph-util :as gu]
@@ -51,17 +53,17 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor EditorApplication]
+  (:import [com.defold.editor Editor]
+           [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
            [java.net URL]
            [java.util Collection List]
-           [java.util.concurrent.atomic AtomicInteger]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
-           [javafx.scene Node Parent Scene]
-           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy Tooltip]
+           [javafx.scene Parent Scene]
+           [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent]
            [javafx.scene.layout AnchorPane StackPane]
@@ -116,10 +118,21 @@
             divider-position (get (.getDividerPositions split) divider-index)
             size (if (zero? index)
                    (Math/floor (* divider-position (split-pane-length split)))
-                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))]
+                   (Math/ceil (* (- 1.0 divider-position) (split-pane-length split))))
+            removing-focus-owner? (some? (when-some [focus-owner (.getFocusOwner main-scene)]
+                                           (ui/closest-node-where
+                                             (partial identical? pane)
+                                             focus-owner)))]
+
         (ui/user-data! split user-data-key {:pane pane :size size})
         (.remove (.getItems split) pane)
-        (.layout split)))
+        (.layout split)
+
+        ;; If this action causes the focus owner to be removed from the scene,
+        ;; move focus to the SplitPane. This ensures we have a valid UI context
+        ;; when refreshing the menus.
+        (when removing-focus-owner?
+          (.requestFocus split))))
     nil))
 
 (defn- select-tool-tab! [tab-id ^Scene main-scene ^TabPane tool-tab-pane]
@@ -176,6 +189,22 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
+(defn- tab-title
+  ^String [resource is-dirty]
+  ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
+  ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
+  ;; control is internal. We also cannot replace them with double underscores to
+  ;; escape them, as they will show up in the Tab labels and there appears to be
+  ;; no way to enable mnemonic parsing for them. Attempts were made to call
+  ;; setMnemonicParsing on the parent Labelled as the Tab graphic was added to
+  ;; the DOM, but this only worked on macOS. As a workaround, we instead replace
+  ;; underscores with the a unicode character that looks somewhat similar.
+  (let [resource-name (resource/resource-name resource)
+        escaped-resource-name (string/replace resource-name "_" "\u02CD")]
+    (if is-dirty
+      (str "*" escaped-resource-name)
+      escaped-resource-name)))
+
 (g/defnode AppView
   (property stage Stage)
   (property scene Scene)
@@ -228,10 +257,9 @@
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
-                                                            resource-name (resource/resource-name (:resource (get open-views view)))
-                                                            title (if (contains? open-dirty-views view)
-                                                                    (str "*" resource-name)
-                                                                    resource-name)]]
+                                                            resource (:resource (get open-views view))
+                                                            is-dirty (contains? open-dirty-views view)
+                                                            title (tab-title resource is-dirty)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-host-key-bindings {:valid-command? (set (handler/available-commands))})))
@@ -314,21 +342,26 @@
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
-      (let [visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
-            filtered-renderable-tags (g/node-value scene-visibility :filtered-renderable-tags)
-            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags filtered-renderable-tags))]
-        (if filters-active?
-          (ui/add-style! btn "filters-active")
-          (ui/remove-style! btn "filters-active")))
+      (if (scene-visibility/filters-appear-active? scene-visibility)
+        (ui/add-style! btn "filters-active")
+        (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
-(def ^:private eye-icon-template (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+(def ^:private eye-icon-svg-path
+  (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+
+(def ^:private perspective-icon-svg-path
+  (ui/load-svg-path "scene/images/perspective_icon.svg"))
+
+(defn make-svg-icon-graphic
+  ^SVGPath [^SVGPath icon-template]
+  (doto (SVGPath.)
+    (.setContent (.getContent icon-template))))
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
-    (ui/children! [(doto (SVGPath.)
-                     (.setId "eye-icon")
-                     (.setContent (.getContent ^SVGPath eye-icon-template)))
+    (ui/children! [(doto (make-svg-icon-graphic eye-icon-svg-path)
+                     (.setId "eye-icon"))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
@@ -345,6 +378,9 @@
                  {:id :scale
                   :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}
+                 {:id :perspective-camera
+                  :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+                  :command :toggle-perspective-camera}
                  {:id :visibility-settings
                   :graphic-fn make-visibility-settings-graphic
                   :command :show-visibility-settings}])
@@ -670,12 +706,19 @@
             (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
-        (dialogs/make-error-dialog (format "Launching %s Failed"
-                                           (if (some? selected-target)
-                                             (targets/target-message-label selected-target)
-                                             "New Local Engine"))
-                                   "If the engine is already running, shut down the process manually and retry."
-                                   (.getMessage e))))))
+        (dialogs/make-info-dialog
+          {:title "Launch Failed"
+           :icon :icon/triangle-error
+           :header {:fx/type :v-box
+                    :children [{:fx/type fxui/label
+                                :variant :header
+                                :text (format "Launching %s failed"
+                                              (if (some? selected-target)
+                                                (targets/target-message-label selected-target)
+                                                "New Local Engine"))}
+                               {:fx/type fxui/label
+                                :text "If the engine is already running, shut down the process manually and retry"}]}
+           :content (.getMessage e)})))))
 
 (defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
@@ -753,9 +796,15 @@
   [project]
   (if (project/shared-script-state? project)
     true
-    (do (dialogs/make-alert-dialog "This project cannot be used with the debugger because it is configured to disable shared script state.
+    (do (dialogs/make-info-dialog
+          {:title "Debugging Not Supported"
+           :icon :icon/triangle-error
+           :header "This project cannot be used with the debugger"
+           :content {:fx/type fxui/label
+                     :style-class "dialog-content-padding"
+                     :text "It is configured to disable shared script state.
 
-If you do not specifically require different script states, consider changing the script.shared_state property in game.project.")
+If you do not specifically require different script states, consider changing the script.shared_state property in game.project."}})
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
@@ -882,10 +931,12 @@ If you do not specifically require different script states, consider changing th
                           (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
                             (engine/reload-build-resources! target updated-build-resources))
                           (catch Exception e
-                            (dialogs/make-error-dialog "Hot Reload Failed"
-                                                       (format "Failed to reload resources on '%s'"
-                                                               (targets/target-message-label (targets/selected-target prefs)))
-                                                       (.getMessage e))))))))))
+                            (dialogs/make-info-dialog
+                              {:title "Hot Reload Failed"
+                               :icon :icon/triangle-error
+                               :header (format "Failed to reload resources on '%s'"
+                                               (targets/target-message-label (targets/selected-target prefs)))
+                               :content (.getMessage e)})))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs evaluation-context]
@@ -1254,7 +1305,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- make-title
   ([] "Defold Editor 2.0")
-  ([project-title] (str (make-title) " - " project-title)))
+  ([project-title] (str project-title " - " (make-title))))
 
 (defn- refresh-app-title! [^Stage stage project]
   (let [settings      (g/node-value project :settings)
@@ -1304,6 +1355,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
+  (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
   (-> tab-pane
       (.getSelectionModel)
       (.selectedItemProperty)
@@ -1382,7 +1434,7 @@ If you do not specifically require different script states, consider changing th
 (defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
-        tab        (doto (Tab. (resource/resource-name resource))
+        tab        (doto (Tab. (tab-title resource false))
                      (.setContent parent)
                      (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
                      (ui/user-data! ::view-type view-type))
@@ -1445,16 +1497,20 @@ If you do not specifically require different script states, consider changing th
                               (first (:view-types resource-type)))
                             text-view-type)]
      (if (resource-node/defective? resource-node)
-       (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
+       (do (dialogs/make-info-dialog
+             {:title "Unable to Open Resource"
+              :icon :icon/triangle-error
+              :header (format "Unable to open '%s', since it appears damaged" (resource/proj-path resource))})
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
                                      (and (not (string/blank? ed-pref)) ed-pref)))]
-         (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+         (let [cursor-range (:cursor-range opts)
+               arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
                arg-sub (cond-> {:file (resource/abs-path resource)}
-                               (:line opts) (assoc :line (:line opts)))
+                               cursor-range (assoc :line (CursorRange->line-number cursor-range)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
            (doto (ProcessBuilder. ^List (cons custom-editor args))
@@ -1477,12 +1533,11 @@ If you do not specifically require different script states, consider changing th
                                            resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
              (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when-let [focus (:focus-fn view-type)]
-               (ui/run-later
-                 ;; We run-later so javafx has time to squeeze in a
-                 ;; layout pass. The focus function of some views
-                 ;; needs proper width + height (f.i. code view for
-                 ;; scrolling to selected line).
-                 (focus (ui/user-data tab ::view) opts)))
+               ;; Force layout pass since the focus function of some views
+               ;; needs proper width + height (f.i. code view for
+               ;; scrolling to selected line).
+               (NodeHelper/layoutNodeForPrinting (.getRoot ^Scene (g/node-value app-view :scene)))
+               (focus (ui/user-data tab ::view) opts))
              ;; Do an initial rendering so it shows up as fast as possible.
              (ui/run-later (refresh-scene-views! app-view)
                            (ui/run-later (slog/smoke-log "opened-resource")))
@@ -1491,11 +1546,12 @@ If you do not specifically require different script states, consider changing th
                                   (resource/temp-path resource))
                  ^File f (File. path)]
              (ui/open-file f (fn [msg]
-                               (let [lines [(format "Could not open '%s'." (.getName f))
-                                            "This can happen if the file type is not mapped to an application in your OS."
-                                            "Underlying error from the OS:"
-                                            msg]]
-                                 (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
+                               (ui/run-later
+                                 (dialogs/make-info-dialog
+                                   {:title "Could Not Open File"
+                                    :icon :icon/triangle-error
+                                    :header (format "Could not open '%s'" (.getName f))
+                                    :content (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)}))))
              false)))))))
 
 (handler/defhandler :open :global
@@ -1744,7 +1800,11 @@ If you do not specifically require different script states, consider changing th
                              (when successful?
                                (if (some-> output-directory .isDirectory)
                                  (ui/open-file output-directory)
-                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
+                                 (dialogs/make-info-dialog
+                                   {:title "Bundle Failed"
+                                    :icon :icon/triangle-error
+                                    :size :large
+                                    :header "Failed to bundle project, please fix build errors and try again"})))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
@@ -1764,10 +1824,13 @@ If you do not specifically require different script states, consider changing th
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
-                                                    (str "\u00A0\u00A0\u2022\u00A0" first-unreachable-host) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                                    ""
-                                                    "Please verify internet connection and try again."]))
+      (dialogs/make-info-dialog
+        {:title "Fetch Failed"
+         :icon :icon/triangle-error
+         :size :large
+         :header "Fetch was aborted because a host could not be reached"
+         :content (str "Unreachable host: " first-unreachable-host
+                       "\n\nPlease verify internet connection and try again.")})
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
@@ -1823,7 +1886,13 @@ If you do not specifically require different script states, consider changing th
           (let [main-scene (.getScene ^Stage main-stage)
                 render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
             (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
-              (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
+              (dialogs/make-info-dialog
+                {:title "Build Failed"
+                 :icon :icon/triangle-error
+                 :header "Failed to build ipa with native extensions, please fix build errors and try again"})
               (do (error-reporting/report-exception! error)
                   (when-let [message (:message result)]
-                    (dialogs/make-alert-dialog message))))))))))
+                    (dialogs/make-info-dialog
+                      {:title "Error"
+                       :icon :icon/triangle-error
+                       :header message}))))))))))

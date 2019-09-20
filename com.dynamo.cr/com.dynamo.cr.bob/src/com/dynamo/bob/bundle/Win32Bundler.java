@@ -32,7 +32,7 @@ public class Win32Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -78,17 +78,6 @@ public class Win32Bundler implements IBundler {
         FileUtils.copyFile(bundleExe, exeOut);
         FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
         FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        // If windows.iap_provider is set to Gameroom we need to output a "launch" file that FB Gameroom understands.
-        String iapProvider = projectProperties.getStringValue("windows", "iap_provider", "");
-        if (iapProvider.equalsIgnoreCase("Gameroom"))
-        {
-            File launchFile = new File(appDir, "launch");
-            String launchFileContent = String.format("%s $gameroom_args game.projectc", exeName);
-            FileUtils.writeStringToFile(launchFile, launchFileContent, Charset.defaultCharset());
-        }
 
         BundleHelper.throwIfCanceled(canceled);
 

@@ -8,11 +8,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#if defined(__AVM2__)
-#include "flash/graphics_flash_defines.h"
-#else
 #include "opengl/graphics_opengl_defines.h"
-#endif
 
 namespace dmGraphics
 {
@@ -404,7 +400,9 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
-        bool          m_VerifyGraphicsCalls;
+        uint8_t       m_VerifyGraphicsCalls : 1;
+        uint8_t       m_RenderDocSupport : 1;
+        uint8_t       : 6;
     };
 
     /** Creates a graphics context
@@ -586,17 +584,17 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size);
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size);
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void DeleteProgram(HContext context, HProgram program);
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
+    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);

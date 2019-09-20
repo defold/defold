@@ -4,6 +4,7 @@
 #include <vector>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
@@ -72,8 +73,12 @@ struct TestParams
     uint32_t    m_ToneRate;
     uint32_t    m_MixRate;
     uint32_t    m_BufferFrameCount;
+    float       m_Pan;
+    float       m_Speed;
 
     TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate, uint32_t frame_count, uint32_t buffer_frame_count)
+    : m_Pan(0.0f)
+    , m_Speed(1.0f)
     {
         m_DeviceName = device_name;
         m_Sound = sound;
@@ -84,6 +89,22 @@ struct TestParams
         m_MixRate = mix_rate;
         m_BufferFrameCount = buffer_frame_count;
     }
+
+    TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate,
+                uint32_t frame_count, uint32_t buffer_frame_count, float pan, float speed)
+    : m_Pan(pan)
+    , m_Speed(speed)
+    {
+        m_DeviceName = device_name;
+        m_Sound = sound;
+        m_SoundSize = sound_size;
+        m_Type = type;
+        m_FrameCount = frame_count;
+        m_ToneRate = tone_rate;
+        m_MixRate = mix_rate;
+        m_BufferFrameCount = buffer_frame_count;
+    }
+
 };
 
 struct TestParams2
@@ -217,6 +238,14 @@ class dmSoundTestPlayTest : public dmSoundTest
 {
 };
 
+class dmSoundTestPlaySpeedTest : public dmSoundTest
+{
+};
+
+class dmSoundTestSpeedTest : public dmSoundTest
+{
+};
+
 class dmSoundTestGroupRampTest : public dmSoundTest
 {
 };
@@ -246,6 +275,7 @@ struct LoopbackDevice
     uint32_t         m_TotalBuffersQueued;
     int              m_Time; // read cursor
     int              m_QueueTime; // write cursor
+    int              m_NumWrites;
 };
 
 
@@ -271,6 +301,7 @@ dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSo
     d->m_TotalBuffersQueued = 0;
     d->m_Time = params->m_BufferCount;
     d->m_QueueTime = params->m_BufferCount;
+    d->m_NumWrites = 0;
 
     *device = d;
     g_LoopbackDevice = d;
@@ -291,6 +322,7 @@ void DeviceLoopbackClose(dmSound::HDevice device)
 dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
+    loopback->m_NumWrites++;
 
     loopback->m_TotalBuffersQueued++;
     if (loopback->m_AllOutput.Remaining() < sample_count * 2) {
@@ -381,13 +413,14 @@ TEST_P(dmSoundVerifyTest, Mix)
     for (int32_t i = 0; i < n - 1; i++) {
         const double f = 44100.0;
         int index = i * mix_rate / f;
-        double a1 = 0.8 * 32768.0 * sin((index * 2.0 * 3.14159265 * rate) / mix_rate);
-        double a2 = 0.8 * 32768.0 * sin(((index + 1) * 2.0 * 3.14159265 * rate) / mix_rate);
+        double level = sin(M_PI_4);
+        double a1 = 0.8 * 32768.0 * level * sin((index * 2.0 * M_PI * rate) / mix_rate);
+        double a2 = 0.8 * 32768.0 * level * sin(((index + 1) * 2.0 * M_PI * rate) / mix_rate);
         double frac = fmod(i * mix_rate / 44100.0, 1.0);
         double a = a1 * (1.0 - frac) + a2 * frac;
         int16_t as = (int16_t) a;
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 24);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 24);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 27);
     }
 
     ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
@@ -399,13 +432,13 @@ TEST_P(dmSoundVerifyTest, Mix)
     float rms_left, rms_right;
     dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
-    ASSERT_NEAR(rms_left, 0.8f / sqrtf(2.0f), 0.02f);
-    ASSERT_NEAR(rms_right, 0.8f / sqrtf(2.0f), 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_left, 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * 0.707107f, rms_right, 0.02f);
 
     float peak_left, peak_right;
     dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &peak_left, &peak_right);
-    ASSERT_NEAR(peak_left, 0.8f, 0.01f);
-    ASSERT_NEAR(peak_right, 0.8f, 0.01f);
+    ASSERT_NEAR(0.8f* 0.707107f, peak_left, 0.01f);
+    ASSERT_NEAR(0.8f* 0.707107f, peak_right, 0.01f);
 
     int expected_queued = (frame_count * 44100) / ((int) mix_rate * params.m_BufferFrameCount)
                             + dmMath::Min(1U, (frame_count * 44100) % ((int) mix_rate * params.m_BufferFrameCount));
@@ -440,16 +473,6 @@ TEST_P(dmSoundVerifyTest, NoEarlyBailOnSoundInstances)
 }
 
 const TestParams params_verify_test[] = {
-    TestParams("loopback",
-            MONO_TONE_440_22050_44100_WAV,
-            MONO_TONE_440_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            22050,
-            44100,
-            2048),
-};
-const TestParams params_verify_test__[] = {
 TestParams("loopback",
             MONO_TONE_440_22050_44100_WAV,
             MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -514,8 +537,6 @@ TestParams("loopback",
             44100,
             88200,
             2048),
-
-
 TestParams("loopback",
             STEREO_TONE_440_22050_44100_WAV,
             STEREO_TONE_440_22050_44100_WAV_SIZE,
@@ -624,7 +645,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
                 float mix = (i - prev_frames) / (float) (frames - prev_frames);
                 float expectedf = (32768.0f * 0.8f * ((1.0f - mix) * prev_g + g * mix));
                 int16_t expected = (int16_t) expectedf ;
-                ASSERT_NEAR(expected, actual, 2U);
+                ASSERT_NEAR(expected * 0.707107f, actual, 2U);
             }
             prev_g = g;
         }
@@ -650,6 +671,110 @@ const TestParams params_group_ramp_test[] = {
         2048)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest, dmSoundTestGroupRampTest, jc_test_values_in(params_group_ramp_test));
+
+
+TEST_P(dmSoundTestSpeedTest, Speed)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    printf("tone: %d, rate: %d, frames: %d, speed: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Speed);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float mix_rate = params.m_MixRate / 44100.0f;
+    uint32_t buffer_count = params.m_BufferFrameCount * params.m_Speed;
+    int expected_count = params.m_FrameCount / buffer_count;
+    expected_count /= mix_rate;
+
+    if ((expected_count * buffer_count) < params.m_FrameCount)
+        expected_count++;
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    // The loop back device will have time to write out another output buffer while the
+    // sound is finishing up
+    expected_count++;
+
+    ASSERT_NEAR((float)expected_count, (float)g_LoopbackDevice->m_NumWrites, 1.0f);
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_speed_test[] = {
+    TestParams("loopback",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            2.0f),
+    TestParams("loopback",
+            MONO_TONE_440_32000_64000_WAV,
+            MONO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            64000,
+            2048,
+            0.0f,
+            2.0f),
+    TestParams("loopback",
+            STEREO_TONE_440_32000_64000_WAV,
+            STEREO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            64000,
+            2048,
+            0.0f,
+            2.0f),
+    TestParams("loopback",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            0.5f),
+    TestParams("loopback",
+            STEREO_TONE_440_32000_64000_WAV,
+            STEREO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            64000,
+            2048,
+            0.0f,
+            0.5f),
+};
+INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
+
 
 TEST_P(dmSoundVerifyOggTest, Mix)
 {
@@ -730,7 +855,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    
+
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
@@ -747,11 +872,72 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float a = 0.0f;
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        a += M_PI / 20000000.0f;
+        if (a > M_PI*2) {
+            a-= M_PI*2;
+        }
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_P(dmSoundTestPlaySpeedTest, Play)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float a = 0.0f;
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        a += M_PI / 20000000.0f;
+        if (a > M_PI*2) {
+            a-= M_PI*2;
+        }
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
     } while (dmSound::IsPlaying(instance));
 
     r = dmSound::DeleteSoundInstance(instance);
@@ -803,9 +989,72 @@ const TestParams params_test_play_test[] = {
                 440,
                 44000,
                 88000,
-                2048)
+                2048),
+    TestParams("default",
+                MONO_TONE_440_44100_88200_WAV,
+                MONO_TONE_440_44100_88200_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                44100,
+                44100,
+                2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
+
+
+const TestParams params_test_play_speed_test[] = {
+    TestParams("default",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            2.0f),
+    TestParams("default",
+            MONO_TONE_440_32000_64000_WAV,
+            MONO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            64000,
+            2048,
+            0.0f,
+            2.0f),
+    TestParams("default",
+            STEREO_TONE_440_32000_64000_WAV,
+            STEREO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            64000,
+            2048,
+            0.0f,
+            2.0f),
+    TestParams("default",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            2048,
+            0.0f,
+            0.5f),
+    TestParams("default",
+            STEREO_TONE_440_32000_64000_WAV,
+            STEREO_TONE_440_32000_64000_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            32000,
+            64000,
+            2048,
+            0.0f,
+            0.5f),
+};
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 
 TEST_P(dmSoundVerifyWavTest, Mix)
 {
@@ -814,8 +1063,6 @@ TEST_P(dmSoundVerifyWavTest, Mix)
     dmSound::HSoundData sd = 0;
 
     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    printf("verifying wav mix: frames: %d\n", params.m_FrameCount);
 
     uint64_t tstart = dmTime::GetTime();
 
@@ -968,8 +1215,8 @@ TEST_P(dmSoundMixerTest, Mixer)
 
         const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain, abs_error);
-            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain * 0.707107f, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain * 0.707107f, abs_error);
         }
     }
     last_rms /= 32767.0f;

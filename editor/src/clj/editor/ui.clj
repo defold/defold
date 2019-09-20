@@ -1,28 +1,26 @@
 (ns editor.ui
-  (:require
-   [clojure.java.io :as io]
-   [clojure.set :as set]
-   [clojure.string :as string]
-   [clojure.xml :as xml]
-   [dynamo.graph :as g]
-   [editor.error-reporting :as error-reporting]
-   [editor.handler :as handler]
-   [editor.jfx :as jfx]
-   [editor.progress :as progress]
-   [editor.math :as math]
-   [editor.menu :as menu]
-   [editor.util :as eutil]
-   [internal.util :as util]
-   [service.log :as log]
-   [service.smoke-log :as slog]
-   [util.profiler :as profiler])
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as string]
+            [clojure.xml :as xml]
+            [dynamo.graph :as g]
+            [editor.error-reporting :as error-reporting]
+            [editor.handler :as handler]
+            [editor.jfx :as jfx]
+            [editor.progress :as progress]
+            [editor.math :as math]
+            [editor.menu :as menu]
+            [editor.util :as eutil]
+            [internal.util :as util]
+            [service.log :as log]
+            [service.smoke-log :as slog]
+            [util.profiler :as profiler])
   (:import
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
    [com.sun.javafx.application PlatformImpl]
    [com.sun.javafx.event DirectEvent]
-   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]
    [java.awt Desktop Desktop$Action]
    [java.io File IOException]
    [java.net URI]
@@ -33,12 +31,12 @@
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
-   [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget]
+   [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
-   [javafx.scene Parent Node Scene Group ImageCursor]
-   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeTableView TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TableView TabPane Tab TextField Tooltip SelectionMode SelectionModel SplitPane]
-   [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
+   [javafx.scene Group Node Parent Scene]
+   [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+   [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.scene.shape SVGPath]
@@ -66,7 +64,7 @@
 (defonce ^:private application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 
-(def ^:private focus-change-listener
+(def focus-change-listener
   (reify ChangeListener
     (changed [_ _ _ focused?]
       (reset! focus-state {:focused? focused?
@@ -148,6 +146,16 @@
   (closest-node-where (fn [^Node node]
                         (.contains (.getStyleClass node) style-class))
                       leaf-node))
+
+(defn nodes-along-path?
+  "Returns true if it is possible to trace a path from the leaf node up to (but
+  not including) the root that includes needle. Also true if needle = leaf."
+  [leaf needle root]
+  (->> leaf
+       (iterate #(.getParent ^Node %))
+       (take-while #(not (identical? root %)))
+       (some #(identical? needle %))
+       boolean))
 
 (defn make-stage
   ^Stage []
@@ -457,8 +465,35 @@
 (defn focus? [^Node node]
   (.isFocused node))
 
+(defn double-click-event? [^MouseEvent event]
+  (and (= MouseEvent/MOUSE_CLICKED (.getEventType event))
+       (= MouseButton/PRIMARY (.getButton event))
+       (= 2 (.getClickCount event))
+
+       ;; Special handling for specific view types.
+       (boolean
+         (condp instance? (.getSource event)
+           TreeView
+           ;; Only count double-clicks on selected tree items. Ignore disclosure arrow clicks.
+           (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
+             (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell clicked-node)]
+               (when (and (.isSelected tree-cell)
+                          (not (.isEmpty tree-cell)))
+                 (if-some [disclosure-node (.getDisclosureNode tree-cell)]
+                   (not (nodes-along-path? clicked-node disclosure-node tree-cell))
+                   true))))
+
+           ListView
+           ;; Only count double-clicks on selected list items.
+           (when-some [clicked-node (some-> event .getPickResult .getIntersectedNode)]
+             (when-some [^ListCell tree-cell (closest-node-of-type ListCell clicked-node)]
+               (and (.isSelected tree-cell)
+                    (not (.isEmpty tree-cell)))))
+
+           true))))
+
 (defn on-double! [^Node node fn]
-  (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
+  (.setOnMouseClicked node (event-handler e (when (double-click-event? e)
                                               (fn e)))))
 
 (defn on-click! [^Node node fn]
@@ -924,6 +959,71 @@
     (when-not (= -1 row)
       (.scrollTo tree-view row))))
 
+(defn- custom-tree-view-key-pressed! [^KeyEvent event]
+  ;; The TreeView control consumes Space key presses internally and does
+  ;; something weird and undesirable to the selection. Instead, we consume and
+  ;; redirect the keypress to the Scene root so that we can use the Space key
+  ;; for keyboard shortcuts even if a TreeView has input focus.
+  (when (and (= KeyCode/SPACE (.getCode event))
+             (not (or (.isAltDown event)
+                      (.isControlDown event)
+                      (.isMetaDown event)
+                      (.isShiftDown event))))
+    (let [^Node source (.getSource event)]
+      (when (instance? Node source)
+        (when-some [scene-root (some-> source .getScene .getRoot)]
+          (let [redirected-event (.copyFor event source scene-root)]
+            (.consume event)
+            (.fireEvent scene-root redirected-event)))))))
+
+(defn- custom-tree-view-mouse-pressed! [^MouseEvent event]
+  (when (= MouseButton/PRIMARY (.getButton event))
+    (let [target (.getTarget event)]
+      ;; Did the user click on a tree cell?
+      (when-some [^TreeCell tree-cell (closest-node-of-type TreeCell target)]
+        (when-some [disclosure-node (.getDisclosureNode tree-cell)]
+          ;; Did the user click on the disclosure node?
+          (when (nodes-along-path? target disclosure-node tree-cell)
+            ;; Consume the event and manually toggle the expanded state for the
+            ;; associated tree item. If the Alt modifier key is held, recursively
+            ;; set the expanded state for all children.
+            (when-some [tree-item (.getTreeItem tree-cell)]
+              (.consume event)
+              (let [new-expanded-state (not (.isExpanded tree-item))]
+                (if-not (.isAltDown event)
+                  (.setExpanded tree-item new-expanded-state)
+                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)]
+                    (.setExpanded tree-item new-expanded-state)))))))))))
+
+(def ^:private custom-tree-view-key-pressed-event-filter
+  (event-handler event
+    (custom-tree-view-key-pressed! event)))
+
+(def ^:private custom-tree-view-mouse-pressed-event-filter
+  (event-handler event
+    (custom-tree-view-mouse-pressed! event)))
+
+(def ignore-event-filter
+  (event-handler event
+    (.consume ^Event event)))
+
+(defn customize-tree-view!
+  "Customize the behavior of the supplied tree-view for our purposes. Currently
+  the following customizations are applied:
+  * The Space key no longer does something weird to the selection. Instead we
+    redirect it to the Scene root so it can be used for keyboard shortcuts.
+  * Alt-clicking on an items disclosure arrow toggles expansion state for all
+    child items recursively.
+
+  Additional opts:
+  * :double-click-expand?
+    If true, double-clicking will toggle expansion of a tree item."
+  [^TreeView tree-view opts]
+  (.addEventFilter tree-view KeyEvent/KEY_PRESSED custom-tree-view-key-pressed-event-filter)
+  (.addEventFilter tree-view MouseEvent/MOUSE_PRESSED custom-tree-view-mouse-pressed-event-filter)
+  (when-not (:double-click-expand? opts)
+    (.addEventFilter tree-view MouseEvent/MOUSE_RELEASED ignore-event-filter)))
+
 (extend-protocol HasSelectionModel
   ChoiceBox     (selection-model [this] (.getSelectionModel this))
   ComboBox      (selection-model [this] (.getSelectionModel this))
@@ -1284,12 +1384,9 @@
    (bind-double-click! node command {}))
   ([^Node node command user-data]
    (.addEventFilter node MouseEvent/MOUSE_CLICKED
-                    (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
-                                       (run-command node command user-data false (fn [] (.consume e))))))))
-
-(defn key-combo
-  [^String acc]
-  (KeyCombination/keyCombination acc))
+                    (event-handler e
+                      (when (double-click-event? e)
+                        (run-command node command user-data false (fn [] (.consume e))))))))
 
 (defn bind-key! [^Node node acc f]
   (let [combo (KeyCombination/keyCombination acc)]
@@ -1337,51 +1434,6 @@
                                                                   binding
                                                                   [binding {}])]
                                         (run-command node command user-data true #(.consume event))))))))
-
-(defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
-  [^Node node]
-  (let [scene (.getScene node)
-        ^SceneEventDispatcher scene-dispatcher (.getEventDispatcher scene)
-        ^KeyboardShortcutsHandler shortcuts-handler (.getKeyboardShortcutsHandler scene-dispatcher)]
-    shortcuts-handler))
-
-(def ^EventDispatchChain noop-dispatch-chain 
-  (reify EventDispatchChain
-    (append [this dispatcher] (throw (UnsupportedOperationException. "not supported")))
-    (dispatchEvent [this event] event)
-    (prepend [this dispatcher] (throw (UnsupportedOperationException. "not supported")))))
-
-(defn- make-shortcut-dispatcher*
-  [^EventDispatcher original-dispatcher ^KeyboardShortcutsHandler shortcuts-handler key-combos]
-  (reify EventDispatcher
-    (dispatchEvent [this event tail]
-      ;; First, dispatch downwards chain after this node
-      (when-some [event' (.dispatchEvent tail event)]
-        ;; If we got an event back, it wasn't consumed on either
-        ;; capturing or bubbling phase by anyone downwards this node
-        (if (and (= KeyEvent/KEY_PRESSED (.getEventType event'))
-                 (some #(.match ^KeyCombination % ^KeyEvent event') key-combos))
-          ;; If event is a key pressed event and matches one of the
-          ;; key-combinations we wish to redirect, call the bubbling
-          ;; phase of the shortcuts handler directly.
-          (.dispatchBubblingEvent shortcuts-handler event')
-          ;; If not, call original dispatcher, with a noop-chain, ie.
-          ;; without capturing/bubbling downwards (because we've
-          ;; already done that part), but let the capturing/bubbling
-          ;; phase continue as it would've.
-          (.dispatchEvent original-dispatcher event' noop-dispatch-chain))))))
-
-(defn make-shortcut-dispatcher
-  "Given a `Node` and a collection of `KeyCombination`s, return an
-  `EventDispatcher` that will redirect `KeyEvent`s that match any of the
-  `KeyCombination`s to the global shortcut handler on the `Scene`. This can be
-  used to override default shortcuts on the node."
-  [^Node node key-combos]
-  (let [shortcuts-handler (keyboard-shortcuts-handler node)
-        original-dispatcher (.getEventDispatcher node)]
-    (make-shortcut-dispatcher* original-dispatcher shortcuts-handler key-combos)))
-
-
 
 ;;--------------------------------------------------------------------
 ;; menus
@@ -1760,33 +1812,6 @@
                   (ref-set progress-snapshot @last-progress)
                   (ref-set render-inflight false))
                 (render-progress! @progress-snapshot)))))))))
-
-(defn modal-progress [title worker-fn]
-  (run-now
-   (let [root             ^Parent (load-fxml "progress.fxml")
-         stage            (make-dialog-stage (main-stage))
-         scene            (Scene. root)
-         title-control    ^Label (.lookup root "#title")
-         progress-control ^ProgressBar (.lookup root "#progress")
-         message-control  ^Label (.lookup root "#message")
-         return           (atom nil)
-         render-progress! (make-run-later-render-progress
-                            (fn [progress]
-                              (render-progress-controls! progress progress-control message-control)))]
-      (.setText title-control title)
-      (.setProgress progress-control 0)
-      (.setScene stage scene)
-      (future
-        (try
-          (reset! return (worker-fn render-progress!))
-          (catch Throwable e
-            (log/error :exception e)
-            (reset! return e)))
-        (run-later (.close stage)))
-      (.showAndWait stage)
-      (if (instance? Throwable @return)
-          (throw @return)
-          @return))))
 
 (defn- set-scene-disable! [^Scene scene disable?]
   (when-some [root (.getRoot scene)]

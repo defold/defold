@@ -7,9 +7,14 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -44,6 +49,7 @@ import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
@@ -58,7 +64,8 @@ public class BundlerTest {
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
     private void verifyEngineBinaries() throws IOException
     {
-        String projectName = "Unnamed";
+        String projectName = "unnamed";
+        String exeName = BundleHelper.projectNameToBinaryName(projectName);
         File outputDirFile = new File(outputDir, projectName);
         assertTrue(outputDirFile.exists());
         switch (platform)
@@ -75,9 +82,9 @@ public class BundlerTest {
                 File outputApk = new File(outputDirFile, projectName + ".apk");
                 assertTrue(outputApk.exists());
                 FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
-                Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + projectName + ".so");
+                Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArmv7));
-                Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + projectName + ".so");
+                Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArm64));
                 Path classesDexPath = apkZip.getPath("classes.dex");
                 assertTrue(Files.isReadable(classesDexPath));
@@ -85,17 +92,62 @@ public class BundlerTest {
             break;
             case JsWeb:
             {
-                File asmjsFile = new File(outputDirFile, projectName + "_asmjs.js");
+                File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
                 assertTrue(asmjsFile.exists());
-                File wasmjsFile = new File(outputDirFile, projectName + "_wasm.js");
+                File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
                 assertTrue(wasmjsFile.exists());
-                File wasmFile = new File(outputDirFile, projectName + ".wasm");
+                File wasmFile = new File(outputDirFile, exeName + ".wasm");
                 assertTrue(wasmFile.exists());
             }
             break;
             default:
                 throw new IOException("Verifying engine binaries not implemented for platform: " + platform.toString());
         }
+    }
+
+    private List<String> getBundleFiles() throws IOException {
+        String projectName = "unnamed";
+        File outputDirFile = new File(outputDir, projectName);
+        assertTrue(outputDirFile.exists());
+
+        final ArrayList<String> files = new ArrayList<String>();
+
+        if (platform == Platform.Armv7Android)
+        {
+            File outputApk = new File(outputDirFile, projectName + ".apk");
+            assertTrue(outputApk.exists());
+            FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+            final Path root = apkZip.getPath("/");
+
+            Files.walkFileTree(root, new SimpleFileVisitor<Path>(){
+                @Override
+                public FileVisitResult visitFile(Path file,
+                        BasicFileAttributes attrs) throws IOException {
+                    files.add(file.getFileName().toString());
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir,
+                        BasicFileAttributes attrs) throws IOException {
+
+                    // Only list root directory
+                    if (dir.toAbsolutePath().toString().equals("/")) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+                });
+        } else {
+            for (File f : outputDirFile.listFiles())
+            {
+                if (f.isFile()) {
+                    files.add(f.getName().toString());
+                }
+            }
+        }
+
+        return files;
     }
 
     @Parameters
@@ -188,33 +240,38 @@ public class BundlerTest {
 
     // Returns the number of files that will be put into the DARC file
     // Note that the game.project isn't put in the archive either
-    protected int createDefaultFiles() throws IOException {
+    protected int createDefaultFiles(String outputContentRoot) throws IOException {
+        if (outputContentRoot == null) {
+            outputContentRoot = contentRoot;
+        }
+
         int count = 0;
-        createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
+        createFile(outputContentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
         count++;
-        createFile(contentRoot, "builtins/render/default.render", "script: \"/builtins/render/default.render_script\"\n");
+        createFile(outputContentRoot, "builtins/render/default.render", "script: \"/builtins/render/default.render_script\"\n");
         count++;
-        createFile(contentRoot, "builtins/render/default.render_script", "");
+        createFile(outputContentRoot, "builtins/render/default.render_script", "");
         count++;
-        createFile(contentRoot, "builtins/render/default.display_profiles", "");
+        createFile(outputContentRoot, "builtins/render/default.display_profiles", "");
         count++;
-        createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(outputContentRoot, "builtins/input/default.gamepads", "");
         count++;
-        createFile(contentRoot, "input/game.input_binding", "");
+        createFile(outputContentRoot, "input/game.input_binding", "");
         count++;
 
         // These aren't put in the DARC file, so we don't count up
-        createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
-        createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
-        createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
-        createFile(contentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_DEV_HEAD}}} {{{DEFOLD_DEV_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
+        createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
+        createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
+        createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
+        createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
+        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_DEV_HEAD}}} {{{DEFOLD_DEV_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
 
         return count;
     }
 
     @Test
     public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        createDefaultFiles();
+        createDefaultFiles(contentRoot);
         createFile(contentRoot, "test.icns", "test_icon");
         build();
     }
@@ -228,6 +285,7 @@ public class BundlerTest {
 
     @Test
     public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        int builtins_count = createDefaultFiles(contentRootUnused);
         createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
@@ -249,12 +307,12 @@ public class BundlerTest {
 
         Set<byte[]> entries = readDarcEntries(contentRootUnused);
 
-        assertEquals(2, entries.size());
+        assertEquals(builtins_count + 2, entries.size());
     }
 
     @Test
     public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        int numBuiltins = createDefaultFiles();
+        int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
@@ -271,7 +329,7 @@ public class BundlerTest {
         File sub2 = new File(cust, "sub2");
         sub1.mkdir();
         sub2.mkdir();
-        int numBuiltins = createDefaultFiles();
+        int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "m.txt", "dummy");
         createFile(sub1.getAbsolutePath(), "s1-1.txt", "dummy");
         createFile(sub1.getAbsolutePath(), "s1-2.txt", "dummy");
@@ -298,7 +356,7 @@ public class BundlerTest {
         final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
         final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
 
-        int numBuiltins = createDefaultFiles();
+        int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", expectedData);
         build();
@@ -322,5 +380,123 @@ public class BundlerTest {
             }
         }
         assertTrue(found);
+    }
+
+    static HashSet<String> getExpectedFilesForPlatform(Platform platform)
+    {
+        HashSet<String> expectedFiles = new HashSet<String>();
+        switch (platform)
+        {
+            case X86Win32:
+            case X86_64Win32:
+                expectedFiles.add("unnamed.exe");
+                expectedFiles.add("game.public.der");
+                expectedFiles.add("game.dmanifest");
+                expectedFiles.add("OpenAL32.dll");
+                expectedFiles.add("game.arci");
+                expectedFiles.add("wrap_oal.dll");
+                expectedFiles.add("game.arcd");
+                expectedFiles.add("game.projectc");
+                break;
+            case JsWeb:
+                expectedFiles.add("dmloader.js");
+                expectedFiles.add("index.html");
+                expectedFiles.add("unnamed_wasm.js");
+                expectedFiles.add("unnamed.wasm");
+                expectedFiles.add("unnamed_asmjs.js");
+                expectedFiles.add("defold_sound.swf");
+                break;
+            case Armv7Android:
+                expectedFiles.add("classes.dex");
+                expectedFiles.add("resources.arsc");
+                expectedFiles.add("AndroidManifest.xml");
+                break;
+            default:
+                System.err.println("Expected file set is not implemented for this platform.");
+                break;
+        }
+
+        return expectedFiles;
+    }
+
+    @Test
+    public void testBundleResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+
+        /*
+         * Project structure:
+         *
+         *  /
+         *  +-/m.txt
+         *  +-<built-ins> (from createDefaultFiles)
+         *  +-custom/
+         *  | EMPTY!
+         *  +-sub1/
+         *    +-common/
+         *      +-s1-1.txt
+         *      +-s1-2.txt
+         *  +-sub2/
+         *    +-[current-platform-arch]/
+         *      +-s2-1.txt
+         *      +-s2-2.txt
+         */
+        File cust = new File(contentRoot, "custom");
+        cust.mkdir();
+        File sub1 = new File(contentRoot, "sub1");
+        File sub2 = new File(contentRoot, "sub2");
+        sub1.mkdir();
+        sub2.mkdir();
+        File sub_platform1 = new File(sub1, "common"); // common is a platform
+        File sub_platform2 = new File(sub2, this.platform.getExtenderPair());
+        sub_platform1.mkdir();
+        sub_platform2.mkdir();
+        createDefaultFiles(contentRoot);
+        createFile(contentRoot, "m.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-1.txt", "dummy");
+        createFile(sub_platform1.getAbsolutePath(), "s1-2.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-1.txt", "dummy");
+        createFile(sub_platform2.getAbsolutePath(), "s2-2.txt", "dummy");
+
+        createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
+        build();
+        HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform);
+        HashSet<String> actualFiles = new HashSet<String>();
+        List<String> files = getBundleFiles();
+        for (String file : files) {
+            System.out.println(file);
+            actualFiles.add(file);
+        }
+        assertEquals(expectedFiles.size(), files.size());
+        assertTrue(expectedFiles.equals(actualFiles));
+
+        createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
+        build();
+        files = getBundleFiles();
+        expectedFiles = getExpectedFilesForPlatform(platform);
+        actualFiles = new HashSet<String>();
+        for (String file : files) {
+            System.out.println(file);
+            actualFiles.add(file);
+        }
+        expectedFiles.add("s1-1.txt");
+        expectedFiles.add("s1-2.txt");
+        assertEquals(expectedFiles.size(), files.size());
+        assertTrue(expectedFiles.equals(actualFiles));
+
+
+        createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
+        build();
+        files = getBundleFiles();
+        expectedFiles = getExpectedFilesForPlatform(platform);
+        actualFiles = new HashSet<String>();
+        for (String file : files) {
+            System.out.println(file);
+            actualFiles.add(file);
+        }
+        expectedFiles.add("s1-1.txt");
+        expectedFiles.add("s1-2.txt");
+        expectedFiles.add("s2-1.txt");
+        expectedFiles.add("s2-2.txt");
+        assertEquals(expectedFiles.size(), files.size());
+        assertTrue(expectedFiles.equals(actualFiles));
     }
 }

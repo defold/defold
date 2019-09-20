@@ -55,7 +55,7 @@ esac
 case $MODE in
     arm-asm)
         function cmi_make() {
-            export CFLAGS="${CFLAGS} -Wa,-mimplicit-it=always -D_ARM_ASSEM_ -static -O2 -mtune=xscale"
+            export CFLAGS="${CFLAGS} -mimplicit-it=always -D_ARM_ASSEM_ -static -O2 -mtune=xscale"
             set -e
             make -j1 libTremolo006.lib
             set +e

@@ -46,6 +46,8 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
+    dmGameSystem::TilemapContext m_TilemapContext;
+    dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
 
@@ -148,28 +150,28 @@ public:
     virtual ~DrawCountTest() {}
 };
 
-struct TexturePropParams
-{
-    const char* go_path;
-    dmhash_t comp_same_1;
-    dmhash_t comp_same_2;
-    dmhash_t comp_different;
+struct ResourcePropParams {
+    const char* m_PropertyName;
+    const char* m_ResourcePath;
+    const char* m_ResourcePathNotFound;
+    const char* m_ResourcePathInvExt;
+    const char* m_Component0;
+    const char* m_Component1;
+    const char* m_Component2;
+    const char* m_Component3;
+    const char* m_Component4;
+    const char* m_Component5;
 };
 
-class TexturePropTest : public GamesysTest<TexturePropParams>
+class ResourcePropTest : public GamesysTest<ResourcePropParams>
 {
 protected:
     void SetUp()
     {
         GamesysTest::SetUp();
-        hash_property_id = dmHashString64("texture0");
-        hash_property_id_invalid = dmHashString64("texture");
     }
-
 public:
-    dmhash_t hash_property_id;
-    dmhash_t hash_property_id_invalid;
-    virtual ~TexturePropTest() {}
+    virtual ~ResourcePropTest() {}
 };
 
 class FlipbookTest : public GamesysTest<const char*>
@@ -204,7 +206,7 @@ void GamesysTest<T>::SetUp()
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
     dmResource::NewFactoryParams params;
-    params.m_MaxResources = 32;
+    params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
@@ -269,6 +271,10 @@ void GamesysTest<T>::SetUp()
     m_LabelContext.m_MaxLabelCount = 32;
     m_LabelContext.m_Subpixels     = 0;
 
+    m_TilemapContext.m_RenderContext = m_RenderContext;
+    m_TilemapContext.m_MaxTilemapCount = 16;
+    m_TilemapContext.m_MaxTileCount = 512;
+
     m_ModelContext.m_RenderContext = m_RenderContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
@@ -280,7 +286,9 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext, &m_ModelContext, &m_LabelContext));
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
+                                                                                                    &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

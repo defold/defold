@@ -12,6 +12,7 @@
 #include <dlib/profile.h>
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
+#include <dlib/webp.h>
 #include <graphics/graphics_util.h>
 
 #include "font_renderer.h"
@@ -72,6 +73,7 @@ namespace dmRender
         , m_CacheCursor(0)
         , m_CacheColumns(0)
         , m_CacheRows(0)
+        , m_CellTempData(0)
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
         , m_CacheCellMaxAscent(0)
@@ -88,6 +90,9 @@ namespace dmRender
             }
             if (m_Cache) {
                 free(m_Cache);
+            }
+            if (m_CellTempData) {
+                free(m_CellTempData);
             }
             dmGraphics::DeleteTexture(m_Texture);
         }
@@ -114,9 +119,13 @@ namespace dmRender
         Glyph**                 m_Cache;
         uint32_t                m_CacheCursor;
         dmGraphics::TextureFormat m_CacheFormat;
+        dmGraphics::TextureFilter m_MinFilter;
+        dmGraphics::TextureFilter m_MagFilter;
 
         uint32_t                m_CacheColumns;
         uint32_t                m_CacheRows;
+
+        uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
 
         uint32_t                m_CacheCellWidth;
         uint32_t                m_CacheCellHeight;
@@ -140,6 +149,21 @@ namespace dmRender
     {
         free((void*)tex_params.m_Data);
         tex_params.m_DataSize = 0;
+    }
+
+    // Font maps have no mips, so we need to make sure we use a supported min filter
+    static dmGraphics::TextureFilter ConvertMinTextureFilter(dmGraphics::TextureFilter filter)
+    {
+        if (filter == dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
+        {
+            filter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        }
+        else if (filter == dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+        {
+            filter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        }
+
+        return filter;
     }
 
     HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
@@ -180,6 +204,8 @@ namespace dmRender
         font_map->m_CacheRows = params.m_CacheHeight / params.m_CacheCellHeight;
         uint32_t cell_count = font_map->m_CacheColumns * font_map->m_CacheRows;
 
+        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
+
         switch (params.m_GlyphChannels)
         {
             case 1:
@@ -196,6 +222,18 @@ namespace dmRender
                 delete font_map;
                 return 0x0;
         };
+
+        if (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP)
+        {
+            dmGraphics::GetDefaultTextureFilters(graphics_context, font_map->m_MinFilter, font_map->m_MagFilter);
+            // No mips for font cache
+            font_map->m_MinFilter = ConvertMinTextureFilter(font_map->m_MinFilter);
+        }
+        else // Distance-field font
+        {
+            font_map->m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+            font_map->m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        }
 
         font_map->m_Cache = (Glyph**)malloc(sizeof(Glyph*) * cell_count);
         memset(font_map->m_Cache, 0, sizeof(Glyph*) * cell_count);
@@ -243,6 +281,7 @@ namespace dmRender
         if (font_map->m_GlyphData) {
             free(font_map->m_GlyphData);
             free(font_map->m_Cache);
+            free(font_map->m_CellTempData);
         }
 
         font_map->m_ShadowX = params.m_ShadowX;
@@ -270,6 +309,8 @@ namespace dmRender
         font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
         font_map->m_CacheRows = params.m_CacheHeight / params.m_CacheCellHeight;
         uint32_t cell_count = font_map->m_CacheColumns * font_map->m_CacheRows;
+
+        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
 
         switch (params.m_GlyphChannels)
         {
@@ -458,11 +499,12 @@ namespace dmRender
         text_context->m_TextBuffer.PushArray(params.m_Text, text_len);
         text_context->m_TextBuffer.Push('\0');
 
+        material = material ? material : GetFontMapMaterial(font_map);
         TextEntry te;
         te.m_Transform = params.m_WorldTransform;
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
-        te.m_Material = material ? material : GetFontMapMaterial(font_map);
+        te.m_Material = material;
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -508,8 +550,8 @@ namespace dmRender
         tex_params.m_SubUpdate = true;
         tex_params.m_MipMap = 0;
         tex_params.m_Format = font_map->m_CacheFormat;
-        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tex_params.m_MinFilter = font_map->m_MinFilter;
+        tex_params.m_MagFilter = font_map->m_MagFilter;
 
         // Locate a cache cell candidate
         do {
@@ -534,7 +576,41 @@ namespace dmRender
                 // Upload glyph data to GPU
                 tex_params.m_Width = g->m_Width + font_map->m_CacheCellPadding*2;
                 tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
-                tex_params.m_Data = (uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+
+                uint8_t* glyph_data = (uint8_t*)(uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+                uint32_t glyph_data_size = g->m_GlyphDataSize-1; // The first byte is a header
+                uint8_t is_compressed = *glyph_data++;
+
+                if (is_compressed) {
+
+                    uint32_t bytes_per_pixel;
+                    dmWebP::TextureEncodeFormat encode_format;
+                    switch (font_map->m_CacheFormat) {
+                        case dmGraphics::TEXTURE_FORMAT_RGB:        bytes_per_pixel = 3;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGB888;
+                                                                    break;
+                        case dmGraphics::TEXTURE_FORMAT_RGBA:       bytes_per_pixel = 4;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_RGBA8888;
+                                                                    break;
+                        case dmGraphics::TEXTURE_FORMAT_LUMINANCE:
+                        default:                                    bytes_per_pixel = 1;
+                                                                    encode_format = dmWebP::TEXTURE_ENCODE_FORMAT_L8;
+                    };
+
+                    dmWebP::Result result = dmWebP::DecodeCompressedTexture(glyph_data,
+                                                glyph_data_size,
+                                                font_map->m_CellTempData,
+                                                font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4, // the max size
+                                                tex_params.m_Width*bytes_per_pixel,
+                                                encode_format);
+
+                    if (result != dmWebP::RESULT_OK) {
+                        dmLogWarning("Failed to decompress glyph: %d", result);
+                    }
+                    tex_params.m_Data = font_map->m_CellTempData;
+                } else {
+                    tex_params.m_Data = glyph_data;
+                }
 
                 tex_params.m_X = g->m_X;
                 tex_params.m_Y = g->m_Y + g_offset_y;
@@ -958,7 +1034,7 @@ namespace dmRender
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagMask = dmRender::GetMaterialTagMask(te.m_Material);
+                    write_ptr->m_TagMask = GetMaterialTagMask(te.m_Material);
                     write_ptr->m_Dispatch = dispatch;
                     write_ptr++;
                 }
@@ -1024,5 +1100,15 @@ namespace dmRender
         size += font_map->m_Glyphs.Capacity()*(sizeof(Glyph)+sizeof(uint32_t));
         size += dmGraphics::GetTextureResourceSize(font_map->m_Texture);
         return size;
+    }
+
+    bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
+    {
+        return font_map->m_MinFilter == filter;
+    }
+
+    bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
+    {
+        return font_map->m_MagFilter == filter;
     }
 }

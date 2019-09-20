@@ -10,6 +10,8 @@ def configure(conf):
         return
     if 'osx' == target:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa'])
+    if 'win32' in target:
+        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
 def build(bld):
     build_util = create_build_utility(bld.env)
@@ -20,7 +22,7 @@ def build(bld):
 
     exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
                            includes = ['.'],
-                           uselib = 'DLIB',
+                           uselib = 'DLIB CARES',
                            source = ['launcher.cpp', 'launcher_util.cpp'],
                            target = 'launcher')
 

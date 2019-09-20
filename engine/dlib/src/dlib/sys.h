@@ -94,10 +94,6 @@ namespace dmSys
         int  m_GmtOffset;
         /// Unique device identifier, e.g. "identifierForVendor" on iOS
         char m_DeviceIdentifier[64];
-        /// Advertising identifier if available, e.g. "advertisingIdentifier" on iOS
-        char m_AdIdentifier[64];
-        /// True if advertising is enabled, e.g. "advertisingTrackingEnabled" on iOS
-        bool m_AdTrackingEnabled;
         /// The string returned from the browser (allocated, has to be free'd)
         const char* m_UserAgent;
     };
@@ -173,6 +169,14 @@ namespace dmSys
      * @return RESULT_OK on success
     */
     Result MoveFile(const char* dst_filename, const char* src_filename);
+
+    /**
+     * Get the path where the application (exe) is located
+     * @param path path buffer
+     * @path path_len path buffer length
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Other error results are also possible.
+     */
+    Result GetApplicationPath(char* path, uint32_t path_len);
 
     /**
      * Get and create platform specific application support directory.

@@ -131,6 +131,26 @@ namespace dmGameSystem
      * ```
      */
 
+    /*# [type:hash] spine material
+     *
+     * The material used when rendering the spine model. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     * function init(self)
+     *   go.set("#spinemodel", "material", self.my_material)
+     * end
+     * ```
+     */
+
+
     int SpineComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -238,7 +258,7 @@ namespace dmGameSystem
      *     if message.animation_id == hash("jump") then
      *       -- open animation done, chain with "run"
      *       local properties = { blend_duration = 0.2 }
-     *       spine.play_anim(url, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
+     *       spine.play_anim(sender, "run", go.PLAYBACK_LOOP_FORWARD, properties, anim_done)
      *     end
      *   end
      * end

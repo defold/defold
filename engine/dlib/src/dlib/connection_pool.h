@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <dlib/socket.h>
+#include <dlib/dns.h>
 
 /**
  * Connection pooling
@@ -93,13 +94,14 @@ namespace dmConnectionPool
      * @param pool pool
      * @param host host
      * @param port port
+     * @param dns_channel The DNS channel that will be used for translating the host to an address
      * @param ssl true for ssl connection
      * @param timeout The timeout (micro seconds) for the connection and ssl handshake
      * @param connection connection (out)
      * @param sock_res socket-result code on failure
      * @return RESULT_OK on success
      */
-    Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res);
+    Result Dial(HPool pool, const char* host, uint16_t port, dmDNS::HChannel dns_channel, bool ssl, int timeout, HConnection* connection, dmSocket::Result* sock_res);
 
     /**
      * Return connection to pool
@@ -124,10 +126,10 @@ namespace dmConnectionPool
     dmSocket::Socket GetSocket(HPool pool, HConnection connection);
 
     /**
-     * Get ssl-handle. The returned value is an SSL* (axTLS)
+     * Get ssl-handle. The returned value is an mbedtls_ssl_context* (mbedtls)
      * @param pool
      * @param connection
-     * @return An SSL* pointer on success
+     * @return An mbedtls_ssl_context* pointer on success
      */
     void* GetSSLConnection(HPool pool, HConnection connection);
 

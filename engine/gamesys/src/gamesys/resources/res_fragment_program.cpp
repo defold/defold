@@ -5,13 +5,12 @@ namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
-        uint32_t shader_data_len;
-        void* shader_data =  dmGraphics::GetShaderProgramData(context, ddf, shader_data_len);
-        if (shader_data == 0x0)
+        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
+        if (shader == 0x0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader_data, shader_data_len);
+        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader);
         if (prog == 0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -69,13 +68,12 @@ namespace dmGameSystem
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        uint32_t shader_data_len;
-        void* shader_data =  dmGraphics::GetShaderProgramData((dmGraphics::HContext)params.m_Context, ddf, shader_data_len);
-        if (shader_data == 0x0)
+        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext)params.m_Context, ddf);
+        if (shader == 0x0)
         {
             res = dmResource::RESULT_FORMAT_ERROR;
         }
-        else if(!dmGraphics::ReloadFragmentProgram(resource, shader_data, shader_data_len))
+        else if(!dmGraphics::ReloadFragmentProgram(resource, shader))
         {
             res = dmResource::RESULT_FORMAT_ERROR;
         }

@@ -36,7 +36,7 @@ Important: *Make sure your branches are up to date!*
 
     This will trigger the beta channel to be built on build bot.
 
- 1. Wait for [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta) to finish, make sure autobuilders are green.
+ 1. Wait for [editor2-beta](http://ci.defold.com/builders/editor2-beta) to finish, make sure autobuilders are green.
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -89,9 +89,11 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
-Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [App Store/DefoldQRT](https://app-store.king.com/#/builds/DefoldQRT)
 
 You can also download desktop and html5 versions from the artifacts on that page.
+
+Upload the IAP Tester to Amazon by following [these instructions](https://kingfluence.com/display/Defold/How+to+upload+to+Amazon)
 
 ### Defold Team
 The following smoke tests are currently performed by the team on each platform (OSX, Win, Linux):
@@ -110,9 +112,6 @@ The following smoke tests are currently performed by the team on each platform (
         $ git push
 
     This will trigger a build of the engines and editors for stable.
-
- 1. Wait for the editor build: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master).
-
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
 
  1. Fetch editor via:

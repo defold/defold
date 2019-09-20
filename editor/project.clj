@@ -63,34 +63,36 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
-                     [org.openjfx/javafx-base "12"]
-                     [org.openjfx/javafx-base "12" :classifier "linux"]
-                     [org.openjfx/javafx-base "12" :classifier "mac"]
-                     [org.openjfx/javafx-base "12" :classifier "win"]
-                     [org.openjfx/javafx-controls "12"]
-                     [org.openjfx/javafx-controls "12" :classifier "linux"]
-                     [org.openjfx/javafx-controls "12" :classifier "mac"]
-                     [org.openjfx/javafx-controls "12" :classifier "win"]
-                     [org.openjfx/javafx-graphics "12"]
-                     [org.openjfx/javafx-graphics "12" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "12" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "12" :classifier "win"]
-                     [org.openjfx/javafx-media "12"]
-                     [org.openjfx/javafx-media "12" :classifier "linux"]
-                     [org.openjfx/javafx-media "12" :classifier "mac"]
-                     [org.openjfx/javafx-media "12" :classifier "win"]
-                     [org.openjfx/javafx-web "12"]
-                     [org.openjfx/javafx-web "12" :classifier "linux"]
-                     [org.openjfx/javafx-web "12" :classifier "mac"]
-                     [org.openjfx/javafx-web "12" :classifier "win"]
-                     [org.openjfx/javafx-fxml "12"]
-                     [org.openjfx/javafx-fxml "12" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "12" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "12" :classifier "win"]
-                     [org.openjfx/javafx-swing "12"]
-                     [org.openjfx/javafx-swing "12" :classifier "linux"]
-                     [org.openjfx/javafx-swing "12" :classifier "mac"]
-                     [org.openjfx/javafx-swing "12" :classifier "win"]
+                     [cljfx "1.3.4"]
+
+                     [org.openjfx/javafx-base "13-ea+13"]
+                     [org.openjfx/javafx-base "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-base "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-base "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-controls "13-ea+13"]
+                     [org.openjfx/javafx-controls "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-controls "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-controls "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-graphics "13-ea+13"]
+                     [org.openjfx/javafx-graphics "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-media "13-ea+13"]
+                     [org.openjfx/javafx-media "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-media "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-media "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-web "13-ea+13"]
+                     [org.openjfx/javafx-web "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-web "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-web "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-fxml "13-ea+13"]
+                     [org.openjfx/javafx-fxml "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "13-ea+13" :classifier "win"]
+                     [org.openjfx/javafx-swing "13-ea+13"]
+                     [org.openjfx/javafx-swing "13-ea+13" :classifier "linux"]
+                     [org.openjfx/javafx-swing "13-ea+13" :classifier "mac"]
+                     [org.openjfx/javafx-swing "13-ea+13" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -101,7 +103,9 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+
+                     [org.snakeyaml/snakeyaml-engine "1.0"]]
 
   :source-paths      ["src/clj"]
 
@@ -112,7 +116,6 @@
   :resource-paths    ["resources" "generated-resources"]
 
   :proto-paths       ["../com.dynamo.cr/com.dynamo.cr.common/proto"
-                      "../com.dynamo.cr/com.dynamo.cr.rlog/proto"
                       "../engine/ddf/src"
                       "../engine/engine/proto"
                       "../engine/gameobject/proto"
@@ -133,12 +136,12 @@
 
   :protobuf-exclude  ["../engine/ddf/src/test"]
 
-  :sass              {:src "styling/stylesheets/main.sass"
-                      :output-directory "resources/editor.css"
+  :sass              {:src "styling/stylesheets/"
+                      :output-directory "resources/"
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "lint" ["with-profile" "+test" "eastwood"]}
+                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -165,14 +168,18 @@
 
   :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
                                 :resource-paths ["test/resources"]}
+                      :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
+                                                 [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
+                      :local-repl {:injections [(future (editor/-main))]
+                                   :repl-options {:init-ns editor}
+                                   :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
-                      :dev     {:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
-                                :dependencies      [[clj-async-profiler-mg "0.4.0"]
+                      :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [org.clojure/test.check   "0.9.0"]
@@ -183,7 +190,7 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
-                                                    "-Djdk.gtk.version=2"
+                                                    "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
@@ -195,10 +202,4 @@
                                                     ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
-                                                    "-XX:+DebugNonSafepoints"]}}     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
-  :eastwood {:out "eastwood-warnings.txt"
-             :continue-on-exception true
-             :add-linters [:unused-fn-args
-                           :unused-locals
-                           :unused-namespaces
-                           :unused-private-vars]})
+                                                    "-XX:+DebugNonSafepoints"]}})     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.

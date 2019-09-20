@@ -31,6 +31,26 @@ namespace dmGui
      * @namespace gui
      */
 
+    /*# [type:hash] gui material
+     *
+     * The material used when rendering the gui. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     *
+     * function init(self)
+     *   go.set("#gui", "material", self.my_material)
+     * end
+     * ```
+     */
+
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
@@ -2775,8 +2795,6 @@ namespace dmGui
      * Tests whether a coordinate is within the bounding box of a
      * node.
      *
-     * @note The check returns false if the node, or any of its parents, is disabled
-     *
      * @name gui.pick_node
      * @param node [type:node] node to be tested for picking
      * @param x [type:number] x-coordinate (see <a href="#on_input">on_input</a> )
@@ -2887,7 +2905,10 @@ namespace dmGui
     /*# gets the node size mode
      * Returns the size of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
-     * size mode alters the node size based on the node's content.
+     * size mode alters the node size based on the node's content. Automatic size
+     * mode works for Box nodes and Pie nodes which will both adjust their size
+     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * any size mode setting.
      *
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
@@ -2906,7 +2927,10 @@ namespace dmGui
     /*# sets node size mode
      * Sets the size mode of a node.
      * The size mode defines how the node will adjust itself in size. Automatic
-     * size mode alters the node size based on the node's content.
+     * size mode alters the node size based on the node's content. Automatic size
+     * mode works for Box nodes and Pie nodes which will both adjust their size
+     * to match the assigned image. Spine, Particle fx and Text nodes will ignore
+     * any size mode setting.
      *
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for
@@ -4247,7 +4271,11 @@ namespace dmGui
     {
         GuiPfxEmitterScriptCallbackData* data = (GuiPfxEmitterScriptCallbackData*)user_data;
         GuiLuaCallback* luainfo = &data->m_Data->m_LuaInfo;
-        LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        if (dmGui::IsNodeValid(luainfo->m_Scene, luainfo->m_Node)) {
+            LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        } else {
+            lua_pushnil(L);
+        }
         dmScript::PushHash(L, data->m_EmitterID);
         lua_pushinteger(L, data->m_EmitterState);
     }
@@ -4280,8 +4308,8 @@ namespace dmGui
      * `self`
      * : [type:object] The current object
      *
-     * `id`
-     * : [type:hash] The id of the particle fx component
+     * `node`
+     * : [type:hash] The particle fx node, or `nil` if the node was deleted
      *
      * `emitter`
      * : [type:hash] The id of the emitter

@@ -35,6 +35,7 @@ public class OSXBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Darwin;
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -52,7 +53,6 @@ public class OSXBundler implements IBundler {
 
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
         if (bundleExes == null) {
-            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
         if (bundleExes.size() > 1) {
@@ -68,12 +68,12 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app");
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
 
         BundleHelper.throwIfCanceled(canceled);
 

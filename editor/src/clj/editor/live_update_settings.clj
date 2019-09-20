@@ -2,13 +2,13 @@
   (:require [amazonica.aws.s3 :as s3]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.form :as form]
             [editor.graph-util :as gu]
+            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [service.log :as log]
-            [editor.resource :as resource]
-            [editor.form-view :as form-view]))
+            [service.log :as log]))
 
 (def live-update-icon "icons/32/Icons_04-Project-file.png")
 
@@ -45,17 +45,22 @@
   (output form-data g/Any :cached
           (g/fnk [form-data amazon-buckets]
                  (-> form-data
-                     (form-view/update-form-setting ["liveupdate" "amazon-credential-profile"]
-                                          #(assoc %
-                                                  :type :choicebox
-                                                  :from-string str :to-string str
-                                                  :options (mapv (fn [profile] [profile profile]) (get-config-file-profiles))))
-                     (form-view/update-form-setting ["liveupdate" "amazon-bucket"]
-                                          #(assoc %
-                                                  :type :choicebox
-                                                  :from-string str
-                                                  :to-string str
-                                                  :options (mapv (fn [bucket] [bucket bucket]) amazon-buckets))))))
+                     (assoc :navigation false)
+                     (form/update-form-setting ["liveupdate" "amazon-credential-profile"]
+                                               #(assoc %
+                                                       :type :choicebox
+                                                       :from-string str :to-string str
+                                                       :options (mapv (fn [profile]
+                                                                        [profile profile])
+                                                                      (get-config-file-profiles))))
+                     (form/update-form-setting ["liveupdate" "amazon-bucket"]
+                                               #(assoc %
+                                                       :type :choicebox
+                                                       :from-string str
+                                                       :to-string str
+                                                       :options (mapv (fn [bucket]
+                                                                        [bucket bucket])
+                                                                      amazon-buckets))))))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
@@ -83,7 +88,7 @@
     :node-type LiveUpdateSettingsNode
     :load-fn load-live-update-settings
     :icon live-update-icon
-    :view-types [:form-view :text]))
+    :view-types [:cljfx-form-view :text]))
 
 (defn get-live-update-settings-path [project]
   (let [project-settings (project/settings project)

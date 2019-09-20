@@ -47,6 +47,7 @@
  *
  * @macro
  * @name --verify-graphics-calls=
+ * @examples
  * ```bash
  * $ ./dmengine --verify-graphics-calls=false
  * ```
@@ -61,6 +62,7 @@
  *
  * @macro
  * @name launch_project
+ * @examples
  * ```bash
  * $ ./dmengine some/folder/game.projectc
  * ```
@@ -71,8 +73,8 @@
  *
  * @macro
  * @name --config=
+ * @examples
  * ```bash
  * $ ./dmengine --config=project.mode=TEST --config=project.server=http://testserver.com
  * ```
  */
-

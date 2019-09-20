@@ -13,16 +13,13 @@
 #include <sys/param.h>
 #endif
 
-#include <axtls/config/config.h>
-#include <axtls/crypto/os_int.h>
-#include <axtls/ssl/crypto_misc.h>
-
 #if defined(_WIN32)
 #include <malloc.h>
 #define alloca(_SIZE) _alloca(_SIZE)
 #endif
 
 #include <dlib/dstrings.h>
+#include <dlib/crypt.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
@@ -66,8 +63,6 @@ const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 #define LIVEUPDATE_BUNDLE_VER_FILENAME "bundle.ver"
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
-
-const char SHARED_NAME_CHARACTER = ':';
 
 struct ResourceReloadedCallbackPair
 {
@@ -120,9 +115,6 @@ struct SResourceFactory
     // Resource manifest
     Manifest*                                    m_Manifest;
     void*                                        m_ArchiveMountInfo;
-
-    // Shared resources
-    uint32_t                                    m_NonSharedCount; // a running number, helping id the potentially non shared assets
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -197,7 +189,7 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     SResourceFactory* factory = (SResourceFactory*) user_data;
     factory->m_HttpStatus = status_code;
 
-    if (strcmp(key, "Content-Length") == 0)
+    if (dmStrCaseCmp(key, "Content-Length") == 0)
     {
         factory->m_HttpContentLength = strtol(value, 0, 10);
         if (factory->m_HttpContentLength < 0) {
@@ -490,36 +482,16 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
     return RESULT_OK;
 }
 
-Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len)
+Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len)
 {
-    dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-    uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
-    out_digest_len = 0;
+    uint32_t signature_hash_len = HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
 
-    dmAxTls::RSA_CTX* rsa_parameters = 0x0;
-    int ret = dmAxTls::asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
-    if (ret != 0) {
-        dmLogError("Failed to parse public key during manifest verification.");
-        RSA_free(rsa_parameters);
+    dmCrypt::Result r = dmCrypt::Decrypt(pub_key_buf, pub_key_len, signature, signature_len, out_digest, out_digest_len);
+    if (r != dmCrypt::RESULT_OK) {
         return RESULT_INVALID_DATA;
     }
-
-    uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
-    ret = dmAxTls::RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
-    if(ret != 0) {
-        dmLogError("Failed to decrypt manifest signature for verification");
-        free(hash_decrypted);
-        return RESULT_INVALID_DATA;
-    }
-    uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
-    memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
-
-    out_digest_len = signature_hash_len;
-    out_digest = (char*)hash;
-
-    free(hash_decrypted);
     return RESULT_OK;
 }
 
@@ -536,7 +508,7 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     char game_dir[DMPATH_MAX_PATH];
     uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
     uint8_t* pub_key_buf = 0x0;
-    char* hash_decrypted = 0x0;
+    uint8_t* hash_decrypted = 0x0;
 
     // Load public key
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
@@ -566,7 +538,7 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
         return RESULT_IO_ERROR;
     }
 
-    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hash_decrypted, hash_decrypted_len);
+    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, &hash_decrypted, &hash_decrypted_len);
     if (res != RESULT_OK)
     {
         return res;
@@ -644,6 +616,9 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    dmDNS::HChannel dns_channel;
+    dmDNS::NewChannel(&dns_channel);
+
     factory->m_HttpBuffer = 0;
     factory->m_HttpClient = 0;
     factory->m_HttpCache = 0;
@@ -667,7 +642,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 }
                 else
                 {
-                    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, 60 * 60 * 24 * 5); // 5 days
+                    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(factory->m_HttpCache, &factory->m_UriParts, dns_channel, 60 * 60 * 24 * 5); // 5 days
                     // Http-cache batch verification might be unsupported
                     // We currently does not have support for batch validation in the editor http-server
                     // Batch validation was introduced when we had remote branch and latency problems
@@ -690,11 +665,13 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         http_params.m_HttpContent = &HttpContent;
         http_params.m_Userdata = factory;
         http_params.m_HttpCache = factory->m_HttpCache;
+        http_params.m_DNSChannel = dns_channel;
         factory->m_HttpClient = dmHttpClient::New(&http_params, factory->m_UriParts.m_Hostname, factory->m_UriParts.m_Port, strcmp(factory->m_UriParts.m_Scheme, "https") == 0);
         if (!factory->m_HttpClient)
         {
             dmLogError("Invalid URI: %s", uri);
             dmMessage::DeleteSocket(socket);
+            dmDNS::DeleteChannel(dns_channel);
             delete factory;
             return 0;
         }
@@ -806,7 +783,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
-    factory->m_NonSharedCount = 0;
     factory->m_ResourceTypesCount = 0;
 
     const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
@@ -858,7 +834,9 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_HttpClient)
     {
+        dmDNS::HChannel dns_channel = dmHttpClient::GetDNSChannel(factory->m_HttpClient);
         dmHttpClient::Delete(factory->m_HttpClient);
+        dmDNS::DeleteChannel(dns_channel);
     }
     if (factory->m_HttpCache)
     {
@@ -948,8 +926,7 @@ Result RegisterType(HFactory factory,
                            FResourceCreate create_function,
                            FResourcePostCreate post_create_function,
                            FResourceDestroy destroy_function,
-                           FResourceRecreate recreate_function,
-                           FResourceDuplicate duplicate_function)
+                           FResourceRecreate recreate_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
         return RESULT_OUT_OF_RESOURCES;
@@ -965,6 +942,7 @@ Result RegisterType(HFactory factory,
         return RESULT_ALREADY_REGISTERED;
 
     SResourceType resource_type;
+    resource_type.m_ExtensionHash = dmHashString64(extension);
     resource_type.m_Extension = extension;
     resource_type.m_Context = context;
     resource_type.m_PreloadFunction = preload_function;
@@ -972,7 +950,6 @@ Result RegisterType(HFactory factory,
     resource_type.m_PostCreateFunction = post_create_function;
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
-    resource_type.m_DuplicateFunction = duplicate_function;
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
@@ -1204,94 +1181,9 @@ static const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffe
     int result = dmStrlCpy(buffer, ext, buffersize);
     if( result >= 0 )
     {
-        if( buffer[result-1] == SHARED_NAME_CHARACTER )
-        {
-            buffer[result-1] = 0;
-        }
         return buffer;
     }
     return 0;
-}
-
-/*
-Tagged ("unique") resources:
-
-A) if the original resource already exists, create a duplicate resource which points to the old resource
-B) if the original does not exist: create it, and then make a duplicate
-*/
-
-static Result CreateDuplicateResource(HFactory factory, const char* canonical_path, SResourceDescriptor* rd, void** resource)
-{
-    if (factory->m_Resources->Full())
-    {
-        dmLogError("The max number of resources (%d) has been passed, tweak \"%s\" in the config file.", factory->m_Resources->Capacity(), MAX_RESOURCES_KEY);
-        return RESULT_OUT_OF_RESOURCES;
-    }
-
-    char extbuffer[64];
-    const char* ext = GetExtFromPath(canonical_path, extbuffer, sizeof(extbuffer));
-
-    ext++;
-    SResourceType* resource_type = FindResourceType(factory, ext);
-    if (resource_type == 0)
-    {
-        dmLogError("Unknown resource type: %s", ext);
-        return RESULT_UNKNOWN_RESOURCE_TYPE;
-    }
-
-    if (!resource_type->m_DuplicateFunction)
-    {
-        dmLogError("The resource type '%s' does not support duplication", ext);
-        return RESULT_NOT_SUPPORTED;
-    }
-
-    char tagged_path[RESOURCE_PATH_MAX];    // The constructed unique path (if needed). E.g. "/my/icon.texturec_123"
-    {
-        size_t len = dmStrlCpy(tagged_path, canonical_path, sizeof(tagged_path));
-        int result = DM_SNPRINTF(tagged_path+len, sizeof(tagged_path)-len, "_%u", factory->m_NonSharedCount);
-        assert(result != -1);
-
-        ++factory->m_NonSharedCount;
-    }
-
-    uint64_t tagged_path_hash = dmHashBuffer64(tagged_path, strlen(tagged_path));
-
-    SResourceDescriptor tmp_resource;
-    memset(&tmp_resource, 0, sizeof(tmp_resource));
-    tmp_resource.m_NameHash = tagged_path_hash;
-    tmp_resource.m_OriginalNameHash = rd->m_NameHash;
-    tmp_resource.m_ReferenceCount = 1;
-    tmp_resource.m_ResourceType = (void*) resource_type;
-    tmp_resource.m_SharedState = DATA_SHARE_STATE_SHALLOW;
-
-    ResourceDuplicateParams params;
-    params.m_Factory = factory;
-    params.m_Context = resource_type->m_Context;
-    params.m_OriginalResource = rd;
-    params.m_Resource = &tmp_resource;
-
-    Result duplicate_result = resource_type->m_DuplicateFunction(params);
-    if( duplicate_result != RESULT_OK )
-    {
-        dmLogError("Failed to duplicate resource '%s'", tagged_path);
-        return duplicate_result;
-    }
-
-    ++rd->m_ReferenceCount;
-
-    Result insert_error = InsertResource(factory, tagged_path, tagged_path_hash, &tmp_resource);
-    if (insert_error != RESULT_OK)
-    {
-        ResourceDestroyParams params;
-        params.m_Factory = factory;
-        params.m_Context = resource_type->m_Context;
-        params.m_Resource = &tmp_resource;
-        resource_type->m_DestroyFunction(params);
-        return insert_error;
-    }
-
-    *resource = tmp_resource.m_Resource;
-    return RESULT_OK;
 }
 
 // Assumes m_LoadMutex is already held
@@ -1307,13 +1199,6 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
     char canonical_path[RESOURCE_PATH_MAX]; // The actual resource path. E.g. "/my/icon.texturec"
     GetCanonicalPath(name, canonical_path);
 
-    bool is_shared = !IsPathTagged(name);
-    if( !is_shared )
-    {
-        int len = strlen(canonical_path);
-        canonical_path[len-1] = 0;
-    }
-
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     // Try to get from already loaded resources
@@ -1321,14 +1206,9 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
     if (rd)
     {
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
-        if( is_shared )
-        {
-            rd->m_ReferenceCount++;
-            *resource = rd->m_Resource;
-            return RESULT_OK;
-        }
-
-        return CreateDuplicateResource(factory, canonical_path, rd, resource);
+        rd->m_ReferenceCount++;
+        *resource = rd->m_Resource;
+        return RESULT_OK;
     }
 
     if (factory->m_Resources->Full())
@@ -1366,10 +1246,8 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
         tmp_resource.m_NameHash = canonical_path_hash;
-        tmp_resource.m_OriginalNameHash = 0;
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
-        tmp_resource.m_SharedState = DATA_SHARE_STATE_NONE;
 
         void *preload_data = 0;
         Result create_error = RESULT_OK;
@@ -1430,28 +1308,18 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             Result insert_error = InsertResource(factory, name, canonical_path_hash, &tmp_resource);
             if (insert_error == RESULT_OK)
             {
-                if( is_shared )
-                {
-                    *resource = tmp_resource.m_Resource;
-                    return RESULT_OK;
-                }
-
-                Result duplicate_error = CreateDuplicateResource(factory, canonical_path, &tmp_resource, resource);
-                if( duplicate_error == RESULT_OK )
-                {
-                    return RESULT_OK;
-                }
-
-                // If we succeeded to create the resource, but failed to duplicate it, we fail.
-                insert_error = duplicate_error;
+                *resource = tmp_resource.m_Resource;
+                return RESULT_OK;
             }
-
-            ResourceDestroyParams params;
-            params.m_Factory = factory;
-            params.m_Context = resource_type->m_Context;
-            params.m_Resource = &tmp_resource;
-            resource_type->m_DestroyFunction(params);
-            return insert_error;
+            else
+            {
+                ResourceDestroyParams params;
+                params.m_Factory = factory;
+                params.m_Context = resource_type->m_Context;
+                params.m_Resource = &tmp_resource;
+                resource_type->m_DestroyFunction(params);
+                return insert_error;
+            }
         }
         else
         {
@@ -1716,18 +1584,6 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
-    	// If it was previously shallow, it is not anymore.
-    	if( rd->m_SharedState == DATA_SHARE_STATE_SHALLOW )
-    	{
-    		SResourceDescriptor* originalrd = factory->m_Resources->Get(rd->m_OriginalNameHash);
-    		assert(originalrd);
-    		assert(originalrd->m_ReferenceCount > 0);
-    		originalrd->m_ReferenceCount--;
-    		rd->m_OriginalNameHash = 0;
-    	}
-
-        rd->m_SharedState = DATA_SHARE_STATE_NONE; // The resource creator should now fully own the created resources
-
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
@@ -1780,8 +1636,6 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
-        rd->m_SharedState = DATA_SHARE_STATE_NONE; // The resource creator should now fully own the created resources
-
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
@@ -1875,6 +1729,31 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
     }
 }
 
+Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor)
+{
+    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(hashed_name);
+    if (!tmp_descriptor) {
+        return RESULT_NOT_LOADED;
+    }
+
+    SResourceType* type = (SResourceType*) tmp_descriptor->m_ResourceType;
+    bool ext_match = ext_count == 0;
+    if (!ext_match) {
+        for (uint32_t i = 0; i < ext_count; ++i) {
+            if (type->m_ExtensionHash == exts[i]) {
+                ext_match = true;
+                break;
+            }
+        }
+    }
+    if (ext_match) {
+        *descriptor = *tmp_descriptor;
+        return RESULT_OK;
+    } else {
+        return RESULT_INVALID_FILE_EXTENSION;
+    }
+}
+
 void IncRef(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
@@ -1934,13 +1813,6 @@ void Release(HFactory factory, void* resource)
             assert(s);
             free((void*) *s);
         }
-
-        if( rd->m_OriginalNameHash )
-        {
-            SResourceDescriptor* originalrd = factory->m_Resources->Get(rd->m_OriginalNameHash);
-            assert(originalrd);
-            Release(factory, originalrd->m_Resource);
-        }
     }
 }
 
@@ -1981,14 +1853,6 @@ void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallba
     }
 }
 
-// If the path ends with ":", the path is not shared, i.e. you can later update to a unique resource
-bool IsPathTagged(const char* name)
-{
-    assert(name);
-    int len = strlen(name);
-    return name[len-1] == SHARED_NAME_CHARACTER;
-}
-
 Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t)resource);
@@ -1999,7 +1863,6 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
 }
-
 
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)
 {
@@ -2030,7 +1893,7 @@ struct ResourceIteratorCallbackInfo
 static void ResourceIteratorCallback(ResourceIteratorCallbackInfo* callback, const dmhash_t* id, SResourceDescriptor* resource)
 {
     IteratorResource info;
-    info.m_Id           = resource->m_OriginalNameHash ? resource->m_OriginalNameHash : resource->m_NameHash;
+    info.m_Id           = resource->m_NameHash;
     info.m_SizeOnDisc   = resource->m_ResourceSizeOnDisc;
     info.m_Size         = resource->m_ResourceSize ? resource->m_ResourceSize : resource->m_ResourceSizeOnDisc; // default to the size on disc if no in memory size was specified
     info.m_RefCount     = resource->m_ReferenceCount;
@@ -2046,6 +1909,38 @@ void IterateResources(HFactory factory, FResourceIterator callback, void* user_c
     DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
     ResourceIteratorCallbackInfo callback_info = {callback, user_ctx, true};
     factory->m_Resources->Iterate<>(&ResourceIteratorCallback, &callback_info);
+}
+
+const char* ResultToString(Result r)
+{
+    #define DM_RESOURCE_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    switch (r)
+    {
+        DM_RESOURCE_RESULT_TO_STRING_CASE(OK);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(INVALID_DATA);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(DDF_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(RESOURCE_NOT_FOUND);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(MISSING_FILE_EXTENSION);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(ALREADY_REGISTERED);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(INVAL);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(UNKNOWN_RESOURCE_TYPE);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(OUT_OF_MEMORY);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(IO_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(NOT_LOADED);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(OUT_OF_RESOURCES);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(STREAMBUFFER_TOO_SMALL);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(FORMAT_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(CONSTANT_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(NOT_SUPPORTED);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(RESOURCE_LOOP_ERROR);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(PENDING);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(VERSION_MISMATCH);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(SIGNATURE_MISMATCH);
+        DM_RESOURCE_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+        default: break;
+    }
+    #undef DM_RESOURCE_RESULT_TO_STRING_CASE
+    return "RESULT_UNDEFINED";
 }
 
 }

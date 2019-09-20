@@ -5,6 +5,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,6 +28,8 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
@@ -45,15 +49,33 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task<Void> task = Task.<Void>newBuilder(this)
+        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .build();
-        return task;
+                .addOutput(input.changeExt(params.outExt()));
+
+        String script = new String((input.getContent()));
+        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
+        for (LuaScanner.Property property : properties) {
+            if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                String value = (String)property.value;
+                if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                    IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
+                    taskBuilder.addInput(resource);
+                }
+            }
+        }
+
+        return taskBuilder.build();
     }
 
-    public byte[] constructBytecode(Task<Void> task, String luajitExe) throws IOException, CompileExceptionError {
+    public byte[] constructStrippedLuaCode(byte[] byteString) throws IOException, CompileExceptionError {
+        String string = new String(byteString, "UTF-8");
+        string = LuaScanner.stripProperties(string);
+        return string.getBytes();
+    }
+
+    public byte[] constructBytecode(Task<Void> task, String luajitExe, byte[] byteString) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -67,7 +89,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
             fo = new java.io.FileOutputStream(inputFile);
-            fo.write(task.input(0).getContent());
+            fo.write(byteString);
             fo.close();
 
             // Doing a bit of custom set up here as the path is required.
@@ -163,25 +185,40 @@ public abstract class LuaBuilder extends Builder<Void> {
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
+        Collection<String> propertyResources = new HashSet<String>();
         List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
-        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties);
+        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
         builder.setProperties(propertiesMsg);
-
+        builder.addAllPropertyResources(propertyResources);
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
+        byte[] scriptBytesStripped = constructStrippedLuaCode(task.input(0).getContent());
+
+        /*
+        // For now it will always return, or throw an exception. This leaves the possibility of
+        // disabling bytecode generation.
+        byte[] bytecode = constructBytecode(task, task.input(0).getPath(), scriptBytesStripped);
+        if (bytecode != null)
+            srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+        */
+
         srcBuilder.setFilename(task.input(0).getPath());
 
-        if (needsLuaSource.contains(project.getPlatform())) {
-            srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
+        // Mostly used for our CI when we wish to run using ASAN (which doesn't like setjmp)
+        boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
+
+        if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
+            srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
         } else {
-            byte[] bytecode = constructBytecode(task, "luajit-32");
+            byte[] bytecode = constructBytecode(task, "luajit-32", scriptBytesStripped);
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
             }
-            byte[] bytecode64 = constructBytecode(task, "luajit-64");
+            byte[] bytecode64 = constructBytecode(task, "luajit-64", scriptBytesStripped);
             if (bytecode64 != null) {
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
         }
+
         builder.setSource(srcBuilder);
 
         Message msg = builder.build();
@@ -193,7 +230,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     }
 
-    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties) throws CompileExceptionError {
+    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertyResources) throws CompileExceptionError {
         PropertyDeclarations.Builder builder = PropertyDeclarations.newBuilder();
         if (!properties.isEmpty()) {
             for (LuaScanner.Property property : properties) {
@@ -208,8 +245,13 @@ public abstract class LuaBuilder extends Builder<Void> {
                         builder.addNumberEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_HASH:
+                        String value = (String)property.value;
+                        if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                            value = PropertiesUtil.transformResourcePropertyValue(value);
+                            propertyResources.add(value);
+                        }
                         entryBuilder.setIndex(builder.getHashValuesCount());
-                        builder.addHashValues(MurmurHash.hash64((String)property.value));
+                        builder.addHashValues(MurmurHash.hash64(value));
                         builder.addHashEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_URL:
@@ -261,9 +303,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     }
                 } else if (property.status == Status.INVALID_ARGS) {
-                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4 or vmath.quat.");
+                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
                 } else if (property.status == Status.INVALID_VALUE) {
-                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat");
+                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
                 }
             }
         }

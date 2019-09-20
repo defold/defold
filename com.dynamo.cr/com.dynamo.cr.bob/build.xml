@@ -8,6 +8,8 @@
         <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="snakeyaml-1.24.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="jsoup-1.11.3.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/android" includes="*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
         <fileset dir="lib" includes="*.jar"/>
@@ -161,11 +163,8 @@
             </tarfileset>
         </copy>
 
-        <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
-             specifically vecmath.jar on OSX -->
         <javac srcdir="generated"
                destdir="${classes.dir}"
-               extdirs="foo"
                includeantruntime="false"
                encoding="UTF-8">
             <classpath>
@@ -175,7 +174,6 @@
         </javac>
 
         <javac destdir="${classes.dir}"
-               extdirs="foo"
                includeantruntime="false"
                debug="true"
                encoding="UTF-8">
@@ -271,6 +269,8 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
               <include name="dlib.jar"/>
@@ -280,6 +280,11 @@
               <include name="jackson-core-asl-1.9.2.jar"/>
               <include name="jackson-mapper-asl-1.9.2.jar"/>
               <include name="openmali.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
+              <include name="jaxb-api-2.3.0.jar"/>
+              <include name="jaxb-core-2.3.0.jar"/>
+              <include name="jaxb-impl-2.3.0.jar"/>
             </zipgroupfileset>
          </jar>
 
@@ -319,6 +324,8 @@
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
+              <include name="snakeyaml-1.24.jar"/>
+              <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
                 <include name="*.jar" />

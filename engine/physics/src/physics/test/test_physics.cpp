@@ -113,6 +113,8 @@ Test3D::Test3D()
 , m_RayCastFunc(dmPhysics::RayCast3D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks3D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape3D)
+, m_SetGravityFunc(dmPhysics::SetGravity3D)
+, m_GetGravityFunc(dmPhysics::GetGravity3D)
 , m_Vertices(new float[4*3])
 , m_VertexCount(4)
 , m_PolygonRadius(0.001f)
@@ -166,6 +168,8 @@ Test2D::Test2D()
 , m_RayCastFunc(dmPhysics::RayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
+, m_SetGravityFunc(dmPhysics::SetGravity2D)
+, m_GetGravityFunc(dmPhysics::GetGravity2D)
 , m_Vertices(new float[3*2])
 , m_VertexCount(3)
 , m_PolygonRadius(b2_polygonRadius)
@@ -1144,6 +1148,56 @@ TYPED_TEST(PhysicsTest, FilteredRayCasting)
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+TYPED_TEST(PhysicsTest, GravityChange)
+{
+    float box_half_ext = 0.5f;
+
+    // Verify that we get the defualt gravity.
+    Vectormath::Aos::Vector3 gravity = (*TestFixture::m_Test.m_GetGravityFunc)(TestFixture::m_World);
+    ASSERT_NEAR(0.0f, gravity.getX(), FLT_EPSILON);
+    ASSERT_NEAR(-10.0f, gravity.getY(), FLT_EPSILON);
+    ASSERT_NEAR(0.0f, gravity.getZ(), FLT_EPSILON);
+
+    VisualObject vo;
+    dmPhysics::CollisionObjectData data;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
+    data.m_Group = GROUP_A;
+    data.m_Mask = GROUP_A;
+    data.m_UserData = &vo;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+    (void)box_co_a;
+
+    // Verify that the default gravity is applied.
+    const int steps = 10;
+    float y = vo.m_Position.getY();
+    for (int i = 0; i < steps; ++i) {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_GT(y, vo.m_Position.getY());
+    }
+
+    // Reverse Y gravity and make sure we get the same gravity from the physics sys.
+    gravity.setY(-gravity.getY());
+    (*TestFixture::m_Test.m_SetGravityFunc)(TestFixture::m_World, gravity);
+    gravity = (*TestFixture::m_Test.m_GetGravityFunc)(TestFixture::m_World);
+    ASSERT_NEAR(0.0f, gravity.getX(), FLT_EPSILON);
+    ASSERT_NEAR(10.0f, gravity.getY(), FLT_EPSILON);
+    ASSERT_NEAR(0.0f, gravity.getZ(), FLT_EPSILON);
+
+    // Get the current position, and run the simulation steps*2 (twice to give the
+    // object enough time to slow down and reverse direction).
+    y = vo.m_Position.getY();
+    for (int i = 0; i < steps*2; ++i) {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    // Verify that the gravity has affected the y position in the opposite direction.
+    ASSERT_LT(y, vo.m_Position.getY());
+
 }
 
 enum FilterGroup

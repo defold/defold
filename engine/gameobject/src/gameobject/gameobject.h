@@ -112,7 +112,8 @@ namespace dmGameObject
         PROPERTY_RESULT_INVALID_INSTANCE = -6,
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
         PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
-        PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9
+        PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9,
+        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
     };
 
     /**
@@ -162,6 +163,8 @@ namespace dmGameObject
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
         uint8_t  m_IsGamepad : 1;
+        uint8_t  m_GamepadDisconnected : 1;
+        uint8_t  m_GamepadConnected : 1;
         /// If input has a text payload (can be true even if text count is 0)
         uint8_t  m_HasText : 1;
         /// If the input was 0 last update
@@ -1071,6 +1074,14 @@ namespace dmGameObject
      * @return The resource factory bound to the specified collection
      */
     dmResource::HFactory GetFactory(HCollection collection);
+
+    /**
+     * Retrieve a factory from the specified instance
+     * Convenience for GetFactory(GetCollection(instance)).
+     * @param instance Game object instance
+     * @return The resource factory bound to the specified instance, via its collection
+     */
+    dmResource::HFactory GetFactory(HInstance instance);
 
     /**
      * Retrieve a register from the specified collection

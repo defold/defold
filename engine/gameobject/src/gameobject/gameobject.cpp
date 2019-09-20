@@ -522,23 +522,23 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, &ResPrototypeRecreate, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, &ResPrototypeRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate, 0);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate, 0);
+        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, &ResCollectionRecreate, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, &ResCollectionRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0, 0);
+        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -2737,6 +2737,11 @@ namespace dmGameObject
             return 0x0;
     }
 
+    dmResource::HFactory GetFactory(HInstance instance)
+    {
+        return instance->m_Collection->m_Factory;
+    }
+
     HRegister GetRegister(HCollection hcollection)
     {
         if (hcollection && hcollection->m_Collection)
@@ -2809,7 +2814,9 @@ namespace dmGameObject
 
     Quat GetWorldRotation(HInstance instance)
     {
-        return Quat(instance->m_Collection->m_WorldTransforms[instance->m_Index].getUpper3x3());
+        Matrix4 world_transform = instance->m_Collection->m_WorldTransforms[instance->m_Index];
+        dmTransform::ResetScale(&world_transform);
+        return Quat(world_transform.getUpper3x3());
     }
 
     float GetWorldUniformScale(HInstance instance)

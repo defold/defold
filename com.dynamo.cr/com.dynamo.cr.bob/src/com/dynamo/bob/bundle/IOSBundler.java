@@ -36,13 +36,16 @@ import com.dynamo.bob.util.Exec.Result;
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
-    private void copyImage(BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
+    private void copyImage(Project project, BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
             throws IOException {
         String resource = projectProperties.getStringValue("ios", name);
         if (resource != null && resource.length() > 0) {
-            File inFile = new File(projectRoot, resource);
+            IResource inResource = project.getResource(resource);
+            if (!inResource.exists()) {
+                throw new IOException(String.format("%s does not exist.", resource));
+            }
             File outFile = new File(appDir, outName);
-            FileUtils.copyFile(inFile, outFile);
+            FileUtils.writeByteArrayToFile(outFile, inResource.getContent());
         }
     }
 
@@ -120,10 +123,10 @@ public class IOSBundler implements IBundler {
 
         Map<String, IResource> bundleResources = null;
         if (simulatorBinary) {
-            bundleResources = ExtenderUtil.collectResources(project, Platform.X86_64Ios);
+            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.X86_64Ios);
         } else {
             // Collect bundle/package resources to be included in .App directory
-            bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.Arm64Darwin);
         }
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -206,70 +209,54 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy launch images
-        // iphone 3, 4, 5 portrait
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
+        try
+        {
+            // iphone 3, 4, 5 portrait
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
 
-        // ipad portrait+landscape
-        // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
+            // ipad portrait+landscape
+            // backward compatibility with old game.project files with the incorrect launch image sizes
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
 
-        // iPhone 6, 7 and 8 (portrait+landscape)
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+            // iPhone 6, 7 and 8 (portrait+landscape)
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
 
-        // iPhone 6 plus portrait+landscape
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+            // iPhone 6 plus portrait+landscape
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
 
-        // iPad retina portrait+landscape
-        // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
+            // iPad retina portrait+landscape
+            // backward compatibility with old game.project files with the incorrect launch image sizes
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
-        // iPad pro (10.5")
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+            // iPad pro (10.5")
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
 
-        // iPad pro (12.9")
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+            // iPad pro (12.9")
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
-        // iPhone X (portrait+landscape)
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
-        copyImage(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+            // iPhone X (portrait+landscape)
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+        } catch (Exception e) {
+            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        }
 
         List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();
 
         BundleHelper.throwIfCanceled(canceled);
-        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        if (facebookAppId != null) {
-            urlSchemes.add("fb" + facebookAppId);
-
-            applicationQueriesSchemes.add("fbapi");
-            applicationQueriesSchemes.add("fbapi20130214");
-            applicationQueriesSchemes.add("fbapi20130410");
-            applicationQueriesSchemes.add("fbapi20130702");
-            applicationQueriesSchemes.add("fbapi20131010");
-            applicationQueriesSchemes.add("fbapi20131219");
-            applicationQueriesSchemes.add("fbapi20140410");
-            applicationQueriesSchemes.add("fbapi20140116");
-            applicationQueriesSchemes.add("fbapi20150313");
-            applicationQueriesSchemes.add("fbapi20150629");
-            applicationQueriesSchemes.add("fbauth");
-            applicationQueriesSchemes.add("fbauth2");
-            applicationQueriesSchemes.add("fb-messenger-api20140430");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150128");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150218");
-            applicationQueriesSchemes.add("fb-messenger-platform-20150305");
-        }
 
         String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
         if (bundleId != null) {
@@ -300,14 +287,17 @@ public class IOSBundler implements IBundler {
         }
         properties.put("orientation-support", orientationSupport);
 
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
-        helper.copyIosIcons();
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app", variant);
+        try {
+            helper.copyIosIcons();
 
-        Platform targetPlatform = Platform.Armv7Darwin;
+            File manifestFile = new File(appDir, "Info.plist");
+            IResource sourceManifestFile = helper.getResource("ios", "infoplist");
+            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+        } catch (IOException e) {
+            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        }
 
-        File manifestFile = new File(appDir, "Info.plist");
-        IResource sourceManifestFile = helper.getResource("ios", "infoplist");
-        helper.mergeManifests(project, targetPlatform, properties, sourceManifestFile, manifestFile);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder

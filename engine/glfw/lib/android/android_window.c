@@ -150,9 +150,20 @@ int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWwndconfig* wndconfig__,
                              const _GLFWfbconfig* fbconfig__ )
 {
+    _glfwWin.clientAPI = wndconfig__->clientAPI;
+
     LOGV("_glfwPlatformOpenWindow");
     RestoreWin(&_glfwWin);
-    create_gl_surface(&_glfwWin);
+
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        final_gl(&_glfwWin);
+    }
+    else
+    {
+        create_gl_surface(&_glfwWin);
+    }
+
     return GL_TRUE;
 }
 
@@ -164,7 +175,7 @@ void _glfwPlatformCloseWindow( void )
 {
     LOGV("_glfwPlatformCloseWindow");
 
-    if (_glfwWin.opened) {
+    if (_glfwWin.opened && _glfwWin.clientAPI != GLFW_NO_API) {
         destroy_gl_surface(&_glfwWin);
         _glfwWin.opened = 0;
     }
@@ -290,13 +301,16 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
-    // eglSwapInterval is not supported on all devices, so clear the error here
-    // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
-    // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
-    eglSwapInterval(_glfwWin.display, interval);
-    EGLint error = eglGetError();
-    assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
-    (void)error;
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        // eglSwapInterval is not supported on all devices, so clear the error here
+        // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
+        // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
+        eglSwapInterval(_glfwWin.display, interval);
+        EGLint error = eglGetError();
+        assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
+        (void)error;
+    }
 }
 
 //========================================================================
@@ -523,7 +537,7 @@ GLFWAPI struct android_app* glfwGetAndroidApp(void)
 //========================================================================
 int _glfwPlatformQueryAuxContext()
 {
-    return query_gl_aux_context(&_glfwWin);
+    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : query_gl_aux_context(&_glfwWin);
 }
 
 //========================================================================
@@ -531,7 +545,7 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
-    return acquire_gl_aux_context(&_glfwWin);
+    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : acquire_gl_aux_context(&_glfwWin);
 }
 
 //========================================================================
@@ -539,7 +553,10 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
-    unacquire_gl_aux_context(&_glfwWin);
+    if (_glfwWin.clientAPI != GLFW_NO_API)
+    {
+        unacquire_gl_aux_context(&_glfwWin);
+    }
 }
 
 

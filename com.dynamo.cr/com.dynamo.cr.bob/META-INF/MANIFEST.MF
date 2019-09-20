@@ -6,15 +6,15 @@ Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.7
 Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
- org.eclipse.core.runtime;bundle-version="3.7.0",
- javax.media.opengl;bundle-version="1.1.1",
- com.sun.jna;bundle-version="3.4.1"
+ org.eclipse.core.runtime;bundle-version="3.7.0"
 Bundle-ClassPath: .,
  lib/openmali.jar,
  lib/commons-cli-1.2.jar,
  lib/jdom-2.0.1.jar,
  lib/jmustache-1.8.jar,
- lib/json-simple-1.1.1.jar
+ lib/json-simple-1.1.1.jar,
+ lib/snakeyaml-1.24.jar,
+ lib/jsoup-1.11.3.jar
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir
 Export-Package: com.dynamo.bob,
@@ -28,4 +28,5 @@ Export-Package: com.dynamo.bob,
  com.dynamo.bob.tile,
  com.dynamo.bob.util
 Import-Package: com.dynamo.bob.archive.publisher,
- com.dynamo.bob.pipeline
+ com.dynamo.bob.pipeline,
+ com.sun.jna

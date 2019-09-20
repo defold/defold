@@ -86,7 +86,6 @@ public class AndroidBundler implements IBundler {
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
-        boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -94,10 +93,9 @@ public class AndroidBundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         ArrayList<File> classesDex = new ArrayList<File>();
-        classesDex.add(new File(Bob.getPath("lib/classes.dex")));
 
         List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "").split(",");
+        String[] architecturesStrings = project.option("architectures", "armv7-android,arm64-android").split(",");
         for (int i = 0; i < architecturesStrings.length; i++) {
             architectures.add(Platform.get(architecturesStrings[i]));
         }
@@ -106,20 +104,23 @@ public class AndroidBundler implements IBundler {
             List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
             if (bundleExe == null) {
                 bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
+                if (classesDex.isEmpty()) {
+                    classesDex.add(new File(Bob.getPath("lib/classes.dex")));
+                }
             }
             else {
                 logger.log(Level.INFO, "Using extender binary for architecture: " + architecture.toString());
-                classesDex = new ArrayList<File>();
-                int i = 1;
-                while(true)
-                {
-                    String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
-                    ++i;
+                if (classesDex.isEmpty()) {
+                    int i = 1;
+                    while(true) {
+                        String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
+                        ++i;
 
-                    File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
-                    if (!f.exists())
-                        break;
-                    classesDex.add(f);
+                        File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
+                        if (!f.exists())
+                            break;
+                        classesDex.add(f);
+                    }
                 }
             }
             File exe = bundleExe.get(0);
@@ -150,7 +151,7 @@ public class AndroidBundler implements IBundler {
         }
 
         Platform targetPlatform = Platform.Armv7Android;
-        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "", variant);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
@@ -159,7 +160,14 @@ public class AndroidBundler implements IBundler {
         IResource sourceManifestFile = helper.getResource("android", "manifest");
 
         Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
-        helper.mergeManifests(project, targetPlatform, properties, sourceManifestFile, manifestFile);
+        try {
+            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+        } catch (CompileExceptionError e) {
+            // Pass along
+            throw e;
+        } catch (Exception e) {
+            throw new CompileExceptionError(sourceManifestFile, -1, e);
+        }
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -171,42 +179,10 @@ public class AndroidBundler implements IBundler {
         // AAPT needs all resources on disc
         Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
 
-        // Find the actual android resource folders on disc
-        Set<String> androidResourceFolders = new HashSet<>();
-        {
-            for (Map.Entry<String, IResource> entry : androidResources.entrySet()) {
-                String absPath = entry.getValue().getAbsPath();                                 // /topfolder/extension/res/android/res/path/to/res.xml
-                String relativePath = entry.getKey();                                           // path/to/res.xml
-                String dir = absPath.substring(0, absPath.length() - relativePath.length());    // /topfolder/extension/res/android/res
-                androidResourceFolders.add(dir);
-            }
-        }
-
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
-
-        // bundleResources = allResources - androidResources
-        // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
-        // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
-        Map<String, IResource> bundleResources;
-        {
-            Map<String, IResource> newBundleResources = new HashMap<>();
-            for (Map.Entry<String, IResource> entry : allResources.entrySet()) {
-                boolean discarded = false;
-                for (String resourceFolder : androidResourceFolders) {
-                    if (entry.getValue().getAbsPath().startsWith(resourceFolder)) {
-                        discarded = true;
-                        break;
-                    }
-                }
-                if (!discarded) {
-                    newBundleResources.put(entry.getKey(), entry.getValue());
-                }
-            }
-            bundleResources = newBundleResources;
-        }
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, targetPlatform);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -265,7 +241,7 @@ public class AndroidBundler implements IBundler {
             // Copy bundle resources into .apk zip (actually .ap2 in this case)
             ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
             BundleHelper.throwIfCanceled(canceled);
-            
+
             // Strip executables
             if( strip_executable )
             {

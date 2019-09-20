@@ -74,18 +74,45 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] sprite texture0
+    /*# [type:hash] sprite image
      *
-     * [mark:READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
+     * The image used when rendering the sprite. The type of the property is hash.
      *
-     * @name texture0
+     * @name image
      * @property
      *
      * @examples
      *
+     * How to set image using a script property (see [ref:resource.atlas])
+     *
+     * ```lua
+     * go.property("my_image", resource.atlas("/atlas.atlas"))
+     * function init(self)
+     *   go.set("#sprite", "image", self.my_image)
+     * end
+     * ```
+     *
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
+    /*# [type:hash] sprite material
+     *
+     * The material used when rendering the sprite. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     * function init(self)
+     *   go.set("#sprite", "material", self.my_material)
+     * end
+     * ```
+     */
 
     /*# [type:number] sprite cursor
     *
@@ -366,6 +393,7 @@ namespace dmGameSystem
      *
      * How to play the "jump" animation followed by the "run" animation:
      *
+     *```lua
      * local function anim_done(self, message_id, message, sender)
      *   if message_id == hash("model_animation_done") then
      *     if message.id == hash("jump") then
@@ -374,6 +402,7 @@ namespace dmGameSystem
      *     end
      *   end
      * end
+     * ```
      *
      * ```lua
      * function init(self)

@@ -5,7 +5,7 @@ varying lowp vec4 var_face_color;
 varying lowp vec4 var_outline_color;
 
 // positions are in world space
-attribute mediump vec4 position;
+attribute highp vec4 position;
 attribute mediump vec2 texcoord0;
 attribute lowp vec4 face_color;
 attribute lowp vec4 outline_color;

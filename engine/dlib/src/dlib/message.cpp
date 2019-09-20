@@ -327,7 +327,7 @@ namespace dmMessage
     {
         if (!socket)
             return false;
-        
+
         MessageSocket* s = AcquireSocket(socket);
         if (s != 0)
         {

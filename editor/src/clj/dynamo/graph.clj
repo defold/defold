@@ -3,7 +3,6 @@
   (:refer-clojure :exclude [deftype constantly])
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
-            [internal.util :as util]
             [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -11,6 +10,7 @@
             [internal.node :as in]
             [internal.system :as is]
             [internal.transaction :as it]
+            [internal.util :as util]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
   (:import [internal.graph.error_values ErrorValue]
@@ -20,7 +20,7 @@
 
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
+(namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than])
 
 (namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
@@ -1180,7 +1180,7 @@
    (property-overridden? (now) node-id property))
   ([basis node-id property]
    (if-let [node (node-by-id basis node-id)]
-     (and (has-property? (node-type node) property) (gt/property-overridden? node property))
+     (gt/property-overridden? node property)
      false)))
 
 (defn property-value-origin?
@@ -1190,6 +1190,94 @@
    (if (override? basis node-id)
      (property-overridden? basis node-id prop-kw)
      true)))
+
+(defn node-type-kw
+  "Returns the fully-qualified keyword that corresponds to the node type of the
+  specified node id, or nil if the node does not exist."
+  ([node-id]
+   (:k (node-type* node-id)))
+  ([basis node-id]
+   (:k (node-type* basis node-id))))
+
+(defmulti node-key
+  "Used to identify a node uniquely within a scope. This has various uses,
+  among them is that we will restore overridden properties during resource sync
+  for nodes that return a non-nil node-key. Usually this only happens for
+  ResourceNodes, but this also enables us to restore overridden properties on
+  nodes produced by the resource :load-fn."
+  (fn [node-id {:keys [basis] :as _evaluation-context}]
+    (if-some [node-type-kw (node-type-kw basis node-id)]
+      node-type-kw
+      (throw (ex-info (str "Unknown node id: " node-id)
+                      {:node-id node-id})))))
+
+(defmethod node-key :default [_node-id _evaluation-context] nil)
+
+(defn overridden-properties
+  "Returns a map of overridden prop-keywords to property values. Values will be
+  produced by property value functions if possible."
+  [node-id {:keys [basis] :as evaluation-context}]
+  (let [node-type (node-type* basis node-id)]
+    (into {}
+          (map (fn [[prop-kw raw-prop-value]]
+                 [prop-kw (if (has-property? node-type prop-kw)
+                            (node-value node-id prop-kw evaluation-context)
+                            raw-prop-value)]))
+          (node-value node-id :_overridden-properties evaluation-context))))
+
+(defn collect-overridden-properties
+  "Collects overridden property values from override nodes originating from the
+  scope of the specified source-node-id. The idea is that one should be able to
+  delete source-node-id, recreate it from disk, and re-apply the collected
+  property values to the freshly created override nodes resulting from the
+  resource :load-fn. Overridden properties will be collected from nodes whose
+  node-key multi-method implementation returns a non-nil value. This will be
+  used as a key along with the override-id to uniquely identify the node among
+  the new set of nodes created by the :load-fn."
+  ([source-node-id]
+   (with-auto-evaluation-context evaluation-context
+     (collect-overridden-properties source-node-id evaluation-context)))
+  ([source-node-id {:keys [basis] :as evaluation-context}]
+   (persistent!
+     (reduce
+       (fn [properties-by-override-node-key override-node-id]
+         (or (when-some [override-id (override-id basis override-node-id)]
+               (when-some [node-key (node-key override-node-id evaluation-context)]
+                 (let [override-node-key [override-id node-key]
+                       overridden-properties (overridden-properties override-node-id evaluation-context)]
+                   (if (contains? properties-by-override-node-key override-node-key)
+                     (let [node-type-kw (node-type-kw basis override-node-id)]
+                       (throw
+                         (ex-info
+                           (format "Duplicate node key `%s` from %s"
+                                   node-key
+                                   node-type-kw)
+                           {:node-key node-key
+                            :node-type node-type-kw})))
+                     (when (seq overridden-properties)
+                       (assoc! properties-by-override-node-key
+                               override-node-key overridden-properties))))))
+             properties-by-override-node-key))
+       (transient {})
+       (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources)))))
+
+(defn restore-overridden-properties
+  "Restores collected-properties obtained from the collect-overridden-properties
+  function to override nodes originating from the scope of the specified
+  target-node-id. Returns a sequence of transaction steps. Target nodes are
+  identified by the value returned from their node-key multi-method
+  implementation along with the override-id that produced them."
+  ([target-node-id collected-properties]
+   (with-auto-evaluation-context evaluation-context
+     (restore-overridden-properties target-node-id collected-properties evaluation-context)))
+  ([target-node-id collected-properties {:keys [basis] :as evaluation-context}]
+   (for [node-id (ig/pre-traverse basis [target-node-id] ig/cascade-delete-sources)]
+     (when-some [override-id (override-id basis node-id)]
+       (when-some [node-key (node-key node-id evaluation-context)]
+         (let [override-node-key [override-id node-key]
+               overridden-properties (collected-properties override-node-key)]
+           (for [[prop-kw prop-value] overridden-properties]
+             (set-property node-id prop-kw prop-value))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade

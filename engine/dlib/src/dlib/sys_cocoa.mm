@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
+#import <Foundation/Foundation.h>
 #include "log.h"
 #include "sys.h"
 #include "sys_private.h"
@@ -10,7 +11,6 @@
 #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
 #import <UIKit/UIApplication.h>
 #import <UIKit/UIKit.h>
-#import <AdSupport/AdSupport.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #else
 #import <AppKit/NSWorkspace.h>
@@ -27,6 +27,23 @@ namespace dmSys
         {
             dmStrlCpy(system_name, "iPhone OS", buffer_size);
         }
+    }
+
+    Result GetApplicationPath(char* path_out, uint32_t path_len)
+    {
+    	assert(path_len > 0);
+    	NSBundle* mainBundle = [NSBundle mainBundle];
+    	if (mainBundle == NULL)
+    	{
+    		return RESULT_FAULT;
+    	}
+    	const char *bundle_path = [[mainBundle bundlePath] UTF8String];
+    	if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
+    	{
+    		path_out[0] = 0;
+    		return RESULT_INVAL;
+    	}
+    	return RESULT_OK;
     }
 
 #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
@@ -175,10 +192,6 @@ namespace dmSys
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
         dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
-
-        ASIdentifierManager* asim = [ASIdentifierManager sharedManager];
-        dmStrlCpy(info->m_AdIdentifier, [[asim.advertisingIdentifier UUIDString] UTF8String], sizeof(info->m_AdIdentifier));
-        info->m_AdTrackingEnabled = (bool) asim.advertisingTrackingEnabled;
 
         NSString *device_language = [[NSLocale preferredLanguages]objectAtIndex:0];
         dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));

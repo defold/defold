@@ -1,47 +1,43 @@
 (ns editor.tile-source
-  (:require
-   [clojure.string :as str]
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.build-target :as bt]
-   [editor.camera :as camera]
-   [editor.collision-groups :as collision-groups]
-   [editor.colors :as colors]
-   [editor.graph-util :as gu]
-   [editor.image :as image]
-   [editor.image-util :as image-util]
-   [editor.workspace :as workspace]
-   [editor.resource :as resource]
-   [editor.resource-io :as resource-io]
-   [editor.resource-node :as resource-node]
-   [editor.defold-project :as project]
-   [editor.handler :as handler]
-   [editor.gl :as gl]
-   [editor.gl.shader :as shader]
-   [editor.gl.texture :as texture]
-   [editor.gl.vertex :as vtx]
-   [editor.geom :as geom]
-   [editor.types :as types]
-   [editor.gl.pass :as pass]
-   [editor.pipeline.tex-gen :as tex-gen]
-   [editor.pipeline.texture-set-gen :as texture-set-gen]
-   [editor.properties :as properties]
-   [editor.scene :as scene]
-   [editor.scene-text :as scene-text]
-   [editor.texture-set :as texture-set]
-   [editor.outline :as outline]
-   [editor.protobuf :as protobuf]
-   [editor.util :as util]
-   [editor.validation :as validation])
-  (:import
-   [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
-   [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-   [com.google.protobuf ByteString]
-   [editor.types AABB]
-   [javax.vecmath Point3d Matrix4d Vector3d]
-   [com.jogamp.opengl GL GL2]
-   [java.awt.image BufferedImage]
-   [java.nio ByteBuffer ByteOrder FloatBuffer]))
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.build-target :as bt]
+            [editor.camera :as camera]
+            [editor.collision-groups :as collision-groups]
+            [editor.colors :as colors]
+            [editor.defold-project :as project]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
+            [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
+            [editor.image :as image]
+            [editor.image-util :as image-util]
+            [editor.outline :as outline]
+            [editor.pipeline.tex-gen :as tex-gen]
+            [editor.pipeline.texture-set-gen :as texture-set-gen]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
+            [editor.texture-set :as texture-set]
+            [editor.types :as types]
+            [editor.util :as util]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]
+            [util.digestable :as digestable])
+  (:import [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+           [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
+           [com.jogamp.opengl GL2]
+           [editor.types AABB]
+           [java.awt.image BufferedImage]
+           [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -629,12 +625,16 @@
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
-                                          {:f generate-packed-image
-                                           :sha1 (resource/resource->sha1-hex image-resource)
-                                           :args {:_node-id _node-id
-                                                  :texture-set-data-generator texture-set-data-generator
-                                                  :image-resource image-resource
-                                                  :tile-source-attributes tile-source-attributes}}))
+                                         (let [packed-image-sha1 (digestable/sha1-hash
+                                                                   {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
+                                                                    :tile-source-attributes tile-source-attributes
+                                                                    :type :packed-tile-source-image})]
+                                           {:f generate-packed-image
+                                            :sha1 packed-image-sha1
+                                            :args {:_node-id _node-id
+                                                   :texture-set-data-generator texture-set-data-generator
+                                                   :image-resource image-resource
+                                                   :tile-source-attributes tile-source-attributes}})))
 
   (output packed-image BufferedImage (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 

@@ -3,9 +3,9 @@
 #include <string.h>
 #include <stdio.h>
 #include "static_assert.h"
-#include "json.h"
 #include "math.h"
 #include "utf8.h"
+#include <dmsdk/dlib/json.h>
 
 extern "C"
 {
@@ -252,52 +252,4 @@ namespace dmJson
         free(doc->m_Json);
         memset(doc, 0, sizeof(Document));
     }
-
-    const char* CStringArrayToJsonString(const char** array, unsigned int length)
-    {
-        // Calculate the memory required to store the JSON string.
-        unsigned int data_length = 2 + length * 2 + (length - 1);
-        for (unsigned int i = 0; i < length; ++i)
-        {
-            data_length += strlen(array[i]);
-            for (unsigned int n = 0; n < strlen(array[i]); ++n)
-            {
-                if (array[i][n] == '"')
-                {
-                    // We will have to escape this character with a backslash
-                    data_length += 1;
-                }
-            }
-        }
-
-        // Allocate memory for the JSON string,
-        // this has to be free'd by the caller.
-        char* json_array = (char*) malloc(data_length + 1);
-        if (json_array != 0)
-        {
-            unsigned int position = 0;
-            memset((void*) json_array, 0, data_length + 1);
-
-            json_array[position++] = '[';
-            for (unsigned int i = 0; i < length; ++i)
-            {
-                json_array[position++] = '"';
-                for (unsigned int n = 0; n < strlen(array[i]); ++n)
-                {
-                    if (array[i][n] == '"')
-                    {
-                        json_array[position++] = '\\';
-                    }
-                    json_array[position++] = array[i][n];
-                }
-                json_array[position++] = '"';
-            }
-
-            json_array[position++] = ']';
-            json_array[position] = '\0';
-        }
-
-        return json_array;
-    }
-
 }

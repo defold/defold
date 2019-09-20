@@ -73,6 +73,11 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
     return 0x0;
 }
 
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
+{
+    return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+}
+
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -383,43 +388,116 @@ TEST_P(ComponentFailTest, Test)
     ASSERT_EQ((void*)0, go);
 }
 
-// Test getting texture0 properties on components.
-TEST_P(TexturePropTest, GetTextureProperty)
-{
-    const TexturePropParams& p =  GetParam();
-
-    dmhash_t hash_comp_1_1 = p.comp_same_1;
-    dmhash_t hash_comp_1_2 = p.comp_same_2;
-    dmhash_t hash_comp_2   = p.comp_different;
-
-    dmGameObject::PropertyDesc prop_value1, prop_value2;
-
-    // Spawn a go with three components, two with same texture and one with a unique.
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
-
-    // Valid property
-    dmGameObject::PropertyResult prop_res = dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, prop_res);
-    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_HASH, prop_value1.m_Variant.m_Type);
-
-    // Invalid property
-    prop_res = dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id_invalid, prop_value1);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, prop_res);
-
-    // Compare comp_1_1 and comp_1_2 which need to have the same texture.
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1));
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_2, hash_property_id, prop_value2));
-    ASSERT_EQ(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
-
-    // Compare comp_1_1 and comp_2 which don't have the same texture.
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1));
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_2, hash_property_id, prop_value2));
-    ASSERT_NE(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
+    dmGameObject::UpdateContext ctx = {0.0f};
+    dmGameObject::Update(collection, &ctx);
+    dmGameObject::Delete(collection, instance, false);
+    dmGameObject::PostUpdate(collection);
 }
 
+static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
+    dmGameObject::PropertyDesc desc;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, desc));
+    dmGameObject::PropertyType type = desc.m_Variant.m_Type;
+    ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type);
+    *out_val = desc.m_Variant.m_Hash;
+}
+
+static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t in_val) {
+    dmGameObject::PropertyVar prop_var(in_val);
+    return dmGameObject::SetProperty(instance, comp_name, prop_name, prop_var);
+}
+
+TEST_P(ResourcePropTest, ResourceRefCounting)
+{
+    const char* go_path = "/resource/res_getset_prop.goc";
+    const ResourcePropParams& p = GetParam();
+    void* resources[] = {0x0, 0x0, 0x0};
+    const char* paths[] = {p.m_ResourcePath, p.m_ResourcePathNotFound, p.m_ResourcePathInvExt};
+    dmhash_t path_hashes[] = {0, 0, 0};
+    // Acquire new resource
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        if (*paths[i] != 0) {
+            path_hashes[i] = dmHashString64(paths[i]);
+            dmResource::Result res = dmResource::Get(m_Factory, paths[i], &resources[i]);
+            if (i == 1) { // second resource is non-existing by design
+                ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, res);
+            } else {
+                ASSERT_EQ(dmResource::RESULT_OK, res);
+            }
+        }
+    }
+    dmhash_t prop_name = dmHashString64(p.m_PropertyName);
+    dmhash_t new_res_hash = path_hashes[0];
+    dmhash_t new_res_hash_not_found = path_hashes[1];
+    dmhash_t new_res_hash_inv_ext = path_hashes[2];
+
+    const char* component_name[] = {p.m_Component0, p.m_Component1, p.m_Component2, p.m_Component3, p.m_Component4, p.m_Component5};
+    for(uint32_t i = 0; i < 6; ++i)
+    {
+        if(component_name[i] == 0)
+            break;
+        dmhash_t comp_name = dmHashString64(component_name[i]);
+
+        // Spawn a go with all supported component types
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+        ASSERT_NE((void*)0, go);
+
+        dmhash_t orig_res_hash;
+        GetResourceProperty(go, comp_name, prop_name, &orig_res_hash);
+
+        // Spawn is expected to inc the ref count
+        uint32_t orig_rc = dmResource::GetRefCount(m_Factory, orig_res_hash);
+        ASSERT_LT(0, orig_rc);
+        uint32_t new_rc = dmResource::GetRefCount(m_Factory, new_res_hash);
+        ASSERT_LT(0, new_rc);
+
+        // Spawn/delete are balanced w.r.t ref count
+        DeleteInstance(m_Collection, go);
+        go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+        ASSERT_EQ(orig_rc, dmResource::GetRefCount(m_Factory, orig_res_hash));
+
+        // Graceful failure when resource does not exist
+        if (new_res_hash_not_found != 0)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND, SetResourceProperty(go, comp_name, prop_name, new_res_hash_not_found));
+            ASSERT_EQ(orig_rc, dmResource::GetRefCount(m_Factory, orig_res_hash));
+        }
+
+        // Graceful failure when resource has incorrect extension
+        if (new_res_hash_inv_ext != 0)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetResourceProperty(go, comp_name, prop_name, new_res_hash_inv_ext));
+            ASSERT_EQ(orig_rc, dmResource::GetRefCount(m_Factory, orig_res_hash));
+        }
+
+        // No release when setting prop to different resource
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetResourceProperty(go, comp_name, prop_name, new_res_hash));
+        dmhash_t res_hash;
+        GetResourceProperty(go, comp_name, prop_name, &res_hash);
+        ASSERT_EQ(new_res_hash, res_hash);
+        ASSERT_EQ(orig_rc, dmResource::GetRefCount(m_Factory, orig_res_hash));
+        ASSERT_EQ(new_rc + 1, dmResource::GetRefCount(m_Factory, new_res_hash));
+
+        // Acquire it again when setting prop back to original
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetResourceProperty(go, comp_name, prop_name, orig_res_hash));
+        ASSERT_EQ(orig_rc + 1, dmResource::GetRefCount(m_Factory, orig_res_hash));
+        ASSERT_EQ(new_rc, dmResource::GetRefCount(m_Factory, new_res_hash));
+
+        // Setting to same val has no effect on ref counting
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetResourceProperty(go, comp_name, prop_name, orig_res_hash));
+        ASSERT_EQ(orig_rc + 1, dmResource::GetRefCount(m_Factory, orig_res_hash));
+
+        DeleteInstance(m_Collection, go);
+    }
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        if (resources[i]) {
+            dmResource::Release(m_Factory, resources[i]);
+        }
+    }
+}
 
 // Test that go.delete() does not influence other sprite animations in progress
 TEST_F(SpriteAnimTest, GoDeletion)
@@ -1020,6 +1098,55 @@ TEST_P(DrawCountTest, DrawCount)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+/* Physics joints */
+TEST_F(ComponentTest, JointTest)
+{
+    /* Setup:
+    ** joint_test_a
+    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    ** - [script] collision_object/joint_test.script
+    ** joint_test_b
+    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = L;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
+    const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
+
+    dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
+    dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
 /* Camera */
 
 const char* valid_camera_resources[] = {"/camera/valid.camerac"};
@@ -1436,6 +1563,7 @@ const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
 INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, jc_test_values_in(invalid_label_gos));
 
 /* Test material vertex space component compatibility */
+
 const char* invalid_vertexspace_resources[] =
 {
     "/sprite/invalid_vertexspace.spritec",
@@ -1448,14 +1576,20 @@ const char* invalid_vertexspace_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(InvalidVertexSpace, InvalidVertexSpaceTest, jc_test_values_in(invalid_vertexspace_resources));
 
-/* Get texture0 property on sprite and model */
+/* Get and set resource properties on supported components */
 
-TexturePropParams texture_prop_params[] =
+ResourcePropParams res_prop_params[] =
 {
-    {"/resource/sprite.goc", dmHashString64("sprite_1_1"), dmHashString64("sprite_1_2"), dmHashString64("sprite_2")},
-    {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
+    // property, val, val-not-found, val-invalid-ext, component0, ..., componentN
+    {"material", "/resource/resource_alt.materialc", "/not_found.materialc", "/resource/res_getset_prop.goc", "label", "model", "gui", "spine", "tilemap", 0},
+    {"font", "/resource/font.fontc", "/not_found.fontc", "/resource/res_getset_prop.goc", "label", 0},
+    {"image", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "sprite", 0},
+    {"texture0", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
+    {"texture1", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
+    {"tile_source", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
 };
-INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, jc_test_values_in(texture_prop_params));
+
+INSTANTIATE_TEST_CASE_P(ResourceProperty, ResourcePropTest, jc_test_values_in(res_prop_params));
 
 /* Validate default and dynamic gameobject factories */
 

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>
 #include <limits.h>
 #include <unistd.h>

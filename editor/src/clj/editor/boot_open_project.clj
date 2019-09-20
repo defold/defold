@@ -5,6 +5,7 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
+            [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -13,7 +14,7 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
-            [editor.form-view :as form-view]
+            [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
@@ -72,7 +73,7 @@
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
-        (form-view/register-view-types workspace)
+        (cljfx-form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
@@ -119,10 +120,17 @@
     (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
 
 (defn- show-tracked-internal-files-warning! []
-  (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
-                                  "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
-                                  "\n"
-                                  "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
+  (dialogs/make-info-dialog
+    {:title "Internal Files Under Source Control"
+     :size :large
+     :icon :icon/triangle-error
+     :header "Internal files were placed under source control"
+     :content {:pref-row-count 6
+               :wrap-text true
+               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
+                          "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
+                          "\n"
+                          "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}}))
 
 (def ^:private interaction-event-types
   #{DragEvent/DRAG_DONE
@@ -222,7 +230,18 @@
 
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
-                                             (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
+                                               (dialogs/make-confirmation-dialog
+                                                 {:title "Quit Defold?"
+                                                  :icon :icon/circle-question
+                                                  :size :large
+                                                  :header "Unsaved changes exist, are you sure you want to quit?"
+                                                  :buttons [{:text "Cancel and Keep Working"
+                                                             :default-button true
+                                                             :cancel-button true
+                                                             :result false}
+                                                            {:text "Quit Without Saving"
+                                                             :variant :danger
+                                                             :result true}]}))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
                                   (app-view/store-split-positions! scene prefs)
@@ -290,12 +309,21 @@
         (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
-              (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
-                                                        "Resume syncing or cancel and revert to the pre-sync state?")
-                                                   {:title "Resume Sync?"
-                                                    :ok-label "Resume Sync"
-                                                    :cancel-label "Cancel Sync"
-                                                    :pref-width Region/USE_COMPUTED_SIZE})
+              (if-not (dialogs/make-confirmation-dialog
+                        {:title "Resume Sync?"
+                         :size :large
+                         :header {:fx/type :v-box
+                                  :children [{:fx/type fxui/label
+                                              :variant :header
+                                              :text "The editor was shut down while synchronizing with the server"}
+                                             {:fx/type fxui/label
+                                              :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
+                         :buttons [{:text "Cancel and Revert"
+                                    :cancel-button true
+                                    :result false}
+                                   {:text "Resume Sync"
+                                    :default-button true
+                                    :result true}]})
                 ;; User chose to cancel sync.
                 (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
                     (async-reload! workspace changes-view))
@@ -322,9 +350,14 @@
               (if gitignore-was-modified?
                 (do (changes-view/refresh! changes-view app-view/render-main-task-progress!)
                     (ui/run-later
-                      (dialogs/make-message-box "Updated .gitignore File"
-                                                (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                                     "You should include it along with your changes the next time you synchronize."))
+                      (dialogs/make-info-dialog
+                        {:title "Updated .gitignore File"
+                         :icon :icon/circle-info
+                         :header "Updated .gitignore file"
+                         :content {:fx/type fxui/label
+                                   :style-class "dialog-content-padding"
+                                   :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                              "You should include it along with your changes the next time you synchronize.")}})
                       (when internal-files-are-tracked?
                         (show-tracked-internal-files-warning!))))
                 (when internal-files-are-tracked?
@@ -336,11 +369,17 @@
     root))
 
 (defn- show-missing-dependencies-alert! [dependencies]
-  (dialogs/make-alert-dialog (string/join "\n" (concat ["The following dependencies are missing:"]
-                                                       (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
-                                                            (sort-by str dependencies))
-                                                       [""
-                                                        "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
+  (dialogs/make-info-dialog
+    {:title "Missing Dependencies"
+     :size :large
+     :icon :icon/triangle-error
+     :header "There are missing dependencies"
+     :content (string/join "\n" (concat ["The following dependencies are missing:"]
+                                        (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                             (sort-by str dependencies))
+                                        [""
+                                         "The project might not work without them. "
+                                         "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
 (defn open-project
   [^File game-project-file prefs render-progress! dashboard-client updater newly-created?]

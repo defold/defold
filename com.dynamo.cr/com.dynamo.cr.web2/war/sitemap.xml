@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.sitemaps.org/schemas/sitemap-image/1.1"
-        xmlns:video="http://www.sitemaps.org/schemas/sitemap-video/1.1">
-  <url><loc>http://www.defold.com</loc><changefreq>hourly</changefreq></url>
-  <url><loc>http://www.defold.com/blog</loc><changefreq>hourly</changefreq></url>
-  <url><loc>http://doc.defold.com/</loc><changefreq>daily</changefreq></url>
-</urlset>

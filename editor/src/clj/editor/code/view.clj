@@ -36,7 +36,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button CheckBox PopupControl Tab TextField]
-           [javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
@@ -1286,6 +1286,13 @@
                (suggestions-shown? view-node))
       (show-suggestions! view-node))))
 
+(defn toggle-comment! [view-node]
+  (set-properties! view-node nil
+                   (data/toggle-comment (get-property view-node :lines)
+                                        (get-property view-node :regions)
+                                        (get-property view-node :cursor-ranges)
+                                        (:line-comment (get-property view-node :grammar)))))
+
 (defn select-all! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
@@ -1646,6 +1653,11 @@
 
 (handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
+
+(handler/defhandler :toggle-comment :code-view
+  (active? [view-node evaluation-context]
+           (contains? (get-property view-node :grammar evaluation-context) :line-comment))
+  (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
@@ -2073,6 +2085,7 @@
                  {:command :replace-text               :label "Replace..."}
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
+                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:command :reindent                   :label "Reindent Lines"}
 
                  {:label "Convert Indentation"
@@ -2086,7 +2099,6 @@
                               :command :convert-indentation
                               :user-data :four-spaces}]}
 
-                 {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
                  {:command :sort-lines-case-sensitive  :label "Sort Lines (Case Sensitive)"}
@@ -2376,6 +2388,24 @@
                        (= "¨" (.getCharacter new-event)))
           (.handle handler event))))))
 
+(defn handle-input-method-changed! [view-node ^InputMethodEvent e]
+  (let [x (.getCommitted e)]
+    (when-not (.isEmpty x)
+      (insert-text! view-node ({"≃" "~="} x x)))))
+
+(defn- setup-input-method-requests! [^Canvas canvas view-node]
+  (when (eutil/is-linux?)
+    (doto canvas
+      (.setInputMethodRequests
+        (reify InputMethodRequests
+          (getTextLocation [_this _offset] Point2D/ZERO)
+          (getLocationOffset [_this _x _y] 0)
+          (cancelLatestCommittedText [_this] "")
+          (getSelectedText [_this] "")))
+      (.setOnInputMethodTextChanged
+        (ui/event-handler e
+          (handle-input-method-changed! view-node e))))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         app-view (:app-view opts)
@@ -2423,6 +2453,7 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
+      (setup-input-method-requests! view-node)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
       (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
                                              (ui/event-handler event (handle-key-typed! view-node event))))
@@ -2510,13 +2541,13 @@
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
-(defn- focus-view! [view-node {:keys [line]}]
+(defn- focus-view! [view-node opts]
   (.requestFocus ^Node (g/node-value view-node :canvas))
-  (when-some [row (some-> ^double line dec)]
+  (when-some [cursor-range (:cursor-range opts)]
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            (data/Cursor->CursorRange (data/->Cursor row 0))))))
+                                            cursor-range))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace

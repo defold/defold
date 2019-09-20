@@ -9,8 +9,9 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
@@ -38,8 +39,6 @@ import java.util.zip.ZipFile;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
@@ -68,12 +67,9 @@ import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.pipeline.ExtenderUtil.JavaRExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
-import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 /**
@@ -102,6 +98,7 @@ public class Project {
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
     private final List<String> excludedCollectionProxies = new ArrayList<String>();
+    private List<String> propertyFiles = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -112,6 +109,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
+        clearProjectProperties();
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
@@ -120,6 +118,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        clearProjectProperties();
     }
 
     public void dispose() {
@@ -351,7 +350,7 @@ public class Project {
                 }
             }
         } catch (CompileExceptionError e) {
-        	throw e;
+            throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
@@ -361,15 +360,68 @@ public class Project {
         projectProperties = new BobProjectProperties();
     }
 
-    public void loadProjectFile() throws IOException, ParseException {
-        clearProjectProperties();
-        IResource gameProject = this.fileSystem.get("/game.project");
-        if (gameProject.exists()) {
-            ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
-            projectProperties.load(is);
-        } else {
-            logWarning("No game.project found");
+    public static void loadPropertyFile(BobProjectProperties properties, String filepath) throws IOException {
+        Path pathHandle = Paths.get(filepath);
+        if (!Files.exists(pathHandle) || !pathHandle.toFile().isFile())
+            throw new IOException(filepath + " is not a file");
+        byte[] data = Files.readAllBytes(pathHandle);
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        try {
+            properties.load(is);
+        } catch(ParseException e) {
+            throw new IOException("Could not parse: " + filepath);
         }
+    }
+
+    // Loads the properties from a game project settings file
+    // Also adds any properties specified with the "--settings" flag
+    public static BobProjectProperties loadProperties(IResource resource, List<String> settingsFiles) throws IOException {
+        if (!resource.exists()) {
+            throw new IOException(String.format("Project file not found: %s", resource.getAbsPath()));
+        }
+
+        BobProjectProperties properties = new BobProjectProperties();
+        try {
+            properties.loadDefaults();
+            Project.loadPropertyFile(properties, resource.getAbsPath());
+        } catch(ParseException e) {
+            throw new IOException("Could not parse: " + resource.getAbsPath());
+        }
+
+        for (String filepath : settingsFiles) {
+            Project.loadPropertyFile(properties, filepath);
+        }
+
+        return properties;
+    }
+
+    public void loadProjectFile() throws IOException, ParseException {
+        IResource gameProject = getGameProjectResource();
+        if (gameProject.exists()) {
+            projectProperties = Project.loadProperties(gameProject, this.getPropertyFiles());
+        }
+    }
+
+    public void addPropertyFile(String filepath) {
+        propertyFiles.add(filepath);
+    }
+
+    // Returns the command line specified property files
+    public List<String> getPropertyFiles() {
+        return propertyFiles;
+    }
+
+    private void logExceptionToStdErr(IResource res, int line)
+    {
+        String resourceString = "unspecified";
+        String resourceLineString = "";
+        if (res != null) {
+            resourceString = res.toString();
+        }
+        if (line > 0) {
+            resourceLineString = String.format(" at line %d", line);
+        }
+        System.err.println("Error in resource: " + resourceString + resourceLineString);
     }
 
     /**
@@ -384,9 +436,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+            logExceptionToStdErr(e.getResource(), e.getLineNumber());
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
+            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -594,7 +648,10 @@ public class Project {
         IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
 
+        final String variant = appmanifestOptions.get("baseVariant");
+
         // Build all skews of platform
+        boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
@@ -613,43 +670,61 @@ public class Project {
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
             File classesDexFile = null;
+            File proguardMappingFile = null;
             File tmpDir = null;
+
             if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-                Bob.initAndroid(); // extract resources
+                // If we are building for Android, We output a mapping file per architechture
+                // so that the user can select which of the mapping files are more suitable,
+                // since they can diff between architechtures
+                String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
+                proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
 
-                // If we are building for Android, we expect a classes.dex file to be returned as well.
-                classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
+                // NOTE:
+                // We previously only generated and sent Android resources for at most one arch,
+                // to avoid sending and building these twice.
+                // However the server will run proguard for both of these architectures which means
+                // for the second arch it will not find R attributes and fail.
+                // if (!androidResourcesGenerated)
+                {
+                    androidResourcesGenerated = true;
 
-                List<String> resDirs = new ArrayList<>();
-                List<String> extraPackages = new ArrayList<>();
+                    Bob.initAndroid(); // extract resources
 
-                // Create temp files and directories needed to run aapt and output R.java files
-                tmpDir = Files.createTempDirectory("bob_bundle_tmp").toFile();
-                tmpDir.mkdirs();
+                    // If we are building for Android, we expect a classes.dex file to be returned as well.
+                    classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
 
-                // <tmpDir>/res - Where to collect all resources needed for aapt
-                File resDir = new File(tmpDir, "res");
-                resDir.mkdir();
+                    List<String> resDirs = new ArrayList<>();
+                    List<String> extraPackages = new ArrayList<>();
 
-                String title = projectProperties.getStringValue("project", "title", "Unnamed");
-                String exeName = BundleHelper.projectNameToBinaryName(title);
+                    // Create temp files and directories needed to run aapt and output R.java files
+                    tmpDir = Files.createTempDirectory("bob_bundle_tmp").toFile();
+                    tmpDir.mkdirs();
 
-                BundleHelper helper = new BundleHelper(this, platform, tmpDir, "");
+                    // <tmpDir>/res - Where to collect all resources needed for aapt
+                    File resDir = new File(tmpDir, "res");
+                    resDir.mkdir();
 
-                File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
-                IResource sourceManifestFile = helper.getResource("android", "manifest");
+                    String title = projectProperties.getStringValue("project", "title", "Unnamed");
+                    String exeName = BundleHelper.projectNameToBinaryName(title);
 
-                Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
-                helper.mergeManifests(this, platform, properties, sourceManifestFile, manifestFile);
+                    BundleHelper helper = new BundleHelper(this, platform, tmpDir, "", variant);
 
-                BundleHelper.throwIfCanceled(monitor);
+                    File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
+                    IResource sourceManifestFile = helper.getResource("android", "manifest");
 
-                List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
-                allSource.addAll(extraSource);
+                    Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
+                    helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+
+                    BundleHelper.throwIfCanceled(monitor);
+
+                    List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
+                    allSource.addAll(extraSource);
+                }
             }
 
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile, proguardMappingFile);
 
             if (tmpDir != null) {
                 FileUtils.deleteDirectory(tmpDir);
@@ -1266,11 +1341,40 @@ run:
         return fileSystem.get(FilenameUtils.normalize(path, true));
     }
 
-    public void findResourcePaths(String path, Collection<String> result)
-    {
+    public IResource getGameProjectResource() {
+        return getResource("/game.project");
+    }
+
+    public static String stripLeadingSlash(String path) {
+        while (path.length() > 0 && path.charAt(0) == '/') {
+            path = path.substring(1);
+        }
+        return path;
+    }
+
+    public void findResourcePaths(String _path, Collection<String> result) {
+        final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
                 results.add(FilenameUtils.normalize(path, true));
+            }
+        }, result);
+    }
+
+    // Finds the first level of directories in a path
+    public void findResourceDirs(String _path, Collection<String> result) {
+        // Make sure the path has Unix separators, since this is how
+        // paths are specified game project relative internally.
+        final String path = Project.stripLeadingSlash(FilenameUtils.separatorsToUnix(_path));
+        fileSystem.walk(path, new FileSystemWalker() {
+            public boolean handleDirectory(String dir, Collection<String> results) {
+                if (path.equals(dir)) {
+                    return true;
+                }
+                results.add(FilenameUtils.getName(FilenameUtils.normalizeNoEndSeparator(dir)));
+                return false; // skip recursion
+            }
+            public void handleFile(String path, Collection<String> results) { // skip any files
             }
         }, result);
     }
@@ -1288,11 +1392,11 @@ run:
     }
 
     public void excludeCollectionProxy(String path) {
-    	this.excludedCollectionProxies.add(path);
+        this.excludedCollectionProxies.add(path);
     }
 
     public final List<String> getExcludedCollectionProxies() {
-    	return this.excludedCollectionProxies;
+        return this.excludedCollectionProxies;
     }
 
 }

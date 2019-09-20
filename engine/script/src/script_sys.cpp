@@ -63,7 +63,7 @@ union SaveLoadBuffer
      * This size reflects the output file size which must not exceed this limit.
      * Additionally, the total number of rows that any one table may contain is limited to 65536
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
-     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however 
+     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
      *
      * @name sys.save
@@ -222,7 +222,7 @@ union SaveLoadBuffer
         dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
-            luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
+            return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
         }
 
         const char* filename = luaL_checkstring(L, 2);
@@ -237,6 +237,50 @@ union SaveLoadBuffer
         dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
+
+        return 1;
+    }
+
+
+    /*# gets the application path
+     * The path from which the application is run.
+     *
+     * @name sys.get_application_path
+     * @return path [type:string] path to application executable
+     * @examples
+     *
+     * Find a path where we can store data (the example path is on the macOS platform):
+     *
+     * ```lua
+     * -- macOS: /Applications/my_game.app
+     * local application_path = sys.get_application_path()
+     * print(application_path) --> /Applications/my_game.app
+     *
+     * -- Windows: C:\Program Files\my_game\my_game.exe
+     * print(application_path) --> C:\Program Files\my_game
+     *
+     * -- Linux: /home/foobar/my_game/my_game
+     * print(application_path) --> /home/foobar/my_game
+     *
+     * -- Android package name: com.foobar.my_game
+     * print(application_path) --> /data/user/0/com.foobar.my_game
+     *
+     * -- iOS: my_game.app
+     * print(application_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     *
+     * -- HTML5: http://www.foobar.com/my_game/
+     * print(application_path) --> http://www.foobar.com/my_game
+     * ```
+     */
+    int Sys_GetApplicationPath(lua_State* L)
+    {
+        char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
+        dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
+        if (r != dmSys::RESULT_OK)
+        {
+            return luaL_error(L, "Unable to locate application path: (%d)", r);
+        }
+        lua_pushstring(L, application_path);
 
         return 1;
     }
@@ -355,7 +399,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil.
+     * If loading fails, the function returns nil plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -367,15 +411,20 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or nil if the resource could not be loaded
+     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
      * -- Load level data into a string
-     * local data = sys.load_resource("/assets/level_data.json")
+     * local data, error = sys.load_resource("/assets/level_data.json")
      * -- Decode json string to a Lua table
-     * local data_table = json.decode(data)
-     * pprint(data_table)
+     * if data then
+     *   local data_table = json.decode(data)
+     *   pprint(data_table)
+     * else
+     *   print(error)
+     * end
      * ```
      */
     int Sys_LoadResource(lua_State* L)
@@ -389,12 +438,13 @@ union SaveLoadBuffer
         uint32_t resource_size;
         dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
         if (r != dmResource::RESULT_OK) {
-            dmLogWarning("Failed to load resource: %s (%d)", filename, r);
             lua_pushnil(L);
-        } else {
-            lua_pushlstring(L, (const char*) resource, resource_size);
-            free(resource);
+            lua_pushfstring(L, "Failed to load resource: %s (%d)", filename, r);
+            assert(top + 2 == lua_gettop(L));
+            return 2;
         }
+        lua_pushlstring(L, (const char*) resource, resource_size);
+        free(resource);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -433,13 +483,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android.
-     *
-     * `ad_ident`
-     * : [type:string] [icon:ios] "advertisingIdentifier" on iOS. [icon:android] advertising ID provided by Google Play on Android.
-     *
-     * `ad_tracking_enabled`
-     * : [type:boolean] `true` if ad tracking is enabled, `false` otherwise.
+     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
@@ -492,12 +536,6 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "device_ident");
         lua_pushstring(L, info.m_DeviceIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "ad_ident");
-        lua_pushstring(L, info.m_AdIdentifier);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "ad_tracking_enabled");
-        lua_pushboolean(L, info.m_AdTrackingEnabled);
         lua_rawset(L, -3);
         lua_pushliteral(L, "user_agent");
         lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");
@@ -709,8 +747,22 @@ union SaveLoadBuffer
             }
             lua_rawset(L, -3);
 
-            lua_pushliteral(L, "mac");
+            lua_pushliteral(L, "family");
+            if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
+            {
+                lua_pushstring(L, "ipv4");
+            }
+            else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
+            {
+                lua_pushstring(L, "ipv6");
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+            lua_rawset(L, -3);
 
+            lua_pushliteral(L, "mac");
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
                 char tmp[64];
@@ -902,7 +954,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Exit::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Exit::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -948,7 +1000,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -973,7 +1025,7 @@ union SaveLoadBuffer
     * @examples
     *
     * Setting the swap intervall to swap every v-blank
-    *  
+    *
     * ```lua
     * sys.set_vsync_swap_interval(1)
     * ```
@@ -987,7 +1039,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetVsync::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetVsync::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -1004,9 +1056,9 @@ union SaveLoadBuffer
     * @name sys.set_update_frequency
     * @param frequency target frequency. 60 for 60 fps
     * @examples
-    * 
+    *
     * Setting the update frequency to 60 frames per second
-    *  
+    *
     * ```lua
     * sys.set_update_frequency(60)
     * ```
@@ -1020,7 +1072,7 @@ union SaveLoadBuffer
 
         dmMessage::URL url;
         GetSystemURL(&url);
- 
+
         dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::SetUpdateFrequency::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(result == dmMessage::RESULT_OK);
 
@@ -1038,6 +1090,7 @@ union SaveLoadBuffer
         {"get_sys_info", Sys_GetSysInfo},
         {"get_engine_info", Sys_GetEngineInfo},
         {"get_application_info", Sys_GetApplicationInfo},
+        {"get_application_path", Sys_GetApplicationPath},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},

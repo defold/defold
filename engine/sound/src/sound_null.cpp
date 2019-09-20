@@ -6,6 +6,7 @@
 
 namespace dmSound
 {
+    using namespace Vectormath::Aos;
     dmArray<SoundInstance*>* g_Instances = 0x0;
 
     struct SoundData
@@ -16,7 +17,7 @@ namespace dmSound
 
     struct SoundInstance
     {
-        Vector4 m_Parameters[PARAMETER_GAIN + 1];
+        Vector4 m_Parameters[PARAMETER_MAX];
         uint32_t m_Playing : 1;
         uint32_t m_Looping : 1;
     };
@@ -185,6 +186,11 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    uint32_t GetAndIncreasePlayCounter()
+    {
+        return 0;
+    }
+
     bool IsPlaying(HSoundInstance sound_instance)
     {
         return sound_instance->m_Playing == 1;
@@ -216,6 +222,11 @@ namespace dmSound
     bool IsPhoneCallActive()
     {
         return false;
+    }
+
+    void OnWindowFocus(bool focus)
+    {
+        (void)focus;
     }
 
     Result RegisterDevice(struct DeviceType* device)

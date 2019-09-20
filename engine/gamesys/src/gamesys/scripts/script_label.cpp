@@ -112,7 +112,7 @@ namespace dmGameSystem
 
 /*# [type:vector3] label size
  *
- * Returns the size of the label. The size will constrain the text if line break is enabled
+ * Returns the size of the label. The size will constrain the text if line break is enabled.
  * The type of the property is vector3.
  *
  * @name size
@@ -133,10 +133,52 @@ namespace dmGameSystem
  * ```
  */
 
+/*# [type:hash] label material
+ *
+ * The material used when rendering the label. The type of the property is hash.
+ *
+ * @name material
+ * @property
+ *
+ * @examples
+ *
+ * How to set material using a script property (see [ref:resource.material])
+ *
+ * ```lua
+ * go.property("my_material", resource.material("/material.material"))
+ *
+ * function init(self)
+ *   go.set("#label", "material", self.my_material)
+ * end
+ * ```
+ */
+
+/*# [type:hash] label font
+ *
+ * The font used when rendering the label. The type of the property is hash.
+ *
+ * @name font
+ * @property
+ *
+ * @examples
+ *
+ * How to set font using a script property (see [ref:resource.font])
+ *
+ * ```lua
+ * go.property("my_font", resource.font("/font.font"))
+ *
+ * function init(self)
+ *   go.set("#label", "font", self.my_font)
+ * end
+ * ```
+ */
 
 /*# set the text for a label
  *
  * Sets the text of a label component
+ *
+ * [icon:attention] This method uses the message passing that means the value will be set after `dispatch messages` step.
+ * More information is available in the <a href="/manuals/application-lifecycle">Application Lifecycle manual</a>.
  *
  * @name label.set_text
  * @param url [type:string|hash|url] the label that should have a constant set
@@ -197,6 +239,8 @@ static int SetText(lua_State* L)
  * - max_ascent
  * - max_descent
  *
+ * @examples
+ *
  * ```lua
  * function init(self)
  *     local metrics = label.get_text_metrics("#label")
@@ -239,9 +283,48 @@ static int GetTextMetrics(lua_State* L)
     return 1;
 }
 
+/*# gets the text for a label
+ *
+ * Gets the text from a label component
+ *
+ * @name label.get_text
+ * @param url [type:string|hash|url] the label to get the text from
+ * @return metrics [type:string] the label text
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *     local text = label.get_text("#label")
+ *     print(text)
+ * end
+ * ```
+ */
+static int GetText(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    CheckGoInstance(L);
+
+    dmMessage::URL receiver;
+    dmMessage::URL sender;
+    dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+    dmGameSystem::LabelComponent* component = (dmGameSystem::LabelComponent*)dmGameObject::GetComponentFromURL(receiver);
+    if (!component) {
+        return DM_LUA_ERROR("Could not find instance %s:%s#%s", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(receiver.m_Path), dmHashReverseSafe64(receiver.m_Fragment));
+    }
+    
+    const char* value = dmGameSystem::CompLabelGetText(component);
+    lua_pushstring(L, value);
+
+    return 1;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set_text", SetText},
+    {"get_text", GetText},
     {"get_text_metrics", GetTextMetrics},
     {0, 0}
 };

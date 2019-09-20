@@ -5,13 +5,10 @@ FROM ubuntu:18.04
 RUN \
   apt-get update && \
   apt-get install -y software-properties-common && \
-  add-apt-repository -y ppa:webupd8team/java && \
+  add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
-  echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
-  apt-get install -y --no-install-recommends \
-    oracle-java8-installer \
-    unzip && \
-  rm -rf /var/cache/oracle-jdk8-installer
+  apt-get install -y openjdk-11-jdk && \
+  apt install -y openjdk-8-jdk
 
 # We still use GCC-5: https://askubuntu.com/a/1087368
 
@@ -55,6 +52,9 @@ RUN \
     tofrodos \
     cmake \
     curl \
+    wget \
+    zip \
+    unzip \
     tree \
     silversearcher-ag \
     valgrind \
@@ -69,7 +69,6 @@ RUN \
 
 RUN apt-get autoremove
 
-
 # Add builder user
 RUN  useradd -r -u 2222 builder && \
   mkdir -p /var/builder && \
@@ -80,4 +79,3 @@ RUN  useradd -r -u 2222 builder && \
 USER builder
 WORKDIR /home/builder
 RUN mkdir -p /home/builder
-

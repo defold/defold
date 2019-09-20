@@ -14,7 +14,7 @@
         collada-doc (ColladaUtil/loadDAE stream)
         bone-ids (ArrayList.)
         animation-ids (ArrayList.)]
-    (ColladaUtil/loadMesh collada-doc mesh-set-builder)
+    (ColladaUtil/loadMesh collada-doc mesh-set-builder false)
     (ColladaUtil/loadSkeleton collada-doc skeleton-builder bone-ids)
     (ColladaUtil/loadAnimations collada-doc animation-set-builder "" animation-ids)
     (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))

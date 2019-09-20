@@ -107,46 +107,12 @@
 
         <key>CFBundleURLTypes</key>
         <array>
-                <dict>
-                        <key>CFBundleURLSchemes</key>
-                        <array>
-                                {{#url-schemes}}<string>{{.}}</string>{{/url-schemes}}
-                        </array>
-                </dict>
         </array>
 
         <key>LSApplicationQueriesSchemes</key>
         <array>
                 {{#application-queries-schemes}}<string>{{.}}</string>{{/application-queries-schemes}}
         </array>
-
-        <key>NSAppTransportSecurity</key>
-        <dict>
-            <key>NSExceptionDomains</key>
-            <dict>
-                <key>facebook.com</key>
-                <dict>
-                    <key>NSIncludesSubdomains</key>
-                    <true/>
-                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                    <false/>
-                </dict>
-                <key>fbcdn.net</key>
-                <dict>
-                    <key>NSIncludesSubdomains</key>
-                    <true/>
-                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                    <false/>
-                </dict>
-                <key>akamaihd.net</key>
-                <dict>
-                    <key>NSIncludesSubdomains</key>
-                    <true/>
-                    <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-                    <false/>
-                </dict>
-            </dict>
-        </dict>
 
         <key>UILaunchImages</key>
         <array>

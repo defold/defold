@@ -18,8 +18,9 @@
 #include "time.h"
 #include "connection_pool.h"
 #include "mutex.h"
-#include "../axtls/ssl/os_port.h"
-#include "../axtls/ssl/ssl.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/net_sockets.h"
+#include "dns.h"
 
 namespace dmHttpClient
 {
@@ -53,7 +54,7 @@ namespace dmHttpClient
             dmMutex::Delete(m_Mutex);
         }
 
-        // Create the pool lazily for two resons
+        // Create the pool lazily for two reasons
         // 1. If dlib is imported from loaded from python it will crash and burn
         //    in OpenSSL as the we several symbol conflics, e.g. RSA_free, and
         //    the version from OpenSSL will be used instead of axTLS!
@@ -110,7 +111,7 @@ namespace dmHttpClient
         dmConnectionPool::HPool         m_Pool;
         dmConnectionPool::HConnection   m_Connection;
         dmSocket::Socket                m_Socket;
-        dmAxTls::SSL*                   m_SSLConnection;
+        mbedtls_ssl_context*            m_SSLConnection;
 
         Response(HClient client)
         {
@@ -164,6 +165,7 @@ namespace dmHttpClient
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
+        dmDNS::HChannel     m_DNSChannel;
 
         bool                m_Secure;
         uint16_t            m_Port;
@@ -175,12 +177,12 @@ namespace dmHttpClient
     Result Response::Connect(const char* host, uint16_t port, bool secure, int timeout)
     {
         m_Pool = g_PoolCreator.GetPool();
-        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, m_Client->m_DNSChannel, secure, timeout, &m_Connection, &m_Client->m_SocketResult);
 
         if (r == dmConnectionPool::RESULT_OK) {
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
-            m_SSLConnection = (dmAxTls::SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
+            m_SSLConnection = (mbedtls_ssl_context*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
 
             dmSocket::SetSendTimeout(m_Socket, SOCKET_TIMEOUT);
             dmSocket::SetReceiveTimeout(m_Socket, SOCKET_TIMEOUT);
@@ -224,9 +226,30 @@ namespace dmHttpClient
     HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure)
     {
         dmSocket::Address address;
-        dmSocket::Result r = dmSocket::GetHostByName(hostname, &address);
-        if (r != dmSocket::RESULT_OK)
-            return 0;
+
+        if (params->m_DNSChannel)
+        {
+            if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+            {
+                // If the DNS request failed, we refresh the DNS configuration and try again.
+                // This is needed if we first perform an HTTP request when there's no network available,
+                // and then later on do more requests once we have gained connectivity.
+                dmDNS::RefreshChannel(params->m_DNSChannel);
+                if (dmDNS::GetHostByName(hostname, &address, params->m_DNSChannel) != dmDNS::RESULT_OK)
+                {
+                    return 0;
+                }
+            }
+        }
+        else
+        {
+            // Fallback to socket implementation of GetHostByNamea
+            // in case we couldn't create a proper channel
+            if (dmSocket::GetHostByName(hostname, &address) != dmSocket::RESULT_OK)
+            {
+                return 0;
+            }
+        }
 
         Client* client = new Client();
 
@@ -246,6 +269,7 @@ namespace dmHttpClient
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
         client->m_Port = port;
+        client->m_DNSChannel = params->m_DNSChannel;
 
         return client;
     }
@@ -293,28 +317,46 @@ namespace dmHttpClient
 
     static dmSocket::Result SSLToSocket(int r) {
         // Currently a very limited list but
-        // SSL_ERROR_CONN_LOST -> RESULT_CONNRESET is essential
+        // connection lost -> RESULT_CONNRESET is essential
         // for the reconnection functionality/logic.
-        // The majority of the error codes in axTLS can't
+        // The majority of the error codes in mbedtls can't
         // be translated into dmSocket::Result and must be
         // handled specifically, e.g. ssl_handshake_status and RESULT_HANDSHAKE_FAILED
         // above.
         switch (r) {
-            case SSL_CLOSE_NOTIFY:
-            case SSL_ERROR_CONN_LOST:
+            case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+            case MBEDTLS_ERR_NET_CONN_RESET:
+            case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
                 return dmSocket::RESULT_CONNRESET;
+            case MBEDTLS_ERR_SSL_TIMEOUT:
+                return dmSocket::RESULT_WOULDBLOCK;
+            case MBEDTLS_ERR_NET_RECV_FAILED:
+            return dmSocket::RESULT_TRY_AGAIN;
             default:
-                dmLogWarning("Unhandled ssl status code: %d", r);
+                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r);
                 // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
-                // a abort the request
+                // and abort the request
                 return dmSocket::RESULT_UNKNOWN;
         }
     }
 
     static dmSocket::Result SendAll(Response* response, const char* buffer, int length)
     {
+        static int k = 0;
+        k++;
         if (response->m_SSLConnection != 0) {
-            int r = dmAxTls::ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length);
+            int r = 0;
+            while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) <= 0 )
+            {
+                if (r == MBEDTLS_ERR_SSL_WANT_WRITE ||
+                    r == MBEDTLS_ERR_SSL_WANT_READ) {
+                    return dmSocket::RESULT_TRY_AGAIN;
+                }
+
+                if (r < 0) {
+                    return SSLToSocket(r);
+                }
+            }
 
             // In order to mimic the http code path, we return the same error number
             if( (r == length) && HasRequestTimedOut(response->m_Client) )
@@ -325,6 +367,7 @@ namespace dmHttpClient
             if (r != length) {
                 return SSLToSocket(r);
             }
+
             return dmSocket::RESULT_OK;
         } else {
             int total_sent_bytes = 0;
@@ -358,45 +401,35 @@ namespace dmHttpClient
     static dmSocket::Result Receive(Response* response, void* buffer, int length, int* received_bytes)
     {
         if (response->m_SSLConnection != 0) {
-            uint8_t* buf = 0;
 
-            int r;
-            do {
-                // NOTE: "Manual" implementation of timeout as ssl_read() in axTLS
-                // returns 0 (SSL_OK) when either
-                // a) Too little ssl protocol data is available
-                // b) The underlying socket returns EAGAIN (EWOULDBLOCK)
-                // Instead of changing axTLS we measure actual time here.
-                // ssl_read should return a code that represents EAGAIN (EWOULDBLOCK)
-                uint64_t start = dmTime::GetTime();
-                r = dmAxTls::ssl_read(response->m_SSLConnection, &buf);
-                uint64_t end = dmTime::GetTime();
+            int ret = 0;
+            do
+            {
+                memset(buffer, 0, length);
+                ret = mbedtls_ssl_read( response->m_SSLConnection, (unsigned char*)buffer, length-1 );
 
-                int timeout = response->m_Client->m_RequestTimeout;
-                if (timeout > 0 && (end - start) > (uint64_t)SOCKET_TIMEOUT) {
+                if( ret == MBEDTLS_ERR_SSL_WANT_READ ||
+                    ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
+                    ret == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS )
+                {
+                    continue;
+                }
+
+                if (HasRequestTimedOut(response->m_Client)) {
                     return dmSocket::RESULT_WOULDBLOCK;
                 }
-            } while (r == SSL_OK);
 
-            if (r >= 0) {
-                if (r > length) {
-                    // NOTE: This might be fragile but ssl_read doens't
-                    // have a max-to-read parameter.
-                    // Given that the internal buffer size (BUFFER_SIZE) is
-                    // set to 64k this shouldn't be an issue in practice
-                    // as we consume the buffer as fast as we can.
-                    // buf must be less than sizeof(ssl->bm_all_data)
-                    // which is 17408
-                    dmLogError("ssl_read() returned a too large buffer");
-                    return dmSocket::RESULT_UNKNOWN;
+                if( ret <= 0 )
+                {
+                    return SSLToSocket(ret);
                 }
-                int to_copy = r > length ? length : r;
-                *received_bytes = to_copy;
-                memcpy(buffer, buf, to_copy);
+
+                ((uint8_t*)buffer)[ret] = 0;
+
+                *received_bytes = ret;
                 return dmSocket::RESULT_OK;
-            } else {
-                return SSLToSocket(r);
             }
+            while( 1 );
         } else {
             return dmSocket::Receive(response->m_Socket, buffer, length, received_bytes);
         }
@@ -1136,6 +1169,11 @@ bail:
         return client->m_HttpCache;
     }
 
+    dmDNS::HChannel GetDNSChannel(HClient client)
+    {
+        return client->m_DNSChannel;
+    }
+
     uint32_t ShutdownConnectionPool()
     {
         dmConnectionPool::HPool pool = g_PoolCreator.GetPoolNoCreate();
@@ -1152,5 +1190,32 @@ bail:
     }
 
 #undef HTTP_CLIENT_SENDALL_AND_BAIL
+
+    #define DM_HTTPCLIENT_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(NOT_200_OK);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(OK);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(SOCKET_ERROR);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(HTTP_HEADERS_ERROR);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(INVALID_RESPONSE);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(PARTIAL_CONTENT);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(UNSUPPORTED_TRANSFER_ENCODING);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(INVAL_ERROR);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(UNEXPECTED_EOF);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(IO_ERROR);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(HANDSHAKE_FAILED);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(INVAL);
+            DM_HTTPCLIENT_RESULT_TO_STRING_CASE(UNKNOWN);
+            default:
+                break;
+        }
+        dmLogError("Unable to convert result %d to string", r);
+
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_HTTPCLIENT_RESULT_TO_STRING_CASE
 
 } // namespace dmHttpClient

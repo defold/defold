@@ -30,9 +30,6 @@ import android.view.ViewGroup;
 
 import android.content.pm.PackageInfo;
 
-import com.google.android.gms.ads.identifier.AdvertisingIdClient;
-import com.google.android.gms.common.*;
-
 public class DefoldActivity extends NativeActivity {
 
     // Must match values from sys.h
@@ -80,11 +77,6 @@ public class DefoldActivity extends NativeActivity {
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
             }
         }
-    }
-
-    private static boolean activityVisible;
-    public static boolean isActivityVisible() {
-        return activityVisible;
     }
 
     public boolean isAppInstalled(String appPackageName) {
@@ -221,36 +213,6 @@ public class DefoldActivity extends NativeActivity {
         } catch (PackageManager.NameNotFoundException e) {
             throw new RuntimeException("Error getting activity info", e);
         }
-
-        new Thread(new Runnable() {
-            public void run() {
-                try {
-                    AdvertisingIdClient.Info info = AdvertisingIdClient.getAdvertisingIdInfo(self);
-                    self.setAdInfo(info.getId(), info.isLimitAdTrackingEnabled());
-                } catch (java.io.IOException e) {
-                    self.setAdInfo("", false);
-                } catch (GooglePlayServicesNotAvailableException e) {
-                    self.setAdInfo("", false);
-                } catch (GooglePlayServicesRepairableException e) {
-                    self.setAdInfo("", false);
-                } catch (Exception e) {
-                    self.setAdInfo("", false);
-                    System.out.println("Unable to get AdvertisingIdClient.Info, unknown exception was thrown: "+ e.toString());
-                }
-            }
-        }).start();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        activityVisible = false;
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        activityVisible = true;
     }
 
     @Override
@@ -266,49 +228,6 @@ public class DefoldActivity extends NativeActivity {
         super.onConfigurationChanged(newConfig);
         if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES) {
             updateImmersiveMode();
-        }
-    }
-
-    private Object m_AdGuard = new Object();
-    private boolean m_GotAdInfo = false;
-    private String m_AdId;
-    private boolean m_LimitAdTracking;
-
-
-    public void setAdInfo(String adId, boolean limitAdTracking)
-    {
-        synchronized(m_AdGuard)
-        {
-            m_AdId = adId;
-            m_LimitAdTracking = limitAdTracking;
-            m_GotAdInfo = true;
-        }
-    }
-
-    /**
-     * Return null for does not exist yet, blank string if completed but unable to get id.
-     */
-    public String getAdId()
-    {
-        synchronized(m_AdGuard)
-        {
-            return m_AdId;
-        }
-    }
-
-    public boolean getLimitAdTracking()
-    {
-        synchronized(m_AdGuard)
-        {
-            return m_LimitAdTracking;
-        }
-    }
-
-    public boolean isStartupDone()
-    {
-        synchronized(m_AdGuard)
-        {
-            return m_GotAdInfo;
         }
     }
 
