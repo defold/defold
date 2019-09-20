@@ -384,6 +384,54 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
+    Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle)
+    {
+        const Buffer* dst_buffer = GetBuffer(g_BufferContext, dst_buffer_handle);
+        const Buffer* src_buffer = GetBuffer(g_BufferContext, src_buffer_handle);
+
+        // Verify stream declaration is 1:1
+        if (src_buffer->m_NumStreams != dst_buffer->m_NumStreams) {
+            return RESULT_STREAM_COUNT_MISMATCH;
+        }
+
+        for (uint8_t i = 0; i < dst_buffer->m_NumStreams; ++i)
+        {
+            const Buffer::Stream& dst_stream = dst_buffer->m_Streams[i];
+            const Buffer::Stream& src_stream = src_buffer->m_Streams[i];
+            if (src_stream.m_Name != dst_stream.m_Name ||
+                src_stream.m_Offset != dst_stream.m_Offset ||
+                src_stream.m_ValueType != dst_stream.m_ValueType ||
+                src_stream.m_ValueCount != dst_stream.m_ValueCount)
+            {
+                return RESULT_STREAM_MISMATCH;
+            }
+        }
+
+        // Verify destination buffer has enough of element space
+        if (src_buffer->m_Count > dst_buffer->m_Count) {
+            return RESULT_BUFFER_SIZE_ERROR;
+        }
+
+        // Get buffer pointers for dst and src
+        void* dst_bytes = 0x0;
+        uint32_t dst_size = 0;
+        dmBuffer::Result r = dmBuffer::GetBytes(dst_buffer_handle, &dst_bytes, &dst_size);
+        if (r != RESULT_OK) {
+            return r;
+        }
+        void* src_bytes = 0x0;
+        uint32_t src_size = 0;
+        r = dmBuffer::GetBytes(src_buffer_handle, &src_bytes, &src_size);
+        if (r != RESULT_OK) {
+            return r;
+        }
+
+        // Copy memory
+        memcpy(dst_bytes, src_bytes, src_size);
+
+        return RESULT_OK;
+    }
+
     void Destroy(HBuffer hbuffer)
     {
         if (hbuffer) {

@@ -90,6 +90,7 @@ namespace dmBuffer
         RESULT_STREAM_MISSING,
         RESULT_STREAM_TYPE_MISMATCH,
         RESULT_STREAM_COUNT_MISMATCH,
+        RESULT_STREAM_MISMATCH,
     };
 
     /*# StreamDeclaration struct
@@ -151,6 +152,8 @@ namespace dmBuffer
      * ```
      */
     Result Create(uint32_t count, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
+
+    Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle);
 
     /*# destroy Buffer.
      *

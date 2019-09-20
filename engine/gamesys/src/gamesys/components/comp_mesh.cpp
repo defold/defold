@@ -235,8 +235,6 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
-        // FIXME(andsve): figure out if the transform has been updated or not
-        // update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -396,9 +394,7 @@ namespace dmGameSystem
 
         world->m_RenderedVertexSize += mr->m_VertSize * element_count;
 
-        // FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_WorldVertexBuffer, 0, mr->m_ElementCount * batch_size, Matrix4::identity(), first_component->m_RenderConstants);
         FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_VertexBuffers[world->m_CurrentVertexBuffer], 0, element_count, Matrix4::identity(), first_component->m_RenderConstants);
-        // dmGraphics::SetVertexBufferData(world->m_WorldVertexBuffer, mr->m_VertSize * br->m_ElementCount * batch_size, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmGraphics::SetVertexBufferData(world->m_VertexBuffers[world->m_CurrentVertexBuffer++], mr->m_VertSize * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmRender::AddToRender(render_context, &ro);
     }
@@ -461,38 +457,18 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                // dmLogError("RenderListDispatch - RENDER_LIST_OPERATION_BEGIN");
                 world->m_RenderedVertexSize = 0;
                 world->m_CurrentVertexBuffer = 0;
                 world->m_RenderObjects.SetSize(0);
-                // for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
-                // {
-                //     world->m_VertexBufferData[batch_index].SetSize(0);
-                // }
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_BATCH:
             {
-                // dmLogError("RenderListDispatch - RENDER_LIST_OPERATION_BATCH");
                 RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                // dmLogError("RenderListDispatch - RENDER_LIST_OPERATION_END");
-    //             uint32_t total_size = 0;
-    //             for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
-    //             {
-    // //                 dmArray<dmRig::RigModelVertex>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
-    // //                 if (vertex_buffer_data.Empty())
-    // //                 {
-    // //                     continue;
-    // //                 }
-    // //                 uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
-    // //                 dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
-    // //                 dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-    // //                 total_size += vb_size;
-    //             }
                 DM_COUNTER("MeshVertexBuffer", world->m_RenderedVertexSize);
 
                 break;

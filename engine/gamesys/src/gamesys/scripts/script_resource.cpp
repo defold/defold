@@ -430,82 +430,6 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
-// static int SetMesh(lua_State* L)
-// {
-//     int top = lua_gettop(L);
-
-//     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-//     luaL_checktype(L, 2, LUA_TTABLE);
-//     // luaL_checktype(L, 3, LUA_TNUMBER);
-//     uint32_t elem_count = luaL_checkinteger(L, 3);
-//     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 4);
-
-//     assert(dmBuffer::GetNumStreams(buffer->m_Buffer) == 1);
-
-//     dmMeshDDF::Mesh* mesh = new dmMeshDDF::Mesh;
-//     mesh->m_Textures.m_Count = 0;
-//     mesh->m_Material = 0x0;
-
-//     // Get raw buffer data
-//     uint8_t* data = 0;
-//     uint32_t data_size = 0;
-//     assert(dmBuffer::RESULT_OK == dmBuffer::GetBytes(buffer->m_Buffer, (void **)&data, &data_size));
-//     mesh->m_DataPtr = (uint64_t)((void*)data);
-//     mesh->m_DataSize = data_size;
-
-//     uint32_t vert_decl_count = 0;
-//     lua_pushnil(L);
-//     while (lua_next(L, 2) != 0) {
-//         vert_decl_count++;
-//         lua_pop(L, 1);
-//     }
-
-//     // Create vertex declaration
-//     dmGraphics::VertexElement* ve = new dmGraphics::VertexElement[vert_decl_count];
-//     for (uint32_t i = 0; i < vert_decl_count; ++i)
-//     {
-//         // Get vertex decl sub table
-//         lua_rawgeti(L, 2, i+1);
-
-//         // Get stream name
-//         lua_rawgeti(L, -1, 1);
-//         const char* stream_name = lua_tostring(L, -1);
-//         lua_pop(L, 1);
-
-//         // Get type count
-//         lua_rawgeti(L, -1, 2);
-//         uint32_t type_count = lua_tointeger(L, -1);
-//         lua_pop(L, 1);
-
-//         // Get type
-//         lua_rawgeti(L, -1, 3);
-//         uint32_t type = lua_tointeger(L, -1);
-//         lua_pop(L, 1);
-
-//         dmGraphics::VertexElement el = {stream_name, i, type_count, (dmGraphics::Type)type, false};
-//         ve[i] = el;
-
-//         lua_pop(L, 1); // pop sub table
-//     }
-
-//     mesh->m_VertDeclPtr = (uint64_t)((void*)ve);
-//     mesh->m_VertDeclCount = vert_decl_count;
-//     mesh->m_ElemCount = elem_count;
-
-//     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*)mesh);
-
-//     delete [] ve;
-
-//     if( r != dmResource::RESULT_OK )
-//     {
-//         assert(top == lua_gettop(L));
-//         return ReportPathError(L, r, path_hash);
-//     }
-
-//     assert(top == lua_gettop(L));
-//     return 0;
-// }
-
 static int GetBuffer(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -529,27 +453,6 @@ static int GetBuffer(lua_State* L)
     }
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
-
-    // dmBuffer::HBuffer buffer_copy = 0x0;
-    // uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
-    // dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
-    // for (uint32_t i = 0; i < stream_count; ++i)
-    // {
-    //     const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-    //     streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
-    //     streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
-    //     streams_decl[i].m_Count = ddf_stream.m_ValueCount;
-
-    //     assert(streams_decl[i].m_Count > 0);
-    // }
-
-    // dmBuffer::Result br = dmBuffer::Create(buffer_resource->m_ElementCount, streams_decl, stream_count, &buffer_resource->m_Buffer);
-
-    // if (br != dmBuffer::RESULT_OK) {
-    //     free(streams_decl);
-    //     return luaL_error(L, "Could not create copy of buffer for %s", dmHashReverseSafe64(path_hash));
-    // }
-
     dmScript::LuaHBuffer luabuf = { buffer_resource->m_Buffer, false };
     PushBuffer(L, luabuf);
 
@@ -563,6 +466,7 @@ static int SetBuffer(lua_State* L)
     int top = lua_gettop(L);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
+    dmBuffer::HBuffer src_buffer = luabuf->m_Buffer;
 
     dmResource::SResourceDescriptor* rd = dmResource::GetByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
@@ -582,11 +486,59 @@ static int SetBuffer(lua_State* L)
     }
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+    dmBuffer::HBuffer dst_buffer = buffer_resource->m_Buffer;
 
-    dmBuffer::Destroy(buffer_resource->m_Buffer);
+    // Make sure the destination buffer has enough size (otherwise, resize it).
+    uint32_t dst_count = 0;
+    dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
+    if (br != dmBuffer::RESULT_OK) {
+        return luaL_error(L, "Unable to get buffer size for %s (%d).", dmHashReverseSafe64(path_hash), br);
+    }
+    uint32_t src_count = 0;
+    br = dmBuffer::GetCount(src_buffer, &src_count);
+    if (br != dmBuffer::RESULT_OK) {
+        return luaL_error(L, "Unable to get buffer size for source buffer (%d).", br);
+    }
 
-    // FIXME this aint safe at all
-    buffer_resource->m_Buffer = luabuf->m_Buffer;
+    bool new_buffer_needed = dst_count != src_count;
+    if (new_buffer_needed) {
+        // Need to create a new buffer to copy data to.
+        dmLogError("new buffer created");
+
+        // Copy stream declaration
+        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
+            streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
+            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+        }
+
+        br = dmBuffer::Create(src_count, streams_decl, stream_count, &dst_buffer);
+        free(streams_decl);
+
+        if (br != dmBuffer::RESULT_OK) {
+            return luaL_error(L, "Unable to create copy buffer (%d).", r);
+        }
+    }
+
+    // Copy supplied data to buffer
+    br = dmBuffer::Copy(dst_buffer, src_buffer);
+    if (br != dmBuffer::RESULT_OK) {
+        if (new_buffer_needed) {
+            dmBuffer::Destroy(dst_buffer);
+        }
+        return luaL_error(L, "Could not copy data from buffer (%d).", br);
+    }
+
+    // If we created a new buffer, make sure to destroy the old one.
+    if (new_buffer_needed) {
+        dmBuffer::Destroy(buffer_resource->m_Buffer);
+        buffer_resource->m_Buffer = dst_buffer;
+        buffer_resource->m_ElementCount = src_count;
+    }
 
     assert(top == lua_gettop(L));
     return 0;
@@ -597,7 +549,6 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
-    // {"set_mesh", SetMesh},
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},
 

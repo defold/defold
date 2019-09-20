@@ -120,8 +120,6 @@ namespace dmGameSystem
 
             assert(streams_decl[i].m_Count > 0);
 
-            // TODO: Look at the correct typed buffer array instead of always float.
-            // uint64_t elem_count = ddf_stream.m_F.m_Count / streams_decl[i].m_Count;
             uint64_t elem_count = GetValueCount(ddf_stream) / streams_decl[i].m_Count;
             if (elem_count > max_elem) {
                 max_elem = elem_count;
