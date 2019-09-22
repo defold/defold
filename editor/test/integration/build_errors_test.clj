@@ -35,7 +35,7 @@
 
 (defn- add-game-object-from-file! [workspace collection resource-path]
   (let [select-fn (test-util/make-call-logger)]
-    (collection/add-game-object-file collection collection (test-util/resource workspace resource-path) select-fn)
+    (collection/add-game-object-files collection collection [(test-util/resource workspace resource-path)] select-fn)
     (created-node select-fn)))
 
 (defn- add-component-from-file! [workspace game-object resource-path]
