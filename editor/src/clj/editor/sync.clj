@@ -1,25 +1,24 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
             [editor.fxui :as fxui]
             [editor.git :as git]
+            [editor.git-credentials :as git-credentials]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.progress :as progress]
-            [schema.core :as s])
+            [service.log :as log])
   (:import [org.eclipse.jgit.api Git PullResult]
-           [org.eclipse.jgit.api.errors StashApplyFailureException]
+           [org.eclipse.jgit.api.errors StashApplyFailureException TransportException]
            [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.revwalk RevCommit]
-           [java.io File PushbackReader]
-           [java.net URL MalformedURLException]
+           [java.net URI]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button SelectionMode ListView TextArea ProgressBar]
+           [javafx.scene.control Button ListView SelectionMode TextArea]
            [javafx.scene.input KeyCode KeyEvent]))
 
 (set! *warn-on-reflection* true)
@@ -42,7 +41,6 @@
 ;;         \                                                /  \
 ;;          <-----------------------------------------------    -> :cancel
 
-
 (defn- serialize-ref [^RevCommit ref]
   (some->> ref .getName))
 
@@ -58,18 +56,19 @@
 (defn- serialize-flow [flow]
   (-> flow
       (dissoc :git)
-      (dissoc :creds)
       (update :start-ref serialize-ref)
       (update :stash-info serialize-stash-info)))
 
-(defn- deserialize-flow [serialized-flow ^Git git creds]
+(defn- deserialize-flow [serialized-flow ^Git git]
+  (assert (instance? Git git))
   (-> serialized-flow
       (assoc :git git)
-      (assoc :creds creds)
       (update :start-ref deserialize-ref git)
       (update :stash-info deserialize-stash-info git)))
 
 (defn- make-flow [^Git git creds start-ref stash-info]
+  (assert (instance? Git git))
+  (assert (or (nil? creds) (git-credentials/encrypted-credentials? creds)))
   {:state      :pull/start
    :git        git
    :creds      creds
@@ -126,7 +125,7 @@
 
       ;; The flow journal file parsed OK, but it might contain invalid refs.
       (let [flow (try
-                   (deserialize-flow data git nil)
+                   (deserialize-flow data git)
                    (catch Throwable e
                      e))]
         (cond
@@ -270,9 +269,10 @@
             (recur))
           (dialogs/make-info-dialog dialog-props))))))
 
-(defn begin-flow! [^Git git creds]
+(defn begin-flow! [^Git git prefs]
   (let [start-ref (git/get-current-commit-ref git)
         stash-info (git/stash! git)
+        creds (git-credentials/read-encrypted-credentials prefs git)
         flow (make-flow git creds start-ref stash-info)
         !flow (atom flow)]
     (try
@@ -283,11 +283,11 @@
         (cancel-flow! !flow)
         (throw e)))))
 
-(defn resume-flow [^Git git creds]
-  (let [file  (flow-journal-file git)
-        data  (with-open [reader (java.io.PushbackReader. (io/reader file))]
-                (edn/read reader))
-        flow  (deserialize-flow data git creds)
+(defn resume-flow [^Git git]
+  (let [file (flow-journal-file git)
+        data (with-open [reader (java.io.PushbackReader. (io/reader file))]
+               (edn/read reader))
+        flow (deserialize-flow data git)
         !flow (atom flow)]
     (add-watch !flow ::on-flow-changed on-flow-changed)
     !flow))
@@ -347,50 +347,78 @@
     (merge flow (find-git-state status
                                 (git/unified-status git status)))))
 
+(defn- matching-transport-exception? [re-pattern exception]
+  (and (instance? TransportException exception)
+       (some? (re-find re-pattern (ex-message exception)))))
+
+(def ^:private https-not-authorized-exception?
+  (partial matching-transport-exception? #"(?i)\bnot authorized\b"))
+
 (defn advance-flow [{:keys [git state progress creds conflicts stash-info message] :as flow} render-progress]
   (render-progress progress)
   (condp = state
-    :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
-    :pull/pulling   (let [^PullResult pull-res (try (git/pull git creds)
-                                                    (catch Exception e
-                                                      (println e)))]
-                      (if (and pull-res (.isSuccessful pull-res))
-                        (advance-flow (tick flow :pull/applying) render-progress)
-                        (advance-flow (tick flow :pull/error) render-progress)))
-    :pull/applying  (let [stash-res (when stash-info
-                                      (try (git/stash-apply! git stash-info)
-                                           (catch StashApplyFailureException _
-                                             :conflict)
-                                           (catch Exception e
-                                             (println e))))
-                          status    (git/status git)]
-                      (cond
-                        (nil? stash-info)       (advance-flow (tick flow :pull/done 2) render-progress)
-                        (= :conflict stash-res) (advance-flow (-> flow
-                                                                  (tick :pull/conflicts)
-                                                                  (assoc :conflicts (:conflicting-stage-state status)))
-                                                              render-progress)
-                        stash-res               (advance-flow (tick flow :pull/done 2) render-progress)
-                        :else                   (advance-flow (tick flow :pull/error) render-progress)))
+    :pull/start (if (nil? (:error flow))
+                  (advance-flow (tick flow :pull/pulling) render-progress)
+                  flow)
+    :pull/pulling (let [result-or-error
+                        (try
+                          ;; Pulling from a public repository will not use the
+                          ;; credentials. Do a dry-run push here to ensure our
+                          ;; credentials are valid for the push state.
+                          (git/push! git {:encrypted-credentials creds :dry-run true})
+                          (git/pull! git {:encrypted-credentials creds})
+                          (catch Exception error
+                            error))]
+                    (cond
+                      (and (instance? PullResult result-or-error)
+                           (.isSuccessful ^PullResult result-or-error))
+                      (advance-flow (tick flow :pull/applying) render-progress)
+
+                      (https-not-authorized-exception? result-or-error)
+                      (advance-flow (-> flow
+                                        (tick :pull/start)
+                                        (assoc :error :https-not-authorized))
+                                    render-progress)
+
+                      :else
+                      (do
+                        (log/error :exception result-or-error
+                                   :msg (format "Error pulling during sync: %s"
+                                                (ex-message result-or-error)))
+                        (advance-flow (tick flow :pull/error) render-progress))))
+    :pull/applying (let [stash-res (when stash-info
+                                     (try (git/stash-apply! git stash-info)
+                                          (catch StashApplyFailureException _
+                                            :conflict)
+                                          (catch Exception e
+                                            (println e))))
+                         status    (git/status git)]
+                     (cond
+                       (nil? stash-info)       (advance-flow (tick flow :pull/done 2) render-progress)
+                       (= :conflict stash-res) (advance-flow (-> flow
+                                                                 (tick :pull/conflicts)
+                                                                 (assoc :conflicts (:conflicting-stage-state status)))
+                                                             render-progress)
+                       stash-res               (advance-flow (tick flow :pull/done 2) render-progress)
+                       :else                   (advance-flow (tick flow :pull/error) render-progress)))
     :pull/conflicts (if (empty? conflicts)
                       (advance-flow (tick flow :pull/done) render-progress)
                       flow)
-    :pull/done      flow
-    :pull/error     flow
+    :pull/done flow
+    :pull/error flow
 
-    :push/start     (advance-flow (tick (refresh-git-state flow) :push/staging) render-progress)
-    :push/staging   flow
+    :push/start (advance-flow (tick (refresh-git-state flow) :push/staging) render-progress)
+    :push/staging flow
     :push/committing (do
                        (git/commit git message)
                        (advance-flow (tick flow :push/pushing) render-progress))
-    :push/pushing   (do
-                      (try
-                        (git/push git creds)
-                        (advance-flow (tick flow :push/done) render-progress)
-                        (catch Exception e
-                          (println e)
-                          (advance-flow (tick flow :pull/start) render-progress))))
-    :push/done      flow))
+    :push/pushing (try
+                    (git/push! git {:encrypted-credentials creds})
+                    (advance-flow (tick flow :push/done) render-progress)
+                    (catch Exception e
+                      (println e)
+                      (advance-flow (tick flow :pull/start) render-progress)))
+    :push/done flow))
 
 (ui/extend-menu ::conflicts-menu nil
                 [{:label "View Diff"
@@ -487,19 +515,34 @@
 
 ;; =================================================================================
 
+(defn- personal-access-token-uri
+  ^URI [remote-info]
+  (when (= :https (:scheme remote-info))
+    (let [host (:host remote-info)
+          remote-uri (git/remote-uri remote-info)]
+      (cond
+        (re-find #"\bgithub\b" host)
+        (.resolve remote-uri "/settings/tokens")
+
+        (re-find #"\bgitlab\b" host)
+        (.resolve remote-uri "/profile/personal_access_tokens")
+
+        (re-find #"\bbbitbucket\b" host)
+        (URI. "https://confluence.atlassian.com/bitbucket/app-passwords-828781300.html")))))
+
 (def ^:private sync-dialog-open-atom (atom false))
 
 (defn sync-dialog-open? []
   @sync-dialog-open-atom)
 
-(defn open-sync-dialog [!flow]
+(defn open-sync-dialog [!flow prefs]
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
         stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
-        pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
+        pull-controls   (ui/collect-controls pull-root ["username-field" "password-field" "save-password-checkbox" "pull-start-box" "conflicting" "resolved" "conflict-box" "main-label"])
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
                           (when progress
@@ -555,8 +598,27 @@
                                        (ui/fill-control push-root)
                                        (.sizeToScene (.getWindow scene))))
                             (condp = state
+                              :pull/start (let [error (:error flow)
+                                                remote-info (git/remote-info (:git flow) :fetch "origin")
+                                                is-ssh-remote (= :ssh (:scheme remote-info))]
+                                            (ui/text! (:main-label pull-controls)
+                                                      (cond
+                                                        is-ssh-remote
+                                                        "Cannot Sync Over SSH"
+
+                                                        (= :https-not-authorized error)
+                                                        "Invalid Username or Password"
+
+                                                        :else
+                                                        "Get Remote Changes"))
+                                            (ui/visible! (:pull-start-box pull-controls) true)
+                                            (ui/visible! (:conflict-box pull-controls) false)
+                                            (ui/enable! (:ok dialog-controls) (not is-ssh-remote)) ; Disallow sync over SSH.
+                                            (ui/set-style! (:username-field pull-controls) "error" (= :https-not-authorized error))
+                                            (ui/set-style! (:password-field pull-controls) "error" (= :https-not-authorized error)))
                               :pull/conflicts (do
                                                 (ui/text! (:main-label pull-controls) "Resolve Conflicts")
+                                                (ui/visible! (:pull-start-box pull-controls) false)
                                                 (ui/visible! (:conflict-box pull-controls) true)
                                                 (ui/items! (:conflicting pull-controls) (sort (keys conflicts)))
                                                 (ui/items! (:resolved pull-controls) (sort (keys resolved)))
@@ -567,11 +629,13 @@
                               :pull/done (do
                                            (ui/text! (:main-label pull-controls) "Done!")
                                            (ui/visible! (:push dialog-controls) true)
+                                           (ui/visible! (:pull-start-box pull-controls) false)
                                            (ui/visible! (:conflict-box pull-controls) false)
                                            (ui/text! (:ok dialog-controls) "Done"))
                               :pull/error (do
                                             (ui/text! (:main-label pull-controls) "Error getting changes")
                                             (ui/visible! (:push dialog-controls) false)
+                                            (ui/visible! (:pull-start-box pull-controls) false)
                                             (ui/visible! (:conflict-box pull-controls) false)
                                             (ui/text! (:ok dialog-controls) "Done")
                                             (ui/disable! (:ok dialog-controls) true))
@@ -620,6 +684,24 @@
                                                  (finish-flow! !flow)
                                                  (.close stage))
 
+                                               (= :pull/start state)
+                                               (swap! !flow (fn [flow]
+                                                              (let [username (ui/text (:username-field pull-controls))
+                                                                    password (ui/text (:password-field pull-controls))
+                                                                    save-password (ui/value (:save-password-checkbox pull-controls))]
+                                                                (git-credentials/write-encrypted-credentials!
+                                                                  prefs (:git flow)
+                                                                  (git-credentials/encrypt-credentials
+                                                                    (cond-> {:username username}
+                                                                            save-password (assoc :password password))))
+                                                                (advance-flow
+                                                                  (-> flow
+                                                                      (dissoc :error)
+                                                                      (assoc :creds (git-credentials/encrypt-credentials
+                                                                                      {:username username
+                                                                                       :password password})))
+                                                                  render-progress))))
+
                                                (= :push/staging state)
                                                (swap! !flow #(advance-flow
                                                                (merge %
@@ -653,6 +735,37 @@
     (ui/observe (.textProperty ^TextArea (:message push-controls))
                 (fn [_ _ _]
                   (update-controls @!flow)))
+
+    (ui/with-controls pull-root [https-box
+                                 personal-access-token-link
+                                 password-field
+                                 save-password-checkbox
+                                 ssh-box
+                                 username-field]
+      (let [{:keys [git creds]} @!flow
+            {:keys [username password]} (git-credentials/decrypt-credentials creds)
+            remote-info (git/remote-info git :fetch "origin")]
+        (ui/text! username-field (or username ""))
+        (ui/text! password-field (or password ""))
+        (ui/value! save-password-checkbox (not (empty? password)))
+        (case (:scheme remote-info)
+          :https
+          (do
+            (ui/visible! https-box true)
+            (ui/managed! https-box true)
+            (if-some [personal-access-token-uri (personal-access-token-uri remote-info)]
+              (ui/on-action! personal-access-token-link
+                (fn [_]
+                  (ui/open-url personal-access-token-uri)))
+              (ui/enable! personal-access-token-link false)))
+
+          :ssh
+          (do
+            (ui/visible! ssh-box true)
+            (ui/managed! ssh-box true))
+
+          ;; Other protocols.
+          nil)))
 
     (let [^ListView list-view (:conflicting pull-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
@@ -688,6 +801,8 @@
     (try
       (reset! sync-dialog-open-atom true)
       (ui/show-and-wait-throwing! stage)
+      (let [files-may-have-changed (not= :pull/start (:state @!flow))]
+        files-may-have-changed)
       (catch Exception e
         (cancel-flow! !flow)
         (throw e))

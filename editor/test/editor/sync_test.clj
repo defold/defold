@@ -19,11 +19,6 @@
     (prefs/set-prefs p "token" "TOKEN")
     p))
 
-(defn- flow-equal? [a b]
-  (and (= a (assoc b :creds (:creds a)))
-       (= (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds a))
-          (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider (:creds b)))))
-
 (deftest find-git-state-test
   (let [base-status {:added #{}
                      :changed #{}
@@ -172,18 +167,19 @@
   (gt/with-git [git (gt/new-git)]
     (is (false? (sync/flow-in-progress? git)))))
 
+(defn- resumed-flow [{:keys [git] :as _flow}]
+  @(sync/resume-flow git))
+
 (deftest begin-flow-test
   (gt/with-git [git (gt/new-git)
                 prefs (make-prefs)
-                creds (git/credentials prefs)
-                flow  @(sync/begin-flow! git creds)]
+                flow @(sync/begin-flow! git prefs)]
     (is (= :pull/start (:state flow)))
     (is (= git (:git flow)))
-    (is (instance? org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider creds))
     (is (instance? org.eclipse.jgit.revwalk.RevCommit (:start-ref flow)))
     (is (nil? (:stash-info flow)))
     (is (true? (sync/flow-in-progress? git)))
-    (is (flow-equal? flow @(sync/resume-flow git creds)))))
+    (is (= flow (resumed-flow flow)))))
 
 (deftest begin-flow-critical-failure-test
   (testing "Local changes are restored in case an error occurs inside begin-flow!"
@@ -208,7 +204,7 @@
       (let [journal-file (sync/flow-journal-file git)
             status-before (git/status git)]
         (fs/create-directories! journal-file)
-        (is (thrown? java.io.IOException (sync/begin-flow! git (git/credentials prefs))))
+        (is (thrown? java.io.IOException (sync/begin-flow! git prefs)))
         (fs/delete-file! (File. (str (git/worktree git) "/.internal")) {:fail :silently})
         (is (= status-before (git/status git)))
         (when (= status-before (git/status git))
@@ -221,10 +217,8 @@
     (gt/commit-src git)
     (gt/create-file git "src/existing.txt" "A file that already existed in the repo, with unstaged changes.")
     (gt/create-file git "src/added.txt" "A file that has been added but not staged.")
-    (let [prefs (make-prefs)
-          creds (git/credentials prefs)
-          !flow (sync/begin-flow! git creds)]
-      (is (flow-equal? @!flow @(sync/resume-flow git creds))))))
+    (let [flow @(sync/begin-flow! git (make-prefs))]
+      (is (= flow (resumed-flow flow))))))
 
 (deftest cancel-flow-in-progress-test
   (gt/with-git [git (gt/new-git)]
@@ -235,7 +229,7 @@
       (gt/create-file git "src/existing.txt" existing-contents)
       (gt/create-file git "src/added.txt" added-contents)
       (let [status-before (gt/simple-status git)]
-        (sync/begin-flow! git (git/credentials (make-prefs)))
+        (sync/begin-flow! git (make-prefs))
         (sync/cancel-flow-in-progress! git)
         (is (= status-before (gt/simple-status git)))
         (is (= existing-contents (gt/slurp-file git "src/existing.txt")))
@@ -245,7 +239,7 @@
   (gt/with-git [git (gt/new-git)]
     (gt/create-file git "/src/main.cpp" "void main() {}")
     (gt/commit-src git)
-    (let [!flow (sync/begin-flow! git (git/credentials (make-prefs)))]
+    (let [!flow (sync/begin-flow! git (make-prefs))]
       (is (true? (sync/flow-in-progress? git)))
       (gt/create-file git "/src/main.cpp" "void main() {FOO}")
       (sync/cancel-flow! !flow)
@@ -286,7 +280,7 @@
           perform-test! (fn [local-git staged-change unstaged-change]
                           (git/stage-change! local-git staged-change)
                           (let [status-before (file-status local-git)
-                                !flow (sync/begin-flow! local-git (git/credentials (make-prefs)))]
+                                !flow (sync/begin-flow! local-git (make-prefs))]
                             (is (= :pull/done (:state (advance! !flow))))
                             (is (= :push/start (:state (swap! !flow assoc :state :push/start))))
                             (let [{:keys [modified staged state]} (advance! !flow)]
@@ -359,7 +353,7 @@
   (gt/create-file git "src/existing.txt" "A file that already existed in the repo.")
   (gt/commit-src git)
   (gt/create-file git "src/existing.txt" "A file that already existed in the repo, with unstaged changes.")
-  (let [!flow (sync/begin-flow! git (git/credentials (make-prefs)))]
+  (let [!flow (sync/begin-flow! git (make-prefs))]
     (is (true? (sync/flow-in-progress? git)))
     !flow))
 
@@ -484,7 +478,7 @@
 
 (deftest finish-flow-test
   (gt/with-git [git (gt/new-git)]
-    (let [!flow (sync/begin-flow! git (git/credentials (make-prefs)))]
+    (let [!flow (sync/begin-flow! git (make-prefs))]
       (is (true? (sync/flow-in-progress? git)))
       (sync/finish-flow! !flow)
       (is (false? (sync/flow-in-progress? git))))))
@@ -509,16 +503,13 @@
                 local-git (gt/create-conflict-zoo! remote-git [".internal"] false)]
     (git/stage-all! remote-git)
     (-> remote-git .commit (.setMessage "Remote commit with conflicting changes") .call)
-    (let [prefs (make-prefs)
-          creds (git/credentials prefs)
-          !flow (sync/begin-flow! local-git creds)
-          advance! (fn [] (swap! !flow sync/advance-flow progress/null-render-progress!))
-          resumable? (fn [] (is (flow-equal? @!flow @(sync/resume-flow local-git creds))))]
+    (let [!flow (sync/begin-flow! local-git (make-prefs))
+          advance! (fn [] (swap! !flow sync/advance-flow progress/null-render-progress!))]
       (testing "Advances to conflicts stage"
         (is (= :pull/start (:state @!flow)))
         (advance!)
         (is (= :pull/conflicts (:state @!flow)))
-        (is (resumable?)))
+        (is (= @!flow (resumed-flow @!flow))))
 
       (let [status-before (gt/simple-status local-git)]
         (testing "Conflicts match expectations"
@@ -527,12 +518,12 @@
         (testing "Conflict resolution"
           (doseq [[file-path] (:conflicting-stage-state status-before)]
             (resolve! !flow file-path)
-            (is (resumable?)))
+            (is (= @!flow (resumed-flow @!flow))))
           (is (= (:conflicting-stage-state expected-status) (:resolved @!flow)))
           (is (= #{} (:staged @!flow)))
           (advance!)
           (is (= :pull/done (:state @!flow)))
-          (is (resumable?)))
+          (is (= @!flow (resumed-flow @!flow))))
 
         (testing "Project state after conflict resolution"
           (let [status-after (gt/simple-status local-git)]
@@ -544,12 +535,11 @@
     (gt/with-git [git       (gt/new-git)
                   local-git (gt/clone git)
                   prefs     (make-prefs)
-                  creds     (git/credentials prefs)
-                  !flow     (sync/begin-flow! local-git creds)]
-      (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
+                  !flow     (sync/begin-flow! local-git prefs)]
+      (is (= @!flow (resumed-flow @!flow)))
       (swap! !flow sync/advance-flow progress/null-render-progress!)
       (is (= :pull/done (:state @!flow)))
-      (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))))
+      (is (= @!flow (resumed-flow @!flow)))))
 
   (testing ":pull/conflicts"
     (testing "Use ours"
@@ -629,20 +619,19 @@
       (gt/commit-src git)
       (gt/with-git [local-git (gt/clone git)
                     prefs     (make-prefs)
-                    creds     (git/credentials prefs)
-                    !flow     (sync/begin-flow! local-git creds)]
+                    !flow     (sync/begin-flow! local-git prefs)]
         (swap! !flow assoc :state :push/start)
         (gt/create-file local-git "/src/main.cpp" "void main() {BAR}")
         (swap! !flow sync/advance-flow progress/null-render-progress!)
         (is (= :push/staging (:state @!flow)))
-        (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
+        (is (= @!flow (resumed-flow @!flow)))
         (git/stage-change! local-git (git/make-modify-change "src/main.cpp"))
         (swap! !flow sync/refresh-git-state)
         (is (= #{(git/make-modify-change "src/main.cpp")} (:staged @!flow)))
-        (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
+        (is (= @!flow (resumed-flow @!flow)))
         (swap! !flow merge {:state   :push/committing
                             :message "foobar"})
-        (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))
+        (is (= @!flow (resumed-flow @!flow)))
         (swap! !flow sync/advance-flow progress/null-render-progress!)
         (is (= :push/done (:state @!flow)))
-        (is (flow-equal? @!flow @(sync/resume-flow local-git creds)))))))
+        (is (= @!flow (resumed-flow @!flow)))))))

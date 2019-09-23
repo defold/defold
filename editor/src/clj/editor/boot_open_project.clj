@@ -308,33 +308,30 @@
       (let [git (g/node-value changes-view :git)]
         (if (sync/flow-in-progress? git)
           (ui/run-later
-            (loop []
-              (if-not (dialogs/make-confirmation-dialog
-                        {:title "Resume Sync?"
-                         :size :large
-                         :header {:fx/type :v-box
-                                  :children [{:fx/type fxui/label
-                                              :variant :header
-                                              :text "The editor was shut down while synchronizing with the server"}
-                                             {:fx/type fxui/label
-                                              :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
-                         :buttons [{:text "Cancel and Revert"
-                                    :cancel-button true
-                                    :result false}
-                                   {:text "Resume Sync"
-                                    :default-button true
-                                    :result true}]})
-                ;; User chose to cancel sync.
-                (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                    (async-reload! workspace changes-view))
+            (if-not (dialogs/make-confirmation-dialog
+                      {:title "Resume Sync?"
+                       :size :large
+                       :header {:fx/type :v-box
+                                :children [{:fx/type fxui/label
+                                            :variant :header
+                                            :text "The editor was shut down while synchronizing with the server"}
+                                           {:fx/type fxui/label
+                                            :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
+                       :buttons [{:text "Cancel and Revert"
+                                  :cancel-button true
+                                  :result false}
+                                 {:text "Resume Sync"
+                                  :default-button true
+                                  :result true}]})
 
-                ;; User chose to resume sync.
-                (if-not (login/sign-in! dashboard-client :synchronize)
-                  (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
-                  (let [creds (git/credentials prefs)
-                        flow (sync/resume-flow git creds)]
-                    (sync/open-sync-dialog flow)
-                    (async-reload! workspace changes-view))))))
+              ;; User chose to cancel sync.
+              (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
+                  (async-reload! workspace changes-view))
+
+              ;; User chose to resume sync.
+              (let [flow (sync/resume-flow git)]
+                (sync/open-sync-dialog flow prefs)
+                (async-reload! workspace changes-view))))
 
           ;; A sync was not in progress.
           (do

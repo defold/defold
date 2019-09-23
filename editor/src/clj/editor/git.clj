@@ -3,23 +3,26 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
+            [editor.git-credentials :as git-credentials]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.ui :as ui]
             [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
+           [java.net URI]
            [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
-           [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand]
+           [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand TransportCommand TransportConfigCallback]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
-           [org.eclipse.jgit.transport CredentialsProvider UsernamePasswordCredentialsProvider]
+           [org.eclipse.jgit.transport CredentialsProvider JschConfigSessionFactory RemoteConfig SshTransport URIish UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
+           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]
+           [com.jcraft.jsch Session]))
 
 (set! *warn-on-reflection* true)
 
@@ -74,11 +77,9 @@
 
 ;; =================================================================================
 
-
 (defn credentials [prefs]
-  (let [email (prefs/get-prefs prefs "email" nil)
-        token (prefs/get-prefs prefs "token" nil)]
-    (UsernamePasswordCredentialsProvider. ^String email ^String token)))
+  ;; TODO: REMOVE!
+  (throw (ex-info "TODO: REMOVE!" {})))
 
 (defn- git-name
   [prefs]
@@ -100,9 +101,40 @@
     (when (str/blank? configured-email)
       (.setString config "user" nil "email" email))))
 
-(defn remote-origin-url [^Git git]
-  (let [config (.. git getRepository getConfig)]
-    (not-empty (.getString config "remote" "origin" "url"))))
+(defn remote-info
+  [git-or-repository purpose ^String remote-name]
+  (let [^Repository repository
+        (if (instance? Repository git-or-repository)
+          git-or-repository
+          (.getRepository ^Git git-or-repository))
+
+        config (.getConfig repository)
+        remote (RemoteConfig. config remote-name)]
+    (when-some [^URIish uri-ish (first
+                                  (case purpose
+                                    :fetch (.getURIs remote)
+                                    :push (concat
+                                            (.getPushURIs remote)
+                                            (.getURIs remote))))]
+      {:scheme (if-some [scheme (.getScheme uri-ish)]
+                 (keyword scheme)
+                 :ssh)
+       :host (.getHost uri-ish)
+       :port (.getPort uri-ish)
+       :path (.getPath uri-ish)
+       :user (.getUser uri-ish)
+       :pass (.getPass uri-ish)})))
+
+(defn remote-uri
+  ^URI [{:keys [scheme ^String host ^int port ^String path]
+         :or {port -1}
+         :as remote-info}]
+  (let [^String user-info
+        (if-some [user (not-empty (:user remote-info))]
+          (if-some [pass (not-empty (:pass remote-info))]
+            (str user ":" pass)
+            user))]
+    (URI. (name scheme) user-info host port path nil nil)))
 
 ;; Does the equivalent *config-wise* of:
 ;; > git config remote.origin.url url
@@ -313,9 +345,49 @@
       (when-not (.isCancelled progress-monitor)
         (throw e)))))
 
-(defn pull [^Git git ^CredentialsProvider creds]
+(defn- make-transport-config-callback
+  ^TransportConfigCallback [^String ssh-session-password]
+  {:pre [(and (string? ssh-session-password)
+              (not (empty? ssh-session-password)))]}
+  (let [ssh-session-factory
+        (proxy [JschConfigSessionFactory] []
+          (configure [_host session]
+            (.setPassword ^Session session ssh-session-password)))]
+    (reify TransportConfigCallback
+      (configure [_this transport]
+        (.setSshSessionFactory ^SshTransport transport ssh-session-factory)))))
+
+(defn make-credentials-provider
+  ^CredentialsProvider [credentials]
+  (let [^String username (or (:username credentials) "")
+        ^String password (or (:password credentials) "")]
+    (UsernamePasswordCredentialsProvider. username password)))
+
+(defn- configure-transport-command!
+  ^TransportCommand [^TransportCommand command
+                     purpose
+                     {:keys [encrypted-credentials
+                             ^int timeout-seconds] :as _opts
+                      :or {timeout-seconds -1}}]
+  (case (:scheme (remote-info (.getRepository command) purpose "origin"))
+    :https
+    (let [credentials (git-credentials/decrypt-credentials encrypted-credentials)
+          credentials-provider (make-credentials-provider credentials)]
+      (.setCredentialsProvider command credentials-provider))
+
+    :ssh
+    (when-some [ssh-session-password (not-empty (:ssh-session-password credentials))]
+      (let [transport-config-callback (make-transport-config-callback ssh-session-password)]
+        (.setTransportConfigCallback command transport-config-callback)))
+
+    nil)
+  (cond-> command
+          (pos? timeout-seconds)
+          (.setTimeout timeout-seconds)))
+
+(defn pull! [^Git git opts]
   (-> (.pull git)
-      (.setCredentialsProvider creds)
+      (configure-transport-command! :fetch opts)
       (.call)))
 
 (defn- make-batching-progress-monitor
@@ -354,16 +426,21 @@
    "Writing objects" 1
    "remote: Updating references" 1})
 
-(defn push [^Git git ^CredentialsProvider creds & {:keys [timeout on-progress]}]
-  (let [pc ^PushCommand (.push git)]
-    (do
-      (doto pc
-        ;; setTimeout expects seconds
-        (.setTimeout (/ (or timeout 0) 1000))
-        (.setCredentialsProvider creds))
-      (when on-progress
-        (.setProgressMonitor pc (make-batching-progress-monitor push-tasks nil on-progress)))
-      (.call pc))))
+(defn- configure-push-command!
+  ^PushCommand [^PushCommand command {:keys [dry-run on-progress] :as _opts}]
+  (cond-> command
+
+          dry-run
+          (.setDryRun true)
+
+          (some? on-progress)
+          (.setProgressMonitor (make-batching-progress-monitor push-tasks nil on-progress))))
+
+(defn push! [^Git git opts]
+  (-> (.push git)
+      (configure-push-command! opts)
+      (configure-transport-command! :push opts)
+      (.call)))
 
 (defn make-add-change [file-path]
   {:change-type :add :old-path nil :new-path file-path})

@@ -3,8 +3,40 @@
     -fx-border-color: $dark-grey-border;
     -fx-prompt-text-fill: $tree-view-icon;
   }
-  .description {
-    -fx-fill: $defold-white;
+
+  Text {
+    -fx-fill: $bright-grey-light;
     -fx-font-smoothing-type: lcd;
+  }
+
+  .choice-box, .text-field {
+    -fx-min-width: 143px;
+
+    &.error { -fx-border-color: $error-severity-fatal; }
+    &.warning { -fx-border-color: $error-severity-warning; }
+    &.info { -fx-border-color: $error-severity-info; }
+  }
+
+  #ssh-box {
+    -fx-padding: 60px 110px 0px 110px;
+  }
+
+  #https-box {
+    -fx-padding: 30px 110px 0px 110px;
+
+    Label {
+      -fx-padding: 18px 0px 4px 0px;
+    }
+
+    .check-box {
+      -fx-padding: 4px 0px 32px 0px;
+    }
+
+    .hyperlink:disabled {
+      -fx-cursor: default;
+      -fx-opacity: 1.0;
+      -fx-text-fill: $bright-grey-light;
+      -fx-underline: false;
+    }
   }
 }

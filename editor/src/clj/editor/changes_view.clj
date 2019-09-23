@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
@@ -10,7 +9,7 @@
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
-            [editor.login :as login]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.sync :as sync]
@@ -118,14 +117,28 @@
   (some? (g/node-value changes-view :unconfigured-git)))
 
 (defn regular-sync! [changes-view dashboard-client]
-  (if-not (login/sign-in! dashboard-client :synchronize)
-    false
-    (let [git (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)
-          creds (git/credentials prefs)
-          flow (sync/begin-flow! git creds)]
-      (sync/open-sync-dialog flow)
-      true)))
+  ;; Taking GitHub as an example, clones made over the https:// protocol
+  ;; authenticate with a username & password in order to push changes. You can
+  ;; also make a Personal Access Token on GitHub to use in place of a password.
+  ;;
+  ;; Clones made over the git:// protocol can only pull, not push. The files are
+  ;; transferred unencrypted.
+  ;;
+  ;; Clones made over the ssh:// protocol use public key authentication. You
+  ;; must generate a public / private key pair and upload the public key to your
+  ;; GitHub account. The private key is loaded from the `.ssh` directory in the
+  ;; HOME folder. It will look for files named `identity`, `id_rsa` and `id_dsa`
+  ;; and it should "just work". However, if a passphrase was used to create the
+  ;; keys, we need to override createDefaultJSch in a subclassed instance of the
+  ;; JschConfigSessionFactory class in order to associate the passphrase with a
+  ;; key file.
+  ;;
+  ;; Most of this information was gathered from here:
+  ;; https://www.codeaffine.com/2014/12/09/jgit-authentication/
+  (let [git (g/node-value changes-view :git)
+        prefs (g/node-value changes-view :prefs)
+        flow (sync/begin-flow! git prefs)]
+    (sync/open-sync-dialog flow prefs)))
 
 (defn ensure-no-locked-files! [changes-view]
   (let [git (g/node-value changes-view :unconfigured-git)]
