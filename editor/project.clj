@@ -63,7 +63,7 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
-                     [cljfx "1.3.4"]
+                     [cljfx "1.4.3"]
 
                      [org.openjfx/javafx-base "13-ea+13"]
                      [org.openjfx/javafx-base "13-ea+13" :classifier "linux"]
