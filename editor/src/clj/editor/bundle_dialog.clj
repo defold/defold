@@ -493,9 +493,9 @@
   ;; but we will write to our own keys in the preference for these.
   (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-32bit-check-box architecture-64bit-check-box architecture-simulator-check-box]
     (ui/value! sign-app-check-box (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
-    (ui/value! code-signing-identity-choice-box (or (some (set code-signing-identity-names)
-                                                          (or (get-string-pref prefs "bundle-ios-code-signing-identity")
-                                                              (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
+    (ui/value! code-signing-identity-choice-box (or ((set code-signing-identity-names)
+                                                     (or (get-string-pref prefs "bundle-ios-code-signing-identity")
+                                                         (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
                                                     (first code-signing-identity-names)))
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
                                                    (get-string-pref prefs "last-provisioning-profile")))
