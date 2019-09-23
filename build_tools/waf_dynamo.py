@@ -408,7 +408,7 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
