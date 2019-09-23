@@ -3,11 +3,11 @@
 export CONF_TARGET=$1
 
 # Build cares with debug info
-# export CONFIGURE_FLAGS="--enable-debug"
+export CONFIGURE_FLAGS="--enable-debug"
 
 readonly PRODUCT=cares
 readonly TAR_INCLUDES=1
-readonly VERSION=804753224fc27f806992ed8c7fe52e5762fd317a
+readonly VERSION=602aaec984f862a5d59c9eb022f4317954c53917 #804753224fc27f806992ed8c7fe52e5762fd317a
 readonly BASE_URL=https://github.com/c-ares/c-ares.git
 
 . ../common.sh
