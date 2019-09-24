@@ -5,6 +5,7 @@
 namespace dmExtension
 {
     Desc* g_FirstExtension = 0;
+    Desc* g_CurrentExtension = 0;
     extern const size_t m_ExtensionDescBufferSize;
 
     AppParams::AppParams()
@@ -21,7 +22,6 @@ namespace dmExtension
         uint32_t desc_size,
         const char *name,
         Result (*app_init)(AppParams*),
-        void   (*post_render)(AppParams*),
         Result (*app_finalize)(AppParams*),
         Result (*initialize)(Params*),
         Result (*finalize)(Params*),
@@ -36,8 +36,10 @@ namespace dmExtension
         desc->Finalize = finalize;
         desc->Update = update;
         desc->OnEvent = on_event;
-        desc->PostRender = post_render;
         desc->m_Next = g_FirstExtension;
+
+        desc->PreRender = 0x0;
+        desc->PostRender = 0x0;
         g_FirstExtension = desc;
     }
 
@@ -53,6 +55,7 @@ namespace dmExtension
         Result ret = RESULT_OK;
         while (ed) {
             if (ed->AppInitialize) {
+                g_CurrentExtension = ed;
                 dmExtension::Result r = ed->AppInitialize(params);
                 if (r != dmExtension::RESULT_OK) {
                     dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
@@ -65,6 +68,8 @@ namespace dmExtension
             ++i;
             ed = (dmExtension::Desc*) ed->m_Next;
         }
+
+        g_CurrentExtension = 0x0;
 
         if (ret != RESULT_OK) {
             ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
@@ -85,7 +90,18 @@ namespace dmExtension
         return ret;
     }
 
-    void PostRender(AppParams* params)
+    void PreRender(Params* params)
+    {
+        dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+        while (ed) {
+            if (ed->PreRender && ed->m_AppInitialized) {
+                ed->PreRender(params);
+            }
+            ed = (dmExtension::Desc*) ed->m_Next;
+        }
+    }
+
+    void PostRender(Params* params)
     {
         dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
         while (ed) {
@@ -94,6 +110,28 @@ namespace dmExtension
             }
             ed = (dmExtension::Desc*) ed->m_Next;
         }
+    }
+
+    bool RegisterCallback(CallbackType callback_type, extension_callback_t func)
+    {
+        if (!g_CurrentExtension) {
+            dmLogError("Cannot call dmExtension::RegisterCallback outside of AppInitialize");
+            return false;
+        }
+
+        switch (callback_type)
+        {
+            case dmExtension::CALLBACK_PRE_RENDER:
+                g_CurrentExtension->PreRender = func;
+                break;
+            case dmExtension::CALLBACK_POST_RENDER:
+                g_CurrentExtension->PostRender = func;
+                break;
+            default:
+                return false;
+        }
+
+        return true;
     }
 
     Result AppFinalize(AppParams* params)

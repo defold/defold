@@ -1293,6 +1293,18 @@ bail:
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
+                    // Call pre render functions for extensions, if available.
+                    // We do it here before we render rest of the frame
+                    // if any extension wants to render on under of the game.
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                    }
+                    dmExtension::PreRender(&ext_params);
+
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);
@@ -1347,9 +1359,14 @@ bail:
                 // Call post render functions for extensions, if available.
                 // We do it here at the end of the frame (before swap buffers/flip)
                 // if any extension wants to render on top of the game.
-                dmExtension::AppParams app_params;
-                app_params.m_ConfigFile = engine->m_Config;
-                dmExtension::PostRender(&app_params);
+                dmExtension::Params ext_params;
+                ext_params.m_ConfigFile = engine->m_Config;
+                if (engine->m_SharedScriptContext) {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                } else {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                }
+                dmExtension::PostRender(&ext_params);
 
                 if (engine->m_UseSwVsync)
                 {
