@@ -104,35 +104,7 @@ namespace dmGameSystem
         mesh_resource->m_VertSize = vert_size;
 
         // Init vertex declaration
-        // sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         mesh_resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, vert_decls, stream_count);
-
-        // Create vertex buffer handles
-        // sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        // sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 4 * sprite_world->m_Components.Capacity());
-        // mesh_resource->m_VertexBufferData = malloc(vert_size * buffer_resource->m_ElementCount);
-
-        // Fill vertex data
-
-        // {
-        //     uint32_t vertex_count = 4*sprite_context->m_MaxSpriteCount;
-        //     uint32_t size_type = vertex_count <= 65536 ? sizeof(uint16_t) : sizeof(uint32_t);
-        //     sprite_world->m_Is16BitIndex = size_type == sizeof(uint16_t) ? 1 : 0;
-
-        //     uint32_t indices_count = 6*sprite_context->m_MaxSpriteCount;
-        //     size_t indices_size = indices_count * size_type;
-        //     void* indices = (void*)malloc(indices_count * size_type);
-        //     if (sprite_world->m_Is16BitIndex) {
-        //         uint16_t* index = (uint16_t*)indices;
-        //         for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
-        //         {
-        //             *index++ = v;
-        //             *index++ = v+1;
-        //             *index++ = v+2;
-        //             *index++ = v+2;
-        //             *index++ = v+3;
-        //             *index++ = v;
-        //         }
 
         uint8_t* bytes = 0x0;
         uint32_t size = 0;
@@ -143,7 +115,7 @@ namespace dmGameSystem
             return false;
         }
 
-        assert(size == mesh_resource->m_VertSize * buffer_resource->m_ElementCount);
+        //assert(size == mesh_resource->m_VertSize * buffer_resource->m_ElementCount);
         mesh_resource->m_ElementCount = buffer_resource->m_ElementCount;
 
         mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh_resource->m_VertSize * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
@@ -215,6 +187,18 @@ namespace dmGameSystem
 
         // dmLogError("position_stream: %s", resource->m_MeshDDF->m_PositionStream);
         resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
+
+        BufferResource* buffer_resource = resource->m_BufferResource;
+        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+        	//
+        	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
+        	if (stream_id == resource->m_PositionStreamId) {
+        		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
+        		break;
+        	}
+        }
 
         return result;
     }

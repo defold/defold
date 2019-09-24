@@ -32,6 +32,7 @@ namespace dmGameSystem
         uint32_t                        m_ElementCount;
         uint64_t                        m_VertSize;
         dmhash_t                        m_PositionStreamId;
+        dmBufferDDF::ValueType          m_PositionStreamType;
     };
 
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params);

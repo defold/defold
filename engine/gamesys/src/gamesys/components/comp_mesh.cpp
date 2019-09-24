@@ -83,10 +83,6 @@ namespace dmGameSystem
         world->m_CurrentVertexBuffer = 0;
         world->m_VertexBuffers.SetCapacity(0);
         world->m_VertexBuffers.SetSize(0);
-        // for(uint32_t i = 0; i < 4; ++i)
-        // {
-        //     world->m_VertexBuffers[i] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-        // }
 
         world->m_WorldVertexData = 0x0;
         world->m_WorldVertexDataSize = 0;
@@ -129,8 +125,6 @@ namespace dmGameSystem
         dmHashInit32(&state, reverse);
         dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
-        // dmHashUpdateBuffer32(&state, &resource->m_BufferResource, sizeof(resource->m_BufferResource));
-        // dmHashUpdateBuffer32(&state, &resource->m_VertexDeclaration, sizeof(resource->m_VertexDeclaration));
         dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
@@ -273,6 +267,241 @@ namespace dmGameSystem
         }
     }
 
+#define MAKE_FILL_AND_APPLY_FUNC(DATA_TYPE) \
+    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, DATA_TYPE* raw_data, DATA_TYPE* position_data, DATA_TYPE* dst_data_ptr) \
+    { \
+ \
+        /* Copy all data */ \
+        DATA_TYPE* start = dst_data_ptr; \
+        memcpy(dst_data_ptr, raw_data, size); \
+ \
+        Point3 in_p; \
+        Vector4 v; \
+        for (int pi = 0; pi < count; ++pi) \
+        { \
+ \
+            /* Apply world transform to all positions */ \
+            if (components == 3) { \
+ \
+                in_p[0] = position_data[0]; \
+                in_p[1] = position_data[1]; \
+                in_p[2] = position_data[2]; \
+                v = component->m_World * in_p; \
+                dst_data_ptr[0] = v[0]; \
+                dst_data_ptr[1] = v[1]; \
+                dst_data_ptr[2] = v[2]; \
+            } else if (components == 2) { \
+ \
+                in_p[0] = position_data[0]; \
+                in_p[1] = position_data[1]; \
+                in_p[2] = 0.0f; \
+                v = component->m_World * in_p; \
+                dst_data_ptr[0] = v[0]; \
+                dst_data_ptr[1] = v[1]; \
+            } else { \
+                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components."); \
+            } \
+ \
+            /* Update in/out-ptrs with stride (they will point to next entry in float "list"). */ \
+            position_data += stride; \
+            uint8_t* a = (uint8_t*)dst_data_ptr; \
+            dst_data_ptr += stride; \
+            uint8_t* b = (uint8_t*)dst_data_ptr; \
+            dmLogError("stride: %ld", b - a); \
+        } \
+ \
+        return (void*)((uint8_t*)start + size); \
+    }
+
+#if 0
+#define MAKE_FILL_AND_APPLY_FUNC(DATA_TYPE) \
+    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, DATA_TYPE* raw_data, DATA_TYPE* position_data, DATA_TYPE* dst_data_ptr) \
+    { \
+        uint8_t* last_p = (uint8_t*)raw_data; \
+        uint8_t* last_dst_p = (uint8_t*)dst_data_ptr; \
+ \
+        Point3 in_p; \
+        Vector4 v; \
+        for (int pi = 0; pi < count; ++pi) \
+        { \
+            /* Copy mem from last entry position up to this one */ \
+            uint32_t diff_size = (uint8_t*)position_data - last_p; \
+            if (diff_size > 0) { \
+                memcpy(last_dst_p, last_p, diff_size); \
+            } \
+            dst_data_ptr = (DATA_TYPE*)(last_dst_p+diff_size); \
+ \
+            /* Apply world transform to all positions */ \
+            if (components == 3) { \
+ \
+                in_p[0] = position_data[0]; \
+                in_p[1] = position_data[1]; \
+                in_p[2] = position_data[2]; \
+                v = component->m_World * in_p; \
+                dst_data_ptr[0] = v[0]; \
+                dst_data_ptr[1] = v[1]; \
+                dst_data_ptr[2] = v[2]; \
+            } else if (components == 2) { \
+ \
+                in_p[0] = position_data[0]; \
+                in_p[1] = position_data[1]; \
+                in_p[2] = 0.0f; \
+                v = component->m_World * in_p; \
+                dst_data_ptr[0] = v[0]; \
+                dst_data_ptr[1] = v[1]; \
+            } else { \
+                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components."); \
+            } \
+ \
+            /* Update memcpy-ptrs so they point to end of last component element. */ \
+            last_dst_p = (uint8_t*)(&dst_data_ptr[components]); \
+            last_p = (uint8_t*)(&position_data[components]); \
+ \
+            /* Update in/out-ptrs with stride (they will point to next entry in float "list"). */ \
+            position_data += stride; \
+            dst_data_ptr += stride; \
+        } \
+ \
+        /* Copy any remaining data */ \
+        uint8_t* raw_data_end = (uint8_t*)raw_data + size; \
+        uint32_t diff_size = raw_data_end - last_p; \
+        if (diff_size > 0) { \
+            memcpy(last_dst_p, last_p, diff_size); \
+        } \
+        dst_data_ptr = (DATA_TYPE*)(last_dst_p+diff_size); \
+ \
+        return (void*)dst_data_ptr; \
+    }
+
+#endif
+
+    MAKE_FILL_AND_APPLY_FUNC(uint8_t)
+    MAKE_FILL_AND_APPLY_FUNC(uint16_t)
+    MAKE_FILL_AND_APPLY_FUNC(uint32_t)
+    MAKE_FILL_AND_APPLY_FUNC(int8_t)
+    MAKE_FILL_AND_APPLY_FUNC(int16_t)
+    MAKE_FILL_AND_APPLY_FUNC(int32_t)
+    MAKE_FILL_AND_APPLY_FUNC(float)
+
+#undef MAKE_FILL_AND_APPLY_FUNC
+/*
+    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, uint8_t* raw_data, uint8_t* position_data, uint8_t* dst_data_ptr)
+    {
+        uint8_t* last_p = (uint8_t*)raw_data;
+        uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
+
+        Point3 in_p;
+        Vector4 v;
+        for (int pi = 0; pi < count; ++pi)
+        {
+            // Copy mem from last entry position up to this one
+            uint32_t diff_size = (uint8_t*)position_data - last_p;
+            if (diff_size > 0) {
+                memcpy(last_dst_p, last_p, diff_size);
+            }
+            dst_data_ptr = (uint8_t*)(last_dst_p+diff_size);
+
+            // Apply world transform to all positions
+            if (components == 3) {
+
+                in_p[0] = position_data[0];
+                in_p[1] = position_data[1];
+                in_p[2] = position_data[2];
+                v = component->m_World * in_p;
+                dst_data_ptr[0] = v[0];
+                dst_data_ptr[1] = v[1];
+                dst_data_ptr[2] = v[2];
+            } else if (components == 2) {
+
+                in_p[0] = position_data[0];
+                in_p[1] = position_data[1];
+                in_p[2] = 0.0f;
+                v = component->m_World * in_p;
+                dst_data_ptr[0] = v[0];
+                dst_data_ptr[1] = v[1];
+            } else {
+                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components.");
+            }
+
+            // Update memcpy-ptrs so they point to end of last component element.
+            last_dst_p = (uint8_t*)(&dst_data_ptr[components]);
+            last_p = (uint8_t*)(&position_data[components]);
+
+            // Update in/out-ptrs with stride (they will point to next entry in float "list").
+            position_data += stride;
+            dst_data_ptr += stride;
+        }
+
+        // Copy any remaining data
+        uint8_t* raw_data_end = (uint8_t*)raw_data + size;
+        uint32_t diff_size = raw_data_end - last_p;
+        if (diff_size > 0) {
+            memcpy(last_dst_p, last_p, diff_size);
+        }
+        dst_data_ptr = (uint8_t*)(last_dst_p+diff_size);
+
+        return (void*)dst_data_ptr;
+    }
+
+    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, float* raw_data, float* position_data, float* dst_data_ptr)
+    {
+        uint8_t* last_p = (uint8_t*)raw_data;
+        uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
+
+        Point3 in_p;
+        Vector4 v;
+        for (int pi = 0; pi < count; ++pi)
+        {
+            // Copy mem from last entry position up to this one
+            uint32_t diff_size = (uint8_t*)position_data - last_p;
+            if (diff_size > 0) {
+                memcpy(last_dst_p, last_p, diff_size);
+            }
+            dst_data_ptr = (float*)(last_dst_p+diff_size);
+
+            // Apply world transform to all positions
+            if (components == 3) {
+
+                in_p[0] = position_data[0];
+                in_p[1] = position_data[1];
+                in_p[2] = position_data[2];
+                v = component->m_World * in_p;
+                dst_data_ptr[0] = v[0];
+                dst_data_ptr[1] = v[1];
+                dst_data_ptr[2] = v[2];
+            } else if (components == 2) {
+
+                in_p[0] = position_data[0];
+                in_p[1] = position_data[1];
+                in_p[2] = 0.0f;
+                v = component->m_World * in_p;
+                dst_data_ptr[0] = v[0];
+                dst_data_ptr[1] = v[1];
+            } else {
+                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components.");
+            }
+
+            // Update memcpy-ptrs so they point to end of last component element.
+            last_dst_p = (uint8_t*)(&dst_data_ptr[components]);
+            last_p = (uint8_t*)(&position_data[components]);
+
+            // Update in/out-ptrs with stride (they will point to next entry in float "list").
+            position_data += stride;
+            dst_data_ptr += stride;
+        }
+
+        // Copy any remaining data
+        uint8_t* raw_data_end = (uint8_t*)raw_data + size;
+        uint32_t diff_size = raw_data_end - last_p;
+        if (diff_size > 0) {
+            memcpy(last_dst_p, last_p, diff_size);
+        }
+        dst_data_ptr = (float*)(last_dst_p+diff_size);
+
+        return (void*)dst_data_ptr;
+    }
+*/
+
     static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Mesh, "RenderBatchWorld");
@@ -291,16 +520,17 @@ namespace dmGameSystem
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
         const MeshComponent* first_component = (MeshComponent*) buf[*begin].m_UserData;
-        // uint32_t batch_size = 0;
+
+        // Find out how many elements/vertices all instances in this batch has
         uint32_t element_count = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const BufferResource* br = component->m_Resource->m_BufferResource;
             element_count += br->m_ElementCount;
-            // batch_size++;
         }
 
+        // Allocate a larger scratch buffer if vert count * vert size is larger than current buffer.
         const MeshResource* mr = first_component->m_Resource;
         if (world->m_WorldVertexDataSize < mr->m_VertSize * element_count)
         {
@@ -311,34 +541,106 @@ namespace dmGameSystem
             world->m_WorldVertexData = malloc(world->m_WorldVertexDataSize);
         }
 
-        float* dst_data_ptr = (float*)world->m_WorldVertexData;
+        // Fill scratch buffer with data
+        //float* dst_data_ptr = (float*)world->m_WorldVertexData;
+        void* dst_data_ptr = world->m_WorldVertexData;
         for (uint32_t *i=begin;i!=end;i++)
         {
-
-            // dmLogError("RenderBatchLocalVS %p", i);
-
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
             const BufferResource* br = mr->m_BufferResource;
 
-            float* raw_data = 0x0;
+            void* raw_data = 0x0;
             uint32_t size = 0;
-            dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&raw_data, &size);
+            dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, &raw_data, &size);
             if (r != dmBuffer::RESULT_OK) {
-                assert(false && "Megafail 1.");
+                dmLogError("Could not get bytes from buffer when rendering mesh in world space (%d).", r);
+                continue;
             }
 
 
             // Get position stream to figure out offset and stride etc
-            float* position_data = 0x0;
+            void* position_data = 0x0;
             uint32_t count = 0;
             uint32_t components = 0;
             uint32_t stride = 0;
-            r = dmBuffer::GetStream(br->m_Buffer, mr->m_PositionStreamId, (void**)&position_data, &count, &components, &stride);
+            r = dmBuffer::GetStream(br->m_Buffer, mr->m_PositionStreamId, &position_data, &count, &components, &stride);
             if (r != dmBuffer::RESULT_OK) {
-                assert(false && "Megafail 2.");
+                dmLogError("Could not get position stream from buffer when rendering mesh in world space (%d).", r);
+                continue;
             }
 
+            if (components != 2 && components != 3) {
+                dmLogError("Rendering mesh components in world space is only supported for position streams with 2 or 3 components, has %d components.", components);
+                continue;
+            }
+
+            switch (mr->m_PositionStreamType)
+            {
+
+                case dmBufferDDF::VALUE_TYPE_UINT8:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint8_t*)raw_data, (uint8_t*)position_data, (uint8_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_UINT16:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint16_t*)raw_data, (uint16_t*)position_data, (uint16_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_UINT32:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint32_t*)raw_data, (uint32_t*)position_data, (uint32_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_INT8:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int8_t*)raw_data, (int8_t*)position_data, (int8_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_INT16:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int16_t*)raw_data, (int16_t*)position_data, (int16_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_INT32:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int32_t*)raw_data, (int32_t*)position_data, (int32_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_FLOAT32:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
+                    break;
+
+                /*
+                case dmBufferDDF::VALUE_TYPE_UINT8:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint8_t*)raw_data, (uint8_t*)position_data, (uint8_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_UINT16:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint16_t*)raw_data, (uint16_t*)position_data, (uint16_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_UINT32:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint32_t*)raw_data, (uint32_t*)position_data, (uint32_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_INT8:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int8_t*)raw_data, (int8_t*)position_data, (int8_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_INT16:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int16_t*)raw_data, (int16_t*)position_data, (int16_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_INT32:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int32_t*)raw_data, (int32_t*)position_data, (int32_t*)dst_data_ptr);
+                    break;
+                case dmBufferDDF::VALUE_TYPE_FLOAT32:
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
+                    break;
+                */
+
+                default:
+                    assert(false && "Stream type not supported.");
+                    break;
+            }
+/*
+            if (mr->m_PositionStreamType == dmBufferDDF::VALUE_TYPE_FLOAT32)
+            {
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
+            } else if (mr->m_PositionStreamType == dmBufferDDF::VALUE_TYPE_UINT8)
+            {
+                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint8_t*)raw_data, (uint8_t*)position_data, (uint8_t*)dst_data_ptr);
+            } else {
+                assert(false && "Stream type not supported.");
+            }
+*/
+
+            /*
             uint8_t* last_p = (uint8_t*)raw_data;
             uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
 
@@ -351,6 +653,7 @@ namespace dmGameSystem
                 if (diff_size > 0) {
                     memcpy(last_dst_p, last_p, diff_size);
                 }
+                dst_data_ptr = (float*)(last_dst_p+diff_size);
 
                 // Apply world transform to all positions
                 if (components == 3) {
@@ -371,7 +674,7 @@ namespace dmGameSystem
                     dst_data_ptr[0] = v[0];
                     dst_data_ptr[1] = v[1];
                 } else {
-                    assert(false && "Cannot apply world transform on stream with only one component.");
+                    assert(false && "Cannot apply world transform on stream with neither 2 or 3 components.");
                 }
 
                 // Update memcpy-ptrs so they point to end of last component element.
@@ -390,7 +693,7 @@ namespace dmGameSystem
                 memcpy(last_dst_p, last_p, diff_size);
             }
             dst_data_ptr = (float*)(last_dst_p+diff_size);
-
+            */
         }
 
         world->m_RenderedVertexSize += mr->m_VertSize * element_count;
