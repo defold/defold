@@ -97,7 +97,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -126,7 +126,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -158,7 +158,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
+        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
