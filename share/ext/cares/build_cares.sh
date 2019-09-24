@@ -3,7 +3,7 @@
 export CONF_TARGET=$1
 
 # Build cares with debug info
-export CONFIGURE_FLAGS="--enable-debug"
+export CONFIGURE_FLAGS="--enable-debug --disable-symbol-hiding"
 
 readonly PRODUCT=cares
 readonly TAR_INCLUDES=1
@@ -26,7 +26,9 @@ case $CONF_TARGET in
             pushd cares_android_arm64
             git checkout $VERSION
 
-            ./buildconf
+            # ./buildconf
+
+            /Users/jhonnygoransson/Library/Android/sdk/cmake/3.6.4111459/bin/cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=$CC -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=DEBUG -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF -DCARES_STATIC=YES -DCMAKE_SYSROOT="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot" #/Users/jhonnygoransson/dev/defold/tmp/dynamo_home/ext/SDKs/android-ndk-r20/platforms/android-21/arch-arm64
         }
         ;;
     *)
