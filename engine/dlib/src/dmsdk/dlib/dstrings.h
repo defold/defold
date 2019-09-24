@@ -38,15 +38,13 @@
 
 /*# Tokenize strings.
  *
- * Tokenize strings. Equivalent to BSD strsep_r
- * Each call to dmStrTok() returns a pointer to a null-terminated string containing the next token. 
- * This string does not include the delimiting byte. If no more tokens are found, dmStrTok() returns NULL"
+ * Tokenize strings. Equivalent to BSD strsep_r. Thread-save version of strtok.
  *
  * @name dmStrTok
  * @param string Pointer to string. For the first call string is the string to tokenize. Subsequent should pass NULL.
  * @param delim Delimiter string
  * @param lasts Internal state pointer
- * @return
+ * @return Each call to dmStrTok() returns a pointer to a null-terminated string containing the next token. This string does not include the delimiting byte. If no more tokens are found, dmStrTok() returns NULL
  * @examples
  *
  * ```cpp
