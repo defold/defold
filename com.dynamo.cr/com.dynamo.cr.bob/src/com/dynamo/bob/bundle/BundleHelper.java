@@ -271,8 +271,10 @@ public class BundleHelper {
             args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
             args.add("package");
             args.add("-f");
-            args.add("--extra-packages");
-            args.add(StringUtils.join(extraPackages, ":"));
+            if (!extraPackages.isEmpty()) {
+                args.add("--extra-packages");
+                args.add(StringUtils.join(extraPackages, ":"));
+            }
             args.add("-m");
             args.add("--auto-add-overlay");
             args.add("-M"); args.add(manifestFile.getAbsolutePath());
