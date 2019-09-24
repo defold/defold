@@ -94,8 +94,8 @@ namespace dmGraphics
 
     void ResetLogicalDevice(LogicalDevice* device)
     {
-        vkDestroyDevice(device->m_Device, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        vkDestroyDevice(device->m_Device, 0);
         memset(device, 0, sizeof(*device));
     }
 

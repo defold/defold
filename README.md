@@ -458,10 +458,6 @@ To debug memory and alignment issues the following parameters should be added bo
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
 
-### Extensions / modules
-
-* For debugging our IAP (in app purchase) extension: [DefoldIAPTester]((***REMOVED***)/1j-2m-YMcAryNO8il1P7m4cjNhrCTzS0QOsQODwvnTww/edit?usp=sharing)
-
 ## Porting to another compiler
 
 You will likely need to recompile external libraries. Source code for most is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).

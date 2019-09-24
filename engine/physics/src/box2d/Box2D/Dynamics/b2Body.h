@@ -153,6 +153,10 @@ public:
 	/// @warning This function is locked during callbacks.
 	void DestroyFixture(b2Fixture* fixture);
 
+	/// DEFOLD
+	/// A way to disable a fixture (i.e. grid shape) and it's contacts
+	void PurgeContacts(b2Fixture* fixture);
+
 	/// Set the position of the body's origin and rotation.
 	/// This breaks any contacts and wakes the other bodies.
 	/// Manipulating a body's transform may cause non-physical behavior.
