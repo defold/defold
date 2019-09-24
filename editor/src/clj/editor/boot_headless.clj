@@ -35,8 +35,6 @@
 
 (defn -main
   [& args]
-  (println "Welcome to the test bundling of Raket!")
-  (println)
   (let [game-project-file (io/file (first args) "game.project")
         game-project-file-path (.getAbsolutePath game-project-file)
         output-dir (io/file (second args))]
@@ -61,7 +59,7 @@
                     _ (println "Creating project.")
                     project (setup-project workspace)]
                 (println "Project created.")
-                (println "Bundling Raket! for Android.")
+                (println "Running bundling test.")
                 (bundle-android/bundle! project output-dir {})
                 (println "Bundling done, enjoy your game!")
                 )))))
