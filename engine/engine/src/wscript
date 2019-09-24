@@ -57,7 +57,7 @@ def build(bld):
 
     # Set graphics library to use (at some point both GL/VK should be used)
     graphics_lib = 'GRAPHICS'
-    if not 'web' in bld.env['PLATFORM'] and Options.options.with_vulkan:
+    if Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
@@ -88,20 +88,16 @@ def build(bld):
     extra_packages = 'com.google.android.gms:com.google.android.gms.common:com.android.support'
 
     android_jar_paths = [
-              '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
-              '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
-              '%s/share/java/iap_android.jar' % (dynamo_home),
-              '%s/share/java/sound_android.jar' % (dynamo_home),
-              '%s/share/java/iac_android.jar' % (dynamo_home)]
+              '%s/share/java/sound_android.jar' % (dynamo_home)]
 
-    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_facebook_iap.js', 'library_sound.js']
+    web_libs = ['library_glfw.js', 'library_sys.js', 'library_script.js', 'library_sound.js']
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -126,12 +122,11 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
-        bld.install_files('${PREFIX}/share/java', 'dmengine.android/r.jar')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -163,7 +158,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
+        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
         web_libs = web_libs,

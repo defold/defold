@@ -30,6 +30,44 @@ namespace dmGameSystem
      * @namespace tilemap
      */
 
+    /*# [type:hash] tile source
+     *
+     * The tile source used when rendering the tile map. The type of the property is hash.
+     *
+     * @name tile_source
+     * @property
+     *
+     * @examples
+     *
+     * How to set tile source using a script property (see [ref:resource.tile_source])
+     *
+     * ```lua
+     * go.property("my_tile_source", resource.tile_source("/tilesource.tilesource"))
+     * function init(self)
+     *   go.set("#tilemap", "tile_source", self.my_tile_source)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] tile map material
+     *
+     * The material used when rendering the tile map. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     * function init(self)
+     *   go.set("#tilemap", "material", self.my_material)
+     * end
+     * ```
+     */
+
     /*# set a shader constant for a tile map
      * Sets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.
@@ -380,7 +418,8 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
@@ -392,6 +431,30 @@ namespace dmGameSystem
 
         bool visible = lua_toboolean(L, 3);
         SetLayerVisible(component, layer_index, visible);
+
+        dmMessage::URL sender;
+        if (dmScript::GetURL(L, &sender))
+        {
+            // Broadcast to any collision object components under this game object
+            // TODO Filter broadcast to only collision objects
+            dmPhysicsDDF::EnableGridShapeLayer ddf;
+            ddf.m_Shape = layer_index;
+            ddf.m_Enable = visible;
+            dmhash_t message_id = dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor->m_NameHash;
+            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmPhysicsDDF::EnableGridShapeLayer);
+            receiver.m_Fragment = 0;
+            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size, 0);
+            if (result != dmMessage::RESULT_OK)
+            {
+                dmLogError("Could not send %s to components, result: %d.", dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor->m_Name, result);
+            }
+        }
+        else
+        {
+            return luaL_error(L, "tilemap.set_tile is not available from this script-type.");
+        }
+
         return 0;
     }
 

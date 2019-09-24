@@ -85,6 +85,7 @@ namespace dmLiveUpdate
 
     dmResource::Manifest* GetCurrentManifest();
 
+    char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
 };
 
 #endif // DM_LIVEUPDATE_H

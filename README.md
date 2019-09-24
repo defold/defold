@@ -213,7 +213,7 @@ See [README.md](editor/README.md) in the editor folder.
 * **Sony Vectormath Library**: [https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/bullet/bullet-2.74.tgz) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
 * **zlib**: [http://www.zlib.net](http://www.zlib.net) - **zlib**
-* **axTLS**: [http://axtls.sourceforge.net](http://axtls.sourceforge.net) - **BSD**
+* **mbedTLS**: [https://github.com/ARMmbed/mbedtls](https://github.com/ARMmbed/mbedtls) - **Apache 2.0**
 * **stb_image** [http://nothings.org/](http://nothings.org) **Public domain**
 * **stb_vorbis** [http://nothings.org/](http://nothings.org) **Public domain**
 * **tremolo** [http://wss.co.uk/pinknoise/tremolo/](http://wss.co.uk/pinknoise/tremolo/) **BSD**
@@ -457,10 +457,6 @@ To debug memory and alignment issues the following parameters should be added bo
 - `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
-
-### Extensions / modules
-
-* For debugging our IAP (in app purchase) extension: [DefoldIAPTester]((***REMOVED***)/1j-2m-YMcAryNO8il1P7m4cjNhrCTzS0QOsQODwvnTww/edit?usp=sharing)
 
 ## Porting to another compiler
 

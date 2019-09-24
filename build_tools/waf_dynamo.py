@@ -12,13 +12,12 @@ if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
 
-HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
-#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
-ANDROID_ROOT=os.path.join(HOME, 'android')
+SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_NDK_API_VERSION_VULKAN='24'
 ANDROID_NDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
 ANDROID_TARGET_API_LEVEL='28' # Android 9.0
 ANDROID_MIN_API_LEVEL='14'
@@ -161,7 +160,7 @@ def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
     apidoc_extract_task(bld, source)
 
-# Add dmsdk files from 'source' recusrively.
+# Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
 # * 'source' files are added to documentation pipeline
 def dmsdk_add_files(bld, target, source):
@@ -192,7 +191,12 @@ def getAndroidCompilerName(target_arch, api_version):
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    return ANDROID_64_NDK_API_VERSION if 'arm64' == target_arch else ANDROID_NDK_API_VERSION
+    if Options.options.with_vulkan:
+        return ANDROID_NDK_API_VERSION_VULKAN
+    elif target_arch == 'arm64':
+        return ANDROID_64_NDK_API_VERSION
+    else:
+        return ANDROID_NDK_API_VERSION
 
 def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:
@@ -244,7 +248,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -343,7 +347,7 @@ def default_flags(self):
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
     libpath = build_util.get_library_path()
@@ -359,6 +363,17 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+# Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
+@feature('remove_flags')
+@before('apply_core')
+@after('cc')
+@after('cxx')
+def remove_flags_fn(self):
+    lookup = getattr(self, 'remove_flags', [])
+    for name, values in lookup.iteritems():
+        for flag, argcount in values:
+            remove_flag(self.env[name], flag, argcount)
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
@@ -783,7 +798,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />
         <meta-data android:name="android.notch_support" android:value="true"/>
-        
+
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|screenSize|keyboardHidden"
@@ -796,39 +811,11 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.defold.iap.IapGooglePlayActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="IAP">
-        </activity>
-
-        <!-- For IAC Invocations -->
-        <activity android:name="com.defold.iac.IACActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-               <action android:name="android.intent.action.VIEW" />
-               <category android:name="android.intent.category.DEFAULT" />
-               <category android:name="android.intent.category.BROWSABLE" />
-               <data android:scheme="%(package)s" />
-            </intent-filter>
-        </activity>
-
-        <!-- For Amazon IAP -->
-        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
-            <intent-filter>
-                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
-            </intent-filter>
-        </receiver>
 
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="com.android.vending.BILLING" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->
@@ -870,21 +857,8 @@ def android_package(task):
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    # DEF-3873
-    # Previously we looped over all subfolders in ext/share/java/res and added them to this list.
-    # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
-    # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
-    # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home]
-
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
-    r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
-    r_jar = task.r_jar.abspath(task.env)
 
     libs = os.path.join(dme_and, 'libs')
     bin = os.path.join(dme_and, 'bin')
@@ -899,52 +873,21 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (bin_cls))
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
-    bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-
-    res_args = ""
-    for d in res_dirs:
-        res_args += ' -S %s' % d
-
-    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt'), res_args))
-    if ret != 0:
-        error('Error running aapt')
-        return 1
 
     if task.extra_packages:
         extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, ap_))
     if ret != 0:
         error('Error running aapt')
-        return 1
-
-    r_java_files = []
-    for root, dirs, files in os.walk(r_java_gen_dir):
-        for f in files:
-            if f.endswith(".java"):
-                p = os.path.join(root, f)
-                r_java_files.append(p)
-
-    ret = bld.exec_command('%s %s %s' % (task.env['JAVAC'][0], '-source 1.6 -target 1.6', ' '.join(r_java_files)))
-    if ret != 0:
-        error('Error compiling R.java files')
-        return 1
-
-    for p in r_java_files:
-        os.unlink(p)
-
-    ret = bld.exec_command('%s cf %s -C %s .' % (task.env['JAR'][0], r_jar, r_java_gen_dir))
-    if ret != 0:
-        error('Error creating jar of compiled R.java files')
         return 1
 
     dx_jars = []
     for jar in task.jars:
         dx_jars.append(jar)
-    dx_jars.append(r_jar)
 
     if getattr(task, 'proguard', None):
         proguardtxt = task.proguard[0]
@@ -958,13 +901,15 @@ def android_package(task):
     else:
         dex_input = dx_jars
 
-    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
-    if ret != 0:
-        error('Error running dx')
-        return 1
+    if dex_input:
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+        if ret != 0:
+            error('Error running dx')
+            return 1
 
-    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-        zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
+    if os.path.exists(task.classes_dex.abspath(task.env)):
+        with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+            zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
@@ -1075,9 +1020,6 @@ def create_android_package(self):
     android_package_task.apk = apk
 
     android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
-
-    android_package_task.r_java_gen_dir = self.path.exclusive_build_node("%s.android/gen" % (exe_name))
-    android_package_task.r_jar = self.path.exclusive_build_node("%s.android/r.jar" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
@@ -1432,23 +1374,39 @@ def get_msvc_version(conf, platform):
     msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
                 os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
 
+    # Since the programs(Windows!) can update, we do this dynamically
+    ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
+    ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
+    ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
+    ucrt_version = ucrt_dirs[-1]
+    if not ucrt_version.startswith('10.0'):
+        conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
+
     includes = [os.path.join(msvcdir,'VC','include'),
                 os.path.join(msvcdir,'VC','atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include','10.0.10240.0','ucrt'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
                 os.path.join(windowskitsdir,'8.1','Include','winrt'),
                 os.path.join(windowskitsdir,'8.1','Include','um'),
                 os.path.join(windowskitsdir,'8.1','Include','shared')]
     libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
                 os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
-                os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x64'),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x64'),
                 os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
     if platform == 'win32':
         libdirs = [os.path.join(msvcdir,'VC','lib'),
                     os.path.join(msvcdir,'VC','atlmfc','lib'),
-                    os.path.join(windowskitsdir,'10','Lib','10.0.10240.0','ucrt','x86'),
+                    os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x86'),
                     os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
 
     return msvc_path, includes, libdirs
+
+def remove_flag(arr, flag, nargs):
+    if not flag in arr:
+        return
+    index = arr.index(flag)
+    del arr[index]
+    for i in range(nargs):
+        del arr[index]
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1493,6 +1451,10 @@ def detect(conf):
 
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
+
+    # Vulkan support
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
+        conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
         if platform == 'x86_64-win32':
@@ -1577,15 +1539,6 @@ def detect(conf):
     conf.check_tool('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
-    def remove_flag(arr, flag, nargs):
-        if not flag in arr:
-            return
-        index = arr.index(flag)
-        if index >= 0:
-            del arr[index]
-            for i in range(nargs):
-                del arr[index]
-
     remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
@@ -1640,7 +1593,7 @@ def detect(conf):
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif platform == 'win32':
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 

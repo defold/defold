@@ -607,6 +607,30 @@
   ([basis node-id label]
    (gt/arcs-by-source basis node-id label)))
 
+(defn cascade-delete-sources
+  "Successors function for use with pre-traverse that produces all the node ids
+  that will will be deleted along with the original node. Duplicates produced by
+  this function will be discarded by pre-traverse."
+  [basis node-id]
+  (when-some [node (gt/node-by-id-at basis node-id)]
+    (let [override-id (gt/override-id node)]
+      (loop [inputs (some-> node
+                            (gt/node-type basis)
+                            in/cascade-deletes)
+             result (vec (get-overrides basis node-id))]
+        (if-some [input (first inputs)]
+          (let [explicit (map first (explicit-sources basis node-id input))
+                implicit (keep (fn [[node-id]]
+                                 (when-some [node (gt/node-by-id-at basis node-id)]
+                                   (when (= override-id (gt/override-id node))
+                                     node-id)))
+                               (gt/sources basis node-id input))]
+            (recur (rest inputs)
+                   (-> result
+                       (into explicit)
+                       (into implicit))))
+          result)))))
+
 (defn- lift-source-arc
   "Used by arcs-by-source/lift-source-arcs to infer all implicit arcs
   the explicit arc `arc` gives rise to if we follow the

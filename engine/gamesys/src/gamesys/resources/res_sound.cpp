@@ -26,6 +26,7 @@ namespace dmGameSystem
             s->m_GroupHash = dmHashString64(sound_desc->m_Group);
             s->m_Gain = sound_desc->m_Gain;
             s->m_Pan = sound_desc->m_Pan;
+            s->m_Speed = sound_desc->m_Speed;
 
             dmSound::Result result = dmSound::AddGroup(sound_desc->m_Group);
             if (result != dmSound::RESULT_OK) {

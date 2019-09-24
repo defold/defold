@@ -79,6 +79,7 @@
          :left-bearing (- ^double (:left-bearing glyph) ^int padding)
          :ascent (+ ^int (:ascent glyph) ^int padding)
          :descent (+ ^int (:descent glyph) ^int padding)
+         :glyph-cell-wh (:glyph-cell-wh glyph-extents)
          :glyph-data-offset (:glyph-data-offset glyph-extents)
          :glyph-data-size (:glyph-data-size glyph-extents)}))
     semi-glyphs glyph-extents))
@@ -142,7 +143,6 @@
                           (doto (BMFont.)
                             (.parse font-stream)))
         semi-glyphs (fnt-semi-glyphs bm-font)
-        ^int shadow-blur (:shadow-blur font-desc)
         padding 0
         glyph-cell-padding 1
         bm-image (let [path (.. (Paths/get (FilenameUtils/normalize (.. bm-font page (get 0))) (into-array String [])) getFileName toString)]
@@ -202,6 +202,7 @@
        :max-ascent max-ascent
        :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
        :image-format (:output-format font-desc)
+       :layer-mask 0x1 ; Face layer only - we don't generate shadow or outline.
        :cache-width (:width cache-wh)
        :cache-height (:height cache-wh)
        :glyph-padding glyph-cell-padding

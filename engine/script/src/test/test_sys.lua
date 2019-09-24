@@ -70,8 +70,6 @@ function test_sys()
     print("territory: " .. info.territory)
     print("gmt_offset: " .. info.gmt_offset)
     print("device_ident" .. info.device_ident)
-    print("ad_ident" .. info.ad_ident)
-    print("ad_tracking_enabled" .. tostring(info.ad_tracking_enabled))
 
     -- get_ifaddrs
     local addresses = sys.get_ifaddrs()

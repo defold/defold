@@ -73,6 +73,9 @@ namespace dmDNS
      * @return RESULT_OK on success
      */
     Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4 = true, bool ipv6 = true);
+
+    // Used for unit testing
+    const char* ResultToString(Result r);
 }
 
 #endif //DM_DSTRINGS_H

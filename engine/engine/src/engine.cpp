@@ -30,8 +30,6 @@
 #include <profiler/profiler.h>
 #include <particle/particle.h>
 #include <script/sys_ddf.h>
-#include <tracking/tracking.h>
-#include <tracking/tracking_ddf.h>
 #include <liveupdate/liveupdate.h>
 
 #include "engine_service.h"
@@ -191,7 +189,6 @@ namespace dmEngine
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
     , m_DisplayProfiles(0x0)
-    , m_TrackingContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     , m_WasIconified(true)
@@ -270,12 +267,6 @@ namespace dmEngine
 
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
-
-        if (engine->m_TrackingContext)
-        {
-            dmTracking::Finalize(engine->m_TrackingContext);
-            dmTracking::Delete(engine->m_TrackingContext);
-        }
 
         if (engine->m_SharedScriptContext) {
             dmScript::Finalize(engine->m_SharedScriptContext);
@@ -498,7 +489,9 @@ namespace dmEngine
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
+        bool renderdoc_support = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
+        const char renderdoc_support_arg[] = "--renderdoc";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
@@ -512,6 +505,10 @@ namespace dmEngine
                 } else {
                     dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
                 }
+            }
+            else if (strncmp(renderdoc_support_arg, arg, sizeof(renderdoc_support_arg)-1) == 0)
+            {
+                renderdoc_support = true;
             }
         }
 
@@ -547,6 +544,7 @@ namespace dmEngine
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport = renderdoc_support;
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -992,16 +990,6 @@ namespace dmEngine
 
         dmLiveUpdate::Initialize(engine->m_Factory);
 
-        engine->m_TrackingContext = dmTracking::New(engine->m_Config);
-        if (engine->m_TrackingContext)
-        {
-            dmTracking::Start(engine->m_TrackingContext, "Defold", dmEngineVersion::VERSION);
-        }
-        else
-        {
-            dmLogWarning("Failed to create tracking context");
-        }
-
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -1185,11 +1173,6 @@ bail:
 
         if (engine->m_Alive)
         {
-            if (engine->m_TrackingContext)
-            {
-                DM_PROFILE(Engine, "Tracking")
-                dmTracking::Update(engine->m_TrackingContext, dt);
-            }
 
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
@@ -1215,10 +1198,6 @@ bail:
             {
                 if (engine->m_WasIconified)
                 {
-                    if (engine->m_TrackingContext)
-                    {
-                        dmTracking::PostSimpleEvent(engine->m_TrackingContext, "@Invoke");
-                    }
                     engine->m_WasIconified = false;
                 }
             }

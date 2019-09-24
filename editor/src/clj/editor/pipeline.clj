@@ -82,7 +82,9 @@
           result (transient [])]
      (if-some [target (first targets)]
        (let [content-hash (:content-hash target)]
-         (assert (bt/content-hash? content-hash))
+         (assert (bt/content-hash? content-hash)
+                 (str "Build target has invalid content-hash: "
+                      (resource/resource->proj-path (:resource target))))
          (if (contains? seen content-hash)
            (recur (rest targets)
                   queue
@@ -190,7 +192,7 @@
                                            ;; target into the causes, since the build-fn will
                                            ;; not have access to the node-id.
                                            (if (g/error? build-result)
-                                             (update build-result :causes (partial map #(assoc % :_node-id node-id)))
+                                             (update build-result :causes (partial mapv #(assoc % :_node-id node-id)))
                                              (to-disk! build-result content-hash))))]
                           (render-progress! (swap! progress progress/advance))
                           result)))

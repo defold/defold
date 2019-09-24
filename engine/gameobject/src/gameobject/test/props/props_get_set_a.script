@@ -1,5 +1,7 @@
 go.property("number", 1)
 
+go.property("material", resource.material("material"))
+
 function init(self)
     -- local game object properties
     assert(go.get(".", "position") == go.get_position())
@@ -70,4 +72,8 @@ function init(self)
     -- bool
     assert(not go.get("b#script", "bool"))
     go.set("b#script", "bool", true)
+    -- material
+    assert(self.material == go.get("b#script", "material"))
+    go.set("b#script", "material", hash("material"))
+    assert(hash("material") == go.get("b#script", "material"))
 end

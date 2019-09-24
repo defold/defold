@@ -31,6 +31,26 @@ namespace dmGui
      * @namespace gui
      */
 
+    /*# [type:hash] gui material
+     *
+     * The material used when rendering the gui. The type of the property is hash.
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set material using a script property (see [ref:resource.material])
+     *
+     * ```lua
+     * go.property("my_material", resource.material("/material.material"))
+     *
+     * function init(self)
+     *   go.set("#gui", "material", self.my_material)
+     * end
+     * ```
+     */
+
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 

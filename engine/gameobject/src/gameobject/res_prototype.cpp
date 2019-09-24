@@ -18,15 +18,27 @@ namespace dmGameObject
             dmResource::Release(factory, c.m_Resource);
             DestroyPropertyContainerCallback(c.m_PropertySet.m_UserData);
         }
+
+        UnloadPropertyResources(factory, prototype->m_PropertyResources);
     }
 
-    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename) {
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename)
+    {
+        dmResource::Result res = LoadPropertyResources(factory, proto_desc->m_PropertyResources.m_Data, proto_desc->m_PropertyResources.m_Count, proto->m_PropertyResources);
+        if(res != dmResource::RESULT_OK)
+        {
+            ReleaseResources(factory, proto);
+            dmDDF::FreeMessage(proto_desc);
+            return res;
+        }
+
         proto->m_ComponentCount = 0;
         proto->m_Components = 0;
         if (proto_desc->m_Components.m_Count == 0)
         {
             return dmResource::RESULT_OK;
         }
+
         proto->m_Components = (Prototype::Component*)malloc(sizeof(Prototype::Component) * proto_desc->m_Components.m_Count);
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
@@ -108,6 +120,19 @@ namespace dmGameObject
         {
             dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
             dmResource::PreloadHint(params.m_HintInfo, component_desc.m_Component);
+        }
+
+        dmGameObjectDDF::ComponentDesc* components = proto_desc->m_Components.m_Data;
+        uint32_t n_components = proto_desc->m_Components.m_Count;
+        for (uint32_t i = 0; i < n_components; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, components[i].m_Component);
+        }
+        const char** resources = proto_desc->m_PropertyResources.m_Data;
+        uint32_t n_resources = proto_desc->m_PropertyResources.m_Count;
+        for (uint32_t i = 0; i < n_resources; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
         }
 
         *params.m_PreloadData = proto_desc;

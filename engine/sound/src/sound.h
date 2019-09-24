@@ -21,6 +21,8 @@ namespace dmSound
     {
         PARAMETER_GAIN  = 0,
         PARAMETER_PAN   = 1,
+        PARAMETER_SPEED = 2,
+        PARAMETER_MAX   = 3
     };
 
     enum Result
@@ -44,6 +46,10 @@ namespace dmSound
         RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
+
+    // Used to identify if a sound.play or play_sound msg
+    // should signal upon completion.
+    const uint32_t INVALID_PLAY_ID = 0xffffffff;
 
     struct Stats
     {
@@ -103,6 +109,7 @@ namespace dmSound
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
     bool IsPlaying(HSoundInstance sound_instance);
+    uint32_t GetAndIncreasePlayCounter();
 
     Result SetLooping(HSoundInstance sound_instance, bool looping);
 
