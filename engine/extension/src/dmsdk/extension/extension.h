@@ -91,7 +91,7 @@ namespace dmExtension
         EVENT_ID_DEACTIVATEAPP,
     };
 
-    /*# extra callback enumeratino
+    /*# extra callback enumeration
      *
      * Extra callback enumeration for RegisterCallback function.
      *
