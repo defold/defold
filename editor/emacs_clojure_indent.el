@@ -37,5 +37,5 @@
   (with-prop 1)
   (with-temp-dir! 1)
   (with-channel 1)
-  (profile 1)
+  (profile 2)
   (are '(:defn)))
