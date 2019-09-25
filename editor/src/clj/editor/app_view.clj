@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
@@ -13,6 +14,7 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
+            [editor.editor-extensions :as extensions]
             [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
@@ -365,25 +367,25 @@
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
-(ui/extend-menu :toolbar nil
-                [{:id :select
-                  :icon "icons/45/Icons_T_01_Select.png"
-                  :command :select-tool}
-                 {:id :move
-                  :icon "icons/45/Icons_T_02_Move.png"
-                  :command :move-tool}
-                 {:id :rotate
-                  :icon "icons/45/Icons_T_03_Rotate.png"
-                  :command :rotate-tool}
-                 {:id :scale
-                  :icon "icons/45/Icons_T_04_Scale.png"
-                  :command :scale-tool}
-                 {:id :perspective-camera
-                  :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
-                  :command :toggle-perspective-camera}
-                 {:id :visibility-settings
-                  :graphic-fn make-visibility-settings-graphic
-                  :command :show-visibility-settings}])
+(handler/register-menu! :toolbar
+  [{:id :select
+    :icon "icons/45/Icons_T_01_Select.png"
+    :command :select-tool}
+   {:id :move
+    :icon "icons/45/Icons_T_02_Move.png"
+    :command :move-tool}
+   {:id :rotate
+    :icon "icons/45/Icons_T_03_Rotate.png"
+    :command :rotate-tool}
+   {:id :scale
+    :icon "icons/45/Icons_T_04_Scale.png"
+    :command :scale-tool}
+   {:id :perspective-camera
+    :graphic-fn (partial make-svg-icon-graphic perspective-icon-svg-path)
+    :command :toggle-perspective-camera}
+   {:id :visibility-settings
+    :graphic-fn make-visibility-settings-graphic
+    :command :show-visibility-settings}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
 (def ^:const prefs-split-positions "split-positions")
@@ -720,6 +722,17 @@
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
+(defn- build-project!
+  [project evaluation-context extra-build-targets old-artifact-map render-progress!]
+  (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
+        render-progress! (progress/throttle-render-progress render-progress!)]
+    (try
+      (ui/with-progress [render-progress! render-progress!]
+        (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+      (catch Throwable error
+        (error-reporting/report-exception! error)
+        nil))))
+
 (defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
   (reset! build-in-progress? true)
@@ -729,7 +742,7 @@
       (let [extra-build-targets (when debug?
                                   (debug-view/build-targets project evaluation-context))
             build-results (ui/with-progress [_ render-build-progress!]
-                            (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))
+                            (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))
             [engine build-engine-exception] (when (and engine? (nil? (:error build-results)))
                                               (try
                                                 (ui/with-progress [_ render-build-progress!]
@@ -1114,153 +1127,153 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-stylesheet :global
   (run [] (ui/reload-root-styles!)))
 
-(ui/extend-menu ::menubar nil
-                [{:label "File"
-                  :id ::file
-                  :children [{:label "New..."
-                              :id ::new
-                              :command :new-file}
-                             {:label "Open"
-                              :id ::open
-                              :command :open}
-                             {:label "Synchronize..."
-                              :id ::synchronize
-                              :command :synchronize}
-                             {:label "Save All"
-                              :id ::save-all
-                              :command :save-all}
-                             {:label :separator}
-                             {:label "Open Assets..."
-                              :command :open-asset}
-                             {:label "Search in Files..."
-                              :command :search-in-files}
-                             {:label :separator}
-                             {:label "Close"
-                              :command :close}
-                             {:label "Close All"
-                              :command :close-all}
-                             {:label "Close Others"
-                              :command :close-other}
-                             {:label :separator}
-                             {:label "Referencing Files..."
-                              :command :referencing-files}
-                             {:label "Dependencies..."
-                              :command :dependencies}
-                             {:label "Hot Reload"
-                              :command :hot-reload}
-                             {:label :separator}
-                             {:label "Sign Out"
-                              :command :logout}
-                             {:label "Preferences..."
-                              :command :preferences}
-                             {:label "Quit"
-                              :command :quit}]}
-                 {:label "Edit"
-                  :id ::edit
-                  :children [{:label "Undo"
-                              :icon "icons/undo.png"
-                              :command :undo}
-                             {:label "Redo"
-                              :icon "icons/redo.png"
-                              :command :redo}
-                             {:label :separator}
-                             {:label "Cut"
-                              :command :cut}
-                             {:label "Copy"
-                              :command :copy}
-                             {:label "Paste"
-                              :command :paste}
-                             {:label "Select All"
-                              :command :select-all}
-                             {:label "Delete"
-                              :icon "icons/32/Icons_M_06_trash.png"
-                              :command :delete}
-                             {:label :separator}
-                             {:label "Move Up"
-                              :command :move-up}
-                             {:label "Move Down"
-                              :command :move-down}
-                             {:label :separator
-                              :id ::edit-end}]}
-                 {:label "View"
-                  :id ::view
-                  :children [{:label "Toggle Assets Pane"
-                              :command :toggle-pane-left}
-                             {:label "Toggle Tools Pane"
-                              :command :toggle-pane-bottom}
-                             {:label "Toggle Properties Pane"
-                              :command :toggle-pane-right}
-                             {:label :separator}
-                             {:label "Show Console"
-                              :command :show-console}
-                             {:label "Show Curve Editor"
-                              :command :show-curve-editor}
-                             {:label "Show Build Errors"
-                              :command :show-build-errors}
-                             {:label "Show Search Results"
-                              :command :show-search-results}
-                             {:label :separator
-                              :id ::view-end}]}
-                 {:label "Help"
-                  :children [{:label "Profiler"
-                              :children [{:label "Measure"
-                                          :command :profile}
-                                         {:label "Measure and Show"
-                                          :command :profile-show}]}
-                             {:label "Reload Stylesheet"
-                              :command :reload-stylesheet}
-                             {:label "Show Logs"
-                              :command :show-logs}
-                             {:label :separator}
-                             {:label "Documentation"
-                              :command :documentation}
-                             {:label "Support Forum"
-                              :command :support-forum}
-                             {:label "Find Assets"
-                              :command :asset-portal}
-                             {:label :separator}
-                             {:label "Report Issue"
-                              :command :report-issue}
-                             {:label "Report Suggestion"
-                              :command :report-suggestion}
-                             {:label "Search Issues"
-                              :command :search-issues}
-                             {:label :separator}
-                             {:label "About"
-                              :command :about}]}])
+(handler/register-menu! ::menubar
+  [{:label "File"
+    :id ::file
+    :children [{:label "New..."
+                :id ::new
+                :command :new-file}
+               {:label "Open"
+                :id ::open
+                :command :open}
+               {:label "Synchronize..."
+                :id ::synchronize
+                :command :synchronize}
+               {:label "Save All"
+                :id ::save-all
+                :command :save-all}
+               {:label :separator}
+               {:label "Open Assets..."
+                :command :open-asset}
+               {:label "Search in Files..."
+                :command :search-in-files}
+               {:label :separator}
+               {:label "Close"
+                :command :close}
+               {:label "Close All"
+                :command :close-all}
+               {:label "Close Others"
+                :command :close-other}
+               {:label :separator}
+               {:label "Referencing Files..."
+                :command :referencing-files}
+               {:label "Dependencies..."
+                :command :dependencies}
+               {:label "Hot Reload"
+                :command :hot-reload}
+               {:label :separator}
+               {:label "Sign Out"
+                :command :logout}
+               {:label "Preferences..."
+                :command :preferences}
+               {:label "Quit"
+                :command :quit}]}
+   {:label "Edit"
+    :id ::edit
+    :children [{:label "Undo"
+                :icon "icons/undo.png"
+                :command :undo}
+               {:label "Redo"
+                :icon "icons/redo.png"
+                :command :redo}
+               {:label :separator}
+               {:label "Cut"
+                :command :cut}
+               {:label "Copy"
+                :command :copy}
+               {:label "Paste"
+                :command :paste}
+               {:label "Select All"
+                :command :select-all}
+               {:label "Delete"
+                :icon "icons/32/Icons_M_06_trash.png"
+                :command :delete}
+               {:label :separator}
+               {:label "Move Up"
+                :command :move-up}
+               {:label "Move Down"
+                :command :move-down}
+               {:label :separator
+                :id ::edit-end}]}
+   {:label "View"
+    :id ::view
+    :children [{:label "Toggle Assets Pane"
+                :command :toggle-pane-left}
+               {:label "Toggle Tools Pane"
+                :command :toggle-pane-bottom}
+               {:label "Toggle Properties Pane"
+                :command :toggle-pane-right}
+               {:label :separator}
+               {:label "Show Console"
+                :command :show-console}
+               {:label "Show Curve Editor"
+                :command :show-curve-editor}
+               {:label "Show Build Errors"
+                :command :show-build-errors}
+               {:label "Show Search Results"
+                :command :show-search-results}
+               {:label :separator
+                :id ::view-end}]}
+   {:label "Help"
+    :children [{:label "Profiler"
+                :children [{:label "Measure"
+                            :command :profile}
+                           {:label "Measure and Show"
+                            :command :profile-show}]}
+               {:label "Reload Stylesheet"
+                :command :reload-stylesheet}
+               {:label "Show Logs"
+                :command :show-logs}
+               {:label :separator}
+               {:label "Documentation"
+                :command :documentation}
+               {:label "Support Forum"
+                :command :support-forum}
+               {:label "Find Assets"
+                :command :asset-portal}
+               {:label :separator}
+               {:label "Report Issue"
+                :command :report-issue}
+               {:label "Report Suggestion"
+                :command :report-suggestion}
+               {:label "Search Issues"
+                :command :search-issues}
+               {:label :separator}
+               {:label "About"
+                :command :about}]}])
 
-(ui/extend-menu ::tab-menu nil
-                [{:label "Close"
-                  :command :close}
-                 {:label "Close Others"
-                  :command :close-other}
-                 {:label "Close All"
-                  :command :close-all}
-                 {:label :separator}
-                 {:label "Move to Other Tab Pane"
-                  :command :move-tab}
-                 {:label "Swap With Other Tab Pane"
-                  :command :swap-tabs}
-                 {:label "Join Tab Panes"
-                  :command :join-tab-panes}
-                 {:label :separator}
-                 {:label "Copy Project Path"
-                  :command :copy-project-path}
-                 {:label "Copy Full Path"
-                  :command :copy-full-path}
-                 {:label "Copy Require Path"
-                  :command :copy-require-path}
-                 {:label :separator}
-                 {:label "Show in Asset Browser"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-asset-browser}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}
-                 {:label "Referencing Files..."
-                  :command :referencing-files}
-                 {:label "Dependencies..."
-                  :command :dependencies}])
+(handler/register-menu! ::tab-menu
+  [{:label "Close"
+    :command :close}
+   {:label "Close Others"
+    :command :close-other}
+   {:label "Close All"
+    :command :close-all}
+   {:label :separator}
+   {:label "Move to Other Tab Pane"
+    :command :move-tab}
+   {:label "Swap With Other Tab Pane"
+    :command :swap-tabs}
+   {:label "Join Tab Panes"
+    :command :join-tab-panes}
+   {:label :separator}
+   {:label "Copy Project Path"
+    :command :copy-project-path}
+   {:label "Copy Full Path"
+    :command :copy-full-path}
+   {:label "Copy Require Path"
+    :command :copy-require-path}
+   {:label :separator}
+   {:label "Show in Asset Browser"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :show-in-asset-browser}
+   {:label "Show in Desktop"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :show-in-desktop}
+   {:label "Referencing Files..."
+    :command :referencing-files}
+   {:label "Dependencies..."
+    :command :dependencies}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -1820,7 +1833,49 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
-(defn- fetch-libraries [workspace project dashboard-client changes-view]
+(defn make-extensions-ui [workspace changes-view prefs]
+  (reify extensions/UI
+    (reload-resources! [_]
+      (let [success-promise (promise)]
+        (disk/async-reload! (make-render-task-progress :resource-sync)
+                            workspace
+                            []
+                            changes-view
+                            success-promise)
+        (when-not @success-promise
+          (throw (ex-info "Reload failed" {})))))
+    (can-execute? [_ [cmd-name :as command]]
+      (let [allowed-commands (prefs/get-prefs prefs "editor-extensions/allowed-commands" #{})]
+        (if (allowed-commands cmd-name)
+          true
+          (let [allow (ui/run-now
+                        (dialogs/make-confirmation-dialog
+                          {:title "Allow executing shell command?"
+                           :icon {:fx/type fxui/icon
+                                  :type :icon/triangle-error
+                                  :fill "#fa6731"}
+                           :header "Extension wants to execute a shell command"
+                           :content {:fx/type fxui/label
+                                     :style-class "dialog-content-padding"
+                                     :text (string/join " " command)}
+                           :buttons [{:text "Abort Command"
+                                      :cancel-button true
+                                      :default-button true
+                                      :result false}
+                                     {:text "Execute"
+                                      :variant :danger
+                                      :result true}]}))]
+            (when allow
+              (prefs/set-prefs prefs "editor-extensions/allowed-commands" (conj allowed-commands cmd-name)))
+            allow))))
+    (display-output! [_ type string]
+      (let [[console-type prefix] (case type
+                                    :err [:extension-err "ERROR:EXT: "]
+                                    :out [:extension-out ""])]
+        (doseq [line (string/split-lines string)]
+          (console/append-console-entry! console-type (str prefix line)))))))
+
+(defn- fetch-libraries [workspace project dashboard-client changes-view prefs]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -1840,7 +1895,10 @@ If you do not specifically require different script states, consider changing th
                 (render-install-progress! (progress/make "Installing updated libraries..."))
                 (ui/run-later
                   (workspace/install-validated-libraries! workspace library-uris lib-states)
-                  (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
+                  (disk/async-reload! render-install-progress! workspace [] changes-view
+                                      (fn [success]
+                                        (when success
+                                          (extensions/reload project :library (make-extensions-ui workspace changes-view prefs))))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
@@ -1851,11 +1909,17 @@ If you do not specifically require different script states, consider changing th
          (when (not-any? (partial = dependency-uri) dependencies)
            (game-project/set-setting! game-project ["project" "dependencies"]
                                       (conj (vec dependencies) dependency-uri))
-           (fetch-libraries workspace project dashboard-client changes-view)))))
+           (fetch-libraries workspace project dashboard-client changes-view prefs)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [workspace project dashboard-client changes-view] (fetch-libraries workspace project dashboard-client changes-view)))
+  (run [workspace project dashboard-client changes-view prefs]
+       (fetch-libraries workspace project dashboard-client changes-view prefs)))
+
+(handler/defhandler :reload-extensions :global
+  (enabled? [] (disk-availability/available?))
+  (run [project workspace changes-view prefs]
+       (extensions/reload project :all (make-extensions-ui workspace changes-view prefs))))
 
 (defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
   (let [workspace (project/workspace project)

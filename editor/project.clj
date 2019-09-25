@@ -63,6 +63,8 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
+                     [org.luaj/luaj-jse "3.0.1"]
+
                      [cljfx "1.4.3"]
 
                      [org.openjfx/javafx-base "14-ea+1"]
@@ -203,3 +205,4 @@
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
                                                     "-XX:+DebugNonSafepoints"]}})     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
+

@@ -227,9 +227,9 @@
       (.putString content error-text)
       (.setContent clipboard content))))
 
-(ui/extend-menu ::build-errors-menu nil
-                [{:label "Copy"
-                  :command :copy}])
+(handler/register-menu! ::build-errors-menu
+  [{:label "Copy"
+    :command :copy}])
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree

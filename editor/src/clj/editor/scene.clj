@@ -1040,58 +1040,58 @@
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
-(ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:label :separator}
-                 {:label "World Space"
-                  :command :set-manip-space
-                  :user-data {:manip-space :world}
-                  :check true}
-                 {:label "Local Space"
-                  :command :set-manip-space
-                  :user-data {:manip-space :local}
-                  :check true}
-                 {:label :separator}
-                 {:label "Move Whole Pixels"
-                  :command :toggle-move-whole-pixels
-                  :check true}])
+(handler/register-menu! ::menubar :editor.app-view/edit-end
+  [{:label :separator}
+   {:label "World Space"
+    :command :set-manip-space
+    :user-data {:manip-space :world}
+    :check true}
+   {:label "Local Space"
+    :command :set-manip-space
+    :user-data {:manip-space :local}
+    :check true}
+   {:label :separator}
+   {:label "Move Whole Pixels"
+    :command :toggle-move-whole-pixels
+    :check true}])
 
-(ui/extend-menu ::menubar :editor.app-view/view-end
-                [{:label "Toggle Visibility Filters"
-                  :command :toggle-visibility-filters}
-                 {:label "Toggle Component Guides"
-                  :command :toggle-component-guides}
-                 {:label "Toggle Grid"
-                  :command :toggle-grid}
-                 {:label :separator}
-                 {:label "Hide Selected Objects"
-                  :command :hide-selected}
-                 {:label "Hide Unselected Objects"
-                  :command :hide-unselected}
-                 {:label "Show Selected Objects"
-                  :command :show-selected}
-                 {:label "Show Last Hidden Objects"
-                  :command :show-last-hidden}
-                 {:label "Show All Hidden Objects"
-                  :command :show-all-hidden}
-                 {:label :separator}
-                 {:label "Play"
-                  :command :scene-play}
-                 {:label "Stop"
-                  :command :scene-stop}
-                 {:label :separator}
-                 {:label "Orthographic Camera"
-                  :command :set-camera-type
-                  :user-data {:camera-type :orthographic}
-                  :check true}
-                 {:label "Perspective Camera"
-                  :command :set-camera-type
-                  :user-data {:camera-type :perspective}
-                  :check true}
-                 {:label :separator}
-                 {:label "Frame Selection"
-                  :command :frame-selection}
-                 {:label "Realign Camera"
-                  :command :realign-camera}])
+(handler/register-menu! ::menubar :editor.app-view/view-end
+  [{:label "Toggle Visibility Filters"
+    :command :toggle-visibility-filters}
+   {:label "Toggle Component Guides"
+    :command :toggle-component-guides}
+   {:label "Toggle Grid"
+    :command :toggle-grid}
+   {:label :separator}
+   {:label "Hide Selected Objects"
+    :command :hide-selected}
+   {:label "Hide Unselected Objects"
+    :command :hide-unselected}
+   {:label "Show Selected Objects"
+    :command :show-selected}
+   {:label "Show Last Hidden Objects"
+    :command :show-last-hidden}
+   {:label "Show All Hidden Objects"
+    :command :show-all-hidden}
+   {:label :separator}
+   {:label "Play"
+    :command :scene-play}
+   {:label "Stop"
+    :command :scene-stop}
+   {:label :separator}
+   {:label "Orthographic Camera"
+    :command :set-camera-type
+    :user-data {:camera-type :orthographic}
+    :check true}
+   {:label "Perspective Camera"
+    :command :set-camera-type
+    :user-data {:camera-type :perspective}
+    :check true}
+   {:label :separator}
+   {:label "Frame Selection"
+    :command :frame-selection}
+   {:label "Realign Camera"
+    :command :realign-camera}])
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action [node-id label]]

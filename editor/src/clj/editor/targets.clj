@@ -369,12 +369,12 @@
   (run []
        (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
 
-(ui/extend-menu ::menubar :editor.defold-project/project-end
-                [{:label "Target"
-                  :id ::target
-                  :on-submenu-open update!
-                  :command :target}
-                 {:label "Enter Target IP"
-                  :command :target-ip}
-                 {:label "Target Discovery Log"
-                  :command :target-log}])
+(handler/register-menu! ::menubar :editor.defold-project/project-end
+  [{:label "Target"
+    :id ::target
+    :on-submenu-open update!
+    :command :target}
+   {:label "Enter Target IP"
+    :command :target-ip}
+   {:label "Target Discovery Log"
+    :command :target-log}])

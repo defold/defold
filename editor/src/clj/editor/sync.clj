@@ -447,25 +447,25 @@
                           (advance-flow (tick flow :pull/start) render-progress))))
     :push/done      flow))
 
-(ui/extend-menu ::conflicts-menu nil
-                [{:label "View Diff"
-                  :command :show-diff}
-                 {:label "Use Ours"
-                  :command :use-ours}
-                 {:label "Use Theirs"
-                  :command :use-theirs}])
+(handler/register-menu! ::conflicts-menu
+  [{:label "View Diff"
+    :command :show-diff}
+   {:label "Use Ours"
+    :command :use-ours}
+   {:label "Use Theirs"
+    :command :use-theirs}])
 
-(ui/extend-menu ::staging-menu nil
-                [{:label "View Diff"
-                  :command :show-change-diff}
-                 {:label "Stage Change"
-                  :command :stage-change}])
+(handler/register-menu! ::staging-menu
+  [{:label "View Diff"
+    :command :show-change-diff}
+   {:label "Stage Change"
+    :command :stage-change}])
 
-(ui/extend-menu ::unstaging-menu nil
-                [{:label "View Diff"
-                  :command :show-change-diff}
-                 {:label "Unstage Change"
-                  :command :unstage-change}])
+(handler/register-menu! ::unstaging-menu
+  [{:label "View Diff"
+    :command :show-change-diff}
+   {:label "Unstage Change"
+    :command :unstage-change}])
 
 (defn- get-theirs [{:keys [git] :as flow} file]
   (when-let [their-bytes (git/show-file git file)]
