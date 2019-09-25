@@ -1497,9 +1497,9 @@ instructions.configure=\
                                                  'sha1' : release_sha1}))
 
         # Create redirection keys for editor
-        for name in ['Defold-macosx.cocoa.x86_64.dmg', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86_64.zip']:
+        for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
             key_name = '%s/%s' % (self.channel, name)
-            redirect = '/archive/%s/%s/editor/%s' % (release_sha1, self.channel, name)
+            redirect = '/archive/%s/%s/editor2/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
