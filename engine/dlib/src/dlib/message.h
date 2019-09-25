@@ -100,7 +100,7 @@ namespace dmMessage
         dmhash_t               m_Id;                //! Unique id of message
         uintptr_t              m_UserData;          //! User data pointer
         uintptr_t              m_Descriptor;        //! User specified descriptor of the message data
-        uint32_t               m_DataSize;          //! Size of userdata in bytes
+        uint32_t               m_DataSize;          //! Size of message data in bytes
         struct Message*        m_Next;              //! Ptr to next message (or 0 if last)
         MessageDestroyCallback m_DestroyCallback;   //! If set, will be called after each dispatch
         uint8_t DM_ALIGNED(16) m_Data[0];           //! Payload
