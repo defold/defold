@@ -270,10 +270,13 @@ namespace dmGameSystem
 #define MAKE_FILL_AND_APPLY_FUNC(DATA_TYPE) \
     static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, DATA_TYPE* raw_data, DATA_TYPE* position_data, DATA_TYPE* dst_data_ptr) \
     { \
- \
         /* Copy all data */ \
         DATA_TYPE* start = dst_data_ptr; \
         memcpy(dst_data_ptr, raw_data, size); \
+ \
+        /* Offset dst_data_ptr if position stream isn't first! */ \
+        uint32_t position_ptr_offset = (uint8_t*)position_data - (uint8_t*)raw_data; \
+        dst_data_ptr = (DATA_TYPE*)((uint8_t*)dst_data_ptr + position_ptr_offset); \
  \
         Point3 in_p; \
         Vector4 v; \
@@ -302,12 +305,9 @@ namespace dmGameSystem
                 assert(false && "Cannot apply world transform on stream with neither 2 or 3 components."); \
             } \
  \
-            /* Update in/out-ptrs with stride (they will point to next entry in float "list"). */ \
+            /* Update in/out-ptrs with stride (they will point to next entry in DATA_TYPE "list"). */ \
             position_data += stride; \
-            uint8_t* a = (uint8_t*)dst_data_ptr; \
             dst_data_ptr += stride; \
-            uint8_t* b = (uint8_t*)dst_data_ptr; \
-            dmLogError("stride: %ld", b - a); \
         } \
  \
         return (void*)((uint8_t*)start + size); \
@@ -599,30 +599,6 @@ namespace dmGameSystem
                 case dmBufferDDF::VALUE_TYPE_FLOAT32:
                 dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
                     break;
-
-                /*
-                case dmBufferDDF::VALUE_TYPE_UINT8:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint8_t*)raw_data, (uint8_t*)position_data, (uint8_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_UINT16:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint16_t*)raw_data, (uint16_t*)position_data, (uint16_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_UINT32:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint32_t*)raw_data, (uint32_t*)position_data, (uint32_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_INT8:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int8_t*)raw_data, (int8_t*)position_data, (int8_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_INT16:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int16_t*)raw_data, (int16_t*)position_data, (int16_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_INT32:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int32_t*)raw_data, (int32_t*)position_data, (int32_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_FLOAT32:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
-                    break;
-                */
 
                 default:
                     assert(false && "Stream type not supported.");

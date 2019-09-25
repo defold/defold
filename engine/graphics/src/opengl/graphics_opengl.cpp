@@ -1142,6 +1142,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return vd;
     }
 
+    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index > vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
+    }
+
+    bool SetVertexStride(HVertexDeclaration vertex_declaration, uint16_t stride)
+    {
+        vertex_declaration->m_Stride = stride;
+        return true;
+    }
+
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete vertex_declaration;

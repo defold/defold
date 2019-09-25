@@ -384,6 +384,13 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
+    Result GetStreamOffset(HBuffer buffer_handle, uint32_t index, uint32_t* offset)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, buffer_handle);
+        *offset = buffer->m_Streams[index].m_Offset;
+        return RESULT_OK;
+    }
+
     Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle)
     {
         const Buffer* dst_buffer = GetBuffer(g_BufferContext, dst_buffer_handle);

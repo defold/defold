@@ -101,23 +101,44 @@ namespace dmGameSystem
             vert_size += StreamTypeToSize(ddf_stream.m_ValueType) * ddf_stream.m_ValueCount;
         }
 
-        mesh_resource->m_VertSize = vert_size;
-
         // Init vertex declaration
         mesh_resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, vert_decls, stream_count);
+        free(vert_decls);
 
+        // Update vertex declaration with exact offsets (since streams in buffers can be aligned).
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            uint32_t offset = 0;
+            dmBuffer::Result r = dmBuffer::GetStreamOffset(buffer_resource->m_Buffer, i, &offset);
+            assert(r == dmBuffer::RESULT_OK);
+
+            bool b2 = dmGraphics::SetStreamOffset(mesh_resource->m_VertexDeclaration, i, offset);
+            assert(b2);
+        }
+
+        // Set correct "struct stride/size", since dmBuffer might align the structs etc.
+        uint32_t stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
+        bool vert_stride_res = dmGraphics::SetVertexStride(mesh_resource->m_VertexDeclaration, stride);
+        if (!vert_stride_res) {
+            dmLogError("Could not get vertex element size for vertex buffer.");
+            return false;
+        }
+
+        // We need to keep track of the exact vertex size (ie the "struct" size according to dmBuffer)
+        // since for world space vertices we need to allocate a correct data buffer size for it.
+        // We also use it when passing the vertsize*elemcount to dmGraphics.
+        mesh_resource->m_VertSize = stride;
+
+        // Get buffer data and upload/send to dmGraphics.
         uint8_t* bytes = 0x0;
         uint32_t size = 0;
         dmBuffer::Result r = dmBuffer::GetBytes(buffer_resource->m_Buffer, (void**)&bytes, &size);
         if (r != dmBuffer::RESULT_OK) {
-            free(vert_decls);
             dmLogError("Could not get bytes from buffer!");
             return false;
         }
 
-        //assert(size == mesh_resource->m_VertSize * buffer_resource->m_ElementCount);
         mesh_resource->m_ElementCount = buffer_resource->m_ElementCount;
-
         mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh_resource->m_VertSize * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         return true;
@@ -166,33 +187,14 @@ namespace dmGameSystem
         }
         memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
-        // if(dmRender::GetMaterialVertexSpace(resource->m_Material) ==  dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
-        // {
-        //     if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
-        //     {
-        //         dmLogError("Failed to create Model component. Material vertex space option VERTEX_SPACE_LOCAL does not support skinning.");
-        //         return dmResource::RESULT_NOT_SUPPORTED;
-        //     }
-        //     dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
-        //     if(mesh_set)
-        //     {
-        //         if(mesh_set->m_MeshEntries.m_Count && mesh_set->m_MeshAttachments.m_Count)
-        //         {
-        //             CreateGPUBuffers(context, resource, mesh_set->m_MeshAttachments[0]);
-        //         }
-        //     }
-        // }
-
         BuildVertices(context, resource);
 
-        // dmLogError("position_stream: %s", resource->m_MeshDDF->m_PositionStream);
         resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
 
         BufferResource* buffer_resource = resource->m_BufferResource;
         uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
         for (uint32_t i = 0; i < stream_count; ++i)
         {
-        	//
         	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
         	if (stream_id == resource->m_PositionStreamId) {
         		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
