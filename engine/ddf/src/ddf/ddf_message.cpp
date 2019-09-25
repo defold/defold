@@ -82,7 +82,6 @@ namespace dmDDF
         const char* str_buf;
         if (length == 0)
         {
-            SetString(load_context, field, 0, 0);
             return RESULT_OK;
         }
         if (input_buffer->Read(length, &str_buf))
@@ -122,7 +121,6 @@ namespace dmDDF
         const char* str_buf;
         if (length == 0)
         {
-            SetBytes(load_context, field, 0, 0);
             return RESULT_OK;
         }
         if (input_buffer->Read(length, &str_buf))
