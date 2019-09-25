@@ -15,14 +15,18 @@
 ;; we avoid conversions.
 (def ^:private ^PixelFormat pixel-format (PixelFormat/getByteBgraPreInstance))
 
-(defn- make-direct-buffer-backed-writable-image-new
-  [width height]
-  (let [buf (doto (ByteBuffer/allocateDirect (* width height 4))
-              (.order (ByteOrder/nativeOrder)))
-        pixelBuffer (PixelBuffer. width height buf pixel-format)]
+(defn- make-writable-image-with-bytebuffer
+  [^ByteBuffer buf width height]
+  (let [pixelBuffer (PixelBuffer. width height buf pixel-format)]
     {:byte-buffer buf
      :pixel-buffer pixelBuffer
      :image (WritableImage. pixelBuffer)}))
+
+(defn- make-direct-buffer-backed-writable-image-new
+  [width height]
+  (let [buf (doto (ByteBuffer/allocateDirect (* width height 4))
+              (.order (ByteOrder/nativeOrder)))]
+    (make-writable-image-with-bytebuffer buf width height)))
 
 (defn- make-direct-buffer-backed-writable-image-old
   [width height]
@@ -189,6 +193,18 @@
       (.updateBuffer pb cb)
       ;;(.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
       (assoc async-copy-state :state :done))))
+
+(defn- copy-pbo-to-image-5! [async-copy-state ^GL2 gl]
+  (profiler/profile "pbo->image" -1
+    (let [image (image async-copy-state)
+          current-image (:current-image async-copy-state)
+          {:keys [^int width ^int height]} (:pbo-size async-copy-state)
+          ;; glMapBuffer will wait until glReadPixels completes
+          buffer ^ByteBuffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
+      ;;(.. image getPixelWriter (setPixels 0 0 width height pixel-format buffer (* width 4)))
+      (.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
+      (-> (assoc-in async-copy-state [:images current-image] (make-writable-image-with-bytebuffer buffer width height))
+          (assoc :state :done)))))
 
 (defmethod finish-image! :reading
   [async-copy-state ^GL2 gl]
