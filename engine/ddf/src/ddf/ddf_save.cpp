@@ -65,19 +65,19 @@ namespace dmDDF
                 switch (field_desc->m_Type)
                 {
                     case TYPE_DOUBLE:
-                        DDF_SAVEMESSAGE_CASE(double, WIRETYPE_FIXED64, WriteDouble);
+                        DDF_SAVEMESSAGE_CASE(double, WIRETYPE_FIXED64, WriteDouble)
 
                     case TYPE_FLOAT:
-                        DDF_SAVEMESSAGE_CASE(float, WIRETYPE_FIXED32, WriteFloat);
+                        DDF_SAVEMESSAGE_CASE(float, WIRETYPE_FIXED32, WriteFloat)
 
                     case TYPE_INT64:
-                        DDF_SAVEMESSAGE_CASE(int64_t, WIRETYPE_VARINT, WriteVarInt64);
+                        DDF_SAVEMESSAGE_CASE(int64_t, WIRETYPE_VARINT, WriteVarInt64)
 
                     case TYPE_UINT64:
-                        DDF_SAVEMESSAGE_CASE(uint64_t, WIRETYPE_VARINT, WriteVarInt64);
+                        DDF_SAVEMESSAGE_CASE(uint64_t, WIRETYPE_VARINT, WriteVarInt64)
 
                     case TYPE_INT32:
-                        DDF_SAVEMESSAGE_CASE(int32_t, WIRETYPE_VARINT, WriteVarInt32SignExtended);
+                        DDF_SAVEMESSAGE_CASE(int32_t, WIRETYPE_VARINT, WriteVarInt32SignExtended)
 
                     case TYPE_FIXED64:
                         assert(false);
@@ -88,10 +88,12 @@ namespace dmDDF
                         break;
 
                     case TYPE_BOOL:
-                        DDF_SAVEMESSAGE_CASE(bool, WIRETYPE_VARINT, WriteBool);
+                        DDF_SAVEMESSAGE_CASE(bool, WIRETYPE_VARINT, WriteBool)
 
                     case TYPE_STRING:
-                        DDF_SAVEMESSAGE_CASE(const char*, WIRETYPE_LENGTH_DELIMITED, WriteString);
+                        // Do not write null-strings. Will result in null-pointer error in WriteString
+                        if (*((const char**) data))
+                            DDF_SAVEMESSAGE_CASE(const char*, WIRETYPE_LENGTH_DELIMITED, WriteString)
 
                     case TYPE_GROUP:
                         assert(false);
@@ -126,10 +128,10 @@ namespace dmDDF
                     break;
 
                     case TYPE_UINT32:
-                        DDF_SAVEMESSAGE_CASE(uint32_t, WIRETYPE_VARINT, WriteVarInt32);
+                        DDF_SAVEMESSAGE_CASE(uint32_t, WIRETYPE_VARINT, WriteVarInt32)
 
                     case TYPE_ENUM:
-                        DDF_SAVEMESSAGE_CASE(uint32_t, WIRETYPE_VARINT, WriteVarInt32);
+                        DDF_SAVEMESSAGE_CASE(uint32_t, WIRETYPE_VARINT, WriteVarInt32)
                         break;
 
                     case TYPE_SFIXED32:

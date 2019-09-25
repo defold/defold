@@ -131,9 +131,6 @@ namespace dmDDF
 
     bool OutputStream::WriteString(const char* str)
     {
-        if (!str) {
-            return WriteVarInt32(0);
-        }
         uint32_t len = strlen(str);
         return WriteVarInt32(len) && Write(str, len);
     }

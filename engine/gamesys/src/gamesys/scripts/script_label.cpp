@@ -197,30 +197,31 @@ static int SetText(lua_State* L)
 
     dmGameObject::HInstance instance = CheckGoInstance(L);
 
-    size_t len = 0;
-    const char* text = luaL_checklstring(L, 2, &len);
+    const char* text = luaL_checkstring(L, 2);
     if (!text)
     {
         return DM_LUA_ERROR("Expected string as second argument");
     }
 
-    lua_newtable(L);
-    lua_pushlstring(L, text, len);
-    lua_setfield(L, -2, "text");
+    size_t len = strlen(text)+1;
+    size_t size = sizeof(dmGameSystemDDF::SetText);
+    uint8_t* mem = (uint8_t*)alloca(size+len);
 
-    uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
-    uint32_t data_size = dmScript::CheckDDF(L, dmGameSystemDDF::SetText::m_DDFDescriptor, (char*)data, sizeof(data), -1);
+    dmGameSystemDDF::SetText msg;
+    msg.m_Text = (const char*)(uintptr_t)size; // The text is directory behind the message
+
+    memcpy(mem, &msg, size);
+    memcpy(mem+size, text, len);
 
     dmMessage::URL receiver;
     dmMessage::URL sender;
     dmScript::GetURL(L, &sender);
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
+    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, mem, size+len, 0) )
     {
         return DM_LUA_ERROR("Failed to send label string as message!");
     }
-    lua_pop(L, 1);
     return 0;
 }
 
@@ -313,7 +314,7 @@ static int GetText(lua_State* L)
     if (!component) {
         return DM_LUA_ERROR("Could not find instance %s:%s#%s", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(receiver.m_Path), dmHashReverseSafe64(receiver.m_Fragment));
     }
-
+    
     const char* value = dmGameSystem::CompLabelGetText(component);
     lua_pushstring(L, value);
 

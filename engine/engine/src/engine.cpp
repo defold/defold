@@ -1424,24 +1424,26 @@ bail:
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
-            reboot->m_Arg1 ? strdup(reboot->m_Arg1) : 0,
-            reboot->m_Arg2 ? strdup(reboot->m_Arg2) : 0,
-            reboot->m_Arg3 ? strdup(reboot->m_Arg3) : 0,
-            reboot->m_Arg4 ? strdup(reboot->m_Arg4) : 0,
-            reboot->m_Arg5 ? strdup(reboot->m_Arg5) : 0,
-            reboot->m_Arg6 ? strdup(reboot->m_Arg6) : 0,
+            strdup(reboot->m_Arg1),
+            strdup(reboot->m_Arg2),
+            strdup(reboot->m_Arg3),
+            strdup(reboot->m_Arg4),
+            strdup(reboot->m_Arg5),
+            strdup(reboot->m_Arg6),
         };
 
+        bool empty_found = false;
         for (int i = 0; i < ARG_COUNT; ++i)
         {
             // NOTE: +1 here, see above
             engine->m_RunResult.m_Argv[i + 1] = args[i];
-            if (args[i] == 0 || args[i][0] == '\0')
+            if (args[i][0] == '\0')
             {
-                break;
+                empty_found = true;
             }
 
-            argc++;
+            if (!empty_found)
+                argc++;
         }
 
         engine->m_RunResult.m_Argc = argc;
