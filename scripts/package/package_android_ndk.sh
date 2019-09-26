@@ -11,7 +11,6 @@ ANDROID_NDK_VERSION=r20
 ANDROID_NDK=android-ndk-${ANDROID_NDK_VERSION}
 
 HOST=$1
-shift
 
 if [ "$HOST" == "" ]; then
 	HOST=`uname | tr '[:upper:]' '[:lower:]'`

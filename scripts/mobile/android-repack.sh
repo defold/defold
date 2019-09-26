@@ -71,6 +71,12 @@ if [ ! -z "${CERTIFICATE}" ] || [ ! -z "${KEYFILE}" ]; then
     KEYFILE="$(cd "$(dirname "${KEYFILE}")"; pwd)/$(basename "${KEYFILE}")"
 fi
 
+set +e
+READELF="$(which readelf)"
+if [ "${READELF}" == "" ]; then
+    READELF="$(which greadelf)"
+fi
+set -e
 
 # ----------------------------------------------------------------------------
 # Script
@@ -89,15 +95,40 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 (
     cd "${BUILD}"
 
-    EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
-    EXENAME_64=`(cd lib/arm64-v8a && ls lib*.so)`
+    if [ -d "lib/armeabi-v7a" ]; then
+        EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
+        cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
+
+        if [ "${READELF}" != "" ]; then
+            NEED_ASAN=$(${READELF} -d ${ENGINE_LIB} | grep 'NEEDED' | grep libclang_rt.asan)
+            if [ "$NEED_ASAN" != "" ]; then
+                cp -v ${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/8.0.7/lib/linux/libclang_rt.asan-arm-android.so lib/armeabi-v7a
+            fi
+        fi
+    fi
+
+    if [ -d "lib/arm64-v8a" ]; then
+        EXENAME=`(cd lib/arm64-v8a && ls lib*.so)`
+        cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME}"
+
+        if [ "${READELF}" != "" ]; then
+            NEED_ASAN=$(${READELF} -d ${ENGINE_64_LIB} | grep 'NEEDED' | grep libclang_rt.asan)
+            if [ "$NEED_ASAN" != "" ]; then
+                cp -v ${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/darwin-x86_64/lib64/clang/8.0.7/lib/linux/libclang_rt.asan-arm-android.so lib/arm64-v8a
+            fi
+        fi
+    fi
 
     rm -rf "META-INF"
-    cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
-    cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME_64}"
+
+    # TODO: Unpack previous dex file(s), then unpack the vanilla ones on top of that, then repack again
     cp -v "${ENGINE_DEX}" "classes.dex"
 
-    cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
+    if [ -e "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ]; then
+        cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
+    else
+        echo "Didn't find the gdbserver, skipping..."
+    fi
 
     ${ZIP} -qr "${REPACKZIP}" "."
 )
