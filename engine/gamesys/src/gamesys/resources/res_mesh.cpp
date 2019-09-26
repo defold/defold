@@ -191,6 +191,7 @@ namespace dmGameSystem
         BuildVertices(context, resource);
 
         resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
+        resource->m_NormalStreamId = dmHashString64(resource->m_MeshDDF->m_NormalStream);
 
         BufferResource* buffer_resource = resource->m_BufferResource;
         uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
@@ -199,8 +200,11 @@ namespace dmGameSystem
         	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
         	if (stream_id == resource->m_PositionStreamId) {
         		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
-        		break;
-        	}
+        		// break;
+        	} else if (stream_id == resource->m_NormalStreamId) {
+                resource->m_NormalStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
+                // break;
+            }
         }
 
         return result;

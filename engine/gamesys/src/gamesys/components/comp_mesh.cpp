@@ -293,61 +293,76 @@ namespace dmGameSystem
         }
     }
 
-#define MAKE_FILL_AND_APPLY_FUNC(DATA_TYPE) \
-    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, DATA_TYPE* raw_data, DATA_TYPE* position_data, DATA_TYPE* dst_data_ptr) \
-    { \
-        /* Copy all data */ \
-        DATA_TYPE* start = dst_data_ptr; \
-        memcpy(dst_data_ptr, raw_data, size); \
- \
-        /* Offset dst_data_ptr if position stream isn't first! */ \
-        uint32_t position_ptr_offset = (uint8_t*)position_data - (uint8_t*)raw_data; \
-        dst_data_ptr = (DATA_TYPE*)((uint8_t*)dst_data_ptr + position_ptr_offset); \
- \
-        Point3 in_p; \
-        Vector4 v; \
-        for (int pi = 0; pi < count; ++pi) \
-        { \
- \
-            /* Apply world transform to all positions */ \
-            if (components == 3) { \
- \
-                in_p[0] = position_data[0]; \
-                in_p[1] = position_data[1]; \
-                in_p[2] = position_data[2]; \
-                v = component->m_World * in_p; \
-                dst_data_ptr[0] = v[0]; \
-                dst_data_ptr[1] = v[1]; \
-                dst_data_ptr[2] = v[2]; \
-            } else if (components == 2) { \
- \
-                in_p[0] = position_data[0]; \
-                in_p[1] = position_data[1]; \
-                in_p[2] = 0.0f; \
-                v = component->m_World * in_p; \
-                dst_data_ptr[0] = v[0]; \
-                dst_data_ptr[1] = v[1]; \
-            } else { \
-                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components."); \
-            } \
- \
-            /* Update in/out-ptrs with stride (they will point to next entry in DATA_TYPE "list"). */ \
-            position_data += stride; \
-            dst_data_ptr += stride; \
-        } \
- \
-        return (void*)((uint8_t*)start + size); \
+    template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_vector, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)
+    {
+        // Offset dst_data_ptr if stream isn't first!
+        uint32_t ptr_offset = (uint8_t*)src_stream_data - (uint8_t*)raw_data;
+        dst_data_ptr = (T*)((uint8_t*)dst_data_ptr + ptr_offset);
+
+        Vector4 v(0.0f);
+        for (int pi = 0; pi < count; ++pi)
+        {
+            v[0] = src_stream_data[0];
+            v[1] = src_stream_data[1];
+            v[2] = src_stream_data[2];
+            v[3] = !is_vector;
+            v = matrix * v;
+            dst_data_ptr[0] = v[0];
+            dst_data_ptr[1] = v[1];
+            dst_data_ptr[2] = v[2];
+
+            // Update in/out-ptrs with stride (they will point to next entry in T "list").
+            src_stream_data += stride;
+            dst_data_ptr += stride;
+        }
     }
 
-    MAKE_FILL_AND_APPLY_FUNC(uint8_t)
-    MAKE_FILL_AND_APPLY_FUNC(uint16_t)
-    MAKE_FILL_AND_APPLY_FUNC(uint32_t)
-    MAKE_FILL_AND_APPLY_FUNC(int8_t)
-    MAKE_FILL_AND_APPLY_FUNC(int16_t)
-    MAKE_FILL_AND_APPLY_FUNC(int32_t)
-    MAKE_FILL_AND_APPLY_FUNC(float)
+    static inline void FillAndApplyStream(const BufferResource* buffer_resource, const Matrix4& matrix, dmhash_t stream_id, dmBufferDDF::ValueType value_type, void* raw_data, void* dst_data_ptr)
+    {
+        // Get position stream to figure out offset and stride etc
+        void* stream_data = 0x0;
+        uint32_t count = 0;
+        uint32_t components = 0;
+        uint32_t stride = 0;
+        dmBuffer::Result r = dmBuffer::GetStream(buffer_resource->m_Buffer, stream_id, &stream_data, &count, &components, &stride);
+        if (r != dmBuffer::RESULT_OK) {
+            dmLogError("Could not get stream %s from buffer when rendering mesh in world space (%d).", dmHashReverseSafe64(stream_id), r);
+            return;
+        }
 
-#undef MAKE_FILL_AND_APPLY_FUNC
+        if (components != 3) {
+            dmLogError("Rendering mesh components in world space is only supported for streams with 3 components, %s has %d components.", dmHashReverseSafe64(stream_id), components);
+            return;
+        }
+
+        switch (value_type)
+        {
+            case dmBufferDDF::VALUE_TYPE_UINT8:
+            FillAndApply<uint8_t>(matrix, 0, count, stride, (uint8_t*)raw_data, (uint8_t*)stream_data, (uint8_t*)dst_data_ptr);
+                break;
+            case dmBufferDDF::VALUE_TYPE_UINT16:
+            FillAndApply<uint16_t>(matrix, 0, count, stride, (uint16_t*)raw_data, (uint16_t*)stream_data, (uint16_t*)dst_data_ptr);
+                break;
+            case dmBufferDDF::VALUE_TYPE_UINT32:
+            FillAndApply<uint32_t>(matrix, 0, count, stride, (uint32_t*)raw_data, (uint32_t*)stream_data, (uint32_t*)dst_data_ptr);
+                break;
+            case dmBufferDDF::VALUE_TYPE_INT8:
+            FillAndApply<int8_t>(matrix, 0, count, stride, (int8_t*)raw_data, (int8_t*)stream_data, (int8_t*)dst_data_ptr);
+                break;
+            case dmBufferDDF::VALUE_TYPE_INT16:
+            FillAndApply<int16_t>(matrix, 0, count, stride, (int16_t*)raw_data, (int16_t*)stream_data, (int16_t*)dst_data_ptr);
+                break;
+            case dmBufferDDF::VALUE_TYPE_INT32:
+            FillAndApply<int32_t>(matrix, 0, count, stride, (int32_t*)raw_data, (int32_t*)stream_data, (int32_t*)dst_data_ptr);
+                break;
+            case dmBufferDDF::VALUE_TYPE_FLOAT32:
+            FillAndApply<float>(matrix, 0, count, stride, (float*)raw_data, (float*)stream_data, (float*)dst_data_ptr);
+                break;
+            default:
+                assert(false && "Stream type not supported.");
+                break;
+        }
+    }
 
     static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
@@ -367,6 +382,8 @@ namespace dmGameSystem
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
         const MeshComponent* first_component = (MeshComponent*) buf[*begin].m_UserData;
+        const MeshResource* mr = first_component->m_Resource;
+        const BufferResource* br = mr->m_BufferResource;
 
         // Find out how many elements/vertices all instances in this batch has
         uint32_t element_count = 0;
@@ -378,7 +395,6 @@ namespace dmGameSystem
         }
 
         // Allocate a larger scratch buffer if vert count * vert size is larger than current buffer.
-        const MeshResource* mr = first_component->m_Resource;
         if (world->m_WorldVertexDataSize < mr->m_VertSize * element_count)
         {
             if (world->m_WorldVertexData) {
@@ -389,13 +405,11 @@ namespace dmGameSystem
         }
 
         // Fill scratch buffer with data
-        //float* dst_data_ptr = (float*)world->m_WorldVertexData;
         void* dst_data_ptr = world->m_WorldVertexData;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
-            const BufferResource* br = mr->m_BufferResource;
 
             void* raw_data = 0x0;
             uint32_t size = 0;
@@ -405,52 +419,22 @@ namespace dmGameSystem
                 continue;
             }
 
+            // Copy all buffer data
+            memcpy(dst_data_ptr, raw_data, size);
 
-            // Get position stream to figure out offset and stride etc
-            void* position_data = 0x0;
-            uint32_t count = 0;
-            uint32_t components = 0;
-            uint32_t stride = 0;
-            r = dmBuffer::GetStream(br->m_Buffer, mr->m_PositionStreamId, &position_data, &count, &components, &stride);
-            if (r != dmBuffer::RESULT_OK) {
-                dmLogError("Could not get position stream from buffer when rendering mesh in world space (%d).", r);
-                continue;
+            // Modify position stream, if specified
+            if (mr->m_PositionStreamId) {
+                FillAndApplyStream(br, component->m_World, mr->m_PositionStreamId, mr->m_PositionStreamType, raw_data, dst_data_ptr);
             }
 
-            if (components != 2 && components != 3) {
-                dmLogError("Rendering mesh components in world space is only supported for position streams with 2 or 3 components, has %d components.", components);
-                continue;
+            // Modify normal stream, if specified
+            if (mr->m_NormalStreamId) {
+                Matrix4 normal_matrix = inverse(component->m_World);
+                normal_matrix = transpose(normal_matrix);
+                FillAndApplyStream(br, normal_matrix, mr->m_NormalStreamId, mr->m_NormalStreamType, raw_data, dst_data_ptr);
             }
 
-            switch (mr->m_PositionStreamType)
-            {
-
-                case dmBufferDDF::VALUE_TYPE_UINT8:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint8_t*)raw_data, (uint8_t*)position_data, (uint8_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_UINT16:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint16_t*)raw_data, (uint16_t*)position_data, (uint16_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_UINT32:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint32_t*)raw_data, (uint32_t*)position_data, (uint32_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_INT8:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int8_t*)raw_data, (int8_t*)position_data, (int8_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_INT16:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int16_t*)raw_data, (int16_t*)position_data, (int16_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_INT32:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (int32_t*)raw_data, (int32_t*)position_data, (int32_t*)dst_data_ptr);
-                    break;
-                case dmBufferDDF::VALUE_TYPE_FLOAT32:
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
-                    break;
-
-                default:
-                    assert(false && "Stream type not supported.");
-                    break;
-            }
+            dst_data_ptr = (void*)((uint8_t*)dst_data_ptr + size);
         }
 
         world->m_RenderedVertexSize += mr->m_VertSize * element_count;

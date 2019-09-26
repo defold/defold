@@ -33,6 +33,8 @@ namespace dmGameSystem
         uint64_t                        m_VertSize;
         dmhash_t                        m_PositionStreamId;
         dmBufferDDF::ValueType          m_PositionStreamType;
+        dmhash_t                        m_NormalStreamId;
+        dmBufferDDF::ValueType          m_NormalStreamType;
 
         uint32_t                        m_BufferVersion;
     };
