@@ -14,6 +14,10 @@ namespace dmGameSystem
         if (resource->m_BufferDDF != 0x0)
             dmDDF::FreeMessage(resource->m_BufferDDF);
         resource->m_BufferDDF = 0x0;
+
+        if (resource->m_Buffer) {
+            dmBuffer::Destroy(resource->m_Buffer);
+        }
     }
 
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params)
@@ -221,6 +225,7 @@ namespace dmGameSystem
             return dmResource::RESULT_INVALID_DATA;
         }
 
+        buffer_resource->m_Version++;
 
         return dmResource::RESULT_OK;
     }

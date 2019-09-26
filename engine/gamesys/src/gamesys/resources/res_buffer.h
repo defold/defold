@@ -14,6 +14,7 @@ namespace dmGameSystem
         dmBufferDDF::BufferDesc* m_BufferDDF;
         dmBuffer::HBuffer        m_Buffer;
         uint64_t                 m_ElementCount;
+        uint32_t                 m_Version;
         // dmBuffer
         // RigSceneResource*       m_RigScene;
         // dmRender::HMaterial     m_Material;

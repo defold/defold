@@ -9,6 +9,7 @@
 
 namespace dmGameSystem
 {
+    static dmGraphics::HContext g_GraphicsContext = 0x0;
 
     static dmGraphics::Type StreamTypeToGraphicsType(dmBufferDDF::ValueType value_type)
     {
@@ -205,6 +206,18 @@ namespace dmGameSystem
         return result;
     }
 
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    {
+        MeshResource* mesh_resource = (MeshResource*) params.m_UserData;
+
+        if (mesh_resource->m_BufferVersion != mesh_resource->m_BufferResource->m_Version) {
+            if (!BuildVertices(g_GraphicsContext, mesh_resource)) {
+                dmLogWarning("Reloading the mesh failed, there might be rendering errors.");
+            }
+            mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
+        }
+    }
+
     static void ReleaseResources(dmResource::HFactory factory, MeshResource* resource)
     {
         if (resource->m_MeshDDF != 0x0)
@@ -243,6 +256,10 @@ namespace dmGameSystem
 
     dmResource::Result ResMeshCreate(const dmResource::ResourceCreateParams& params)
     {
+        // FIXME: Not very nice to keep a global reference to the graphics context...
+        // Needed by the reload callback since we need to rebuild the vertex declaration and vertbuffer.
+        g_GraphicsContext = (dmGraphics::HContext) params.m_Context;
+
         MeshResource* mesh_resource = new MeshResource();
         memset(mesh_resource, 0, sizeof(MeshResource));
         mesh_resource->m_MeshDDF = (dmMeshDDF::MeshDesc*) params.m_PreloadData;
@@ -256,12 +273,17 @@ namespace dmGameSystem
             ReleaseResources(params.m_Factory, mesh_resource);
             delete mesh_resource;
         }
+
+        mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
+
+        dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, mesh_resource);
         return r;
     }
 
     dmResource::Result ResMeshDestroy(const dmResource::ResourceDestroyParams& params)
     {
         MeshResource* mesh_resource = (MeshResource*)params.m_Resource->m_Resource;
+        dmResource::UnregisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, mesh_resource);
         ReleaseResources(params.m_Factory, mesh_resource);
         delete mesh_resource;
         return dmResource::RESULT_OK;

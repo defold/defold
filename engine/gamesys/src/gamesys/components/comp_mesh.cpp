@@ -37,6 +37,8 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         CompRenderConstants         m_RenderConstants;
         MeshResource*               m_Resource;
+        dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmRender::HMaterial         m_Material;
 
         uint16_t                    m_ComponentIndex;
         /// Component enablement
@@ -63,11 +65,11 @@ namespace dmGameSystem
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
+    static const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
 
     static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
-    // static void DestroyComponent(ModelWorld* world, uint32_t index);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -116,6 +118,15 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
+        return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
+    static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
+        assert(index < MAX_TEXTURE_COUNT);
+        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
+    }
+
     static void ReHash(MeshComponent* component)
     {
         // Hash resource-ptr, material-handle, blend mode and render constants
@@ -123,8 +134,13 @@ namespace dmGameSystem
         bool reverse = false;
         MeshResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, &resource->m_Textures[0], sizeof(resource->m_Textures[0])); // only one texture for now. Should we really support up to 32 textures per model?
-        dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
+        dmRender::HMaterial material = GetMaterial(component, resource);
+        dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        // We have to hash individually since we don't know which textures are set as properties
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+            dmGraphics::HTexture texture = GetTexture(component, resource, i);
+            dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
+        }
         dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
@@ -165,13 +181,23 @@ namespace dmGameSystem
 
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+        if (component->m_Material) {
+            dmResource::Release(factory, component->m_Material);
+        }
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+            if (component->m_Textures[i]) {
+                dmResource::Release(factory, component->m_Textures[i]);
+            }
+        }
+
         delete component;
         world->m_Components.Free(index, true);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void UpdateTransforms(MeshWorld* world)
+    static void UpdateTransforms(MeshWorld* world)
     {
         DM_PROFILE(Mesh, "UpdateTransforms");
 
@@ -313,68 +339,6 @@ namespace dmGameSystem
         return (void*)((uint8_t*)start + size); \
     }
 
-#if 0
-#define MAKE_FILL_AND_APPLY_FUNC(DATA_TYPE) \
-    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, DATA_TYPE* raw_data, DATA_TYPE* position_data, DATA_TYPE* dst_data_ptr) \
-    { \
-        uint8_t* last_p = (uint8_t*)raw_data; \
-        uint8_t* last_dst_p = (uint8_t*)dst_data_ptr; \
- \
-        Point3 in_p; \
-        Vector4 v; \
-        for (int pi = 0; pi < count; ++pi) \
-        { \
-            /* Copy mem from last entry position up to this one */ \
-            uint32_t diff_size = (uint8_t*)position_data - last_p; \
-            if (diff_size > 0) { \
-                memcpy(last_dst_p, last_p, diff_size); \
-            } \
-            dst_data_ptr = (DATA_TYPE*)(last_dst_p+diff_size); \
- \
-            /* Apply world transform to all positions */ \
-            if (components == 3) { \
- \
-                in_p[0] = position_data[0]; \
-                in_p[1] = position_data[1]; \
-                in_p[2] = position_data[2]; \
-                v = component->m_World * in_p; \
-                dst_data_ptr[0] = v[0]; \
-                dst_data_ptr[1] = v[1]; \
-                dst_data_ptr[2] = v[2]; \
-            } else if (components == 2) { \
- \
-                in_p[0] = position_data[0]; \
-                in_p[1] = position_data[1]; \
-                in_p[2] = 0.0f; \
-                v = component->m_World * in_p; \
-                dst_data_ptr[0] = v[0]; \
-                dst_data_ptr[1] = v[1]; \
-            } else { \
-                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components."); \
-            } \
- \
-            /* Update memcpy-ptrs so they point to end of last component element. */ \
-            last_dst_p = (uint8_t*)(&dst_data_ptr[components]); \
-            last_p = (uint8_t*)(&position_data[components]); \
- \
-            /* Update in/out-ptrs with stride (they will point to next entry in float "list"). */ \
-            position_data += stride; \
-            dst_data_ptr += stride; \
-        } \
- \
-        /* Copy any remaining data */ \
-        uint8_t* raw_data_end = (uint8_t*)raw_data + size; \
-        uint32_t diff_size = raw_data_end - last_p; \
-        if (diff_size > 0) { \
-            memcpy(last_dst_p, last_p, diff_size); \
-        } \
-        dst_data_ptr = (DATA_TYPE*)(last_dst_p+diff_size); \
- \
-        return (void*)dst_data_ptr; \
-    }
-
-#endif
-
     MAKE_FILL_AND_APPLY_FUNC(uint8_t)
     MAKE_FILL_AND_APPLY_FUNC(uint16_t)
     MAKE_FILL_AND_APPLY_FUNC(uint32_t)
@@ -384,123 +348,6 @@ namespace dmGameSystem
     MAKE_FILL_AND_APPLY_FUNC(float)
 
 #undef MAKE_FILL_AND_APPLY_FUNC
-/*
-    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, uint8_t* raw_data, uint8_t* position_data, uint8_t* dst_data_ptr)
-    {
-        uint8_t* last_p = (uint8_t*)raw_data;
-        uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
-
-        Point3 in_p;
-        Vector4 v;
-        for (int pi = 0; pi < count; ++pi)
-        {
-            // Copy mem from last entry position up to this one
-            uint32_t diff_size = (uint8_t*)position_data - last_p;
-            if (diff_size > 0) {
-                memcpy(last_dst_p, last_p, diff_size);
-            }
-            dst_data_ptr = (uint8_t*)(last_dst_p+diff_size);
-
-            // Apply world transform to all positions
-            if (components == 3) {
-
-                in_p[0] = position_data[0];
-                in_p[1] = position_data[1];
-                in_p[2] = position_data[2];
-                v = component->m_World * in_p;
-                dst_data_ptr[0] = v[0];
-                dst_data_ptr[1] = v[1];
-                dst_data_ptr[2] = v[2];
-            } else if (components == 2) {
-
-                in_p[0] = position_data[0];
-                in_p[1] = position_data[1];
-                in_p[2] = 0.0f;
-                v = component->m_World * in_p;
-                dst_data_ptr[0] = v[0];
-                dst_data_ptr[1] = v[1];
-            } else {
-                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components.");
-            }
-
-            // Update memcpy-ptrs so they point to end of last component element.
-            last_dst_p = (uint8_t*)(&dst_data_ptr[components]);
-            last_p = (uint8_t*)(&position_data[components]);
-
-            // Update in/out-ptrs with stride (they will point to next entry in float "list").
-            position_data += stride;
-            dst_data_ptr += stride;
-        }
-
-        // Copy any remaining data
-        uint8_t* raw_data_end = (uint8_t*)raw_data + size;
-        uint32_t diff_size = raw_data_end - last_p;
-        if (diff_size > 0) {
-            memcpy(last_dst_p, last_p, diff_size);
-        }
-        dst_data_ptr = (uint8_t*)(last_dst_p+diff_size);
-
-        return (void*)dst_data_ptr;
-    }
-
-    static void* FillAndApplyWorldPositions(const MeshComponent* component, uint8_t components, uint32_t count, uint32_t stride, uint32_t size, float* raw_data, float* position_data, float* dst_data_ptr)
-    {
-        uint8_t* last_p = (uint8_t*)raw_data;
-        uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
-
-        Point3 in_p;
-        Vector4 v;
-        for (int pi = 0; pi < count; ++pi)
-        {
-            // Copy mem from last entry position up to this one
-            uint32_t diff_size = (uint8_t*)position_data - last_p;
-            if (diff_size > 0) {
-                memcpy(last_dst_p, last_p, diff_size);
-            }
-            dst_data_ptr = (float*)(last_dst_p+diff_size);
-
-            // Apply world transform to all positions
-            if (components == 3) {
-
-                in_p[0] = position_data[0];
-                in_p[1] = position_data[1];
-                in_p[2] = position_data[2];
-                v = component->m_World * in_p;
-                dst_data_ptr[0] = v[0];
-                dst_data_ptr[1] = v[1];
-                dst_data_ptr[2] = v[2];
-            } else if (components == 2) {
-
-                in_p[0] = position_data[0];
-                in_p[1] = position_data[1];
-                in_p[2] = 0.0f;
-                v = component->m_World * in_p;
-                dst_data_ptr[0] = v[0];
-                dst_data_ptr[1] = v[1];
-            } else {
-                assert(false && "Cannot apply world transform on stream with neither 2 or 3 components.");
-            }
-
-            // Update memcpy-ptrs so they point to end of last component element.
-            last_dst_p = (uint8_t*)(&dst_data_ptr[components]);
-            last_p = (uint8_t*)(&position_data[components]);
-
-            // Update in/out-ptrs with stride (they will point to next entry in float "list").
-            position_data += stride;
-            dst_data_ptr += stride;
-        }
-
-        // Copy any remaining data
-        uint8_t* raw_data_end = (uint8_t*)raw_data + size;
-        uint32_t diff_size = raw_data_end - last_p;
-        if (diff_size > 0) {
-            memcpy(last_dst_p, last_p, diff_size);
-        }
-        dst_data_ptr = (float*)(last_dst_p+diff_size);
-
-        return (void*)dst_data_ptr;
-    }
-*/
 
     static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
@@ -604,72 +451,6 @@ namespace dmGameSystem
                     assert(false && "Stream type not supported.");
                     break;
             }
-/*
-            if (mr->m_PositionStreamType == dmBufferDDF::VALUE_TYPE_FLOAT32)
-            {
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (float*)raw_data, (float*)position_data, (float*)dst_data_ptr);
-            } else if (mr->m_PositionStreamType == dmBufferDDF::VALUE_TYPE_UINT8)
-            {
-                dst_data_ptr = FillAndApplyWorldPositions(component, components, count, stride, size, (uint8_t*)raw_data, (uint8_t*)position_data, (uint8_t*)dst_data_ptr);
-            } else {
-                assert(false && "Stream type not supported.");
-            }
-*/
-
-            /*
-            uint8_t* last_p = (uint8_t*)raw_data;
-            uint8_t* last_dst_p = (uint8_t*)dst_data_ptr;
-
-            Point3 in_p;
-            Vector4 v;
-            for (int pi = 0; pi < count; ++pi)
-            {
-                // Copy mem from last entry position up to this one
-                uint32_t diff_size = (uint8_t*)position_data - last_p;
-                if (diff_size > 0) {
-                    memcpy(last_dst_p, last_p, diff_size);
-                }
-                dst_data_ptr = (float*)(last_dst_p+diff_size);
-
-                // Apply world transform to all positions
-                if (components == 3) {
-
-                    in_p[0] = position_data[0];
-                    in_p[1] = position_data[1];
-                    in_p[2] = position_data[2];
-                    v = component->m_World * in_p;
-                    dst_data_ptr[0] = v[0];
-                    dst_data_ptr[1] = v[1];
-                    dst_data_ptr[2] = v[2];
-                } else if (components == 2) {
-
-                    in_p[0] = position_data[0];
-                    in_p[1] = position_data[1];
-                    in_p[2] = 0.0f;
-                    v = component->m_World * in_p;
-                    dst_data_ptr[0] = v[0];
-                    dst_data_ptr[1] = v[1];
-                } else {
-                    assert(false && "Cannot apply world transform on stream with neither 2 or 3 components.");
-                }
-
-                // Update memcpy-ptrs so they point to end of last component element.
-                last_dst_p = (uint8_t*)(&dst_data_ptr[components]);
-                last_p = (uint8_t*)(&position_data[components]);
-
-                // Update in/out-ptrs with stride (they will point to next entry in float "list").
-                position_data += stride;
-                dst_data_ptr += stride;
-            }
-
-            // Copy any remaining data
-            uint8_t* raw_data_end = (uint8_t*)raw_data + size;
-            uint32_t diff_size = raw_data_end - last_p;
-            if (diff_size > 0) {
-                memcpy(last_dst_p, last_p, diff_size);
-            }
-            dst_data_ptr = (float*)(last_dst_p+diff_size);
-            */
         }
 
         world->m_RenderedVertexSize += mr->m_VertSize * element_count;
@@ -750,7 +531,6 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_END:
             {
                 DM_COUNTER("MeshVertexBuffer", world->m_RenderedVertexSize);
-
                 break;
             }
             default:
@@ -761,7 +541,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompMeshRender(const dmGameObject::ComponentsRenderParams& params)
     {
-        ModelContext* context = (ModelContext*)params.m_Context;
+        MeshContext* context = (MeshContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         MeshWorld* world = (MeshWorld*)params.m_World;
 
@@ -828,18 +608,18 @@ namespace dmGameSystem
         {
             if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
-                // dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                // dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
-                //         dmGameObject::PropertyVar(ddf->m_Value), CompMeshSetConstantCallback, component);
-                // if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-                // {
-                //     dmMessage::URL& receiver = params.m_Message->m_Receiver;
-                //     dmLogError("'%s:%s#%s' has no constant named '%s'",
-                //             dmMessage::GetSocketName(receiver.m_Socket),
-                //             dmHashReverseSafe64(receiver.m_Path),
-                //             dmHashReverseSafe64(receiver.m_Fragment),
-                //             dmHashReverseSafe64(ddf->m_NameHash));
-                // }
+                dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
+                        dmGameObject::PropertyVar(ddf->m_Value), CompMeshSetConstantCallback, component);
+                if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
+                {
+                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
+                    dmLogError("'%s:%s#%s' has no constant named '%s'",
+                            dmMessage::GetSocketName(receiver.m_Socket),
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_NameHash));
+                }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
@@ -855,56 +635,7 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(MeshWorld* world, MeshComponent* component, int index)
     {
-        // Destroy old rig
-        // dmRig::InstanceDestroyParams destroy_params = {0};
-        // destroy_params.m_Context = rig_context;
-        // destroy_params.m_Instance = component->m_RigInstance;
-        // dmRig::InstanceDestroy(destroy_params);
-
-        // // Delete old bones, recreate with new data.
-        // // Make sure that bone GOs are created before we start the default animation.
-        // dmGameObject::DeleteBones(component->m_Instance);
-        // if (!CreateGOBones(world, component))
-        // {
-        //     dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
-        //     DestroyComponent(world, index);
-        //     return false;
-        // }
-
-        // // Create rig instance
-        // dmRig::InstanceCreateParams create_params = {0};
-        // create_params.m_Context = rig_context;
-        // create_params.m_Instance = &component->m_RigInstance;
-
-        // create_params.m_PoseCallback = CompModelPoseCallback;
-        // create_params.m_PoseCBUserData1 = component;
-        // create_params.m_PoseCBUserData2 = 0;
-        // create_params.m_EventCallback = CompModelEventCallback;
-        // create_params.m_EventCBUserData1 = component;
-        // create_params.m_EventCBUserData2 = 0;
-
-        // RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
-        // create_params.m_BindPose         = &rig_resource->m_BindPose;
-        // create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
-        // create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
-        // create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        // create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
-        // create_params.m_TrackIdxToPose     = &rig_resource->m_TrackIdxToPose;
-        // create_params.m_MeshId           = 0; // not implemented for models
-        // create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
-
-        // dmRig::Result res = dmRig::InstanceCreate(create_params);
-        // if (res != dmRig::RESULT_OK) {
-        //     dmLogError("Failed to create a rig instance needed by model: %d.", res);
-        //     if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
-        //         dmLogError("Try increasing the model.max_count value in game.project");
-        //     }
-        //     DestroyComponent(world, index);
-        //     return false;
-        // }
-
         component->m_ReHash = 1;
-
         return true;
     }
 
@@ -916,11 +647,6 @@ namespace dmGameSystem
         component->m_Resource = (MeshResource*)params.m_Resource;
         (void)OnResourceReloaded(world, component, index);
     }
-
-    // static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
-    //     assert(index < MAX_TEXTURE_COUNT);
-    //     return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
-    // }
 
     dmGameObject::PropertyResult CompMeshGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
@@ -934,17 +660,20 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(mesh_path);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (params.m_PropertyId == PROP_MATERIAL)
+        {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
+        }
 
-        // for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        // {
-        //     if (params.m_PropertyId == PROP_TEXTURE[i])
-        //     {
-        //         return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
-        //     }
-        // }
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+        {
+            if (params.m_PropertyId == PROP_TEXTURE[i])
+            {
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
+            }
+        }
 
-        // return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompMeshGetConstantCallback, component);
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, out_value, true, CompMeshGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompMeshSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -952,8 +681,24 @@ namespace dmGameSystem
         MeshWorld* world = (MeshWorld*)params.m_World;
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
-        // return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        if (params.m_PropertyId == PROP_MATERIAL)
+        {
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+            return res;
+        }
+
+        for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+        {
+            if(params.m_PropertyId == PROP_TEXTURE[i])
+            {
+                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_EXT_HASH, (void**)&component->m_Textures[i]);
+                component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+                return res;
+            }
+        }
+
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
