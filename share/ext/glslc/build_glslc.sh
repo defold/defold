@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 
 readonly PRODUCT=glslc
-readonly VERSION=v2018.0
-readonly FILE_URL=${VERSION}.tar.gz
-readonly BASE_URL=https://github.com/google/shaderc/archive/
+readonly VERSION=master
 
 . ../common.sh
 
 function cmi_configure() {
+    git clone --depth 1 https://github.com/google/shaderc.git .
     pushd third_party >/dev/null
     git clone --depth 1 https://github.com/google/googletest.git
-    git clone --depth 1 https://github.com/google/glslang.git
+    git clone --depth 1 https://github.com/KhronosGroup/glslang
     git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Tools.git spirv-tools
     git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git spirv-headers
     git clone --depth 1 https://github.com/google/re2.git
