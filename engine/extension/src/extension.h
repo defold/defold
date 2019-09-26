@@ -13,6 +13,8 @@ namespace dmExtension
     {
         const char* m_Name;
         Result (*AppInitialize)(AppParams* params);
+        extension_callback_t PreRender;
+        extension_callback_t PostRender;
         Result (*AppFinalize)(AppParams* params);
         Result (*Initialize)(Params* params);
         Result (*Finalize)(Params* params);
@@ -34,6 +36,18 @@ namespace dmExtension
      * @return RESULT_OK on success
      */
     Result AppInitialize(AppParams* params);
+
+    /**
+     * Call pre render functions for extensions
+     * @param params parameters
+     */
+    void PreRender(Params* params);
+
+    /**
+     * Call post render functions for extensions
+     * @param params parameters
+     */
+    void PostRender(Params* params);
 
     /**
      * Initialize all extends at application level

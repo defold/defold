@@ -339,6 +339,12 @@ namespace dmTexc
         return name(a1, a2, a3, a4, a5, a6);\
     }\
 
+#define DM_TEXC_TRAMPOLINE8(ret, name, t1, t2, t3, t4, t5, t6, t7, t8) \
+    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7, a8);\
+    }\
+
     DM_TEXC_TRAMPOLINE5(HTexture, Create, uint32_t, uint32_t, PixelFormat, ColorSpace, void*);
     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
     DM_TEXC_TRAMPOLINE2(bool, GetHeader, HTexture, Header*);
@@ -352,4 +358,8 @@ namespace dmTexc
     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
     DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
     DM_TEXC_TRAMPOLINE6(bool, Transcode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType, DitherType);
+    DM_TEXC_TRAMPOLINE8(HBuffer, CompressWebPBuffer, uint32_t, uint32_t, uint32_t, void*, uint32_t, PixelFormat, CompressionLevel, CompressionType);
+    DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalBufferDataSize, HBuffer);
+    DM_TEXC_TRAMPOLINE3(uint32_t, GetBufferData, HBuffer, void*, uint32_t);
+    DM_TEXC_TRAMPOLINE1(void, DestroyBuffer, HBuffer);
 }

@@ -509,34 +509,53 @@ namespace dmPhysics
         }
     }
 
-    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
+    static inline b2Fixture* GetFixture(b2Body* body, uint32_t index)
     {
-        b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = body->GetFixtureList();
-        for (uint32_t i = 0; i < shape_index && fixture != 0x0; ++i)
+        for (uint32_t i = 0; i < index && fixture != 0x0; ++i)
         {
             fixture = fixture->GetNext();
         }
         assert(fixture != 0x0);
+        return fixture;
+    }
+
+    static inline b2GridShape* GetGridShape(b2Body* body, uint32_t index)
+    {
+        b2Fixture* fixture = GetFixture(body, index);
         assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
-        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+        return (b2GridShape*) fixture->GetShape();
+    }
+
+    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
+    {
+        b2Body* body = (b2Body*) collision_object;
+        b2GridShape* grid_shape = GetGridShape(body, shape_index);
         b2GridShape::CellFlags f;
         f.m_FlipHorizontal = flags.m_FlipHorizontal;
         f.m_FlipVertical = flags.m_FlipVertical;
         grid_shape->SetCellHull(body, row, column, hull, f);
     }
 
+    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
+    {
+
+        b2Body* body = (b2Body*) collision_object;
+        b2Fixture* fixture = GetFixture(body, shape_index);
+        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+        grid_shape->m_enabled = enable;
+
+        if (!enable)
+        {
+            body->PurgeContacts(fixture);
+        }
+    }
+
     void SetCollisionObjectFilter(HCollisionObject2D collision_shape,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)
     {
-        b2Body* body = (b2Body*) collision_shape;
-        b2Fixture* fixture = body->GetFixtureList();
-        for (uint32_t i = 0; i < shape; ++i)
-        {
-            fixture = fixture->GetNext();
-        }
-
+        b2Fixture* fixture = GetFixture((b2Body*) collision_shape, shape);
         b2Filter filter = fixture->GetFilterData(child);
         filter.categoryBits = group;
         filter.maskBits = mask;

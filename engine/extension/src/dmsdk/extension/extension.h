@@ -91,6 +91,22 @@ namespace dmExtension
         EVENT_ID_DEACTIVATEAPP,
     };
 
+    /*# extra callback enumeration
+     *
+     * Extra callback enumeration for RegisterCallback function.
+     *
+     * @enum
+     * @name dmExtension::CallbackType
+     * @member dmExtension::CALLBACK_PRE_RENDER
+     * @member dmExtension::CALLBACK_POST_RENDER
+     *
+     */
+    enum CallbackType
+    {
+        CALLBACK_PRE_RENDER,
+        CALLBACK_POST_RENDER,
+    };
+
     /*# event callback data
      *
      * Extension event callback data.
@@ -128,6 +144,29 @@ namespace dmExtension
         Result (*update)(Params*),
         void   (*on_event)(Params*, const Event*)
     );
+
+    /*# Extra extension callback typedef
+     *
+     * Callback typedef for functions passed to RegisterCallback().
+     *
+     * @typedef
+     * @name extension_callback_t
+     * @param params [type:Params]
+     * @return [type:Result]
+     */
+    typedef Result (*extension_callback_t)(Params* params);
+
+    /*# Register extra extension callbacks.
+     *
+     * Register extra extension callbacks.
+     *
+     * @note Can only be called within the AppInit function for an extension.
+     * @name RegisterCallback
+     * @param callback_type [type:CallbackType] Callback type enum
+     * @param func [type:extension_callback_t] Function to register as callback
+     * @return [type:bool] Returns true if successfully registered the function, false otherwise.
+     */
+    bool RegisterCallback(CallbackType callback_type, extension_callback_t func);
 
     /**
      * Extension declaration helper. Internal

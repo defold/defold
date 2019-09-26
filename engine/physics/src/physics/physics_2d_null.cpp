@@ -82,6 +82,10 @@ namespace dmPhysics
     {
     }
 
+    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
+    {
+    }
+
     void SetCollisionObjectFilter(HCollisionObject2D collision_object,
                                   uint32_t shape, uint32_t child,
                                   uint16_t group, uint16_t mask)

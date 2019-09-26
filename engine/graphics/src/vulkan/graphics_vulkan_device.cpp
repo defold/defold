@@ -75,6 +75,30 @@ namespace dmGraphics
         memset((void*)device, 0, sizeof(*device));
     }
 
+    void ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
+    {
+        assert(logicalDevice);
+        assert(renderTarget);
+        if (renderTarget->m_Framebuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyFramebuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer, 0);
+            renderTarget->m_Framebuffer = VK_NULL_HANDLE;
+        }
+
+        if (renderTarget->m_RenderPass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass, 0);
+            renderTarget->m_RenderPass = VK_NULL_HANDLE;
+        }
+    }
+
+    void ResetLogicalDevice(LogicalDevice* device)
+    {
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        vkDestroyDevice(device->m_Device, 0);
+        memset(device, 0, sizeof(*device));
+    }
+
     #define QUEUE_FAMILY_INVALID 0xffff
 
     // All GPU operations are pushed to various queues. The physical device can have multiple
@@ -186,6 +210,14 @@ namespace dmGraphics
         {
             vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_GraphicsQueueIx, 0, &logicalDeviceOut->m_GraphicsQueue);
             vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_PresentQueueIx, 0, &logicalDeviceOut->m_PresentQueue);
+
+            // Create command pool
+            VkCommandPoolCreateInfo vk_create_pool_info;
+            memset(&vk_create_pool_info, 0, sizeof(vk_create_pool_info));
+            vk_create_pool_info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            vk_create_pool_info.queueFamilyIndex = (uint32_t) queueFamily.m_GraphicsQueueIx;
+            vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPool);
         }
 
         return res;

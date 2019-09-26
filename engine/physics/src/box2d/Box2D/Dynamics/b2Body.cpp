@@ -263,6 +263,28 @@ void b2Body::DestroyFixture(b2Fixture* fixture)
 	ResetMassData();
 }
 
+// DEFOLD
+void b2Body::PurgeContacts(b2Fixture* fixture)
+{
+	// Destroy any contacts associated with the fixture.
+	b2ContactEdge* edge = m_contactList;
+	while (edge)
+	{
+		b2Contact* c = edge->contact;
+		edge = edge->next;
+
+		b2Fixture* fixtureA = c->GetFixtureA();
+		b2Fixture* fixtureB = c->GetFixtureB();
+
+		if (fixture == fixtureA || fixture == fixtureB)
+		{
+			// This destroys the contact and removes it from
+			// this body's contact list.
+			m_world->m_contactManager.Destroy(c);
+		}
+	}
+}
+
 void b2Body::ResetMassData()
 {
 	// Compute mass data from shapes. Each shape has its own density.

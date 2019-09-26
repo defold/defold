@@ -33,6 +33,10 @@ b2GridAndCircleContact::b2GridAndCircleContact(b2Fixture* fixtureA, int32 indexA
 void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB)
 {
     b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
+    if (!gridShape->m_enabled)
+    {
+        return;
+    }
     b2CircleShape* circleB = (b2CircleShape*)m_fixtureB->GetShape();
 
     manifold->pointCount = 0;

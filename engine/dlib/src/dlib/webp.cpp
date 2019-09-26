@@ -257,6 +257,24 @@ namespace dmWebP
             }
             break;
 
+            case TEXTURE_ENCODE_FORMAT_RGBA8888:
+            {
+                uint8_t* decoded_data = WebPDecodeRGBAInto((const uint8_t*) data, data_size, (uint8_t*) output_buffer, output_buffer_size, output_stride);
+                if(decoded_data != output_buffer)
+                    return RESULT_MEM_ERROR;
+                return RESULT_OK;
+            }
+            break;
+
+            case TEXTURE_ENCODE_FORMAT_RGB888:
+            {
+                uint8_t* decoded_data = WebPDecodeRGBInto((const uint8_t*) data, data_size, (uint8_t*) output_buffer, output_buffer_size, output_stride);
+                if(decoded_data != output_buffer)
+                    return RESULT_MEM_ERROR;
+                return RESULT_OK;
+            }
+            break;
+
             default:
                 res = RESULT_TEXTURE_DECODE_ERROR;
             break;
