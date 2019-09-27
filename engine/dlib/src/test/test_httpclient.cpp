@@ -405,6 +405,7 @@ static void HttpStressThread(void* param)
     char buf[128];
     int c = rand() % 3359;
     HttpStressHelper* h = (HttpStressHelper*) param;
+    dmHttpClient::SetOptionInt(h->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
     for (int i = 0; i < 100; ++i) {
         h->m_Content = "";
         sprintf(buf, "/add/%d/1000", i * c);
@@ -413,9 +414,8 @@ static void HttpStressThread(void* param)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
     }
+    dmHttpClient::SetOptionInt(h->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0); // microseconds
 }
-
-#if !defined(__linux__)
 
 TEST_P(dmHttpClientTest, ThreadStress)
 {
@@ -439,8 +439,6 @@ TEST_P(dmHttpClientTest, ThreadStress)
         delete helpers[i];
     }
 }
-
-#endif
 
 TEST_P(dmHttpClientTest, NoKeepAlive)
 {
