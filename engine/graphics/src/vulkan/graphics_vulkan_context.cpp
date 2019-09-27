@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
-#include "graphics_vulkan.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {

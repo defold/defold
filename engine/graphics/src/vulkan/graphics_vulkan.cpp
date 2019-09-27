@@ -1,5 +1,5 @@
 #include "../graphics.h"
-#include "graphics_vulkan.h"
+#include "graphics_vulkan_private.h"
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>

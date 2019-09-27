@@ -1,5 +1,5 @@
 
-#include "../graphics_vulkan.h"
+#include "../graphics_vulkan_private.h"
 
 #include <X11/Xlib.h>
 #include <X11/Xlib-xcb.h>

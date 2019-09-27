@@ -33,11 +33,22 @@ namespace dmGraphics
         : m_RenderPass(VK_NULL_HANDLE)
         , m_Framebuffer(VK_NULL_HANDLE)
         , m_Id(rtId)
+        , m_IsBound(0)
         {}
 
         VkRenderPass   m_RenderPass;
         VkFramebuffer  m_Framebuffer;
+        VkExtent2D     m_Extent;
         const uint32_t m_Id;
+        uint8_t        m_IsBound : 1;
+        uint8_t        : 7;
+    };
+
+    struct FrameResource
+    {
+        VkSemaphore m_ImageAvailable;
+        VkSemaphore m_RenderFinished;
+        VkFence     m_SubmitFence;
     };
 
     struct RenderPassAttachment
@@ -106,9 +117,11 @@ namespace dmGraphics
         VkSurfaceFormatKHR   m_SurfaceFormat;
         VkSwapchainKHR       m_SwapChain;
         VkExtent2D           m_ImageExtent;
+        uint8_t              m_ImageIndex;
 
         SwapChain(const LogicalDevice* logicalDevice, const VkSurfaceKHR surface,
             const SwapChainCapabilities& capabilities, const QueueFamily queueFamily);
+        VkResult Advance(VkSemaphore);
     };
 
     // Implemented in graphics_vulkan_context.cpp
