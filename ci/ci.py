@@ -56,7 +56,7 @@ def install():
 
 
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean install_ext'.split()
+    args = 'sudo python scripts/build.py distclean install_ext'.split()
     sub_args = []
 
     args.append('--platform=' + platform)
