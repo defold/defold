@@ -753,82 +753,13 @@ bail:
         SynchronizeDevice(vk_device);
     }
 
-    HContext NewContext(const ContextParams& params)
+    static bool InitializeVulkan(HContext context, const WindowParams* params)
     {
-        if (g_Context == 0x0)
-        {
-            if (glfwInit() == 0)
-            {
-                dmLogError("Could not initialize glfw.");
-                return 0x0;
-            }
-
-            uint16_t validation_layer_count = 0;
-
-            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
-            if (env_vulkan_validation != 0x0)
-            {
-                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
-            }
-
-            VkInstance vk_instance;
-            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
-            {
-                dmLogError("Could not create Vulkan instance");
-                return 0x0;
-            }
-
-            g_Context = new Context(params, vk_instance);
-
-            return g_Context;
-        }
-        return 0x0;
-    }
-
-    void DeleteContext(HContext context)
-    {
-        if (context != 0x0)
-        {
-            delete context;
-            g_Context = 0x0;
-        }
-    }
-
-    bool Initialize()
-    {
-        return glfwInit();
-    }
-
-    void Finalize()
-    {
-        glfwTerminate();
-    }
-
-    uint32_t GetWindowRefreshRate(HContext context)
-    {
-        return 0;
-    }
-
-    WindowResult OpenWindow(HContext context, WindowParams *params)
-    {
-        assert(context);
-        assert(context->m_WindowSurface == VK_NULL_HANDLE);
-
-        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
-
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
-
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            return false;
         }
 
         uint32_t device_count = GetPhysicalDeviceCount(context->m_Instance);
@@ -836,7 +767,7 @@ bail:
         if (device_count == 0)
         {
             dmLogError("Could not get any Vulkan devices.");
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            return false;
         }
 
         PhysicalDevice* device_list     = new PhysicalDevice[device_count];
@@ -929,7 +860,6 @@ bail:
             goto bail;
         }
 
-        context->m_WindowOpened   = 1;
         context->m_PhysicalDevice = *selected_device;
         context->m_LogicalDevice  = logical_device;
 
@@ -944,15 +874,6 @@ bail:
             goto bail;
         }
 
-        context->m_Width        = params->m_Width;
-        context->m_Height       = params->m_Height;
-        context->m_WindowWidth  = created_width;
-        context->m_WindowHeight = created_height;
-
-    #if !defined(__EMSCRIPTEN__)
-        glfwSetWindowTitle(params->m_Title);
-    #endif
-
         delete[] device_list;
 
         // Create framebuffers, default renderpass etc.
@@ -963,14 +884,102 @@ bail:
             goto bail;
         }
 
-        return WINDOW_RESULT_OK;
+        return true;
 bail:
         if (context->m_SwapChain)
             delete context->m_SwapChain;
         if (device_list)
             delete[] device_list;
+        return false;
+    }
 
-        return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+    HContext NewContext(const ContextParams& params)
+    {
+        if (g_Context == 0x0)
+        {
+            if (glfwInit() == 0)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0x0;
+            }
+
+            uint16_t validation_layer_count = 0;
+
+            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
+            if (env_vulkan_validation != 0x0)
+            {
+                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
+            }
+
+            VkInstance vk_instance;
+            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
+            {
+                dmLogError("Could not create Vulkan instance");
+                return 0x0;
+            }
+
+            g_Context = new Context(params, vk_instance);
+
+            return g_Context;
+        }
+        return 0x0;
+    }
+
+    void DeleteContext(HContext context)
+    {
+        if (context != 0x0)
+        {
+            delete context;
+            g_Context = 0x0;
+        }
+    }
+
+    bool Initialize()
+    {
+        return glfwInit();
+    }
+
+    void Finalize()
+    {
+        glfwTerminate();
+    }
+
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        return 0;
+    }
+
+    WindowResult OpenWindow(HContext context, WindowParams* params)
+    {
+        assert(context);
+        assert(context->m_WindowSurface == VK_NULL_HANDLE);
+
+        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
+        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
+
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        if (!InitializeVulkan(context, params))
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+    #if !defined(__EMSCRIPTEN__)
+        glfwSetWindowTitle(params->m_Title);
+    #endif
+
+        context->m_WindowOpened   = 1;
+        context->m_Width          = params->m_Width;
+        context->m_Height         = params->m_Height;
+        context->m_WindowWidth    = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight   = context->m_SwapChain->m_ImageExtent.height;
+
+        return WINDOW_RESULT_OK;
     }
 
     void CloseWindow(HContext context)
