@@ -407,7 +407,8 @@ static void HttpStressThread(void* param)
     HttpStressHelper* h = (HttpStressHelper*) param;
     for (int i = 0; i < 100; ++i) {
         h->m_Content = "";
-        sprintf(buf, "/add/%d/1000", i * c);
+        // sprintf(buf, "/add/%d/1000", i * c);
+        sprintf(buf, "/no-keep-alive");
         dmHttpClient::Result r;
         r = dmHttpClient::Get(h->m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
