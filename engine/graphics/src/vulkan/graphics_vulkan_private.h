@@ -133,16 +133,35 @@ namespace dmGraphics
     void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan_device.cpp
-    uint32_t    GetPhysicalDeviceCount(VkInstance vkInstance);
-    void        GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, const uint32_t deviceListSize);
-    void        ResetPhysicalDevice(PhysicalDevice* device);
-    QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
-    VkResult    CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
+    VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass,
+        uint32_t width, uint32_t height,
+        VkImageView* vk_attachments, uint8_t attachmentCount, // Color & depth/stencil attachments
+        VkFramebuffer* vk_framebuffer_out);
+    VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool,
+        uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
+    VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
-    void        ResetLogicalDevice(LogicalDevice* device);
-    void        ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
+    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
+        VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
+        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut);
+    VkResult CreateRenderPass(VkDevice vk_device,
+        RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
+        RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
+    void           ResetPhysicalDevice(PhysicalDevice* device);
+    void           ResetLogicalDevice(LogicalDevice* device);
+    void           ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
+    void           ResetTexture(VkDevice vk_device, Texture* texture);
+    uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
+    void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
+    bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
+    QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
+    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
+        uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
