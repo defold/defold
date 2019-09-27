@@ -259,6 +259,11 @@ namespace dmGraphics
         }
     }
 
+    void BeginFrame(HContext context)
+    {
+        // NOP
+    }
+
     void Flip(HContext context)
     {
         // Mimick glfw

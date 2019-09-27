@@ -526,6 +526,13 @@ namespace dmGraphics
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
 
     /**
+     * Begin frame rendering.
+     *
+     * @param context Graphics context handle
+     */
+    void BeginFrame(HContext context);
+
+    /**
      * Flip screen buffers.
      *
      * @param context Graphics context handle

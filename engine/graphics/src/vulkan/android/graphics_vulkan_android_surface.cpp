@@ -1,5 +1,5 @@
 
-#include "../graphics_vulkan.h"
+#include "../graphics_vulkan_private.h"
 
 #include <graphics/glfw/glfw_native.h>
 #include <vulkan/vulkan_android.h>

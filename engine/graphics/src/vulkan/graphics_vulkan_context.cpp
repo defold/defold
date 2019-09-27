@@ -4,7 +4,7 @@
 #include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
-#include "graphics_vulkan.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
@@ -16,10 +16,23 @@ namespace dmGraphics
     static VKAPI_ATTR VkBool32 VKAPI_CALL g_vk_debug_callback(
         VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
         VkDebugUtilsMessageTypeFlagsEXT             messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-        void* pUserData)
+        const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+        void* userData)
     {
-        dmLogInfo("Validation Layer: %s", pCallbackData->pMessage);
+        // Filter specific messages
+        if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+        {
+            // UNASSIGNED-CoreValidation-DrawState-ClearCmdBeforeDraw
+            //   * We cannot force using render.clear in a specific way, so we will get
+            //     spammed by the validation layers unless we filter this.
+            static const char* ClearCmdBeforeDrawIdName = "UNASSIGNED-CoreValidation-DrawState-ClearCmdBeforeDraw";
+            if (callbackData->pMessageIdName && strcmp(callbackData->pMessageIdName, ClearCmdBeforeDrawIdName) == 0)
+            {
+                return VK_FALSE;
+            }
+        }
+
+        dmLogInfo("Validation Layer: %s", callbackData->pMessage);
         return VK_FALSE;
     }
 
