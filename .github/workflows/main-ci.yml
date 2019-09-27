@@ -7,7 +7,7 @@ on:
   #  - '!DEFEDIT-*'
   pull_request:
     branches:
-    - 'test_ci'
+    - 'github-ci-fixes'
     - '!DEFEDIT-*'
 
 jobs:
