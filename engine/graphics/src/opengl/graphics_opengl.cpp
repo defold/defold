@@ -955,6 +955,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    void BeginFrame(HContext context)
+    {
+        // NOP
+    }
+
     void Flip(HContext context)
     {
         DM_PROFILE(VSync, "Wait");
