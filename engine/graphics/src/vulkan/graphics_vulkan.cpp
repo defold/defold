@@ -1,6 +1,7 @@
 #include "../graphics.h"
 #include "graphics_vulkan_private.h"
 
+#include <dlib/profile.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
@@ -562,7 +563,7 @@ bail:
 
             attachment_color.format         = colorAttachments[i].m_Format;
             attachment_color.samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -580,9 +581,9 @@ bail:
 
             attachment_depth.format         = depthStencilAttachment->m_Format;
             attachment_depth.samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
@@ -1198,7 +1199,42 @@ bail:
     {}
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
-    {}
+    {
+        assert(context);
+        assert(context->m_CurrentRenderTarget);
+        DM_PROFILE(Graphics, "Clear");
+
+        float r = ((float)red)/255.0f;
+        float g = ((float)green)/255.0f;
+        float b = ((float)blue)/255.0f;
+        float a = ((float)alpha)/255.0f;
+
+        VkClearRect vk_clear_rect;
+        vk_clear_rect.rect.offset.x      = 0;
+        vk_clear_rect.rect.offset.y      = 0;
+        vk_clear_rect.rect.extent.width  = context->m_CurrentRenderTarget->m_Extent.width;
+        vk_clear_rect.rect.extent.height = context->m_CurrentRenderTarget->m_Extent.height;
+        vk_clear_rect.baseArrayLayer     = 0;
+        vk_clear_rect.layerCount         = 1;
+
+        VkClearAttachment vk_clear_attachments[2];
+        memset(vk_clear_attachments, 0, sizeof(vk_clear_attachments));
+
+        // Clear color
+        vk_clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_clear_attachments[0].clearValue.color.float32[0] = r;
+        vk_clear_attachments[0].clearValue.color.float32[1] = g;
+        vk_clear_attachments[0].clearValue.color.float32[2] = b;
+        vk_clear_attachments[0].clearValue.color.float32[3] = a;
+
+        // Clear depth / stencil
+        vk_clear_attachments[1].aspectMask                      = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        vk_clear_attachments[1].clearValue.depthStencil.stencil = stencil;
+        vk_clear_attachments[1].clearValue.depthStencil.depth   = depth;
+
+        vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+            2, vk_clear_attachments, 1, &vk_clear_rect);
+    }
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
