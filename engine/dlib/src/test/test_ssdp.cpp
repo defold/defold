@@ -227,41 +227,41 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__MACH__)
 
-// TEST_F(dmSSDPTest, Search)
-// {
-//     // To search for devices we must invoke client -> server -> client
-//     // 1. Send request (client)
-//     // 2. Process and respond to request (server)
-//     // 3. Handle response (client)
-//
-//     Init();
-//
-//     dmSSDP::ClearDiscovered(m_Client);
-//     Refresh();
-//     ASSERT_FALSE(TestDeviceDiscovered());
-//
-//     UpdateClient(true);
-//     ASSERT_FALSE(TestDeviceDiscovered());
-//
-//     // NOTE: We used to have a single iteration here
-//     // but the tests failed occasionally on Mac
-//     // It could be related to lost packages even though
-//     // it might be farfetched that packages are lost on the local network.
-//     // Another possible explanation is interference with UPnP devices on the network, i.e. router.
-//     // It could of course also be a bug in the SSDP implementation
-//     bool discovered = false;
-//     int iter = 0;
-//     while (!discovered && iter++ < 10) {
-//         UpdateServer();
-//         WaitPackage();
-//         UpdateClient();
-//         discovered = TestDeviceDiscovered();
-//     }
-//
-//     ASSERT_TRUE(discovered);
-// }
+TEST_F(dmSSDPTest, Search)
+{
+    // To search for devices we must invoke client -> server -> client
+    // 1. Send request (client)
+    // 2. Process and respond to request (server)
+    // 3. Handle response (client)
+
+    Init();
+
+    dmSSDP::ClearDiscovered(m_Client);
+    Refresh();
+    ASSERT_FALSE(TestDeviceDiscovered());
+
+    UpdateClient(true);
+    ASSERT_FALSE(TestDeviceDiscovered());
+
+    // NOTE: We used to have a single iteration here
+    // but the tests failed occasionally on Mac
+    // It could be related to lost packages even though
+    // it might be farfetched that packages are lost on the local network.
+    // Another possible explanation is interference with UPnP devices on the network, i.e. router.
+    // It could of course also be a bug in the SSDP implementation
+    bool discovered = false;
+    int iter = 0;
+    while (!discovered && iter++ < 10) {
+        UpdateServer();
+        WaitPackage();
+        UpdateClient();
+        discovered = TestDeviceDiscovered();
+    }
+
+    ASSERT_TRUE(discovered);
+}
 
 TEST_F(dmSSDPTest, Announce)
 {
