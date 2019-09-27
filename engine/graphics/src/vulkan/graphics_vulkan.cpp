@@ -225,23 +225,24 @@ namespace dmGraphics
             EndRenderPass(context);
         }
 
-        VkRenderPassBeginInfo vk_render_pass_begin_info;
-        vk_render_pass_begin_info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        vk_render_pass_begin_info.renderPass  = rt->m_RenderPass;
-        vk_render_pass_begin_info.framebuffer = rt->m_Framebuffer;
-        vk_render_pass_begin_info.pNext       = 0;
-
-        vk_render_pass_begin_info.renderArea.offset.x = 0;
-        vk_render_pass_begin_info.renderArea.offset.y = 0;
-        vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
-        vk_render_pass_begin_info.clearValueCount     = 0;
-        vk_render_pass_begin_info.pClearValues        = 0;
-
         VkClearValue vk_clear_values[2];
         memset(vk_clear_values, 0, sizeof(vk_clear_values));
 
+        // Clear color and depth/stencil separately
+        vk_clear_values[0].color.float32[3]     = 1.0f;
         vk_clear_values[1].depthStencil.depth   = 1.0f;
         vk_clear_values[1].depthStencil.stencil = 0;
+
+        VkRenderPassBeginInfo vk_render_pass_begin_info;
+        vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        vk_render_pass_begin_info.renderPass          = rt->m_RenderPass;
+        vk_render_pass_begin_info.framebuffer         = rt->m_Framebuffer;
+        vk_render_pass_begin_info.pNext               = 0;
+        vk_render_pass_begin_info.renderArea.offset.x = 0;
+        vk_render_pass_begin_info.renderArea.offset.y = 0;
+        vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
+        vk_render_pass_begin_info.clearValueCount     = 2;
+        vk_render_pass_begin_info.pClearValues        = 0;
 
         vk_render_pass_begin_info.clearValueCount = 2;
         vk_render_pass_begin_info.pClearValues    = vk_clear_values;
@@ -1113,7 +1114,6 @@ bail:
                 context->m_WindowHeight = context->m_Height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
                 res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
-                // Todo: What should we do if this fails again? Retry until success? Retry x amount?
                 assert(res == VK_SUCCESS);
             }
             else if (res == VK_SUBOPTIMAL_KHR)
