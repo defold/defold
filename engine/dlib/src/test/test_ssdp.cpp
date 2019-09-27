@@ -298,7 +298,7 @@ TEST_F(dmSSDPTest, Expire)
     ASSERT_FALSE(TestDeviceDiscovered());
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__MACH__)
 
 TEST_F(dmSSDPTest, Renew)
 {
