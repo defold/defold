@@ -55,62 +55,65 @@ namespace dmGraphics
         Texture                  m_MainTextureDepthStencil;
         RenderTarget             m_MainRenderTarget;
 
+        // Rendering state
+        RenderTarget*            m_CurrentRenderTarget;
+
         TextureFilter            m_DefaultTextureMinFilter;
         TextureFilter            m_DefaultTextureMagFilter;
-        uint32_t                 m_WindowOpened        : 1;
-        uint32_t                 m_VerifyGraphicsCalls : 1;
-        uint32_t                 : 30;
-    };
+        uint32_t                 m_Width;
+        uint32_t                 m_Height;
+        uint32_t                 m_WindowWidth;
+        uint32_t                 m_WindowHeight;
+        uint32_t                 m_CurrentFrameInFlight : 1;
+        uint32_t                 m_WindowOpened         : 1;
+        uint32_t                 m_VerifyGraphicsCalls  : 1;
+        uint32_t                 : 29;
+    } *g_Context = 0;
 
-    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
-    static const uint8_t g_validation_layer_count     = 1;
-    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
-    static const uint8_t g_validation_layer_ext_count = 1;
-
-    static Context* g_Context = 0;
-
+    #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
     {
         switch(res)
         {
-            case VK_SUCCESS: return "VK_SUCCESS";
-            case VK_NOT_READY: return "VK_NOT_READY";
-            case VK_TIMEOUT: return "VK_TIMEOUT";
-            case VK_EVENT_SET: return "VK_EVENT_SET";
-            case VK_EVENT_RESET: return "VK_EVENT_RESET";
-            case VK_INCOMPLETE: return "VK_INCOMPLETE";
-            case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
-            case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
-            case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
-            case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
-            case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
-            case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
-            case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
-            case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
-            case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
-            case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
-            case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
-            case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
-            case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
-            case VK_ERROR_INVALID_EXTERNAL_HANDLE: return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
-            case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
-            case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
-            case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
-            case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
-            case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
-            case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
-            case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
-            case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT: return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
-            case VK_ERROR_FRAGMENTATION_EXT: return "VK_ERROR_FRAGMENTATION_EXT";
-            case VK_ERROR_NOT_PERMITTED_EXT: return "VK_ERROR_NOT_PERMITTED_EXT";
-            case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT: return "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT";
-            case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
-            case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
+            DM_VK_RESULT_TO_STR_CASE(VK_SUCCESS);
+            DM_VK_RESULT_TO_STR_CASE(VK_NOT_READY);
+            DM_VK_RESULT_TO_STR_CASE(VK_TIMEOUT);
+            DM_VK_RESULT_TO_STR_CASE(VK_EVENT_SET);
+            DM_VK_RESULT_TO_STR_CASE(VK_EVENT_RESET);
+            DM_VK_RESULT_TO_STR_CASE(VK_INCOMPLETE);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_HOST_MEMORY);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_DEVICE_MEMORY);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INITIALIZATION_FAILED);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_DEVICE_LOST);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_MEMORY_MAP_FAILED);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_LAYER_NOT_PRESENT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_EXTENSION_NOT_PRESENT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FEATURE_NOT_PRESENT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INCOMPATIBLE_DRIVER);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_TOO_MANY_OBJECTS);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FORMAT_NOT_SUPPORTED);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FRAGMENTED_POOL);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_POOL_MEMORY);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_EXTERNAL_HANDLE);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_SURFACE_LOST_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_NATIVE_WINDOW_IN_USE_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_SUBOPTIMAL_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_DATE_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INCOMPATIBLE_DISPLAY_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_VALIDATION_FAILED_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_SHADER_NV);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FRAGMENTATION_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_NOT_PERMITTED_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_DEVICE_ADDRESS_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_RESULT_MAX_ENUM);
             default: break;
         }
 
         return "UNKNOWN_ERROR";
     }
+    #undef DM_VK_RESULT_TO_STRING_CASE
 
     static inline void SynchronizeDevice(VkDevice vk_device)
     {
@@ -634,6 +637,9 @@ bail:
             &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
+        context->m_WindowWidth  = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight = context->m_SwapChain->m_ImageExtent.height;
+
         // Reset main rendertarget (but not the render pass)
         RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
         mainRenderTarget->m_RenderPass = VK_NULL_HANDLE;
@@ -841,6 +847,15 @@ bail:
             goto bail;
         }
 
+        context->m_Width        = params->m_Width;
+        context->m_Height       = params->m_Height;
+        context->m_WindowWidth  = created_width;
+        context->m_WindowHeight = created_height;
+
+    #if !defined(__EMSCRIPTEN__)
+        glfwSetWindowTitle(params->m_Title);
+    #endif
+
         delete[] device_list;
 
         // Create framebuffers, default renderpass etc.
@@ -921,36 +936,53 @@ bail:
 
     uint32_t GetWidth(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_Width;
     }
 
     uint32_t GetHeight(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_Height;
     }
 
     uint32_t GetWindowWidth(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_WindowWidth;
     }
 
     uint32_t GetWindowHeight(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_WindowHeight;
     }
 
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
-    {}
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_Width        = width;
+            context->m_Height       = height;
+            context->m_WindowWidth  = width;
+            context->m_WindowHeight = height;
+            glfwSetWindowSize((int)width, (int)height);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+        }
+    }
 
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
         {
-            uint32_t wanted_width = width;
-            uint32_t wanted_height = height;
-            SwapChainChanged(context, &wanted_width, &wanted_height);
-            glfwSetWindowSize((int)wanted_width, (int)wanted_height);
+            context->m_Width        = width;
+            context->m_Height       = height;
+            context->m_WindowWidth  = width;
+            context->m_WindowHeight = height;
+            glfwSetWindowSize((int)width, (int)height);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
         }
     }
 
