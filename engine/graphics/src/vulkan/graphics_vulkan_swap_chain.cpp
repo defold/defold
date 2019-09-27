@@ -1,4 +1,4 @@
-#include "graphics_vulkan.h"
+#include "graphics_vulkan_private.h"
 
 #include <dlib/math.h>
 
@@ -57,6 +57,15 @@ namespace dmGraphics
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
         , m_SwapChain(VK_NULL_HANDLE)
     {
+    }
+
+    VkResult SwapChain::Advance(VkSemaphore vk_image_available)
+    {
+        uint32_t image_ix;
+        VkResult res = vkAcquireNextImageKHR(m_LogicalDevice->m_Device, m_SwapChain, UINT64_MAX,
+            vk_image_available, VK_NULL_HANDLE, &image_ix);
+        m_ImageIndex = (uint8_t) image_ix;
+        return res;
     }
 
     VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
@@ -179,6 +188,7 @@ namespace dmGraphics
         vkGetSwapchainImagesKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, &swap_chain_image_count, swapChain->m_Images.Begin());
 
         swapChain->m_ImageExtent = vk_extent;
+        swapChain->m_ImageIndex  = 0;
 
         swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);

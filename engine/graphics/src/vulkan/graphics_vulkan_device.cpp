@@ -1,4 +1,4 @@
-#include "graphics_vulkan.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
