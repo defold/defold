@@ -20,7 +20,16 @@ namespace dmGraphics
         } \
     }
 
-    struct Context
+    // Validation layers to enable
+    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
+    static const uint8_t g_validation_layer_count     = 1;
+    // Validation layer extensions
+    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    static const uint8_t g_validation_layer_ext_count = 1;
+    // In flight frames - number of concurrent frames being processed
+    static const uint8_t g_max_frames_in_flight       = 2;
+
+    static struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
         : m_Instance(vk_instance)
@@ -45,6 +54,7 @@ namespace dmGraphics
         SwapChainCapabilities    m_SwapChainCapabilities;
         PhysicalDevice           m_PhysicalDevice;
         LogicalDevice            m_LogicalDevice;
+        FrameResource            m_FrameResources[g_max_frames_in_flight];
         VkInstance               m_Instance;
         VkSurfaceKHR             m_WindowSurface;
 
@@ -133,6 +143,30 @@ namespace dmGraphics
         return next_id++;
     }
 
+    static VkResult CreateMainFrameResources(VkDevice vk_device, uint8_t numFrameResources, FrameResource* frameResourcesOut)
+    {
+        VkSemaphoreCreateInfo vk_create_semaphore_info;
+        memset(&vk_create_semaphore_info, 0, sizeof(vk_create_semaphore_info));
+        vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo vk_create_fence_info;
+        memset(&vk_create_fence_info, 0, sizeof(vk_create_fence_info));
+        vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        vk_create_fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        for(uint8_t i=0; i < numFrameResources; i++)
+        {
+            if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frameResourcesOut[i].m_ImageAvailable) != VK_SUCCESS ||
+                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frameResourcesOut[i].m_RenderFinished) != VK_SUCCESS ||
+                vkCreateFence(vk_device, &vk_create_fence_info, 0, &frameResourcesOut[i].m_SubmitFence) != VK_SUCCESS)
+            {
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+        }
+
+        return VK_SUCCESS;
+    }
+
     static VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
     {
         VkCommandBufferAllocateInfo vk_buffers_allocate_info;
@@ -160,6 +194,62 @@ namespace dmGraphics
         vk_framebuffer_create_info.layers          = 1;
 
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
+    }
+
+    static bool EndRenderPass(HContext context)
+    {
+        assert(context->m_CurrentRenderTarget);
+        if (!context->m_CurrentRenderTarget->m_IsBound)
+        {
+            return false;
+        }
+
+        vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex]);
+        context->m_CurrentRenderTarget->m_IsBound = 0;
+        return true;
+    }
+
+    static void BeginRenderPass(HContext context, RenderTarget* rt)
+    {
+        assert(context->m_CurrentRenderTarget);
+        if (context->m_CurrentRenderTarget->m_Id == rt->m_Id &&
+            context->m_CurrentRenderTarget->m_IsBound)
+        {
+            return;
+        }
+
+        // If we bind a render pass without explicitly unbinding
+        // the current render pass, we must first unbind it.
+        if (context->m_CurrentRenderTarget->m_IsBound)
+        {
+            EndRenderPass(context);
+        }
+
+        VkRenderPassBeginInfo vk_render_pass_begin_info;
+        vk_render_pass_begin_info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        vk_render_pass_begin_info.renderPass  = rt->m_RenderPass;
+        vk_render_pass_begin_info.framebuffer = rt->m_Framebuffer;
+        vk_render_pass_begin_info.pNext       = 0;
+
+        vk_render_pass_begin_info.renderArea.offset.x = 0;
+        vk_render_pass_begin_info.renderArea.offset.y = 0;
+        vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
+        vk_render_pass_begin_info.clearValueCount     = 0;
+        vk_render_pass_begin_info.pClearValues        = 0;
+
+        VkClearValue vk_clear_values[2];
+        memset(vk_clear_values, 0, sizeof(vk_clear_values));
+
+        vk_clear_values[1].depthStencil.depth   = 1.0f;
+        vk_clear_values[1].depthStencil.stencil = 0;
+
+        vk_render_pass_begin_info.clearValueCount = 2;
+        vk_render_pass_begin_info.pClearValues    = vk_clear_values;
+
+        vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+        context->m_CurrentRenderTarget = rt;
+        context->m_CurrentRenderTarget->m_IsBound = 1;
     }
 
     static bool FindMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags, uint32_t* memoryIndexOut)
@@ -579,6 +669,7 @@ bail:
         RenderTarget& rt = context->m_MainRenderTarget;
         rt.m_RenderPass  = context->m_MainRenderPass;
         rt.m_Framebuffer = context->m_MainFrameBuffers[0];
+        rt.m_Extent      = swapChain->m_ImageExtent;
 
         return res;
     }
@@ -607,6 +698,7 @@ bail:
 
         res = CreateMainRenderTarget(context);
         CHECK_VK_ERROR(res);
+        context->m_CurrentRenderTarget = &context->m_MainRenderTarget;
 
         uint32_t num_swap_chain_images = context->m_SwapChain->m_Images.Size();
         context->m_MainCommandBuffers.SetCapacity(num_swap_chain_images);
@@ -616,6 +708,9 @@ bail:
             context->m_LogicalDevice.m_CommandPool,
             context->m_MainCommandBuffers.Size(),
             context->m_MainCommandBuffers.Begin());
+        CHECK_VK_ERROR(res);
+
+        res = CreateMainFrameResources(vk_device, g_max_frames_in_flight, context->m_FrameResources);
         CHECK_VK_ERROR(res);
 
         return res;
@@ -898,6 +993,13 @@ bail:
                 vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
             }
 
+            for (size_t i = 0; i < g_max_frames_in_flight; i++) {
+                FrameResource& frame_resource = context->m_FrameResources[i];
+                vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
+                vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
+                vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
+            }
+
             ResetSwapChain(context->m_SwapChain);
 
             ResetLogicalDevice(&context->m_LogicalDevice);
@@ -992,8 +1094,105 @@ bail:
         out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
+    void BeginFrame(HContext context)
+    {
+        FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
+
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
+
+        VkResult res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+
+        if (res != VK_SUCCESS)
+        {
+            if (res == VK_ERROR_OUT_OF_DATE_KHR)
+            {
+                context->m_WindowWidth  = context->m_Width;
+                context->m_WindowHeight = context->m_Height;
+                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+                res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+                // Todo: What should we do if this fails again? Retry until success? Retry x amount?
+                assert(res == VK_SUCCESS);
+            }
+            else if (res == VK_SUBOPTIMAL_KHR)
+            {
+                // Presenting the swap chain will still work but not optimally, but we should still notify.
+                dmLogOnceWarning("Vulkan swapchain is out of date, reason: VK_SUBOPTIMAL_KHR.");
+            }
+            else
+            {
+                dmLogOnceError("Vulkan swapchain is out of date, reason: %s.", VkResultToStr(res));
+                return;
+            }
+        }
+
+        uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+
+        vk_command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        vk_command_buffer_begin_info.pInheritanceInfo = 0;
+        vk_command_buffer_begin_info.pNext            = 0;
+
+        vkBeginCommandBuffer(context->m_MainCommandBuffers[frame_ix], &vk_command_buffer_begin_info);
+
+        context->m_MainRenderTarget.m_Framebuffer = context->m_MainFrameBuffers[frame_ix];
+
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
+    }
+
     void Flip(HContext context)
-    {}
+    {
+        uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
+        FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
+
+        if (!EndRenderPass(context))
+        {
+            assert(0);
+            return;
+        }
+
+        VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
+        CHECK_VK_ERROR(res);
+
+        VkPipelineStageFlags vk_pipeline_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        VkSubmitInfo vk_submit_info;
+        vk_submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vk_submit_info.pNext                = 0;
+        vk_submit_info.waitSemaphoreCount   = 1;
+        vk_submit_info.pWaitSemaphores      = &current_frame_resource.m_ImageAvailable;
+        vk_submit_info.pWaitDstStageMask    = &vk_pipeline_stage_flags;
+        vk_submit_info.commandBufferCount   = 1;
+        vk_submit_info.pCommandBuffers      = &context->m_MainCommandBuffers[frame_ix];
+        vk_submit_info.signalSemaphoreCount = 1;
+        vk_submit_info.pSignalSemaphores    = &current_frame_resource.m_RenderFinished;
+
+        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, current_frame_resource.m_SubmitFence);
+        CHECK_VK_ERROR(res);
+
+        VkPresentInfoKHR vk_present_info;
+        vk_present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        vk_present_info.pNext              = 0;
+        vk_present_info.waitSemaphoreCount = 1;
+        vk_present_info.pWaitSemaphores    = &current_frame_resource.m_RenderFinished;
+        vk_present_info.swapchainCount     = 1;
+        vk_present_info.pSwapchains        = &context->m_SwapChain->m_SwapChain;
+        vk_present_info.pImageIndices      = &frame_ix;
+        vk_present_info.pResults           = 0;
+
+        res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &vk_present_info);
+        CHECK_VK_ERROR(res);
+
+        // Advance frame index
+        context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
+
+    #if (defined(__arm__) || defined(__arm64__))
+        glfwSwapBuffers();
+    #endif
+    }
 
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {}
