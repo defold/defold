@@ -1037,8 +1037,11 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
+    #ifndef _WIN32
     ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    // ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
+    #else
+    ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
+    #endif
     dmHttpClient::Delete(client);
     dmDNS::DeleteChannel(params.m_DNSChannel);
 }
