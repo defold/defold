@@ -407,12 +407,11 @@ static void HttpStressThread(void* param)
     HttpStressHelper* h = (HttpStressHelper*) param;
     for (int i = 0; i < 100; ++i) {
         h->m_Content = "";
-        // sprintf(buf, "/add/%d/1000", i * c);
-        sprintf(buf, "/no-keep-alive");
+        sprintf(buf, "/add/%d/1000", i * c);
         dmHttpClient::Result r;
         r = dmHttpClient::Get(h->m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        // ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
+        ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
     }
 }
 
@@ -423,7 +422,7 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
-    const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
+    const int thread_count = 1;    // 32 is the maximum number of items in the connection pool, stay below that
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
