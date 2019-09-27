@@ -415,6 +415,8 @@ static void HttpStressThread(void* param)
     }
 }
 
+#if !defined(__linux__)
+
 TEST_P(dmHttpClientTest, ThreadStress)
 {
     // Shut down and reopen the connection pool so we can use it to it's full extent
@@ -437,6 +439,8 @@ TEST_P(dmHttpClientTest, ThreadStress)
         delete helpers[i];
     }
 }
+
+#endif
 
 TEST_P(dmHttpClientTest, NoKeepAlive)
 {
