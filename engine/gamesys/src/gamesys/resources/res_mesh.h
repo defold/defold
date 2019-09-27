@@ -27,7 +27,7 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         uint32_t                        m_ElementCount;
-        uint64_t                        m_VertSize;
+        uint32_t                        m_VertSize;
 
         dmGraphics::PrimitiveType       m_PrimitiveType;
         dmhash_t                        m_PositionStreamId;
@@ -45,6 +45,10 @@ namespace dmGameSystem
     dmResource::Result ResMeshDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams& params);
+
+    bool BuildVertexDeclaration(BufferResource* buffer_resource,
+        dmGraphics::HVertexDeclaration* out_vert_decl,
+        uint32_t* out_elem_count, uint32_t* out_vert_size);
 }
 
 #endif // DM_GAMESYS_RES_MESH_H

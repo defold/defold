@@ -37,8 +37,17 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         CompRenderConstants         m_RenderConstants;
         MeshResource*               m_Resource;
+        dmGameSystem::BufferResource* m_BufferResource;
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial         m_Material;
+
+        // If the buffer resource property has changed (ie not same buffer resource as
+        // used by the mesh resource), we need to create a specific vertex declaration
+        // and vertbuffer for this buffer resource instead.
+        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        uint32_t                        m_ElementCount;
+        uint32_t                        m_VertSize;
+        // dmGraphics::HVertexBuffer       m_VertexBuffer;
 
         uint16_t                    m_ComponentIndex;
         /// Component enablement
@@ -64,7 +73,6 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject>    m_RenderObjects;
     };
 
-    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
     static const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
 
     static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
@@ -75,7 +83,6 @@ namespace dmGameSystem
     {
         MeshContext* context = (MeshContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
         MeshWorld* world = new MeshWorld();
         world->m_ResourceFactory = context->m_Factory;
@@ -118,6 +125,14 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static inline dmGameSystem::BufferResource* GetVerticesBuffer(const MeshComponent* component, const MeshResource* resource) {
+        return component->m_BufferResource ? component->m_BufferResource : resource->m_BufferResource;
+    }
+
+    static inline bool HasCustomVerticesBuffer(const MeshComponent* component, const MeshResource* resource) {
+        return component->m_BufferResource;
+    }
+
     static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
@@ -137,12 +152,19 @@ namespace dmGameSystem
         dmRender::HMaterial material = GetMaterial(component, resource);
         dmHashUpdateBuffer32(&state, &resource->m_PrimitiveType, sizeof(resource->m_PrimitiveType));
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        // dmGameSystem::BufferResource* buffer_resource = GetVerticesBuffer(component, resource);
+        // dmHashUpdateBuffer32(&state, &buffer_resource, sizeof(buffer_resource));
+
         // We have to hash individually since we don't know which textures are set as properties
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
-        dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
+        if (HasCustomVerticesBuffer(component, resource)) {
+            dmGraphics::HashVertexDeclaration(&state, component->m_VertexDeclaration);
+        } else {
+            dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
+        }
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
@@ -279,6 +301,7 @@ namespace dmGameSystem
         ro.m_VertexCount = vert_count;
         ro.m_WorldTransform = world_transform;
 
+        // TODO(andsve): For future reference; we might want to have a separate buffer resource for indices.
         // if(mr->m_IndexBuffer)
         // {
         //     ro.m_IndexBuffer = mr->m_IndexBuffer;
@@ -366,10 +389,8 @@ namespace dmGameSystem
         }
     }
 
-    static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static inline dmGraphics::HVertexBuffer GetFreeVertexBuffer(MeshWorld* world, dmRender::HRenderContext render_context)
     {
-        DM_PROFILE(Mesh, "RenderBatchWorld");
-
         if (world->m_VertexBuffers.Capacity() <= world->m_CurrentVertexBuffer) {
             world->m_VertexBuffers.OffsetCapacity(4);
 
@@ -380,29 +401,56 @@ namespace dmGameSystem
             }
         }
 
+        return world->m_VertexBuffers[world->m_CurrentVertexBuffer++];
+    }
+
+    static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
+        DM_PROFILE(Mesh, "RenderBatchWorld");
+
+        dmGraphics::HVertexBuffer vert_buffer = GetFreeVertexBuffer(world, render_context);
+        assert(vert_buffer);
+
         dmRender::RenderObject& ro = *world->m_RenderObjects.End();
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-        const MeshComponent* first_component = (MeshComponent*) buf[*begin].m_UserData;
-        const MeshResource* mr = first_component->m_Resource;
-        const BufferResource* br = mr->m_BufferResource;
+        const MeshComponent* first = (MeshComponent*) buf[*begin].m_UserData;
+        const MeshResource* mr = first->m_Resource;
+
+        // Setup vertex declaration, count and sizes etc.
+        // These defaults to values in the mesh and buffer resources,
+        // but will be overwritten if the component instance has a "custom"
+        // vertices buffer set (ie set via resource properties).
+        dmGraphics::HVertexDeclaration vert_decl = mr->m_VertexDeclaration;
+        uint32_t vert_size = mr->m_VertSize;
 
         // Find out how many elements/vertices all instances in this batch has
         uint32_t element_count = 0;
+        int non_custom = 0;
+        int custom = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
-            const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
-            const BufferResource* br = component->m_Resource->m_BufferResource;
-            element_count += br->m_ElementCount;
+            const MeshComponent* c = (MeshComponent*) buf[*i].m_UserData;
+            const MeshResource* mr = c->m_Resource;
+            const BufferResource* br = GetVerticesBuffer(c, mr);
+            if (HasCustomVerticesBuffer(c, mr))
+            {
+                element_count += c->m_ElementCount;
+                custom += 1;
+            } else {
+                element_count += br->m_ElementCount;
+                non_custom += 1;
+            }
         }
+        // dmLogError("element_count: %d (custom: %d, non_custom: %d)", element_count, custom, non_custom);
 
         // Allocate a larger scratch buffer if vert count * vert size is larger than current buffer.
-        if (world->m_WorldVertexDataSize < mr->m_VertSize * element_count)
+        if (world->m_WorldVertexDataSize < vert_size * element_count)
         {
             if (world->m_WorldVertexData) {
                 free(world->m_WorldVertexData);
             }
-            world->m_WorldVertexDataSize = mr->m_VertSize * element_count;
+            world->m_WorldVertexDataSize = vert_size * element_count;
             world->m_WorldVertexData = malloc(world->m_WorldVertexDataSize);
         }
 
@@ -412,6 +460,7 @@ namespace dmGameSystem
         {
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
+            const BufferResource* br = GetVerticesBuffer(component, mr);
 
             void* raw_data = 0x0;
             uint32_t size = 0;
@@ -439,10 +488,10 @@ namespace dmGameSystem
             dst_data_ptr = (void*)((uint8_t*)dst_data_ptr + size);
         }
 
-        world->m_RenderedVertexSize += mr->m_VertSize * element_count;
+        world->m_RenderedVertexSize += vert_size * element_count;
 
-        FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_VertexBuffers[world->m_CurrentVertexBuffer], 0, element_count, Matrix4::identity(), first_component->m_RenderConstants);
-        dmGraphics::SetVertexBufferData(world->m_VertexBuffers[world->m_CurrentVertexBuffer++], mr->m_VertSize * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, vert_decl, vert_buffer, 0, element_count, Matrix4::identity(), first->m_RenderConstants);
+        dmGraphics::SetVertexBufferData(vert_buffer, vert_size * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmRender::AddToRender(render_context, &ro);
     }
 
@@ -458,18 +507,33 @@ namespace dmGameSystem
 
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
-            const BufferResource* br = mr->m_BufferResource;
-            assert(mr->m_VertexBuffer);
+            dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
+
+            // Setup vertex declaration, buffer, count and sizes etc.
+            // These defaults to values in the mesh and buffer resources,
+            // but will be overwritten if the component instance has a "custom"
+            // vertices buffer set (ie set via resource properties).
+            dmGraphics::HVertexDeclaration vert_decl = mr->m_VertexDeclaration;
+            uint32_t vert_size = mr->m_VertSize;
+            uint32_t elem_count = br->m_ElementCount;
+            dmGraphics::HVertexBuffer vert_buf = mr->m_VertexBuffer;
+            if (HasCustomVerticesBuffer(component, mr)) {
+                vert_decl = component->m_VertexDeclaration;
+                vert_size = component->m_VertSize;
+                elem_count = component->m_ElementCount;
+                vert_buf = GetFreeVertexBuffer(world, render_context);
+            }
+            assert(vert_buf);
 
             uint8_t* bytes = 0x0;
             uint32_t size = 0;
             dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&bytes, &size);
             assert(r == dmBuffer::RESULT_OK);
-            dmGraphics::SetVertexBufferData(mr->m_VertexBuffer, mr->m_VertSize * br->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            dmGraphics::SetVertexBufferData(vert_buf, vert_size * elem_count, bytes, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-            world->m_RenderedVertexSize += mr->m_VertSize * br->m_ElementCount;
+            world->m_RenderedVertexSize += vert_size * elem_count;
 
-            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, mr->m_VertexDeclaration, mr->m_VertexBuffer, 0, mr->m_ElementCount, component->m_World, component->m_RenderConstants);
+            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, vert_decl, vert_buf, 0, elem_count, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
     }
@@ -479,7 +543,7 @@ namespace dmGameSystem
         DM_PROFILE(Mesh, "RenderBatch");
 
         const MeshComponent* first = (MeshComponent*) buf[*begin].m_UserData;
-        dmRender::HMaterial material = first->m_Resource->m_Material;
+        dmRender::HMaterial material = GetMaterial(first, first->m_Resource);
         switch(dmRender::GetMaterialVertexSpace(material))
         {
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
@@ -541,7 +605,6 @@ namespace dmGameSystem
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
-        uint32_t minor_order = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
@@ -554,7 +617,7 @@ namespace dmGameSystem
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
             write_ptr->m_Dispatch = dispatch;
-            write_ptr->m_MinorOrder = minor_order;
+            write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
 
@@ -619,19 +682,13 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static bool OnResourceReloaded(MeshWorld* world, MeshComponent* component, int index)
-    {
-        component->m_ReHash = 1;
-        return true;
-    }
-
     void CompMeshOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
         int index = *params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
         component->m_Resource = (MeshResource*)params.m_Resource;
-        (void)OnResourceReloaded(world, component, index);
+        component->m_ReHash = 1;
     }
 
     dmGameObject::PropertyResult CompMeshGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -640,11 +697,13 @@ namespace dmGameSystem
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
         if (params.m_PropertyId == PROP_VERTICES) {
-            dmhash_t mesh_path = 0x0;
-            dmResource::Result r = dmResource::GetPath(world->m_ResourceFactory, component->m_Resource->m_BufferResource, &mesh_path);
-            assert(r == dmResource::RESULT_OK);
-            out_value.m_Variant = dmGameObject::PropertyVar(mesh_path);
-            return dmGameObject::PROPERTY_RESULT_OK;
+            // TODO(andsve): Make this GetResourceProperty
+            // dmhash_t mesh_path = 0x0;
+            // dmResource::Result r = dmResource::GetPath(world->m_ResourceFactory, component->m_Resource->m_BufferResource, &mesh_path);
+            // assert(r == dmResource::RESULT_OK);
+            // out_value.m_Variant = dmGameObject::PropertyVar(mesh_path);
+            // return dmGameObject::PROPERTY_RESULT_OK;
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetVerticesBuffer(component, component->m_Resource), out_value);
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
@@ -667,7 +726,33 @@ namespace dmGameSystem
         MeshWorld* world = (MeshWorld*)params.m_World;
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
-        if (params.m_PropertyId == PROP_MATERIAL)
+        if (params.m_PropertyId == PROP_VERTICES) {
+            BufferResource* prev_buffer_resource = component->m_BufferResource;
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, BUFFER_EXT_HASH, (void**)&component->m_BufferResource);
+            component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+
+            if (res == dmGameObject::PROPERTY_RESULT_OK)
+            {
+                // If the buffer resource was changed, we might need to recreate the vertex declaration.
+                if (HasCustomVerticesBuffer(component, component->m_Resource) && component->m_BufferResource != prev_buffer_resource) {
+
+                    // Delete old vertex declaration
+                    if (component->m_VertexDeclaration) {
+                        dmGraphics::DeleteVertexDeclaration(component->m_VertexDeclaration);
+                        component->m_VertexDeclaration = 0x0;
+                    }
+
+                    bool r = dmGameSystem::BuildVertexDeclaration(component->m_BufferResource, &component->m_VertexDeclaration, &component->m_ElementCount, &component->m_VertSize);
+                    if (!r) {
+                        dmLogError("Error while building vertex declaration from new resource.");
+                        return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+                    }
+                }
+            }
+
+            return res;
+        }
+        else if (params.m_PropertyId == PROP_MATERIAL)
         {
             dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
@@ -697,10 +782,11 @@ namespace dmGameSystem
             MeshComponent* component = components[i];
             if (component->m_Resource)
             {
-                if(component->m_Resource == params.m_Resource->m_Resource)
+                const dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
+                if(component->m_Resource == params.m_Resource->m_Resource ||
+                   material == params.m_Resource->m_Resource)
                 {
-                    // Mesh resource reload
-                    OnResourceReloaded(world, component, i);
+                    component->m_ReHash = 1;
                     continue;
                 }
             }
