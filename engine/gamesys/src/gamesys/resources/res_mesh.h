@@ -20,17 +20,16 @@ namespace dmGameSystem
         dmMeshDDF::MeshDesc*    m_MeshDDF;
         BufferResource*         m_BufferResource;
         dmRender::HMaterial     m_Material;
-        // dmGraphics::HVertexBuffer m_VertexBuffer;
-        // dmGraphics::HIndexBuffer m_IndexBuffer;
+
         dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        // dmGraphics::Type        m_IndexBufferElementType;
 
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
-        // void*                           m_VertexBufferData;
         uint32_t                        m_ElementCount;
         uint64_t                        m_VertSize;
+
+        dmGraphics::PrimitiveType       m_PrimitiveType;
         dmhash_t                        m_PositionStreamId;
         dmBufferDDF::ValueType          m_PositionStreamType;
         dmhash_t                        m_NormalStreamId;

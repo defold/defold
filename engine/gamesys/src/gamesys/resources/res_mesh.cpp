@@ -79,6 +79,27 @@ namespace dmGameSystem
         }
     }
 
+    static dmGraphics::PrimitiveType ToGraphicsPrimitiveType(dmMeshDDF::MeshDesc::PrimitiveType primitive_type)
+    {
+        switch (primitive_type)
+        {
+            case dmMeshDDF::MeshDesc::PRIMITIVE_POINTS:
+                return dmGraphics::PRIMITIVE_POINTS;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_LINES:
+                return dmGraphics::PRIMITIVE_LINES;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_LOOP:
+                return dmGraphics::PRIMITIVE_LINE_LOOP;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_STRIP:
+                return dmGraphics::PRIMITIVE_LINE_STRIP;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES:
+                return dmGraphics::PRIMITIVE_TRIANGLES;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP:
+                return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
+            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
+                return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
+        }
+    }
+
     static bool BuildVertices(dmGraphics::HContext context,  MeshResource* mesh_resource)
     {
         assert(mesh_resource);
@@ -138,6 +159,8 @@ namespace dmGameSystem
             dmLogError("Could not get bytes from buffer!");
             return false;
         }
+
+        mesh_resource->m_PrimitiveType = ToGraphicsPrimitiveType(mesh_resource->m_MeshDDF->m_PrimitiveType);
 
         mesh_resource->m_ElementCount = buffer_resource->m_ElementCount;
         mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh_resource->m_VertSize * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);

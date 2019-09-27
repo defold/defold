@@ -135,6 +135,7 @@ namespace dmGameSystem
         MeshResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
         dmRender::HMaterial material = GetMaterial(component, resource);
+        dmHashUpdateBuffer32(&state, &resource->m_PrimitiveType, sizeof(resource->m_PrimitiveType));
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         // We have to hash individually since we don't know which textures are set as properties
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
@@ -260,6 +261,7 @@ namespace dmGameSystem
     }
 
     static void FillRenderObject(dmRender::RenderObject& ro,
+        const dmGraphics::PrimitiveType& primitive_type,
         const dmRender::HMaterial& material,
         const dmGraphics::HTexture* textures,
         const dmGraphics::HVertexDeclaration& vert_decl,
@@ -272,7 +274,7 @@ namespace dmGameSystem
         ro.m_VertexDeclaration = vert_decl;
         ro.m_VertexBuffer = vert_buffer;
         ro.m_Material = material;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_PrimitiveType = primitive_type;
         ro.m_VertexStart = vert_start;
         ro.m_VertexCount = vert_count;
         ro.m_WorldTransform = world_transform;
@@ -429,7 +431,7 @@ namespace dmGameSystem
 
             // Modify normal stream, if specified
             if (mr->m_NormalStreamId) {
-                Matrix4 normal_matrix = inverse(component->m_World);
+                Matrix4 normal_matrix = affineInverse(component->m_World);
                 normal_matrix = transpose(normal_matrix);
                 FillAndApplyStream(br, normal_matrix, mr->m_NormalStreamId, mr->m_NormalStreamType, raw_data, dst_data_ptr);
             }
@@ -439,7 +441,7 @@ namespace dmGameSystem
 
         world->m_RenderedVertexSize += mr->m_VertSize * element_count;
 
-        FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_VertexBuffers[world->m_CurrentVertexBuffer], 0, element_count, Matrix4::identity(), first_component->m_RenderConstants);
+        FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, mr->m_VertexDeclaration, world->m_VertexBuffers[world->m_CurrentVertexBuffer], 0, element_count, Matrix4::identity(), first_component->m_RenderConstants);
         dmGraphics::SetVertexBufferData(world->m_VertexBuffers[world->m_CurrentVertexBuffer++], mr->m_VertSize * element_count, world->m_WorldVertexData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmRender::AddToRender(render_context, &ro);
     }
@@ -467,7 +469,7 @@ namespace dmGameSystem
 
             world->m_RenderedVertexSize += mr->m_VertSize * br->m_ElementCount;
 
-            FillRenderObject(ro, material, mr->m_Textures, mr->m_VertexDeclaration, mr->m_VertexBuffer, 0, mr->m_ElementCount, component->m_World, component->m_RenderConstants);
+            FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, mr->m_VertexDeclaration, mr->m_VertexBuffer, 0, mr->m_ElementCount, component->m_World, component->m_RenderConstants);
             dmRender::AddToRender(render_context, &ro);
         }
     }

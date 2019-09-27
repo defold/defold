@@ -8,9 +8,22 @@ option java_outer_classname = "MeshProto";
 
 message MeshDesc
 {
+    // NOTE: Needs to match PrimitiveType in graphics.h
+    enum PrimitiveType
+    {
+        PRIMITIVE_POINTS            = 0 [(displayName) = "Points"];
+        PRIMITIVE_LINES             = 1 [(displayName) = "Lines"];
+        PRIMITIVE_LINE_LOOP         = 2 [(displayName) = "Line Loop"];
+        PRIMITIVE_LINE_STRIP        = 3 [(displayName) = "Line Strip"];
+        PRIMITIVE_TRIANGLES         = 4 [(displayName) = "Triangles"];
+        PRIMITIVE_TRIANGLE_STRIP    = 5 [(displayName) = "Triangle Strip"];
+        PRIMITIVE_TRIANGLE_FAN      = 6 [(displayName) = "Triangle Fan"];
+    }
+
     required string material = 1 [(resource)=true];
     required string vertices = 2 [(resource)=true];
     repeated string textures = 3 [(resource)=true];
-    optional string position_stream = 4;
-    optional string normal_stream = 5;
+    optional PrimitiveType primitive_type = 4 [default = PRIMITIVE_TRIANGLES];
+    optional string position_stream = 5;
+    optional string normal_stream = 6;
 }
