@@ -253,7 +253,7 @@ TEST_F(dmSSDPTest, Search)
     // It could of course also be a bug in the SSDP implementation
     bool discovered = false;
     int iter = 0;
-    while (!discovered && iter++ < 10) {
+    while (!discovered && iter++ < 1000) {
         UpdateServer();
         WaitPackage();
         UpdateClient();
@@ -437,4 +437,3 @@ int main(int argc, char **argv)
     dmSocket::Finalize();
     return ret;
 }
-
