@@ -21,7 +21,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
+      { name: 'Build engine', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
 
   build-engine-ios:
     strategy:
@@ -32,7 +32,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
+      { name: 'Build engine', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
 
   build-engine-windows:
     strategy:
@@ -43,7 +43,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
+      { name: 'Build engine', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
 
   build-engine-web:
     strategy:
@@ -54,7 +54,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
+      { name: 'Build engine', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
 
   build-engine-android:
     strategy:
@@ -65,7 +65,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
+      { name: 'Build engine', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
 
   build-engine-linux:
     strategy:
@@ -76,7 +76,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine' }]
+      { name: 'Build engine', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine' }]
 
 # ---- BUILD BOB AND SDK ------------------
 
@@ -87,7 +87,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build bob', run: 'python ci/ci.py --branch=$GITHUB_REF bob' }]
+      { name: 'Build bob', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --branch=$GITHUB_REF bob' }]
   
   build-sdk:
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
@@ -96,7 +96,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build SDK', run: 'python ci/ci.py --branch=$GITHUB_REF sdk' }]
+      { name: 'Build SDK', env: { s3_access_key: '${{ secrets.S3_ACCESS_KEY }}', s3_secret_key: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.py --branch=$GITHUB_REF sdk' }]
  
 # ---- BUILD EDITOR AND SMOKE TEST ------------------
  
