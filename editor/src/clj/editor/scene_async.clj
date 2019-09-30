@@ -1,6 +1,5 @@
 (ns editor.scene-async
-  (:require [dynamo.graph :as g]
-            [util.profiler :as profiler])
+  (:require [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL2]
            [java.nio ByteBuffer ByteOrder]
            [javafx.scene.image PixelBuffer PixelFormat WritableImage]
@@ -140,15 +139,4 @@
       (bind-pbo! gl)
       (copy-pbo-to-image! gl)
       (unbind-pbo! gl)))
-
-(comment
-  (require 'dev)
-  (require '[prof :as pr])
-  (require '[dynamo.graph :as g])
-  (g/clear-system-cache!)
-  (pr/profile-for 10 {:threads true})
-  ;; TODO: Try old approach and see if we can swap the buffer in the image.
-  ;; Perhaps we can trick it by making a mock ByteBuffer that does not contain
-  ;; any data but just delegates to an internal one that we can swap :)
-  )
 
