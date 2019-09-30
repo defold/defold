@@ -360,32 +360,43 @@
     :pull/start (if (nil? (:error flow))
                   (advance-flow (tick flow :pull/pulling) render-progress)
                   flow)
-    :pull/pulling (let [result-or-error
-                        (try
+    :pull/pulling (let [dry-run-push-error
+                        (when (:verify-creds flow)
                           ;; Pulling from a public repository will not use the
-                          ;; credentials. Do a dry-run push here to ensure our
+                          ;; credentials. Do a dry-run push here to check if our
                           ;; credentials are valid for the push state.
-                          (git/push! git {:encrypted-credentials creds :dry-run true})
-                          (git/pull! git {:encrypted-credentials creds})
-                          (catch Exception error
-                            error))]
-                    (cond
-                      (and (instance? PullResult result-or-error)
-                           (.isSuccessful ^PullResult result-or-error))
-                      (advance-flow (tick flow :pull/applying) render-progress)
-
-                      (https-not-authorized-exception? result-or-error)
+                          (try
+                            (git/push! git {:encrypted-credentials creds :dry-run true})
+                            nil
+                            (catch Exception error
+                              error)))]
+                    (if (https-not-authorized-exception? dry-run-push-error)
                       (advance-flow (-> flow
                                         (tick :pull/start)
                                         (assoc :error :https-not-authorized))
                                     render-progress)
+                      (let [pull-result-or-error
+                            (try
+                              (git/pull! git {:encrypted-credentials creds})
+                              (catch Exception error
+                                error))]
+                        (cond
+                          (and (instance? PullResult pull-result-or-error)
+                               (.isSuccessful ^PullResult pull-result-or-error))
+                          (advance-flow (tick flow :pull/applying) render-progress)
 
-                      :else
-                      (do
-                        (log/error :exception result-or-error
-                                   :msg (format "Error pulling during sync: %s"
-                                                (ex-message result-or-error)))
-                        (advance-flow (tick flow :pull/error) render-progress))))
+                          (https-not-authorized-exception? pull-result-or-error)
+                          (advance-flow (-> flow
+                                            (tick :pull/start)
+                                            (assoc :error :https-not-authorized))
+                                        render-progress)
+
+                          :else
+                          (do
+                            (log/error :exception pull-result-or-error
+                                       :msg (format "Error pulling during sync: %s"
+                                                    (ex-message pull-result-or-error)))
+                            (advance-flow (tick flow :pull/error) render-progress))))))
     :pull/applying (let [stash-res (when stash-info
                                      (try (git/stash-apply! git stash-info)
                                           (catch StashApplyFailureException _
@@ -417,8 +428,9 @@
                     (advance-flow (tick flow :push/done) render-progress)
                     (catch Exception e
                       (println e)
-                      (advance-flow (tick flow :pull/start) render-progress)))
-    :push/done flow))
+                      (advance-flow (tick flow :push/error) render-progress)))
+    :push/done flow
+    :push/error flow))
 
 (ui/extend-menu ::conflicts-menu nil
                 [{:label "View Diff"
@@ -599,7 +611,7 @@
                                        (.sizeToScene (.getWindow scene))))
                             (condp = state
                               :pull/start (let [error (:error flow)
-                                                remote-info (git/remote-info (:git flow) :fetch "origin")
+                                                remote-info (git/remote-info (:git flow) :fetch)
                                                 is-ssh-remote (= :ssh (:scheme remote-info))]
                                             (ui/text! (:main-label pull-controls)
                                                       (cond
@@ -663,6 +675,12 @@
                                            (ui/visible! (:content-box push-controls) false)
                                            (ui/text! (:ok dialog-controls) "Done"))
 
+                              :push/error (do
+                                            (ui/text! (:main-label push-controls) "Error pushing changes to server")
+                                            (ui/visible! (:content-box push-controls) false)
+                                            (ui/text! (:ok dialog-controls) "Done")
+                                            (ui/disable! (:ok dialog-controls) true))
+
                               nil)))]
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
@@ -697,6 +715,7 @@
                                                                 (advance-flow
                                                                   (-> flow
                                                                       (dissoc :error)
+                                                                      (assoc :verify-creds (not (empty? password)))
                                                                       (assoc :creds (git-credentials/encrypt-credentials
                                                                                       {:username username
                                                                                        :password password})))
@@ -744,7 +763,7 @@
                                  username-field]
       (let [{:keys [git creds]} @!flow
             {:keys [username password]} (git-credentials/decrypt-credentials creds)
-            remote-info (git/remote-info git :fetch "origin")]
+            remote-info (git/remote-info git :fetch)]
         (ui/text! username-field (or username ""))
         (ui/text! password-field (or password ""))
         (ui/value! save-password-checkbox (not (empty? password)))

@@ -16,7 +16,7 @@
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.errors MissingObjectException]
-           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
+           [org.eclipse.jgit.lib BatchingProgressMonitor BranchConfig ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport CredentialsProvider JschConfigSessionFactory RemoteConfig SshTransport URIish UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
@@ -76,29 +76,47 @@
 
 ;; =================================================================================
 
-(defn remote-info
-  [git-or-repository purpose ^String remote-name]
-  (let [^Repository repository
-        (if (instance? Repository git-or-repository)
-          git-or-repository
-          (.getRepository ^Git git-or-repository))
+(defn- as-repository
+  ^Repository [git-or-repository]
+  (if (instance? Repository git-or-repository)
+    git-or-repository
+    (.getRepository ^Git git-or-repository)))
 
-        config (.getConfig repository)
-        remote (RemoteConfig. config remote-name)]
-    (when-some [^URIish uri-ish (first
-                                  (case purpose
-                                    :fetch (.getURIs remote)
-                                    :push (concat
-                                            (.getPushURIs remote)
-                                            (.getURIs remote))))]
-      {:scheme (if-some [scheme (.getScheme uri-ish)]
-                 (keyword scheme)
-                 :ssh)
-       :host (.getHost uri-ish)
-       :port (.getPort uri-ish)
-       :path (.getPath uri-ish)
-       :user (.getUser uri-ish)
-       :pass (.getPass uri-ish)})))
+(defn- remote-name
+  ^String [^Repository repository]
+  (let [config (.getConfig repository)
+        branch (.getBranch repository)
+        branch-config (BranchConfig. config branch)
+        remote-names (map #(.getName ^RemoteConfig %)
+                          (RemoteConfig/getAllRemoteConfigs config))]
+    (or (.getRemote branch-config)
+        (some #(.equalsIgnoreCase "origin" %) remote-names)
+        (first remote-names))))
+
+(defn remote-info
+  ([git-or-repository purpose]
+   (let [repository (as-repository git-or-repository)
+         remote-name (or (remote-name repository) "origin")]
+     (remote-info repository purpose remote-name)))
+  ([git-or-repository purpose ^String remote-name]
+   (let [repository (as-repository git-or-repository)
+         config (.getConfig repository)
+         remote (RemoteConfig. config remote-name)]
+     (when-some [^URIish uri-ish (first
+                                   (case purpose
+                                     :fetch (.getURIs remote)
+                                     :push (concat
+                                             (.getPushURIs remote)
+                                             (.getURIs remote))))]
+       {:name remote-name
+        :scheme (if-some [scheme (.getScheme uri-ish)]
+                  (keyword scheme)
+                  :ssh)
+        :host (.getHost uri-ish)
+        :port (.getPort uri-ish)
+        :path (.getPath uri-ish)
+        :user (.getUser uri-ish)
+        :pass (.getPass uri-ish)}))))
 
 (defn remote-uri
   ^URI [{:keys [scheme ^String host ^int port ^String path]
@@ -362,7 +380,7 @@
   ;;
   ;; Most of this information was gathered from here:
   ;; https://www.codeaffine.com/2014/12/09/jgit-authentication/
-  (case (:scheme (remote-info (.getRepository command) purpose "origin"))
+  (case (:scheme (remote-info (.getRepository command) purpose))
     :https
     (let [credentials (git-credentials/decrypt-credentials encrypted-credentials)
           credentials-provider (make-credentials-provider credentials)]
