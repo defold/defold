@@ -180,7 +180,7 @@ def main(argv):
         release = False
 
 
-    print("S3 ACCESS KEY: %s" % (os.environ['S3_ACCESS_KEY']))
+    print("S3 ACCESS KEY: %s" % (os.getenv('S3_ACCESS_KEY')))
     print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
 
     for command in args.commands:
