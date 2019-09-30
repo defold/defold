@@ -152,8 +152,6 @@ namespace dmGameSystem
         dmRender::HMaterial material = GetMaterial(component, resource);
         dmHashUpdateBuffer32(&state, &resource->m_PrimitiveType, sizeof(resource->m_PrimitiveType));
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
-        // dmGameSystem::BufferResource* buffer_resource = GetVerticesBuffer(component, resource);
-        // dmHashUpdateBuffer32(&state, &buffer_resource, sizeof(buffer_resource));
 
         // We have to hash individually since we don't know which textures are set as properties
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
@@ -442,7 +440,6 @@ namespace dmGameSystem
                 non_custom += 1;
             }
         }
-        // dmLogError("element_count: %d (custom: %d, non_custom: %d)", element_count, custom, non_custom);
 
         // Allocate a larger scratch buffer if vert count * vert size is larger than current buffer.
         if (world->m_WorldVertexDataSize < vert_size * element_count)
@@ -697,12 +694,6 @@ namespace dmGameSystem
         MeshComponent* component = world->m_Components.Get(*params.m_UserData);
 
         if (params.m_PropertyId == PROP_VERTICES) {
-            // TODO(andsve): Make this GetResourceProperty
-            // dmhash_t mesh_path = 0x0;
-            // dmResource::Result r = dmResource::GetPath(world->m_ResourceFactory, component->m_Resource->m_BufferResource, &mesh_path);
-            // assert(r == dmResource::RESULT_OK);
-            // out_value.m_Variant = dmGameObject::PropertyVar(mesh_path);
-            // return dmGameObject::PROPERTY_RESULT_OK;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetVerticesBuffer(component, component->m_Resource), out_value);
         }
         else if (params.m_PropertyId == PROP_MATERIAL)

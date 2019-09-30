@@ -14,16 +14,9 @@ namespace dmGameSystem
         dmBufferDDF::BufferDesc* m_BufferDDF;
         dmBuffer::HBuffer        m_Buffer;
         uint64_t                 m_ElementCount;
+
+        /// Needed to keep track of data change on resource reload.
         uint32_t                 m_Version;
-        // dmBuffer
-        // RigSceneResource*       m_RigScene;
-        // dmRender::HMaterial     m_Material;
-        // dmGraphics::HVertexBuffer m_VertexBuffer;
-        // dmGraphics::HIndexBuffer m_IndexBuffer;
-        // dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        // dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        // dmGraphics::Type        m_IndexBufferElementType;
-        // uint32_t                m_ElementCount;
     };
 
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params);

@@ -175,8 +175,7 @@ namespace dmGameSystem
                 }
 
             } else {
-                // TODO Handle error
-                assert(false && "WTF");
+                assert(false && "Could not get raw bytes from buffer resource.");
             }
         }
 

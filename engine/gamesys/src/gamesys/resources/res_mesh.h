@@ -30,11 +30,14 @@ namespace dmGameSystem
         uint32_t                        m_VertSize;
 
         dmGraphics::PrimitiveType       m_PrimitiveType;
+
+        /// Stread id and type to know what data to modify when rendering in world space.
         dmhash_t                        m_PositionStreamId;
         dmBufferDDF::ValueType          m_PositionStreamType;
         dmhash_t                        m_NormalStreamId;
         dmBufferDDF::ValueType          m_NormalStreamType;
 
+        /// Needed to keep track of data change on resource reload.
         uint32_t                        m_BufferVersion;
     };
 

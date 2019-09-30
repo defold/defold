@@ -156,22 +156,6 @@ namespace dmGameSystem
         return true;
     }
 
-    // static bool BuildVertices(dmGraphics::HContext context,
-    //     BufferResource* buffer_resource,
-    //     dmGraphics::HVertexDeclaration* out_vert_decl,
-    //     dmGraphics::HVertexBuffer* out_vert_buf,
-    //     uint32_t* out_elem_count, uint32_t* out_vert_size,
-    //     dmGraphics::PrimitiveType* out_prim_type)
-    // {
-    //     assert(buffer_resource);
-
-    //     BuildVertexDeclaration(context, buffer_resource, out_vert_decl, out_elem_count, out_vert_size, out_prim_type);
-
-    //     *out_vert_buf = dmGraphics::NewVertexBuffer(context, *out_vert_size * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-    //     return true;
-    // }
-
     static bool BuildVertices(MeshResource* mesh_resource)
     {
         assert(mesh_resource);
@@ -191,7 +175,7 @@ namespace dmGameSystem
 
         bool vert_decl_res = BuildVertexDeclaration(mesh_resource->m_BufferResource, &mesh_resource->m_VertexDeclaration, &mesh_resource->m_ElementCount, &mesh_resource->m_VertSize);
         if (!vert_decl_res) {
-            dmLogError("Could not create vertex declaration from buffer resource!");
+            dmLogError("Could not create vertex declaration from buffer resource.");
             return false;
         }
 
@@ -200,78 +184,13 @@ namespace dmGameSystem
         uint32_t size = 0;
         dmBuffer::Result r = dmBuffer::GetBytes(mesh_resource->m_BufferResource->m_Buffer, (void**)&bytes, &size);
         if (r != dmBuffer::RESULT_OK) {
-            dmLogError("Could not get bytes from buffer!");
+            dmLogError("Could not get bytes from buffer.");
             return false;
         }
 
         mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(g_GraphicsContext, mesh_resource->m_VertSize * mesh_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         return true;
-        // return BuildVertices(context, mesh_resource->m_BufferResource, &mesh_resource->m_VertexDeclaration, &mesh_resource->m_VertexBuffer, &mesh_resource->m_ElementCount, &mesh_resource->m_VertSize, &mesh_resource->m_PrimitiveType);
-
-        /*
-        const BufferResource* buffer_resource = mesh_resource->m_BufferResource;
-        const uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
-        dmGraphics::VertexElement* vert_decls = (dmGraphics::VertexElement*)malloc(stream_count * sizeof(dmGraphics::VertexElement));
-
-        uint32_t vert_size = 0;
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            dmGraphics::VertexElement& vert_decl = vert_decls[i];
-            vert_decl.m_Name = ddf_stream.m_Name;
-            vert_decl.m_Stream = i;
-            vert_decl.m_Size = ddf_stream.m_ValueCount;
-            vert_decl.m_Type = StreamTypeToGraphicsType(ddf_stream.m_ValueType);
-            vert_decl.m_Normalize = false;
-
-            vert_size += StreamTypeToSize(ddf_stream.m_ValueType) * ddf_stream.m_ValueCount;
-        }
-
-        // Init vertex declaration
-        mesh_resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, vert_decls, stream_count);
-        free(vert_decls);
-
-        // Update vertex declaration with exact offsets (since streams in buffers can be aligned).
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-            uint32_t offset = 0;
-            dmBuffer::Result r = dmBuffer::GetStreamOffset(buffer_resource->m_Buffer, i, &offset);
-            assert(r == dmBuffer::RESULT_OK);
-
-            bool b2 = dmGraphics::SetStreamOffset(mesh_resource->m_VertexDeclaration, i, offset);
-            assert(b2);
-        }
-
-        // Set correct "struct stride/size", since dmBuffer might align the structs etc.
-        uint32_t stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
-        bool vert_stride_res = dmGraphics::SetVertexStride(mesh_resource->m_VertexDeclaration, stride);
-        if (!vert_stride_res) {
-            dmLogError("Could not get vertex element size for vertex buffer.");
-            return false;
-        }
-
-        // We need to keep track of the exact vertex size (ie the "struct" size according to dmBuffer)
-        // since for world space vertices we need to allocate a correct data buffer size for it.
-        // We also use it when passing the vertsize*elemcount to dmGraphics.
-        mesh_resource->m_VertSize = stride;
-
-        // Get buffer data and upload/send to dmGraphics.
-        uint8_t* bytes = 0x0;
-        uint32_t size = 0;
-        dmBuffer::Result r = dmBuffer::GetBytes(buffer_resource->m_Buffer, (void**)&bytes, &size);
-        if (r != dmBuffer::RESULT_OK) {
-            dmLogError("Could not get bytes from buffer!");
-            return false;
-        }
-
-        mesh_resource->m_PrimitiveType = ToGraphicsPrimitiveType(mesh_resource->m_MeshDDF->m_PrimitiveType);
-
-        mesh_resource->m_ElementCount = buffer_resource->m_ElementCount;
-        mesh_resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, mesh_resource->m_VertSize * buffer_resource->m_ElementCount, bytes, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-        return true;
-        */
     }
 
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, MeshResource* resource, const char* filename)
@@ -329,10 +248,8 @@ namespace dmGameSystem
         	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
         	if (stream_id == resource->m_PositionStreamId) {
         		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
-        		// break;
         	} else if (stream_id == resource->m_NormalStreamId) {
                 resource->m_NormalStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
-                // break;
             }
         }
 
