@@ -95,7 +95,7 @@
   for different locations, and registering menu with id and location that are
   already present will override previously registered menu.
 
-  `location` is a place to extend different menus. menu items can have `:id`
+  `location` is a place to extend different menus. Menu items can have `:id`
   keys, and all menus that have same `location` as item's id will be inserted
   after those items. It's also used to [[realize-menu]].
 
@@ -131,10 +131,10 @@
   use same `handler-id` for different command+context combinations. It also
   means that for same command+context pair there may be multiple command
   candidates with undefined `active?` check order, so you should ensure that for
-  registered command+context pair only one can be active at any given time
+  a registered command+context pair only one can be active at any given time
 
   `fns` is a map from predefined set of keywords to `fnk`s that accept inputs
-  provided by context map. allowed keys:
+  provided by context map. Allowed keys:
   - `:run` (optional) - fnk that is invoked when command is executed
   - `:active?` (optional) - fnk predicate to determine if command is available,
     has additional `evaluation-context` argument
@@ -154,7 +154,8 @@
     of these options first. `:user-data` from these menu items will be passed as
     `:user-data` to `:run` fnk"
   [handler-id command context-definition fns]
-  (swap! state-atom register-handler handler-id command context-definition fns))
+  (swap! state-atom register-handler handler-id command context-definition fns)
+  handler-id)
 
 (s/def ::dynamic-handler
   (s/keys :req-un [::fns ::locations ::menu-item] :opt-un [::context-definition]))

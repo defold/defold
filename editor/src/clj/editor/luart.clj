@@ -1,15 +1,15 @@
 (ns editor.luart
   (:refer-clojure :exclude [read eval])
   (:require [clojure.string :as string])
-  (:import [org.luaj.vm2 Globals LoadState LuaBoolean LuaClosure LuaDouble LuaFunction LuaInteger LuaNil LuaValue LuaValue$None LuaString LuaTable LuaUserdata Varargs Prototype]
-           [clojure.lang Fn IPersistentMap IPersistentVector Keyword]
+  (:import [clojure.lang Fn IPersistentMap IPersistentVector Keyword]
+           [com.defold.editor.luart IoLib]
+           [org.apache.commons.io.output WriterOutputStream]
+           [org.luaj.vm2 Globals LoadState LuaBoolean LuaClosure LuaDouble LuaFunction LuaInteger LuaNil LuaValue LuaValue$None LuaString LuaTable LuaUserdata Varargs Prototype]
+           [org.luaj.vm2.compiler LuaC]
            [org.luaj.vm2.lib Bit32Lib CoroutineLib PackageLib StringLib TableLib VarArgFunction]
            [org.luaj.vm2.lib.jse JseBaseLib JseMathLib JseOsLib]
            [java.io ByteArrayInputStream File PrintStream]
-           [org.apache.commons.io.output WriterOutputStream]
-           [org.luaj.vm2.compiler LuaC]
-           [java.nio.charset Charset]
-           [com.defold.editor.luart IoLib]))
+           [java.nio.charset Charset]))
 
 (set! *warn-on-reflection* true)
 
@@ -65,13 +65,12 @@
     (mapv #(lua->clj (.arg varargs (inc %))) (range (.narg varargs))))
   LuaTable
   (lua->clj [t]
-    (let [kvs (persistent!
-                (loop [k LuaValue/NIL
-                       acc (transient [])]
-                  (let [pair (.next t k)]
-                    (if (.isnil (.arg pair 1))
-                      acc
-                      (recur (.arg pair 1) (conj! acc (lua->clj pair)))))))]
+    (let [kvs (loop [k LuaValue/NIL
+                     acc (transient [])]
+                (let [pair (.next t k)]
+                  (if (.isnil (.arg pair 1))
+                    (persistent! acc)
+                    (recur (.arg pair 1) (conj! acc (lua->clj pair))))))]
       (if (and (seq kvs)
                (= (mapv first kvs)
                   (range 1 (inc (count kvs)))))
@@ -85,7 +84,7 @@
   (clj->lua [k] (LuaValue/valueOf (string/replace (name k) "-" "_")))
 
   Object
-  (clj->lua [x] (LuaValue/valueOf (pr-str x)))
+  (clj->lua [x] (LuaValue/userdataOf x))
 
   Fn
   (clj->lua [f]
@@ -142,14 +141,14 @@
     (.load (CoroutineLib.))
     (.load (JseMathLib.))
     (.load (proxy [IoLib] []
-             (openFile [filename readMode appendMode updateMode binaryMode]
+             (openFile [filename read-mode append-mode update-mode binary-mode]
                (let [^IoLib this this]
                  (proxy-super openFile
-                              (validate-opened-filename filename readMode)
-                              readMode
-                              appendMode
-                              updateMode
-                              binaryMode)))))
+                              (validate-opened-filename filename read-mode)
+                              read-mode
+                              append-mode
+                              update-mode
+                              binary-mode)))))
     (-> (.get "io") (.set "tmpfile" LuaValue/NIL))
     (.load (JseOsLib.))
     (-> (.get "os") (doto

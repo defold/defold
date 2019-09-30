@@ -10,7 +10,7 @@
 
 (defn fixture [f]
   (with-redefs [handler/state-atom (atom {})]
-   (f)))
+    (f)))
 
 (use-fixtures :each fixture)
 

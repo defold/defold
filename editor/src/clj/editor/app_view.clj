@@ -1833,6 +1833,9 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
+(def ^:private editor-extensions-allowed-commands-prefs-key
+  "editor-extensions/allowed-commands")
+
 (defn make-extensions-ui [workspace changes-view prefs]
   (reify extensions/UI
     (reload-resources! [_]
@@ -1845,7 +1848,7 @@ If you do not specifically require different script states, consider changing th
         (when-not @success-promise
           (throw (ex-info "Reload failed" {})))))
     (can-execute? [_ [cmd-name :as command]]
-      (let [allowed-commands (prefs/get-prefs prefs "editor-extensions/allowed-commands" #{})]
+      (let [allowed-commands (prefs/get-prefs prefs editor-extensions-allowed-commands-prefs-key #{})]
         (if (allowed-commands cmd-name)
           true
           (let [allow (ui/run-now
@@ -1862,11 +1865,11 @@ If you do not specifically require different script states, consider changing th
                                       :cancel-button true
                                       :default-button true
                                       :result false}
-                                     {:text "Execute"
+                                     {:text "Allow"
                                       :variant :danger
                                       :result true}]}))]
             (when allow
-              (prefs/set-prefs prefs "editor-extensions/allowed-commands" (conj allowed-commands cmd-name)))
+              (prefs/set-prefs prefs editor-extensions-allowed-commands-prefs-key (conj allowed-commands cmd-name)))
             allow))))
     (display-output! [_ type string]
       (let [[console-type prefix] (case type
@@ -1898,7 +1901,7 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (extensions/reload project :library (make-extensions-ui workspace changes-view prefs))))))))))))))
+                                          (extensions/reload! project :library (make-extensions-ui workspace changes-view prefs))))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
@@ -1919,7 +1922,7 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
   (run [project workspace changes-view prefs]
-       (extensions/reload project :all (make-extensions-ui workspace changes-view prefs))))
+       (extensions/reload! project :all (make-extensions-ui workspace changes-view prefs))))
 
 (defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
   (let [workspace (project/workspace project)

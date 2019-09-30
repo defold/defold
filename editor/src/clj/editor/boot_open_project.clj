@@ -194,7 +194,7 @@
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
-      (extensions/reload project :all (app-view/make-extensions-ui workspace changes-view prefs))
+      (extensions/reload! project :all (app-view/make-extensions-ui workspace changes-view prefs))
 
       (when updater
         (let [update-link (.lookup root "#update-link")]

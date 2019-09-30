@@ -6,7 +6,7 @@
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]))
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system write-until-new-mtime]]))
 
 (def ^:private project-path "test/resources/all_types_project")
 

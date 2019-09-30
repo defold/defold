@@ -160,20 +160,21 @@
       (throw exception))))
 
 (defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! task-cancelled? render-build-error! bob-commands bob-args project changes-view callback!]
+  (disk-availability/push-busy!)
   (future
-    (let [hook-opts {:output-directory (get bob-args "bundle-output")
-                     :platform (get bob-args "platform")}]
-      (if-let [extension-error (extensions/execute-hook! project :on-bundle-started
-                                                         {:exception-policy :as-error
-                                                          :opts hook-opts})]
-        (do
-          (extensions/execute-hook! project :on-bundle-failed {:exception-policy :ignore
-                                                               :opts hook-opts})
-          (ui/run-later
-            (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
-            (when (some? callback!) (callback! false))))
-        (try
-          (disk-availability/push-busy!)
+    (try
+      (let [hook-opts {:output-directory (get bob-args "bundle-output")
+                       :platform (get bob-args "platform")}]
+        (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
+        (if-let [extension-error (extensions/execute-hook! project :on-bundle-started
+                                                           {:exception-policy :as-error
+                                                            :opts hook-opts})]
+          (do
+            (extensions/execute-hook! project :on-bundle-failed {:exception-policy :ignore
+                                                                 :opts hook-opts})
+            (ui/run-later
+              (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
+              (when (some? callback!) (callback! false))))
           ;; We need to save because bob reads from FS.
           (async-save! render-reload-progress! render-save-progress! project changes-view
                        (fn [successful?]
@@ -217,7 +218,7 @@
                                      (error-reporting/report-exception! error)))))
                              (catch Throwable error
                                (disk-availability/pop-busy!)
-                               (throw error))))))
-          (catch Throwable error
-            (disk-availability/pop-busy!)
-            (throw error)))))))
+                               (throw error))))))))
+      (catch Throwable error
+        (disk-availability/pop-busy!)
+        (throw error)))))

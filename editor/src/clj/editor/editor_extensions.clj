@@ -5,6 +5,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
+            [editor.code.util :as code.util]
             [editor.console :as console]
             [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
@@ -130,16 +131,17 @@
                                               :evaluation-context evaluation-context
                                               :ui (:ui state)
                                               :request-sync (volatile! false)}]
-                 (result-promise (try
-                                   [nil (f ext-map)]
-                                   (catch Exception e
-                                     (when (:report-exceptions options)
-                                       (error-reporting/report-exception! e))
-                                     [e nil])))
-                 (when-not (contains? options :evaluation-context)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
-                 (when @(:request-sync *execution-context*)
-                   (reload-resources! (:ui state)))))
+                 (let [ret (try
+                             [nil (f ext-map)]
+                             (catch Exception e
+                               (when (:report-exceptions options)
+                                 (error-reporting/report-exception! e))
+                               [e nil]))]
+                   (when-not (contains? options :evaluation-context)
+                     (g/update-cache-from-evaluation-context! evaluation-context))
+                   (when @(:request-sync *execution-context*)
+                     (reload-resources! (:ui state)))
+                   (result-promise ret))))
              ext-map))
      (future (let [[err ret] @result-promise]
                (if err
@@ -163,7 +165,7 @@
         (let [unqualified (symbol (name pred))]
           (case unqualified
             (coll? vector?) "is not an array"
-            int? "is not an int"
+            int? "is not an integer"
             string? "is not a string"
             lua-fn? "is not a function"
             action-spec (str "needs \"action\" key to be "
@@ -240,14 +242,15 @@
   [project state fn-keyword opts]
   @(execute-with! project {:state state}
      (fn [ext-map]
-       (let [lua-opts (luart/clj->lua opts)]
+       (let [lua-opts (luart/clj->lua opts)
+             label (->lua-string fn-keyword)]
          (into []
                (keep
                  (fn [[file-path ^LuaValue f]]
                    (when-let [ret (try-with-extension-exceptions
                                     {:ui (:ui state)
                                      :path file-path
-                                     :label (->lua-string fn-keyword)
+                                     :label label
                                      :default nil}
                                     (luart/lua->clj (luart/invoke f lua-opts)))]
                      [file-path ret])))
@@ -265,35 +268,36 @@
 (defn- re-create-ext-agent [state env]
   (assoc state
     :ext-agent
-    (agent (reduce
-             (fn [acc x]
-               (cond
-                 (instance? LuaError x)
-                 (handle-extension-error {:label "Compilation"
-                                          :ui (:ui state)
-                                          :default acc}
-                                         x)
+    (agent (transduce
+             (mapcat state)
+             (completing
+               (fn [acc x]
+                 (cond
+                   (instance? LuaError x)
+                   (handle-extension-error {:label "Compilation"
+                                            :ui (:ui state)
+                                            :default acc}
+                                           x)
 
-                 (instance? Prototype x)
-                 (let [^Prototype proto x
-                       proto-path (.tojstring (.-source proto))]
-                   (if-let [module (try-with-extension-exceptions
-                                     {:label "Loading"
-                                      :path proto-path
-                                      :default nil
-                                      :ui (:ui state)}
-                                     (ensure-spec ::module (luart/lua->clj (luart/eval proto env))))]
-                     (-> acc
-                         (update :all add-all-entry proto-path module)
-                         (cond-> (= hooks-file-path proto-path)
-                                 (assoc :hooks module)))
-                     acc))
+                   (instance? Prototype x)
+                   (let [^Prototype proto x
+                         proto-path (.tojstring (.-source proto))]
+                     (if-let [module (try-with-extension-exceptions
+                                       {:label "Loading"
+                                        :path proto-path
+                                        :default nil
+                                        :ui (:ui state)}
+                                       (ensure-spec ::module (luart/lua->clj (luart/eval proto env))))]
+                       (-> acc
+                           (update :all add-all-entry proto-path module)
+                           (cond-> (= hooks-file-path proto-path)
+                                   (assoc :hooks module)))
+                       acc))
 
-                 :else
-                 (throw (ex-info (str "Unexpected prototype value: " x) {:prototype x}))))
+                   :else
+                   (throw (ex-info (str "Unexpected prototype value: " x) {:prototype x})))))
              {}
-             (concat (:library-prototypes state)
-                     (:project-prototypes state)))
+             [:library-prototypes :project-prototypes])
            :error-handler (fn [_ ex]
                             (error-reporting/report-exception! ex)))))
 
@@ -337,7 +341,7 @@
   [action _]
   (let [node-id (:node-id action)
         value (:value action)]
-    [(g/set-property node-id :modified-lines (string/split value #"\n"))
+    [(g/set-property node-id :modified-lines (code.util/split-lines value))
      (g/update-property node-id :invalidated-rows conj 0)
      (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
      (g/set-property node-id :regions [])]))
@@ -528,7 +532,7 @@
   (let [os (.getOs (Platform/getHostPlatform))]
     ({"darwin" "macos", "win32" "windows"} os os)))
 
-(defn reload [project kind ui]
+(defn reload! [project kind ui]
   (g/with-auto-evaluation-context ec
     (g/user-data-swap!
       (g/node-value project :editor-extensions ec)

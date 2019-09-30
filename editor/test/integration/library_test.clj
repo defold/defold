@@ -12,7 +12,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [with-clean-system spit-until-new-mtime]])
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.net URI]
            [org.apache.commons.io FileUtils]
            [org.apache.commons.codec.digest DigestUtils]))

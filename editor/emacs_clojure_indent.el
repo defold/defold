@@ -3,6 +3,8 @@
 
 (define-clojure-indent
   (assoc 1)
+  (execute-with! 1)
+  (gen-query! 1)
   (make-nodes 2)
   (fnk 1)
   (precluding-errors 1)
@@ -19,8 +21,10 @@
   (defhandler 1)
   (defshader 1)
   (defvertex 1)
-  (register-menu! 1)
   (register-ddf-resource-type 1)
+  (register-dynamic! 1)
+  (register-menu! 1)
+  (try-with-extension-exceptions 1)
   (event-handler 1)
   (invalidation-listener 1)
   (on-action! 1)
