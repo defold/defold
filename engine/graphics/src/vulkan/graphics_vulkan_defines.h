@@ -22,6 +22,4 @@
     #define VK_USE_PLATFORM_XCB_KHR
 #endif
 
-#include <vulkan/vulkan.h>
-
 #endif /* DMGRAPHICS_VULKAN_DEFINES_H */

@@ -1,14 +1,19 @@
-#include "../graphics.h"
-#include "graphics_vulkan_private.h"
-
-#include <dlib/profile.h>
-#include <dlib/log.h>
-#include <dlib/dstrings.h>
+#include "graphics_vulkan_defines.h"
+#include <vulkan/vulkan.h>
 
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
+#include <dlib/math.h>
+#include <dlib/array.h>
+#include <dlib/profile.h>
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
+
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+
+#include "../graphics.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
@@ -1134,7 +1139,23 @@ bail:
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
-        return new Texture;
+        Texture* tex  = new Texture;
+        tex->m_Type   = params.m_Type;
+        tex->m_Width  = params.m_Width;
+        tex->m_Height = params.m_Height;
+
+        if (params.m_OriginalWidth == 0)
+        {
+            tex->m_OriginalWidth  = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
+        }
+        else
+        {
+            tex->m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
+
+        return (HTexture) tex;
     }
 
     void DeleteTexture(HTexture t)
@@ -1163,22 +1184,22 @@ bail:
 
     uint16_t GetTextureWidth(HTexture texture)
     {
-        return 0;
+        return texture->m_Width;
     }
 
     uint16_t GetTextureHeight(HTexture texture)
     {
-        return 0;
+        return texture->m_Height;
     }
 
     uint16_t GetOriginalTextureWidth(HTexture texture)
     {
-        return 0;
+        return texture->m_OriginalWidth;
     }
 
     uint16_t GetOriginalTextureHeight(HTexture texture)
     {
-        return 0;
+        return texture->m_OriginalHeight;
     }
 
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1189,7 +1210,7 @@ bail:
 
     uint32_t GetMaxTextureSize(HContext context)
     {
-        return context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;;
+        return context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;
     }
 
     uint32_t GetTextureStatusFlags(HTexture texture)
