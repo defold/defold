@@ -1,6 +1,6 @@
 (ns editor.scene-async
-  (:require [util.profiler :as profiler]
-            [dynamo.graph :as g])
+  (:require [dynamo.graph :as g]
+            [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL2]
            [java.nio ByteBuffer ByteOrder]
            [javafx.scene.image PixelBuffer PixelFormat WritableImage]
@@ -22,21 +22,11 @@
      :pixel-buffer pixelBuffer
      :image (WritableImage. pixelBuffer)}))
 
-(defn- make-direct-buffer-backed-writable-image-new
+(defn- make-direct-buffer-backed-writable-image
   [width height]
   (let [buf (doto (ByteBuffer/allocateDirect (* width height 4))
               (.order (ByteOrder/nativeOrder)))]
     (make-writable-image-with-bytebuffer buf width height)))
-
-(defn- make-direct-buffer-backed-writable-image-old
-  [width height]
-  {:byte-buffer nil
-   :pixel-buffer nil
-   :image (WritableImage. width height)})
-
-(defn- make-direct-buffer-backed-writable-image
-  [width height]
-  (make-direct-buffer-backed-writable-image-new width height))
 
 (defn make-async-copy-state [width height]
   {:width width
@@ -65,10 +55,10 @@
 
 (defn- lazy-init! [{:keys [^int pbo] :as async-copy-state} ^GL2 gl]
   (cond-> async-copy-state
-          (zero? pbo)
-          (assoc :pbo (let [pbos (int-array 1)]
-                        (.glGenBuffers gl 1 pbos 0)
-                        (first pbos)))))
+    (zero? pbo)
+    (assoc :pbo (let [pbos (int-array 1)]
+                  (.glGenBuffers gl 1 pbos 0)
+                  (first pbos)))))
 
 (defn- bind-pbo! [async-copy-state ^GL2 gl]
   (.glBindBuffer gl GL2/GL_PIXEL_PACK_BUFFER (:pbo async-copy-state))
@@ -93,20 +83,6 @@
     ;; If it does not match the native format exactly, glReadPixels will take a lot more time.
     ;; The read will apparently happen asynchronously. glMapBuffer below will wait until the read completes.
     (.glReadPixels gl 0 0 ^int (:width async-copy-state) ^int (:height async-copy-state) GL2/GL_BGRA GL2/GL_UNSIGNED_INT_8_8_8_8_REV 0)
-    (assoc async-copy-state :state :reading)))
-
-(defn- begin-read-pixels-to-pbo-2! [async-copy-state ^GL2 gl]
-  (profiler/profile "fbo->pbo" -1
-    ;; NOTE You have to know what you are doing if you want to change these values.
-    ;; If it does not match the native format exactly, glReadPixels will take a lot more time.
-    ;; The read will apparently happen asynchronously. glMapBuffer below will wait until the read completes.
-    ;;(.glReadPixels gl 0 0 ^int (:width async-copy-state) ^int (:height async-copy-state) GL2/GL_BGRA GL2/GL_UNSIGNED_INT_8_8_8_8_REV 0)
-    (let [image (get-in async-copy-state [:images (:current-image async-copy-state)])
-          ^ByteBuffer bb (:byte-buffer image)
-          ^Callback cb (:buffer-update-callback async-copy-state)
-          ^PixelBuffer pb (:pixel-buffer image)]
-      (.glReadPixels gl 0 0 ^int (:width async-copy-state) ^int (:height async-copy-state) GL2/GL_BGRA GL2/GL_UNSIGNED_INT_8_8_8_8_REV bb)
-      (.updateBuffer pb cb))
     (assoc async-copy-state :state :reading)))
 
 (defmethod begin-read! :done
@@ -135,45 +111,11 @@
           writable-image ^WritableImage (:image image)
           {:keys [^int width ^int height]} pbo-size]
       (cond-> async-copy-state
-              (or (not= (.getWidth writable-image) width)
-                  (not= (.getHeight writable-image) height))
-              (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
+        (or (not= (.getWidth writable-image) width)
+            (not= (.getHeight writable-image) height))
+        (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
 
 (defn- copy-pbo-to-image! [async-copy-state ^GL2 gl]
-  (profiler/profile "pbo->image" -1
-    (let [image (image async-copy-state)
-          {:keys [^int width ^int height]} (:pbo-size async-copy-state)
-          ;; glMapBuffer will wait until glReadPixels completes
-          buffer ^ByteBuffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
-      (.. image getPixelWriter (setPixels 0 0 width height pixel-format buffer (* width 4)))
-      (.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
-      (assoc async-copy-state :state :done))))
-
-(defn- copy-pbo-to-image-2! [async-copy-state ^GL2 gl]
-  (profiler/profile "pbo->image" -1
-    (assoc async-copy-state :state :done)))
-
-(defn- copy-pbo-to-image-3! [async-copy-state ^GL2 gl]
-  ;;(profiler/profile "pbo->image" -1)
-  (let [image (get-in async-copy-state [:images (:current-image async-copy-state)])
-        ^ByteBuffer bb (:byte-buffer image)
-        ^PixelBuffer pb (:pixel-buffer image)
-        ^WritableImage wi (:image image)
-        ^Callback cb (:buffer-update-callback async-copy-state)
-        {:keys [^int width ^int height]} (:pbo-size async-copy-state)
-        ;; glMapBuffer will wait until glReadPixels completes
-        ^ByteBuffer gl-buffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
-    ;;(.. image getPixelWriter (setPixels 0 0 width height pixel-format buffer (* width 4)))
-    (.rewind gl-buffer)
-    (.rewind bb)
-    (.put bb gl-buffer)
-    (.flip bb)
-    (.updateBuffer pb cb)
-    (.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
-    (assoc async-copy-state :state :done)))
-
-(defn- copy-pbo-to-image-4!
-  [async-copy-state ^GL2 gl]
   (profiler/profile "pbo->image" -1
     (let [image (get-in async-copy-state [:images (:current-image async-copy-state)])
           ^ByteBuffer bb (:byte-buffer image)
@@ -181,41 +123,23 @@
           ^WritableImage wi (:image image)
           ^Callback cb (:buffer-update-callback async-copy-state)
           {:keys [^int width ^int height]} (:pbo-size async-copy-state)
-          ;; glMapBuffer will wait until glReadPixels completes
-          ;;^ByteBuffer gl-buffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)
-          ]
-      (.glGetBufferSubData gl GL2/GL_PIXEL_PACK_BUFFER 0 (* width height 4) bb)
-      ;;(.. image getPixelWriter (setPixels 0 0 width height pixel-format buffer (* width 4)))
-      ;;(.rewind gl-buffer)
-      ;;(.rewind bb)
-      ;;(.put bb gl-buffer)
-      ;;(.flip bb)
+          ^ByteBuffer gl-buffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
+      (.rewind gl-buffer)
+      (.rewind bb)
+      (.put bb gl-buffer)
+      (.flip bb)
       (.updateBuffer pb cb)
-      ;;(.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
-      (assoc async-copy-state :state :done))))
-
-(defn- copy-pbo-to-image-5! [async-copy-state ^GL2 gl]
-  (profiler/profile "pbo->image" -1
-    (let [image (image async-copy-state)
-          current-image (:current-image async-copy-state)
-          {:keys [^int width ^int height]} (:pbo-size async-copy-state)
-          ;; glMapBuffer will wait until glReadPixels completes
-          buffer ^ByteBuffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
-      ;;(.. image getPixelWriter (setPixels 0 0 width height pixel-format buffer (* width 4)))
       (.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
-      (-> (assoc-in async-copy-state [:images current-image] (make-writable-image-with-bytebuffer buffer width height))
-          (assoc :state :done)))))
+      (assoc async-copy-state :state :done))))
 
 (defmethod finish-image! :reading
   [async-copy-state ^GL2 gl]
   (-> async-copy-state
       (next-image)
       (resize-image-to-pbo!)
-      ;;(copy-pbo-to-image-2! gl)
       (bind-pbo! gl)
-      (copy-pbo-to-image-4! gl)
-      (unbind-pbo! gl)
-      ))
+      (copy-pbo-to-image! gl)
+      (unbind-pbo! gl)))
 
 (comment
   (require 'dev)
