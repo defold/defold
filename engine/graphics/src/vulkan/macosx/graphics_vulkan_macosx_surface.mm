@@ -1,5 +1,6 @@
-
-#include "../graphics_vulkan_private.h"
+#include <vulkan/vulkan.h>
+#include <dlib/math.h>
+#include <dlib/array.h>
 
 #include <graphics/glfw/glfw_native.h>
 #include <vulkan/vulkan_macos.h>
@@ -8,6 +9,10 @@
  #if !(defined(__arm__) || defined(__arm64__))
     #include <Carbon/Carbon.h>
 #endif
+
+#include "../../graphics.h"
+
+#include "../graphics_vulkan_private.h"
 
 namespace dmGraphics
 {

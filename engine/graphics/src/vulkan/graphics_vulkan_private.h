@@ -1,9 +1,6 @@
 #ifndef __GRAPHICS_DEVICE_VULKAN__
 #define __GRAPHICS_DEVICE_VULKAN__
 
-#include <dlib/array.h>
-#include <vulkan/vulkan.h>
-
 namespace dmGraphics
 {
     struct DeviceMemory
@@ -18,8 +15,11 @@ namespace dmGraphics
         VkImageView  m_ImageView;
         VkFormat     m_Format;
         DeviceMemory m_DeviceMemory;
+        TextureType  m_Type;
         uint16_t     m_Width;
         uint16_t     m_Height;
+        uint16_t     m_OriginalWidth;
+        uint16_t     m_OriginalHeight;
     };
 
     struct VertexDeclaration
