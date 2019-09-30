@@ -5,15 +5,14 @@
             [clojure.string :as str]
             [editor.git-credentials :as git-credentials]
             [editor.fs :as fs]
-            [editor.prefs :as prefs]
             [editor.ui :as ui]
             [util.text-util :as text-util])
-  (:import javafx.scene.control.ProgressBar
-           [java.io File]
+  (:import [java.io File]
            [java.net URI]
            [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
-           [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand TransportCommand TransportConfigCallback]
+           [javafx.scene.control ProgressBar]
+           [org.eclipse.jgit.api Git PushCommand ResetCommand$ResetType TransportCommand TransportConfigCallback]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.errors MissingObjectException]
@@ -30,7 +29,7 @@
 (defonce required-gitignore-entries ["/.internal"
                                      "/build"])
 
-;; Based on the contents of the .gitignore file in a new project created from the dashboard.
+;; Based on the contents of the .gitignore file we include in template projects.
 (defonce default-gitignore-entries (vec (concat required-gitignore-entries
                                                 [".externalToolBuilders"
                                                  ".DS_Store"
@@ -76,30 +75,6 @@
     (first)))
 
 ;; =================================================================================
-
-(defn credentials [prefs]
-  ;; TODO: REMOVE!
-  (throw (ex-info "TODO: REMOVE!" {})))
-
-(defn- git-name
-  [prefs]
-  (let [name (str (prefs/get-prefs prefs "first-name" nil)
-                  " "
-                  (prefs/get-prefs prefs "last-name" nil))]
-    (when-not (str/blank? name)
-      name)))
-
-(defn ensure-user-configured!
-  [^Git git prefs]
-  (let [email            (prefs/get-prefs prefs "email" nil)
-        name             (or (git-name prefs) email "Unknown")
-        config           (.. git getRepository getConfig)
-        configured-name  (.getString config "user" nil "name")
-        configured-email (.getString config "user" nil "email")]
-    (when (str/blank? configured-name)
-      (.setString config "user" nil "name" name))
-    (when (str/blank? configured-email)
-      (.setString config "user" nil "email" email))))
 
 (defn remote-info
   [git-or-repository purpose ^String remote-name]
@@ -369,6 +344,24 @@
                      {:keys [encrypted-credentials
                              ^int timeout-seconds] :as _opts
                       :or {timeout-seconds -1}}]
+  ;; Taking GitHub as an example, clones made over the https:// protocol
+  ;; authenticate with a username & password in order to push changes. You can
+  ;; also make a Personal Access Token on GitHub to use in place of a password.
+  ;;
+  ;; Clones made over the git:// protocol can only pull, not push. The files are
+  ;; transferred unencrypted.
+  ;;
+  ;; Clones made over the ssh:// protocol use public key authentication. You
+  ;; must generate a public / private key pair and upload the public key to your
+  ;; GitHub account. The private key is loaded from the `.ssh` directory in the
+  ;; HOME folder. It will look for files named `identity`, `id_rsa` and `id_dsa`
+  ;; and it should "just work". However, if a passphrase was used to create the
+  ;; keys, we need to override createDefaultJSch in a subclassed instance of the
+  ;; JschConfigSessionFactory class in order to associate the passphrase with a
+  ;; key file. We do not currently do this here.
+  ;;
+  ;; Most of this information was gathered from here:
+  ;; https://www.codeaffine.com/2014/12/09/jgit-authentication/
   (case (:scheme (remote-info (.getRepository command) purpose "origin"))
     :https
     (let [credentials (git-credentials/decrypt-credentials encrypted-credentials)
@@ -376,9 +369,10 @@
       (.setCredentialsProvider command credentials-provider))
 
     :ssh
-    (when-some [ssh-session-password (not-empty (:ssh-session-password credentials))]
-      (let [transport-config-callback (make-transport-config-callback ssh-session-password)]
-        (.setTransportConfigCallback command transport-config-callback)))
+    (let [credentials (git-credentials/decrypt-credentials encrypted-credentials)]
+      (when-some [ssh-session-password (not-empty (:ssh-session-password credentials))]
+        (let [transport-config-callback (make-transport-config-callback ssh-session-password)]
+          (.setTransportConfigCallback command transport-config-callback))))
 
     nil)
   (cond-> command

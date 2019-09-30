@@ -191,8 +191,6 @@
     (ui/open-file directory))
   nil)
 
-(g/defnk noop [])
-
 (defn- ensure-directory-exists! [^File dir]
   (or (.isDirectory dir)
       (try
@@ -203,7 +201,7 @@
 (handler/defhandler ::sign :dialog
   (enabled? [controls] (and (ui/selection (:identities controls))
                             (.exists (io/file (ui/text (:provisioning-profile controls))))))
-  (run [workspace prefs dashboard-client ^Stage stage root controls project result]
+  (run [workspace prefs ^Stage stage root controls project result]
     ;; TODO: make all of this async, with progress bar & notification when done.
     (let [settings (g/node-value project :settings)
           ipa-dir (ui/text (:build-dir controls))
@@ -268,7 +266,7 @@
                          (merge env step-result))))))
           (ui/close! stage))))))
 
-(defn make-sign-dialog [workspace prefs dashboard-client project]
+(defn make-sign-dialog [workspace prefs project]
   (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
@@ -276,7 +274,7 @@
         identities (find-identities)
         result (atom nil)]
 
-    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :dashboard-client dashboard-client :controls controls :stage stage :project project :result result} nil)
+    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :result result} nil)
     (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
 
     (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))

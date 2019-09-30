@@ -14,10 +14,7 @@
   (:import [java.io File]))
 
 (defn- make-prefs []
-  (let [p (prefs/make-prefs "unit-test")]
-    (prefs/set-prefs p "email" "foo@bar.com")
-    (prefs/set-prefs p "token" "TOKEN")
-    p))
+  (prefs/make-prefs "unit-test"))
 
 (deftest find-git-state-test
   (let [base-status {:added #{}

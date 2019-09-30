@@ -19,7 +19,6 @@
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
-            [editor.login :as login]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
@@ -44,7 +43,7 @@
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent]
-           [javafx.scene.layout Region VBox]
+           [javafx.scene.layout VBox]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -139,7 +138,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn load-stage [workspace project prefs dashboard-client updater newly-created?]
+(defn- load-stage [workspace project prefs updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
@@ -258,7 +257,6 @@
                              #_(g/transact (g/delete-node project))))
 
       (let [context-env {:app-view            app-view
-                         :dashboard-client    dashboard-client
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
@@ -379,14 +377,14 @@
                                          "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
 (defn open-project
-  [^File game-project-file prefs render-progress! dashboard-client updater newly-created?]
+  [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace    (setup-workspace project-path build-settings)
+        workspace (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client :fetch-libraries))]
+        project (project/open-project! *project-graph* workspace game-project-res render-progress!)]
     (ui/run-now
-      (load-stage workspace project prefs dashboard-client updater newly-created?)
+      (load-stage workspace project prefs updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

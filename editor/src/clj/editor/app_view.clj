@@ -26,7 +26,6 @@
             [editor.jfx :as jfx]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
-            [editor.login :as login]
             [editor.lua :as lua]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -477,10 +476,6 @@
   (let [hidden-panes (stored-hidden-panes prefs)]
     (doseq [pane-kw hidden-panes]
       (set-pane-visible! scene pane-kw false))))
-
-(handler/defhandler :logout :global
-  (enabled? [dashboard-client] (login/can-sign-out? dashboard-client))
-  (run [dashboard-client] (login/sign-out! dashboard-client)))
 
 (handler/defhandler :preferences :global
   (run [workspace prefs]
@@ -1149,8 +1144,6 @@ If you do not specifically require different script states, consider changing th
                              {:label "Hot Reload"
                               :command :hot-reload}
                              {:label :separator}
-                             {:label "Sign Out"
-                              :command :logout}
                              {:label "Preferences..."
                               :command :preferences}
                              {:label "Quit"
@@ -1580,7 +1573,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :synchronize :global
   (enabled? [] (disk-availability/available?))
-  (run [changes-view dashboard-client project workspace app-view]
+  (run [changes-view project workspace app-view]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
          (if (changes-view/project-is-git-repo? changes-view)
@@ -1593,7 +1586,7 @@ If you do not specifically require different script states, consider changing th
                                (fn [successful?]
                                  (when successful?
                                    (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
-                                   (when (changes-view/regular-sync! changes-view dashboard-client)
+                                   (when (changes-view/regular-sync! changes-view)
                                      (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
 
            ;; The project is not a Git repo.
@@ -1837,7 +1830,7 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
-(defn- fetch-libraries [workspace project dashboard-client changes-view]
+(defn- fetch-libraries [workspace project changes-view]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -1851,7 +1844,7 @@ If you do not specifically require different script states, consider changing th
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-            (when (workspace/dependencies-reachable? library-uris (partial login/sign-in! dashboard-client :fetch-libraries))
+            (when (workspace/dependencies-reachable? library-uris)
               (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
                     render-install-progress! (make-render-task-progress :resource-sync)]
                 (render-install-progress! (progress/make "Installing updated libraries..."))
@@ -1861,18 +1854,18 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view prefs workspace dashboard-client project changes-view user-data]
+  (run [selection app-view prefs workspace project changes-view user-data]
        (let [game-project (project/get-resource-node project "/game.project")
              dependencies (game-project/get-setting game-project ["project" "dependencies"])
              dependency-uri (.toURI (URL. (:dep-url user-data)))]
          (when (not-any? (partial = dependency-uri) dependencies)
            (game-project/set-setting! game-project ["project" "dependencies"]
                                       (conj (vec dependencies) dependency-uri))
-           (fetch-libraries workspace project dashboard-client changes-view)))))
+           (fetch-libraries workspace project changes-view)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [workspace project dashboard-client changes-view] (fetch-libraries workspace project dashboard-client changes-view)))
+  (run [workspace project changes-view] (fetch-libraries workspace project changes-view)))
 
 (defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
   (let [workspace (project/workspace project)
@@ -1895,9 +1888,9 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
-  (run [workspace project prefs dashboard-client build-errors-view main-stage tool-tab-pane]
+  (run [workspace project prefs build-errors-view main-stage tool-tab-pane]
     (build-errors-view/clear-build-errors build-errors-view)
-    (let [result (bundle/make-sign-dialog workspace prefs dashboard-client project)]
+    (let [result (bundle/make-sign-dialog workspace prefs project)]
       (when-let [error (:error result)]
         (g/with-auto-evaluation-context evaluation-context
           (let [main-scene (.getScene ^Stage main-stage)
