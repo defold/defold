@@ -1,3 +1,24 @@
+#!/usr/bin/env bash
+
+# Download and install Visual Studio 2019
+# 	https://visualstudio.microsoft.com/downloads/
+# Download Windows SDK 8 and 10
+#  	https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
+
+# Run from msys
+# ./package_win32_sdk.sh
+
+set -e
+
+SDK_10_VERSION="10.0.10240.0"
+
+VS_PATH=
+
+SDK_PATH="C:\Program Files (x86)\Windows Kits"
+
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0.tar.gz"
+PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
+PACKAGES_WIN32_SDK_10="WindowsKits-10.0.tar.gz"
 
 # Notes for stripping the MSVS package:
 
@@ -9,4 +30,27 @@
 # $ rm -rf ./Microsoft\ Visual\ Studio\ 14.0/VC/bin/x86_arm
 
 
+TARGET_PATH=$(pwd)
+TMP_PATH=${TARGET_PATH}/packages
+if [ ! -d "${TMP_PATH}" ]; then
+	mkdir ${TMP_PATH}
+fi
 
+if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
+	echo "Packing to ${PACKAGES_WIN32_SDK_8}"
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} -C "${SDK_PATH}" 8.1/Include 8.1/Lib 8.1/sdk_license.rtf 8.1/sdk_third_party_notices.rtf
+else
+	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
+fi
+
+
+if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
+	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Licenses
+	# For the next versions
+	#GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64
+else
+	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
+fi
+
+echo "Done."
