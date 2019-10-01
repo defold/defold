@@ -30,14 +30,13 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.profiler :as profiler]
-            [clojure.java.io :as io])
+            [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
-           [java.lang Runnable Math]
+           [java.lang Math Runnable]
            [java.nio IntBuffer]
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
