@@ -35,6 +35,7 @@
             [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
+            [editor.process :as process]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -665,12 +666,20 @@
 
 (def ^:private build-in-progress? (atom false))
 
-(defn- launch-built-project! [engine-descriptor project-directory prefs web-server debug?]
+(defn- on-launched-hook! [project process url]
+  (let [hook-options {:exception-policy :ignore :opts {:url url}}]
+    (future
+      (extensions/execute-hook! project :on-target-launched hook-options)
+      (process/watchdog! process #(extensions/execute-hook! project :on-target-stopped hook-options)))))
+
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
                              (let [launched-target (launch-engine! engine-descriptor project-directory prefs debug?)
                                    log-stream      (:log-stream launched-target)]
+                               (targets/when-url (:id launched-target)
+                                                 #(on-launched-hook! project (:process launched-target) %))
                                (reset-console-stream! log-stream)
                                (reset-remote-log-pump-thread! nil)
                                (start-log-pump! log-stream (make-launched-log-sink launched-target))
@@ -794,7 +803,7 @@
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
                         (show-console! main-scene tool-tab-pane)
-                        (launch-built-project! engine-descriptor project-directory prefs web-server false))
+                        (launch-built-project! project engine-descriptor project-directory prefs web-server false))
                       (when build-engine-exception
                         (log/warn :exception build-engine-exception)
                         (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception)))))))
@@ -829,7 +838,7 @@ If you do not specifically require different script states, consider changing th
                     (update-system-cache-build-targets! evaluation-context)
                     (when (handle-build-results! workspace render-build-error! build-results)
                       (when engine-descriptor
-                        (when-let [target (launch-built-project! engine-descriptor project-directory prefs web-server true)]
+                        (when-let [target (launch-built-project! project engine-descriptor project-directory prefs web-server true)]
                           (when (nil? (debug-view/current-session debug-view))
                             (debug-view/start-debugger! debug-view project (:address target "localhost")))))
                       (when build-engine-exception

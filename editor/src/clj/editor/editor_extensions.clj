@@ -528,10 +528,6 @@
             :when dynamic-handler]
         dynamic-handler))))
 
-(def ^:private platform
-  (let [os (.getOs (Platform/getHostPlatform))]
-    ({"darwin" "macos", "win32" "windows"} os os)))
-
 (defn reload! [project kind ui]
   (g/with-auto-evaluation-context ec
     (g/user-data-swap!
@@ -562,7 +558,7 @@
                                                         {:filename filename
                                                          :project-path project-path})))))
                                   {"editor" {"get" do-ext-get
-                                             "platform" platform}}
+                                             "platform" (.getPair (Platform/getHostPlatform))}}
                                   #(display-output! ui %1 %2))]
           (-> state
               (assoc :ui ui)
