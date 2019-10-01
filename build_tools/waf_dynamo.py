@@ -408,7 +408,7 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -811,23 +811,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.defold.iap.IapGooglePlayActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="IAP">
-        </activity>
-
-        <!-- For Amazon IAP -->
-        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
-            <intent-filter>
-                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
-            </intent-filter>
-        </receiver>
 
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 

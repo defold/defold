@@ -846,7 +846,7 @@ TEST(Socket, GetHostByName_IPv4_External)
 {
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "prod-cr-909202183.eu-west-1.elb.amazonaws.com";
+    const char* hostname = "build.defold.com";
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);

@@ -1,10 +1,13 @@
 #include <string.h>
 
+#include "graphics_vulkan_defines.h"
+#include <vulkan/vulkan.h>
+#include <dlib/math.h>
 #include <dlib/array.h>
 #include <dlib/log.h>
 
-#include "graphics_vulkan_defines.h"
-#include "graphics_vulkan.h"
+#include "../graphics.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
@@ -16,10 +19,23 @@ namespace dmGraphics
     static VKAPI_ATTR VkBool32 VKAPI_CALL g_vk_debug_callback(
         VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
         VkDebugUtilsMessageTypeFlagsEXT             messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-        void* pUserData)
+        const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+        void* userData)
     {
-        dmLogInfo("Validation Layer: %s", pCallbackData->pMessage);
+        // Filter specific messages
+        if (messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+        {
+            // UNASSIGNED-CoreValidation-DrawState-ClearCmdBeforeDraw
+            //   * We cannot force using render.clear in a specific way, so we will get
+            //     spammed by the validation layers unless we filter this.
+            static const char* ClearCmdBeforeDrawIdName = "UNASSIGNED-CoreValidation-DrawState-ClearCmdBeforeDraw";
+            if (callbackData->pMessageIdName && strcmp(callbackData->pMessageIdName, ClearCmdBeforeDrawIdName) == 0)
+            {
+                return VK_FALSE;
+            }
+        }
+
+        dmLogInfo("Validation Layer: %s", callbackData->pMessage);
         return VK_FALSE;
     }
 
@@ -130,7 +146,7 @@ namespace dmGraphics
         *vkInstance = VK_NULL_HANDLE;
     }
 
-    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount)
+    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, uint16_t validationLayerCount, const char** validationLayerExtensions, uint16_t validationLayerExtensionCount)
     {
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};
@@ -162,14 +178,13 @@ namespace dmGraphics
 
         int enabled_layer_count = 0;
 
-        if (validationLayerCount > 0)
+        if (validationLayerCount > 0 && GetValidationSupport(validationLayers, validationLayerCount))
         {
-            if (GetValidationSupport(validationLayers, validationLayerCount))
+            enabled_layer_count = validationLayerCount;
+
+            for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
             {
-                for (; enabled_layer_count < validationLayerCount; ++enabled_layer_count)
-                {
-                    vk_required_extensions.Push(validationLayers[enabled_layer_count]);
-                }
+                vk_required_extensions.Push(validationLayerExtensions[i]);
             }
         }
 

@@ -259,6 +259,8 @@ namespace dmGameSystem
                         dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, component->m_Mask);
                     }
                 }
+
+                dmPhysics::SetGridShapeEnable(component->m_Object2D, i, layer->m_IsVisible);
             }
         }
     }
@@ -1063,6 +1065,17 @@ namespace dmGameSystem
                 mask = component->m_Mask;
             }
             dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);
+        }
+        else if(params.m_Message->m_Id == dmPhysicsDDF::EnableGridShapeLayer::m_DDFDescriptor->m_NameHash)
+        {
+            assert(!physics_context->m_3D);
+            if (component->m_Resource->m_TileGrid == 0)
+            {
+                dmLogError("Layer visibility can only be set on tile grids");
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            dmPhysicsDDF::EnableGridShapeLayer* ddf = (dmPhysicsDDF::EnableGridShapeLayer*) params.m_Message->m_Data;
+            dmPhysics::SetGridShapeEnable(component->m_Object2D, ddf->m_Shape, ddf->m_Enable);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
