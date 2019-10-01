@@ -1816,6 +1816,11 @@ instructions.configure=\
             config.read(configpath)
             key = config.get('default', 'access_key')
             secret = config.get('default', 'secret_key')
+        else:
+            key = os.getenv("S3_ACCESS_KEY")
+            secret = os.getenv("S3_SECRET_KEY")
+
+        print("_get_s3_bucket key %s" % (key))
 
         if not (key and secret):
             self._log('S3 key and/or secret not found in .s3cfg or environment variables')

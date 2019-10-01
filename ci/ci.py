@@ -182,8 +182,6 @@ def main(argv):
 
     print("S3 ACCESS KEY: %s" % (os.getenv('S3_ACCESS_KEY')))
     print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
-    print("FOOO BOOO MOOO")
-    exit(0)
 
     for command in args.commands:
         if command == "engine":
