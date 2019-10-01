@@ -670,7 +670,7 @@
   (let [hook-options {:exception-policy :ignore :opts {:url url}}]
     (future
       (extensions/execute-hook! project :on-target-launched hook-options)
-      (process/watchdog! process #(extensions/execute-hook! project :on-target-stopped hook-options)))))
+      (process/watchdog! process #(extensions/execute-hook! project :on-target-terminated hook-options)))))
 
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
   (let [selected-target (targets/selected-target prefs)
