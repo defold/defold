@@ -18,7 +18,7 @@
            [org.eclipse.jgit.revwalk RevCommit]
            [java.net URI]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ListView SelectionMode TextArea]
+           [javafx.scene.control Button ListView SelectionMode TextArea TextInputControl]
            [javafx.scene.input KeyCode KeyEvent]))
 
 (set! *warn-on-reflection* true)
@@ -548,6 +548,11 @@
   @sync-dialog-open-atom)
 
 (defn open-sync-dialog [!flow prefs]
+  ;; Note: It would be really nice to rewrite this using cljfx. It is quite
+  ;; cumbersome to make changes as it stands. The advance-flow function above
+  ;; also contributes to the overall complexity. We actually might want to
+  ;; revise the git workflow to separate the acts of committing and pushing
+  ;; since there are sometimes issues with this simplified model.
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
@@ -555,7 +560,7 @@
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
         pull-controls   (ui/collect-controls pull-root ["username-field" "password-field" "save-password-checkbox" "pull-start-box" "conflicting" "resolved" "conflict-box" "main-label"])
-        push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
+        push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "committer-name-field" "committer-email-field" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
                           (when progress
                             (ui/run-later
@@ -654,12 +659,20 @@
                               :push/staging (let [changed-view ^ListView (:changed push-controls)
                                                   staged-view ^ListView (:staged push-controls)
                                                   changed-selection (vec (ui/selection changed-view))
-                                                  staged-selection (vec (ui/selection staged-view))]
+                                                  staged-selection (vec (ui/selection staged-view))
+                                                  empty-message (empty? (ui/text (:message push-controls)))
+                                                  empty-committer-name (empty? (ui/text (:committer-name-field push-controls)))
+                                                  empty-committer-email (empty? (ui/text (:committer-email-field push-controls)))]
                                               (ui/items! changed-view (sort-by git/change-path modified))
                                               (ui/items! staged-view (sort-by git/change-path staged))
+                                              (ui/set-style! (:message push-controls) "info" empty-message)
+                                              (ui/set-style! (:committer-name-field push-controls) "info" empty-committer-name)
+                                              (ui/set-style! (:committer-email-field push-controls) "info" empty-committer-email)
                                               (ui/disable! (:ok dialog-controls)
                                                            (or (empty? staged)
-                                                               (empty? (ui/text (:message push-controls)))))
+                                                               empty-message
+                                                               empty-committer-name
+                                                               empty-committer-email))
 
                                               ;; The stage, unstage and diff buttons start off disabled, but
                                               ;; might be enabled by the event handler triggered by select!
@@ -722,17 +735,21 @@
                                                                   render-progress))))
 
                                                (= :push/staging state)
-                                               (swap! !flow #(advance-flow
-                                                               (merge %
-                                                                 {:state   :push/committing
-                                                                  :message (ui/text (:message push-controls))})
-                                                               render-progress))
+                                               (swap! !flow (fn [flow]
+                                                              (let [committer-name (ui/text (:committer-name-field push-controls))
+                                                                    committer-email (ui/text (:committer-email-field push-controls))]
+                                                                (git/set-user-info! (:git flow) {:name committer-name :email committer-email})
+                                                                (advance-flow
+                                                                  (merge flow
+                                                                         {:state :push/committing
+                                                                          :message (ui/text (:message push-controls))})
+                                                                  render-progress))))
 
                                                :else
                                                (swap! !flow advance-flow render-progress)))))
     (ui/on-action! (:push dialog-controls) (fn [_]
                                              (swap! !flow #(merge %
-                                                                  {:state    :push/start
+                                                                  {:state :push/start
                                                                    :progress (progress/make "push" 4)}))
                                              (swap! !flow advance-flow render-progress)))
 
@@ -751,9 +768,11 @@
                           (fn [_ _]
                             (update-push-buttons!)))
 
-    (ui/observe (.textProperty ^TextArea (:message push-controls))
-                (fn [_ _ _]
-                  (update-controls @!flow)))
+    (let [update-push-controls! (fn [_ _ _]
+                                  (update-controls @!flow))]
+      (doseq [field-name [:message :committer-name-field :committer-email-field]
+              :let [^TextInputControl text-input-control (get push-controls field-name)]]
+        (ui/observe (.textProperty text-input-control) update-push-controls!)))
 
     (ui/with-controls pull-root [https-box
                                  personal-access-token-link
@@ -792,6 +811,12 @@
       (ui/register-context-menu list-view ::conflicts-menu)
       (ui/cell-factory! list-view (fn [e] {:text e})))
     (ui/cell-factory! (:resolved pull-controls) (fn [e] {:text e}))
+
+    (ui/with-controls push-root [committer-email-field committer-name-field]
+      (let [{:keys [git]} @!flow
+            {:keys [name email]} (git/user-info git)]
+        (ui/text! committer-name-field name)
+        (ui/text! committer-email-field email)))
 
     (let [^ListView list-view (:changed push-controls)]
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)

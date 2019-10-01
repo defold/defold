@@ -6,8 +6,9 @@
             [editor.git-credentials :as git-credentials]
             [editor.fs :as fs]
             [editor.ui :as ui]
-            [util.text-util :as text-util])
-  (:import [java.io File]
+            [util.text-util :as text-util]
+            [service.log :as log])
+  (:import [java.io File IOException]
            [java.net URI]
            [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
@@ -81,6 +82,34 @@
   (if (instance? Repository git-or-repository)
     git-or-repository
     (.getRepository ^Git git-or-repository)))
+
+(defn user-info [git-or-repository]
+  (let [repository (as-repository git-or-repository)
+        config (.getConfig repository)
+        name (or (.getString config "user" nil "name") "")
+        email (or (.getString config "user" nil "email") "")]
+    {:name name
+     :email email}))
+
+(defn set-user-info! [git-or-repository {new-name :name new-email :email :as user-info}]
+  (assert (string? new-name))
+  (assert (string? new-email))
+  (when (not= user-info (user-info git-or-repository))
+
+    ;; The new user info differs from the stored info.
+    ;; Update user info in the repository config.
+    (let [repository (as-repository git-or-repository)
+          config (.getConfig repository)]
+      (.setString config "user" nil "name" new-name)
+      (.setString config "user" nil "email" new-email)
+
+      ;; Attempt to save the updated repository config.
+      ;; The in-memory config retains the modifications even if this fails.
+      (try
+        (.save config)
+        (catch IOException error
+          (log/warn :msg "Failed to save updated user info to Git repository config."
+                    :exception error))))))
 
 (defn- remote-name
   ^String [^Repository repository]

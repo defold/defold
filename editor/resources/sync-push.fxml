@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.text.*?>
 <?import javafx.geometry.*?>
-<?import javafx.scene.*?>
 <?import javafx.scene.control.*?>
-<?import java.lang.*?>
 <?import javafx.scene.layout.*?>
-
+<?import javafx.scene.text.*?>
 
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="600.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/8.0.40" xmlns:fx="http://javafx.com/fxml/1">
    <bottom>
@@ -62,6 +59,23 @@
                      </padding>
                   </Label>
                   <TextArea id="message" prefHeight="200.0" prefWidth="200.0" promptText="Describe Your Changes" />
+                  <GridPane hgap="16.0">
+                     <columnConstraints>
+                        <ColumnConstraints hgrow="ALWAYS" />
+                        <ColumnConstraints hgrow="ALWAYS" />
+                     </columnConstraints>
+                     <rowConstraints>
+                        <RowConstraints vgrow="NEVER" />
+                        <RowConstraints vgrow="NEVER" />
+                     </rowConstraints>
+                     <padding>
+                        <Insets top="16.0" />
+                     </padding>
+                     <Label text="Committer Name" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+                     <TextField id="committer-name-field" promptText="Your Name" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+                     <Label text="Committer E-mail" GridPane.columnIndex="1" GridPane.rowIndex="0" />
+                     <TextField id="committer-email-field" promptText="your.name@example.com" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                  </GridPane>
                </children>
             </VBox>
          </children>
