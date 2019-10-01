@@ -77,8 +77,6 @@ namespace dmEngineVersion
 
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
-        # For IAP
-        conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
 
         # For Vulkan/MoltenVK
         if Options.options.with_vulkan and architecture == 'arm64':
@@ -138,7 +136,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
-    conf.env['STATICLIB_TRACKING'] = 'tracking'
 
     if ('record' not in Options.options.disable_features) and operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
         conf.env['STATICLIB_RECORD'] = 'record'

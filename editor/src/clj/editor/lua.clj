@@ -165,8 +165,8 @@
              control-flow-keywords
              defold-keywords))
 
-(def defold-docs (atom (defold-documentation)))
-(def preinstalled-modules (into #{} (remove #{""} (keys @defold-docs))))
+(def defold-docs (defold-documentation))
+(def preinstalled-modules (into #{} (remove #{""} (keys defold-docs))))
 
 (defn lua-base-documentation []
   (s/validate documentation-schema
@@ -189,7 +189,7 @@
                                         :insert-string keyword})
                                      all-keywords)))}))
 
-(def lua-std-libs-docs (atom (lua-base-documentation)))
+(def lua-std-libs-docs (lua-base-documentation))
 
 (defn lua-module->path [module]
   (str "/" (string/replace module #"\." "/") ".lua"))

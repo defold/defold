@@ -328,3 +328,10 @@ message SetGridShapeHull
     required uint32 flip_horizontal = 5;
     required uint32 flip_vertical = 6;
 }
+
+// System message (TileGrid=>CollisionObject)
+message EnableGridShapeLayer
+{
+    required uint32 shape = 1;
+    required uint32 enable = 2;
+}

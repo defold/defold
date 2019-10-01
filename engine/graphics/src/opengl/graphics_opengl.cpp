@@ -19,7 +19,7 @@
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "async/job_queue.h"
-#include "graphics_opengl.h"
+#include "graphics_opengl_private.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -953,6 +953,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glClear(flags);
         CHECK_GL_ERROR
+    }
+
+    void BeginFrame(HContext context)
+    {
+        // NOP
     }
 
     void Flip(HContext context)

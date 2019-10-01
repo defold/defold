@@ -1,10 +1,9 @@
 name: CI - Main
 
 on:
-  #push:
-  #  branches:
-  #  - '*'
-  #  - '!DEFEDIT-*'
+  push:
+    branches:
+    - 'github-ci-fixes'
   pull_request:
     branches:
     - 'github-ci-fixes'
@@ -20,4 +19,4 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'python ci/ci.py install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'echo FOOO ${S3_ACCESS_KEY}' }]
+      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'echo FOO ${S3_ACCESS_KEY}' }]
