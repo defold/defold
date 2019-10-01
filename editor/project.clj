@@ -176,8 +176,7 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
-                      :local-repl {:injections [(future (editor/-main))]
-                                   :repl-options {:init-ns editor}
+                      :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}

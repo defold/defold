@@ -169,12 +169,18 @@
         (if-let [extension-error (extensions/execute-hook! project :on-bundle-started
                                                            {:exception-policy :as-error
                                                             :opts hook-opts})]
-          (do
-            (extensions/execute-hook! project :on-bundle-failed {:exception-policy :ignore
-                                                                 :opts hook-opts})
+          (try
+            (extensions/execute-hook! project :on-bundle-completed {:exception-policy :ignore
+                                                                    :opts (assoc hook-opts :success false)})
             (ui/run-later
-              (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
-              (when (some? callback!) (callback! false))))
+              (try
+                (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
+                (when (some? callback!) (callback! false))
+                (finally
+                  (disk-availability/pop-busy!))))
+            (catch Throwable error
+              (disk-availability/pop-busy!)
+              (throw error)))
           ;; We need to save because bob reads from FS.
           (async-save! render-reload-progress! render-save-progress! project changes-view
                        (fn [successful?]
@@ -196,13 +202,13 @@
                                (future
                                  (try
                                    (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! task-cancelled?)]
-                                     (extensions/execute-hook! project
-                                                               (if (or (:error result)
-                                                                       (:exception result))
-                                                                 :on-bundle-failed
-                                                                 :on-bundle-successful)
-                                                               {:exception-policy :ignore
-                                                                :opts hook-opts})
+                                     (extensions/execute-hook!
+                                       project
+                                       :on-bundle-completed
+                                       {:exception-policy :ignore
+                                        :opts (assoc hook-opts
+                                                :success (not (or (:error result)
+                                                                  (:exception result))))})
                                      (render-build-progress! progress/done)
                                      (ui/run-later
                                        (try
