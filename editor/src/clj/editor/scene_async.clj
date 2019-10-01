@@ -14,18 +14,14 @@
 ;; we avoid conversions.
 (def ^:private ^PixelFormat pixel-format (PixelFormat/getByteBgraPreInstance))
 
-(defn- make-writable-image-with-bytebuffer
-  [^ByteBuffer buf width height]
-  (let [pixelBuffer (PixelBuffer. width height buf pixel-format)]
-    {:byte-buffer buf
-     :pixel-buffer pixelBuffer
-     :image (WritableImage. pixelBuffer)}))
-
 (defn- make-direct-buffer-backed-writable-image
   [width height]
   (let [buf (doto (ByteBuffer/allocateDirect (* width height 4))
-              (.order (ByteOrder/nativeOrder)))]
-    (make-writable-image-with-bytebuffer buf width height)))
+              (.order (ByteOrder/nativeOrder)))
+        pixelBuffer (PixelBuffer. width height buf pixel-format)]
+    {:byte-buffer buf
+     :pixel-buffer pixelBuffer
+     :image (WritableImage. pixelBuffer)}))
 
 (defn make-async-copy-state [width height]
   {:width width
