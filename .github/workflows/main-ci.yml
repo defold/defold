@@ -1,10 +1,9 @@
 name: CI - Main
 
 on:
-  #push:
-  #  branches:
-  #  - '*'
-  #  - '!DEFEDIT-*'
+  push:
+    branches:
+    - 'github-ci-fixes'
   pull_request:
     branches:
     - 'github-ci-fixes'
