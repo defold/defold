@@ -1811,15 +1811,15 @@ instructions.configure=\
         if bucket_name in self.s3buckets:
             return self.s3buckets[bucket_name]
 
-        config = ConfigParser()
         configpath = os.path.expanduser("~/.s3cfg")
-        config.read(configpath)
-
-        key = config.get('default', 'access_key')
-        secret = config.get('default', 'secret_key')
+        if os.path.exists(configpath):
+            config = ConfigParser()
+            config.read(configpath)
+            key = config.get('default', 'access_key')
+            secret = config.get('default', 'secret_key')
 
         if not (key and secret):
-            self._log('key/secret not found in "%s"' % configpath)
+            self._log('S3 key and/or secret not found in .s3cfg or environment variables')
             sys.exit(5)
 
         from boto.s3.connection import S3Connection
