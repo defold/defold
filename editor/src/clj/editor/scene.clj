@@ -1113,27 +1113,6 @@
             {}
             active-updatables)))
 
-(def frametimes (atom nil))
-
-(defn start-recording-frametimes!
-  []
-  (reset! frametimes []))
-
-#_(start-recording-frametimes!)
-
-(defn record-frametime!
-  [framestart]
-  (swap! frametimes
-         (fn [frames]
-           (when frames
-             (if (> (count frames) 999)
-               frames
-               (let [frames (conj frames (- (System/nanoTime) framestart))]
-                 (when (= (count frames) 1000)
-                   (with-open [dbg (io/writer "/Users/markusgustavsson/Projects/defold/editor/markus/tmp/debug.txt")]
-                     (run! #(.write dbg (str % \newline)) frames)))
-                 frames))))))
-
 (defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
@@ -1150,7 +1129,7 @@
           frame-version (cond-> (or last-frame-version 0)
                           (or (nil? last-renderables-invalidate-counter)
                               (not= last-renderables-invalidate-counter renderables-invalidate-counter)
-                              (seq active-updatables))
+                              (and (= :playing play-mode) (seq active-updatables)))
                           inc)]
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
@@ -1173,9 +1152,7 @@
               (ui/user-data! image-view ::last-renderables-invalidate-counter renderables-invalidate-counter)
               (ui/user-data! image-view ::last-frame-version frame-version)
               (scene-cache/prune-context! gl)
-              (let [start (System/nanoTime)]
-                (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))
-                (record-frametime! start))))))
+              (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
       (let [new-image (scene-async/image @async-copy-state-atom)]
         (when-not (identical? (.getImage image-view) new-image)
           (.setImage image-view new-image))))))
