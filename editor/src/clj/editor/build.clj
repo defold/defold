@@ -5,7 +5,8 @@
             [editor.editor-extensions :as extensions]
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace]
+            [editor.engine :as engine]))
 
 (defn- batched-pmap [f batches]
   (->> batches
@@ -29,10 +30,12 @@
 
 (defn build-project!
   [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
-  (if-let [extension-error (extensions/execute-hook! project :on-build-started {:exception-policy :as-error})]
+  (if-let [extension-error (extensions/execute-hook! project :on-build-started {:exception-policy :as-error
+                                                                                :opts {:platform (engine/current-platform)}})]
     (do
       (extensions/execute-hook! project :on-build-completed {:exception-policy :ignore
-                                                             :opts {:success false}})
+                                                             :opts {:success false
+                                                                    :platform (engine/current-platform)}})
       {:error extension-error})
     (let [steps (atom [])
           collect-tracer (make-collect-progress-steps-tracer :build-targets steps)
@@ -54,5 +57,6 @@
       (extensions/execute-hook! project
                                 :on-build-completed
                                 {:exception-policy :ignore
-                                 :opts {:success (not (:error ret))}})
+                                 :opts {:success (not (:error ret))
+                                        :platform (engine/current-platform)}})
       ret)))
