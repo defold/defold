@@ -86,6 +86,9 @@ public class ProtoBuilders {
     @BuilderParams(name="ConvexShape", inExts=".convexshape", outExt=".convexshapec")
     public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
 
+    @ProtoParams(messageClass = BufferDesc.class)
+    @BuilderParams(name="Buffer", inExts=".buffer", outExt=".bufferc")
+    public static class BufferDescBuilder extends ProtoBuilder<BufferDesc.Builder> {}
 
     @ProtoParams(messageClass = CollisionObjectDesc.class)
     @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")

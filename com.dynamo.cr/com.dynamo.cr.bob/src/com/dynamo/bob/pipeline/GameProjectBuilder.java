@@ -47,6 +47,8 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
+import com.dynamo.mesh.proto.MeshProto.MeshDesc;
+import com.dynamo.buffer.proto.BufferProto.BufferDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -119,6 +121,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".animationsetc", MeshSet.class);
         extToMessageClass.put(".cubemapc", Cubemap.class);
         extToMessageClass.put(".camerac", CameraDesc.class);
+        extToMessageClass.put(".meshc", MeshDesc.class);
         extToMessageClass.put(".lightc", LightDesc.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
@@ -126,6 +129,7 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".texturec");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
+        leafResourceTypes.add(".bufferc");
     }
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
