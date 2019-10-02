@@ -1,4 +1,9 @@
 .sync-dialog {
+  .list-view {
+    -fx-background-color: $dark-grey-light;
+    -fx-padding: 0px;
+  }
+
   Text {
     -fx-fill: $bright-grey-light;
     -fx-font-smoothing-type: lcd;
@@ -41,11 +46,11 @@
     &.info { -fx-border-color: $error-severity-info; }
   }
 
-  #ssh-box {
+  #pull-info-box, #push-info-box {
     -fx-padding: 60px 110px 0px 110px;
   }
 
-  #https-box {
+  #pull-start-box {
     -fx-padding: 30px 110px 0px 110px;
 
     Label {

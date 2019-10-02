@@ -23,30 +23,24 @@
     </top>
     <center>
         <StackPane BorderPane.alignment="CENTER">
-            <StackPane id="pull-start-box">
-                <VBox id="https-box" visible="false" managed="false">
-                    <Label text="Username" />
-                    <TextField id="username-field" styleClass="error" />
-                    <Label text="Password / Personal Access Token" />
-                    <PasswordField id="password-field" />
-                    <CheckBox id="save-password-checkbox">Save password</CheckBox>
-                    <TextFlow id="personal-access-token-info">
-                        <Text text="Using an online host like GitHub or Bitbucket? You can use a " />
-                        <Hyperlink text="Personal Access Token" id="personal-access-token-link" />
-                        <Text text=" instead of a password. Defold needs " />
-                        <Text text="repo" styleClass="strong" />
-                        <Text text=" access to synchronize.&#13;&#13;" />
-                        <Text text="Also note that some forms of two-factor authentication may " />
-                        <Text text="only" styleClass="emphasis" />
-                        <Text text=" work if you use a Personal Access Token." />
-                    </TextFlow>
-                </VBox>
-                <TextFlow id="ssh-box" visible="false" managed="false">
-                    <Text text="This project is configured to synchronize over the SSH protocol, possibly due to having been initially cloned from an SSH URL.&#13;&#13;" />
-                    <Text text="It is not currently possible to synchronize from the Defold editor over SSH, but you can use external tools to do so.&#13;&#13;" />
-                    <Text text="If you want to be able to sync directly from the Defold editor, you must clone the project from a HTTPS link." />
+            <TextFlow id="pull-info-box" visible="false" />
+            <VBox id="pull-start-box" visible="false">
+                <Label text="Username" />
+                <TextField id="username-field" styleClass="error" />
+                <Label text="Password / Personal Access Token" />
+                <PasswordField id="password-field" />
+                <CheckBox id="save-password-checkbox">Save password</CheckBox>
+                <TextFlow id="personal-access-token-info">
+                    <Text text="Using an online host like GitHub or Bitbucket? You can use a " />
+                    <Hyperlink text="Personal Access Token" id="personal-access-token-link" />
+                    <Text text=" instead of a password. Defold needs " />
+                    <Text text="repo" styleClass="strong" />
+                    <Text text=" access to synchronize.&#13;&#13;" />
+                    <Text text="Also note that some forms of two-factor authentication may " />
+                    <Text text="only" styleClass="emphasis" />
+                    <Text text=" work if you use a Personal Access Token." />
                 </TextFlow>
-            </StackPane>
+            </VBox>
             <VBox id="conflict-box" prefHeight="200.0" prefWidth="100.0" visible="false">
                 <Label text="Conflicting" />
                 <ListView id="conflicting" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />

@@ -119,7 +119,10 @@
         remote-names (map #(.getName ^RemoteConfig %)
                           (RemoteConfig/getAllRemoteConfigs config))]
     (or (.getRemote branch-config)
-        (some #(.equalsIgnoreCase "origin" %) remote-names)
+        (some (fn [remote-name]
+                (when (.equalsIgnoreCase "origin" remote-name)
+                  remote-name))
+              remote-names)
         (first remote-names))))
 
 (defn remote-info

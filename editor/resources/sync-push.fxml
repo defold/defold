@@ -26,6 +26,7 @@
    <center>
       <StackPane BorderPane.alignment="CENTER">
          <children>
+            <TextFlow id="push-info-box" visible="false" />
             <VBox id="content-box" prefHeight="200.0" prefWidth="100.0">
                <children>
                   <Label id="changed-files" text="Changed Files" />

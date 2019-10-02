@@ -1,6 +1,7 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
@@ -18,8 +19,9 @@
            [org.eclipse.jgit.revwalk RevCommit]
            [java.net URI]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button ListView SelectionMode TextArea TextInputControl]
-           [javafx.scene.input KeyCode KeyEvent]))
+           [javafx.scene.control Button ListView SelectionMode TextInputControl]
+           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.text Text]))
 
 (set! *warn-on-reflection* true)
 
@@ -415,7 +417,7 @@
     :pull/conflicts (if (empty? conflicts)
                       (advance-flow (tick flow :pull/done) render-progress)
                       flow)
-    :pull/done flow
+    :pull/done (refresh-git-state flow) ; Affects info text and Push command availability.
     :pull/error flow
 
     :push/start (advance-flow (tick (refresh-git-state flow) :push/staging) render-progress)
@@ -527,6 +529,43 @@
 
 ;; =================================================================================
 
+(def ^:private ^String ssh-not-supported-info-text
+  (string/join
+    "\n\n"
+    ["This project is configured to synchronize over the SSH protocol, possibly due to having been initially cloned from an SSH URL."
+     "It is not currently possible to synchronize from the Defold editor over SSH, but you can use external tools to do so."
+     "If you want to be able to sync directly from the Defold editor, you must clone the project from a HTTPS link."]))
+
+(def ^:private ^String pull-done-info-text
+  (string/join
+    "\n\n"
+    ["You are up-to-date with the latest changes from the server."
+     "Press Push if you want to also upload your local changes to the server, or Done to return to the editor without pushing your changes."]))
+
+(def ^:private ^String pull-done-no-local-changes-info-text
+  (string/join
+    "\n\n"
+    ["You are up-to-date with the latest changes from the server."
+     "There are no local changes to Push to the server. Press Done to return to the editor."]))
+
+(def ^:private ^String pull-error-info-text
+  (string/join
+    "\n\n"
+    ["Something went wrong when we tried to get the latest changes from the server."
+     "Click Cancel to restore the project the pre-sync state."]))
+
+(def ^:private ^String push-done-info-text
+  (string/join
+    "\n\n"
+    ["Yor changes were successfully pushed to the server."
+     "Click Done to return to the editor."]))
+
+(def ^:private ^String push-error-info-text
+  (string/join
+    "\n\n"
+    ["Something went wrong when we tried to push your local changes to the server."
+     "Click Done to return to the editor without pushing. You will still have the latest changes from the server unless you choose Cancel to restore the project the pre-sync state."]))
+
 (defn- personal-access-token-uri
   ^URI [remote-info]
   (when (= :https (:scheme remote-info))
@@ -559,8 +598,8 @@
         stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
-        pull-controls   (ui/collect-controls pull-root ["username-field" "password-field" "save-password-checkbox" "pull-start-box" "conflicting" "resolved" "conflict-box" "main-label"])
-        push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "committer-name-field" "committer-email-field" "content-box" "main-label" "diff" "stage" "unstage"])
+        pull-controls   (ui/collect-controls pull-root ["username-field" "password-field" "save-password-checkbox" "pull-start-box" "pull-info-box" "conflicting" "resolved" "conflict-box" "main-label"])
+        push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "committer-name-field" "committer-email-field" "push-info-box" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
                           (when progress
                             (ui/run-later
@@ -628,13 +667,14 @@
 
                                                         :else
                                                         "Get Remote Changes"))
-                                            (ui/visible! (:pull-start-box pull-controls) true)
+                                            (ui/visible! (:pull-start-box pull-controls) (not is-ssh-remote))
                                             (ui/visible! (:conflict-box pull-controls) false)
                                             (ui/enable! (:ok dialog-controls) (not is-ssh-remote)) ; Disallow sync over SSH.
                                             (ui/set-style! (:username-field pull-controls) "error" (= :https-not-authorized error))
                                             (ui/set-style! (:password-field pull-controls) "error" (= :https-not-authorized error)))
                               :pull/conflicts (do
                                                 (ui/text! (:main-label pull-controls) "Resolve Conflicts")
+                                                (ui/visible! (:pull-info-box pull-controls) false)
                                                 (ui/visible! (:pull-start-box pull-controls) false)
                                                 (ui/visible! (:conflict-box pull-controls) true)
                                                 (ui/items! (:conflicting pull-controls) (sort (keys conflicts)))
@@ -643,19 +683,28 @@
                                                 (let [button (:ok dialog-controls)]
                                                   (ui/text! button "Apply")
                                                   (ui/disable! button (not (empty? conflicts)))))
-                              :pull/done (do
+                              :pull/done (let [has-local-changes (not (empty? (concat modified staged)))]
                                            (ui/text! (:main-label pull-controls) "Done!")
                                            (ui/visible! (:push dialog-controls) true)
                                            (ui/visible! (:pull-start-box pull-controls) false)
                                            (ui/visible! (:conflict-box pull-controls) false)
-                                           (ui/text! (:ok dialog-controls) "Done"))
+                                           (ui/text! (:ok dialog-controls) "Done")
+                                           (ui/enable! (:push dialog-controls) has-local-changes)
+                                           (doto (:pull-info-box pull-controls)
+                                             (ui/visible! true)
+                                             (ui/children! [(Text. (if has-local-changes
+                                                                     pull-done-info-text
+                                                                     pull-done-no-local-changes-info-text))])))
                               :pull/error (do
                                             (ui/text! (:main-label pull-controls) "Error getting changes")
                                             (ui/visible! (:push dialog-controls) false)
                                             (ui/visible! (:pull-start-box pull-controls) false)
                                             (ui/visible! (:conflict-box pull-controls) false)
                                             (ui/text! (:ok dialog-controls) "Done")
-                                            (ui/disable! (:ok dialog-controls) true))
+                                            (ui/disable! (:ok dialog-controls) true)
+                                            (doto (:pull-info-box pull-controls)
+                                              (ui/visible! true)
+                                              (ui/children! [(Text. pull-error-info-text)])))
                               :push/staging (let [changed-view ^ListView (:changed push-controls)
                                                   staged-view ^ListView (:staged push-controls)
                                                   changed-selection (vec (ui/selection changed-view))
@@ -663,6 +712,7 @@
                                                   empty-message (empty? (ui/text (:message push-controls)))
                                                   empty-committer-name (empty? (ui/text (:committer-name-field push-controls)))
                                                   empty-committer-email (empty? (ui/text (:committer-email-field push-controls)))]
+                                              (ui/visible! (:pull-info-box pull-controls) false)
                                               (ui/items! changed-view (sort-by git/change-path modified))
                                               (ui/items! staged-view (sort-by git/change-path staged))
                                               (ui/set-style! (:message push-controls) "info" empty-message)
@@ -686,13 +736,19 @@
                               :push/done (do
                                            (ui/text! (:main-label push-controls) "Done!")
                                            (ui/visible! (:content-box push-controls) false)
-                                           (ui/text! (:ok dialog-controls) "Done"))
+                                           (ui/text! (:ok dialog-controls) "Done")
+                                           (doto (:push-info-box push-controls)
+                                             (ui/visible! true)
+                                             (ui/children! [(Text. push-done-info-text)])))
 
                               :push/error (do
                                             (ui/text! (:main-label push-controls) "Error pushing changes to server")
                                             (ui/visible! (:content-box push-controls) false)
                                             (ui/text! (:ok dialog-controls) "Done")
-                                            (ui/disable! (:ok dialog-controls) true))
+                                            (ui/enable! (:ok dialog-controls) true)
+                                            (doto (:push-info-box push-controls)
+                                              (ui/visible! true)
+                                              (ui/children! [(Text. push-error-info-text)])))
 
                               nil)))]
     (update-controls @!flow)
@@ -774,11 +830,11 @@
               :let [^TextInputControl text-input-control (get push-controls field-name)]]
         (ui/observe (.textProperty text-input-control) update-push-controls!)))
 
-    (ui/with-controls pull-root [https-box
-                                 personal-access-token-link
+    (ui/with-controls pull-root [personal-access-token-link
                                  password-field
+                                 pull-info-box
+                                 pull-start-box
                                  save-password-checkbox
-                                 ssh-box
                                  username-field]
       (let [{:keys [git creds]} @!flow
             {:keys [username password]} (git-credentials/decrypt-credentials creds)
@@ -789,8 +845,8 @@
         (case (:scheme remote-info)
           :https
           (do
-            (ui/visible! https-box true)
-            (ui/managed! https-box true)
+            (ui/visible! pull-start-box true)
+            (ui/visible! pull-info-box false)
             (if-some [personal-access-token-uri (personal-access-token-uri remote-info)]
               (ui/on-action! personal-access-token-link
                 (fn [_]
@@ -799,8 +855,10 @@
 
           :ssh
           (do
-            (ui/visible! ssh-box true)
-            (ui/managed! ssh-box true))
+            (ui/visible! pull-start-box false)
+            (doto pull-info-box
+              (ui/visible! true)
+              (ui/children! [(Text. ssh-not-supported-info-text)])))
 
           ;; Other protocols.
           nil)))
