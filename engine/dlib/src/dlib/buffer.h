@@ -46,6 +46,15 @@ Result GetNumStreams(HBuffer buffer, uint32_t* num_streams);
 */
 Result GetStreamName(HBuffer buffer, uint32_t index, dmhash_t* stream_name);
 
+/*# get offset of a stream in bytes
+ *
+ * Gets byte offset of a stream within the buffer.
+ * @name dmBuffer::GetStreamOffset
+ * @param buffer [type:dmBuffer::HBuffer] The buffer
+ * @param index [type:uint32_t] The index of the stream
+ * @param offset [type:uint32_t*] The out variable that receives the byte offset
+ * @return result [type:dmBuffer::Result] RESULT_OK on success
+*/
 Result GetStreamOffset(HBuffer buffer, uint32_t index, uint32_t* offset);
 
 

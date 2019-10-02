@@ -153,6 +153,26 @@ namespace dmBuffer
      */
     Result Create(uint32_t count, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
+    /*# copy a Buffer
+     *
+     * Copies the data from one buffer to another buffer. The stream declaration needs to be the same in both buffers.
+     *
+     * @name dmBuffer::Copy
+     * @param dst_buffer_handle [type:dmBuffer::HBuffer*] Pointer to HBuffer from where to copy buffer data.
+     * @param src_buffer_handle [type:dmBuffer::HBuffer*] Pointer to HBuffer where to copy the buffer data.
+     * @return result [type:dmBuffer::Result] BUFFER_OK if buffer was copied successfully
+     * @examples
+     *
+     * ```cpp
+     * dmBuffer::Result r = dmBuffer::Copy(buffer_a, buffer_b);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     // success
+     * } else {
+     *     // handle error
+     * }
+     * ```
+     */
     Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle);
 
     /*# destroy Buffer.
