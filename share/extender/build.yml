@@ -92,8 +92,8 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9]+","-fno-rtti"]
-    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.15.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
-    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.15.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
+    compileCmd: 'clang++ -c -arch x86_64 -target x86_64-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.15.sdk/ -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    linkCmd: 'clang++ -arch x86_64 -target x86_64-apple-darwin14 -isysroot {{env.PLATFORMSDK_DIR}}/MacOSX10.15.sdk/ -m64 -O2 -g -stdlib=libc++ -mmacosx-version-min=10.7 -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
 
@@ -363,7 +363,7 @@ platforms:
         platformIncludes:   ["{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/include", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/winrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/um", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
-        linkFlags:  ["-O2", "-fuse-ld=lld"]
+        linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32"]
         symbols:    []
 
@@ -394,7 +394,7 @@ platforms:
         platformIncludes:   ["{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/include", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/winrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/um", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
-        linkFlags:  ["-O2", "-fuse-ld=lld"]
+        linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32"]
         symbols:    []
 
