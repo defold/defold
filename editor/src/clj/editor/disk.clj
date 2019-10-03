@@ -177,9 +177,11 @@
                 (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
                 (when (some? callback!) (callback! false))
                 (finally
-                  (disk-availability/pop-busy!))))
+                  (disk-availability/pop-busy!)
+                  (render-reload-progress! progress/done))))
             (catch Throwable error
               (disk-availability/pop-busy!)
+              (render-reload-progress! progress/done)
               (throw error)))
           ;; We need to save because bob reads from FS.
           (async-save! render-reload-progress! render-save-progress! project changes-view

@@ -4,8 +4,7 @@
             [clojure.tools.namespace.dependency :as dep]
             [clojure.tools.namespace.file :as file]
             [clojure.tools.namespace.find :as find]
-            [clojure.tools.namespace.track :as track]
-            [clojure.walk :as walk]))
+            [clojure.tools.namespace.track :as track]))
 
 (def excluded-sources-by-build-type
   {"release" ["src/clj/dev.clj"

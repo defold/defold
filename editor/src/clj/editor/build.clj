@@ -3,10 +3,10 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.engine :as engine]
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
-            [editor.workspace :as workspace]
-            [editor.engine :as engine]))
+            [editor.workspace :as workspace]))
 
 (defn- batched-pmap [f batches]
   (->> batches

@@ -133,7 +133,7 @@
                                               :request-sync (volatile! false)}]
                  (let [ret (try
                              [nil (f ext-map)]
-                             (catch Exception e
+                             (catch Throwable e
                                (when (:report-exceptions options)
                                  (error-reporting/report-exception! e))
                                [e nil]))]
@@ -224,7 +224,7 @@
   [options-expr & body]
   `(try
      ~@body
-     (catch Exception e#
+     (catch Throwable e#
        (handle-extension-error ~options-expr e#))))
 
 (defn- ensure-spec [spec x]
@@ -408,7 +408,7 @@
                                (luart/lua->clj (luart/invoke lua-fn (luart/clj->lua opts)))))
                        (perform-actions! *execution-context*)))))
         nil
-        (catch Exception e
+        (catch Throwable e
           (case (:exception-policy options)
             :as-error (hook-exception->error e project ex-label)
             :ignore nil
