@@ -12,23 +12,13 @@ set -e
 
 SDK_10_VERSION="10.0.10240.0"
 
-VS_PATH=
+VS_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community"
 
 SDK_PATH="C:\Program Files (x86)\Windows Kits"
 
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0.tar.gz"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019.tar.gz"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0.tar.gz"
-
-# Notes for stripping the MSVS package:
-
-# $ rm -rf Microsoft\ Visual\ Studio\ 14.0/Common7/IDE/
-# $ rm -rf ./Microsoft\ Visual\ Studio\ 14.0/VC/lib/arm/
-# $ rm -rf ./Microsoft\ Visual\ Studio\ 14.0/VC/redist/
-# $ rm -rf ./Microsoft\ Visual\ Studio\ 14.0/Team\ Tools/
-# $ rm -rf ./Microsoft\ Visual\ Studio\ 14.0/VC/bin/amd64_arm
-# $ rm -rf ./Microsoft\ Visual\ Studio\ 14.0/VC/bin/x86_arm
-
 
 TARGET_PATH=$(pwd)
 TMP_PATH=${TARGET_PATH}/packages
@@ -51,6 +41,13 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	#GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
+fi
+
+if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
+	echo "Packing to ${PACKAGES_WIN32_TOOLCHAIN}"
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "${VS_PATH}" DIA\ SDK VC/Tools
+else
+	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} already existed"
 fi
 
 echo "Done."
