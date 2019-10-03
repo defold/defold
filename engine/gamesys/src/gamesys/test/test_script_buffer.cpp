@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "script.h"
-#include "script_buffer.h"
+#include <script/script.h>
+#include "gamesys/scripts/script_buffer.h"
 
 #include <dlib/buffer.h>
 #include <dlib/hash.h>
@@ -18,8 +18,6 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#define PATH_FORMAT "build/default/src/test/%s"
-
 class ScriptBufferTest : public jc_test_base_class
 {
 protected:
@@ -28,6 +26,12 @@ protected:
         dmBuffer::NewContext();
         m_Context = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_Context);
+
+        m_ScriptLibContext.m_Factory = 0x0;
+        m_ScriptLibContext.m_Register = 0x0;
+        m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
         L = dmScript::GetLuaState(m_Context);
 
         const dmBuffer::StreamDeclaration streams_decl[] = {
@@ -43,12 +47,15 @@ protected:
     {
     	if( m_Buffer )
         	dmBuffer::Destroy(m_Buffer);
+
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
         dmBuffer::DeleteContext();
     }
 
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
     dmScript::HContext m_Context;
     lua_State* L;
     dmBuffer::HBuffer m_Buffer;
@@ -484,6 +491,12 @@ protected:
     {
         dmBuffer::NewContext();
         m_Context = dmScript::NewContext(0, 0, true);
+
+        m_ScriptLibContext.m_Factory = 0x0;
+        m_ScriptLibContext.m_Register = 0x0;
+        m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
 
@@ -501,12 +514,15 @@ protected:
     {
         dmBuffer::Destroy(m_Buffer);
 
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
 
         dmBuffer::DeleteContext();
     }
 
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
     dmScript::HContext m_Context;
     lua_State* L;
     dmBuffer::HBuffer m_Buffer;
