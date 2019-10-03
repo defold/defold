@@ -1,8 +1,6 @@
 #import <Foundation/Foundation.h>
 
 #include <string.h>
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_ios.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 

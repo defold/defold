@@ -8,7 +8,12 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include "opengl/graphics_opengl_defines.h"
+#ifdef DM_GRAPHICS_VULKAN
+    #include "vulkan/graphics_vulkan_defines.h"
+    #include <vulkan/vulkan.h>
+#else
+    #include "opengl/graphics_opengl_defines.h"
+#endif
 
 namespace dmGraphics
 {

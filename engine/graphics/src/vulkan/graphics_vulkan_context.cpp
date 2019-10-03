@@ -1,7 +1,4 @@
 #include <string.h>
-
-#include "graphics_vulkan_defines.h"
-#include <vulkan/vulkan.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 #include <dlib/log.h>

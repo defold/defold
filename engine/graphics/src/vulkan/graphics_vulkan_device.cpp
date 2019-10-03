@@ -1,4 +1,3 @@
-#include <vulkan/vulkan.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 

@@ -1,10 +1,8 @@
-#include "graphics_vulkan_defines.h"
-#include <vulkan/vulkan.h>
-
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/math.h>
+#include <dlib/hashtable.h>
 #include <dlib/array.h>
 #include <dlib/profile.h>
 #include <dlib/log.h>

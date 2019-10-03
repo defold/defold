@@ -2,7 +2,6 @@
 
 #include <graphics/glfw/glfw_native.h>
 #include <vulkan/vulkan_xcb.h>
-#include <vulkan/vulkan.h>
 
 #include <dlib/math.h>
 #include <dlib/array.h>
