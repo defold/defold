@@ -14,6 +14,7 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
+            [editor.editor-extensions :as extensions]
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -192,6 +193,7 @@
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
+      (extensions/reload! project :all (app-view/make-extensions-ui workspace changes-view prefs))
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
@@ -382,7 +384,8 @@
         build-settings (workspace/make-build-settings prefs)
         workspace (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project (project/open-project! *project-graph* workspace game-project-res render-progress!)]
+        extensions (extensions/make *project-graph*)
+        project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (load-stage workspace project prefs updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]

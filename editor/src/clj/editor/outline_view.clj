@@ -192,66 +192,68 @@
   (output alt-tree-selection g/Any :cached (g/fnk [tree-selection]
                                                   (alt-selection tree-selection))))
 
-(ui/extend-menu ::outline-menu nil
-                [{:label "Open"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open}
-                 {:label "Open As"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open-as}
-                 {:label :separator}
-                 {:label "Copy Project Path"
-                  :command :copy-project-path}
-                 {:label "Copy Full Path"
-                  :command :copy-full-path}
-                 {:label "Copy Require Path"
-                  :command :copy-require-path}
-                 {:label :separator}
-                 {:label "Show in Asset Browser"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-asset-browser}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}
-                 {:label "Referencing Files..."
-                  :command :referencing-files}
-                 {:label "Dependencies..."
-                  :command :dependencies}
-                 {:label :separator}
-                 {:label "Add"
-                  :icon "icons/32/Icons_M_07_plus.png"
-                  :command :add
-                  :expand? true}
-                 {:label "Add From File"
-                  :icon "icons/32/Icons_M_07_plus.png"
-                  :command :add-from-file}
-                 {:label "Add Secondary"
-                  :icon "icons/32/Icons_M_07_plus.png"
-                  :command :add-secondary}
-                 {:label "Add Secondary From File"
-                  :icon "icons/32/Icons_M_07_plus.png"
-                  :command :add-secondary-from-file}
-                 {:label :separator}
-                 {:label "Cut"
-                  :command :cut}
-                 {:label "Copy"
-                  :command :copy}
-                 {:label "Paste"
-                  :command :paste}
-                 {:label "Delete"
-                  :icon "icons/32/Icons_M_06_trash.png"
-                  :command :delete}
-                 {:label :separator}
-                 {:label "Hide Objects"
-                  :command :hide-selected}
-                 {:label "Hide Unselected Objects"
-                  :command :hide-unselected}
-                 {:label "Show Objects"
-                  :command :show-selected}
-                 {:label "Show Last Hidden Objects"
-                  :command :show-last-hidden}
-                 {:label "Show All Hidden Objects"
-                  :command :show-all-hidden}])
+(handler/register-menu! ::outline-menu
+  [{:label "Open"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :open}
+   {:label "Open As"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :open-as}
+   {:label :separator}
+   {:label "Copy Project Path"
+    :command :copy-project-path}
+   {:label "Copy Full Path"
+    :command :copy-full-path}
+   {:label "Copy Require Path"
+    :command :copy-require-path}
+   {:label :separator}
+   {:label "Show in Asset Browser"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :show-in-asset-browser}
+   {:label "Show in Desktop"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :show-in-desktop}
+   {:label "Referencing Files..."
+    :command :referencing-files}
+   {:label "Dependencies..."
+    :command :dependencies}
+   {:label :separator}
+   {:label "Add"
+    :icon "icons/32/Icons_M_07_plus.png"
+    :command :add
+    :expand? true}
+   {:label "Add From File"
+    :icon "icons/32/Icons_M_07_plus.png"
+    :command :add-from-file}
+   {:label "Add Secondary"
+    :icon "icons/32/Icons_M_07_plus.png"
+    :command :add-secondary}
+   {:label "Add Secondary From File"
+    :icon "icons/32/Icons_M_07_plus.png"
+    :command :add-secondary-from-file}
+   {:label :separator}
+   {:label "Cut"
+    :command :cut}
+   {:label "Copy"
+    :command :copy}
+   {:label "Paste"
+    :command :paste}
+   {:label "Delete"
+    :icon "icons/32/Icons_M_06_trash.png"
+    :command :delete}
+   {:label :separator}
+   {:label "Hide Objects"
+    :command :hide-selected}
+   {:label "Hide Unselected Objects"
+    :command :hide-unselected}
+   {:label "Show Objects"
+    :command :show-selected}
+   {:label "Show Last Hidden Objects"
+    :command :show-last-hidden}
+   {:label "Show All Hidden Objects"
+    :command :show-all-hidden}
+   {:label :separator
+    :id ::context-menu-end}])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))

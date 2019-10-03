@@ -63,7 +63,7 @@ ordinary paths."
 
 (defn make-build-resource
   ([resource]
-    (make-build-resource resource nil))
+   (make-build-resource resource nil))
   ([resource prefix]
    (BuildResource. resource prefix)))
 
@@ -127,9 +127,9 @@ ordinary paths."
 
 (defn get-resource-types
   ([workspace]
-    (map second (g/node-value workspace :resource-types)))
+   (map second (g/node-value workspace :resource-types)))
   ([workspace tag]
-    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
+   (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
 (defn- template-path [resource-type]
   (or (:template resource-type)

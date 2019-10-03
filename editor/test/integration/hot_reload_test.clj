@@ -2,12 +2,13 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.hot-reload :as hot-reload]
+            [editor.build :as build]
             [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
+            [editor.hot-reload :as hot-reload]
             [editor.progress :as progress]
-            [editor.protobuf :as protobuf])
+            [editor.protobuf :as protobuf]
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util])
   (:import java.net.URL
            java.nio.charset.Charset
            java.io.ByteArrayInputStream
@@ -39,7 +40,7 @@
 (defn- project-build [project resource-node evaluation-context]
   (let [workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)
-        build-results (project/build! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-results (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
