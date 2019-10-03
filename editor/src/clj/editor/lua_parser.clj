@@ -77,8 +77,7 @@
    \" \"
    \' \'
    \[ \[
-   \] \]
-   })
+   \] \]})
 
 (defn- parse-quoted-string [s]
   (when (and (>= (count s) 2)
