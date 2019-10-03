@@ -798,13 +798,13 @@
         (ui/run-later
           (update-system-cache-save-data! evaluation-context))))))
 
-(defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
+(defn open-project! [graph workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
         progress (atom (progress/make "Updating dependencies..." 13 0))]
     (render-progress! @progress)
 
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
-    (if (workspace/dependencies-reachable? dependencies login-fn)
+    (if (workspace/dependencies-reachable? dependencies)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
            (workspace/install-validated-libraries! workspace-id dependencies))
       (workspace/set-project-dependencies! workspace-id dependencies))

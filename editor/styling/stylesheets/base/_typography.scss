@@ -37,9 +37,26 @@
   src: url("DejaVuSansMono-Bold.ttf"); }
 
 $default-font: 'Source Sans Pro';
+$default-font-bold: 'Source Sans Pro Semibold';
 $default-font-italic: 'Source Sans Pro Italic';
 $default-font-size: 13px;
 
 /* Common measurements */
 $pane-padding-top: 17px;
 $pane-padding-bottom: 0px;
+
+Text.strong {
+  -fx-font-family: $default-font-bold;
+}
+
+Text.emphasis {
+  -fx-font-family: $default-font-italic;
+}
+
+Label.strong {
+  -fx-font-family: $default-font-bold;
+}
+
+Label.emphasis {
+  -fx-font-family: $default-font-italic;
+}

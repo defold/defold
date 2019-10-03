@@ -112,6 +112,10 @@ Links:
 #status-pane {
   -fx-padding: 7 15 7 0;
 
+  #update-link {
+    -fx-font-size: 14px;
+  }
+
   #progress-percentage-label {
     -fx-alignment: center-right;
     -fx-min-width: 40px;
