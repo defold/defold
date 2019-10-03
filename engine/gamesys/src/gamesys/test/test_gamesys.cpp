@@ -1322,14 +1322,14 @@ INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_ma
 
 /* Mesh */
 
-const char* valid_mesh_resources[] = {"/mesh/valid.meshsetc", "/mesh/valid.skeletonc", "/mesh/valid.animationsetc"};
+const char* valid_mesh_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc"};
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
-    {"/mesh/valid.meshsetc", "/mesh/missing.meshsetc"},
-    {"/mesh/valid.skeletonc", "/mesh/missing.skeletonc"},
-    {"/mesh/valid.animationsetc", "/mesh/missing.animationsetc"},
+    {"/meshset/valid.meshsetc", "/meshset/missing.meshsetc"},
+    {"/meshset/valid.skeletonc", "/meshset/missing.skeletonc"},
+    {"/meshset/valid.animationsetc", "/meshset/missing.animationsetc"},
 };
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
 
