@@ -229,4 +229,5 @@
                                (throw error))))))))
       (catch Throwable error
         (disk-availability/pop-busy!)
-        (throw error)))))
+        (render-build-progress! progress/done)
+        (error-reporting/report-exception! error)))))
