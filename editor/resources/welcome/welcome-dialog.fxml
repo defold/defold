@@ -27,11 +27,6 @@
                     <Insets bottom="28" left="19" right="19" />
                 </VBox.margin>
             </StackPane>
-            <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30" focusTraversable="false">
-                <VBox.margin>
-                    <Insets bottom="24" left="19" right="19" />
-                </VBox.margin>
-            </Button>
         </VBox>
     </HBox>
 

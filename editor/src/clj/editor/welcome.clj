@@ -4,13 +4,10 @@
             [clojure.pprint :as pprint]
             [clojure.string :as string]
             [editor.analytics :as analytics]
-            [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
-            [editor.git :as git]
             [editor.jfx :as jfx]
-            [editor.login :as login]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.settings-core :as settings-core]
@@ -28,7 +25,7 @@
            [java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException]
            [java.time Instant]
            [java.util.zip ZipInputStream]
-           [javafx.beans.property SimpleObjectProperty StringProperty]
+           [javafx.beans.property StringProperty]
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
@@ -507,124 +504,6 @@
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
 
 ;; -----------------------------------------------------------------------------
-;; Import project pane
-;; -----------------------------------------------------------------------------
-
-(defn dashboard-project-name
-  ^String [dashboard-project]
-  (or (not-empty (:name dashboard-project))
-      "Unnamed"))
-
-(def ^:private filter-dashboard-projects (partial fuzzy-choices/filter-options dashboard-project-name dashboard-project-name))
-
-(defn- make-dashboard-project-entry
-  ^Node [dashboard-project]
-  (let [name (dashboard-project-name dashboard-project)
-        description (some-> (:description dashboard-project) string/trim not-empty)
-        last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)
-        matching-indices (fuzzy-choices/matching-indices dashboard-project)]
-    (make-project-entry name description last-updated matching-indices nil)))
-
-(defn- make-import-project-pane
-  ^Parent [new-project-location-directory clone-project! dashboard-client]
-  (let [import-project-pane (ui/load-fxml "welcome/import-project-pane.fxml")]
-    (ui/with-controls import-project-pane [^ListView dashboard-projects-list empty-dashboard-projects-list-text empty-dashboard-projects-list-overlay ^TextField filter-field filter-field-pane import-project-button import-project-location-field ^TextField import-project-folder-field state-signed-in]
-      (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
-            dashboard-projects-atom (atom nil)
-            reload-dashboard-projects! (fn []
-                                         (ui/items! dashboard-projects-list [])
-                                         (ui/text! empty-dashboard-projects-list-text "Fetching projects...")
-                                         (ui/text! filter-field "")
-                                         (future
-                                           (error-reporting/catch-all!
-                                             (with-open [client (client/make-client (:prefs dashboard-client))]
-                                               (reset! dashboard-projects-atom (client/fetch-projects client))))))
-            refresh-dashboard-projects-list! (fn [filter-text dashboard-projects]
-                                               (ui/text! empty-dashboard-projects-list-text
-                                                         (if (empty? dashboard-projects)
-                                                           "Projects you have synced to the\nDefold cloud will appear here."
-                                                           "No matching projects."))
-                                               (ui/items! dashboard-projects-list
-                                                          (filter-dashboard-projects filter-text dashboard-projects)))]
-        ;; Configure sign-in UI elements.
-        (login/configure-sign-in-ui-elements! import-project-pane dashboard-client :access-projects)
-
-        ;; Show / hide various elements based on sign-in state.
-        (b/bind-presence! state-signed-in (b/= :signed-in sign-in-state-property))
-        (b/bind-presence! filter-field-pane (b/= :signed-in sign-in-state-property))
-        (b/bind-presence! empty-dashboard-projects-list-overlay (b/empty? (.getItems dashboard-projects-list)))
-
-        ;; Configure location field.
-        (setup-location-field! import-project-location-field "Select Import Location" new-project-location-directory)
-        (b/bind! (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
-
-        ;; Configure Import Project button.
-        (doto import-project-button
-          (b/bind-enabled-to-selection! dashboard-projects-list)
-          (ui/on-action! (fn [_]
-                           (let [dashboard-project (first (ui/selection dashboard-projects-list))
-                                 project-title (:name dashboard-project)
-                                 project-folder (ui/text import-project-folder-field)
-                                 clone-directory (location-field-location import-project-location-field)]
-                             (cond
-                               (string/blank? project-folder)
-                               (dialogs/make-info-dialog
-                                 {:title "No Destination Folder"
-                                  :icon :icon/triangle-error
-                                  :size :large
-                                  :header "You must specify a destination folder for the project"})
-
-                               (not= project-folder (string/trim project-folder))
-                               (dialogs/make-info-dialog
-                                 {:title "Invalid Destination Folder"
-                                  :icon :icon/triangle-error
-                                  :size :large
-                                  :header "Whitespace is not allowed around the folder name"})
-
-                               (and (.exists clone-directory)
-                                    (not (fs/empty-directory? clone-directory)))
-                               (dialogs/make-info-dialog
-                                 {:title "Conflicting Import Location"
-                                  :icon :icon/triangle-error
-                                  :size :large
-                                  :header "A non-empty folder already exists at the chosen location"})
-
-                               :else
-                               (clone-project! project-title (:repository-url dashboard-project) clone-directory))))))
-
-        ;; Configure the projects list.
-        (doto dashboard-projects-list
-          (.setFixedCellSize 56.0)
-          (ui/cell-factory! (fn [dashboard-project]
-                              {:graphic (make-dashboard-project-entry dashboard-project)})))
-
-        ;; Update the Title field whenever a project is selected.
-        (ui/observe-selection dashboard-projects-list
-                              (fn [_ selection]
-                                (when-some [selected-project-title (:name (first selection))]
-                                  (ui/text! import-project-folder-field selected-project-title))))
-
-        ;; Refresh the projects list when the list of dashboard projects or the filter field changes.
-        (add-watch dashboard-projects-atom
-                   ::dashboard-projects-watch
-                   (fn [_ _ _ dashboard-projects]
-                     (ui/run-later
-                       (refresh-dashboard-projects-list! (ui/text filter-field) dashboard-projects))))
-
-        (ui/observe (.textProperty filter-field)
-                    (fn [_ _ filter-text]
-                      (refresh-dashboard-projects-list! filter-text @dashboard-projects-atom)))
-
-        ;; Refresh the projects list whenever we sign-in.
-        (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
-                                             (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
-                                               (reload-dashboard-projects!))))
-
-        (when (= :signed-in (.get sign-in-state-property))
-          (reload-dashboard-projects!))))
-    import-project-pane))
-
-;; -----------------------------------------------------------------------------
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
@@ -675,9 +554,9 @@
     (.setVisible progress-overlay false)))
 
 (defn show-welcome-dialog!
-  ([prefs dashboard-client updater open-project-fn]
-   (show-welcome-dialog! prefs dashboard-client updater open-project-fn nil))
-  ([prefs dashboard-client updater open-project-fn opts]
+  ([prefs updater open-project-fn]
+   (show-welcome-dialog! prefs updater open-project-fn nil))
+  ([prefs updater open-project-fn opts]
    (let [[welcome-settings
           welcome-settings-load-error] (try
                                          [(load-welcome-settings "welcome/welcome.edn") nil]
@@ -700,26 +579,6 @@
                                             ;; faster loading.
                                             (open-project-fn (.getAbsolutePath project-file) newly-created?)
                                             nil))
-         clone-project! (fn [project-title repository-url dest-directory]
-                          (let [cancelled-atom (atom false)
-                                progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
-                                progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
-                                credentials (git/credentials prefs)]
-                            (analytics/track-event! "welcome" "clone-project")
-                            (future
-                              (try
-                                (git/clone! credentials repository-url dest-directory progress-monitor)
-                                (ui/run-later
-                                  (if @cancelled-atom
-                                    (do
-                                      (hide-progress! root)
-                                      (fs/delete-directory! dest-directory {:fail :silently}))
-                                    (close-dialog-and-open-project! (io/file dest-directory "game.project") false)))
-                                (catch Throwable error
-                                  (fs/delete-directory! dest-directory {:fail :silently})
-                                  (ui/run-later
-                                    (hide-progress! root)
-                                    (error-reporting/report-exception! error)))))))
          download-template! (fn [template-title zip-url skip-root? dest-directory project-title]
                               (let [cancelled-atom (atom false)
                                     progress-bar (show-progress! root (str "Downloading " template-title) "Cancel Download" #(reset! cancelled-atom true))
@@ -793,7 +652,6 @@
                                           (error-reporting/report-exception! error))))))))
          left-pane (.lookup root "#left-pane")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
-         sign-out-button (.lookup left-pane "#sign-out-button")
          pane-buttons-toggle-group (ToggleGroup.)
          template-category-buttons-toggle-group (ToggleGroup.)
          new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
@@ -803,12 +661,10 @@
                                                             show-new-project-pane!
                                                             close-dialog-and-open-project!
                                                             prefs))
-         import-project-button (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))
-         pane-buttons [home-pane-button new-project-pane-button import-project-button]
+         pane-buttons [home-pane-button new-project-pane-button]
          screen-name (fn [selected-pane-button selected-template-category-button]
                        (condp = selected-pane-button
                          home-pane-button "home"
-                         import-project-button "import-project"
                          new-project-pane-button (new-project-screen-name selected-template-category-button)))]
 
      ;; Add Defold logo SVG paths.
@@ -817,10 +673,6 @@
 
      ;; Make ourselves the main stage.
      (ui/set-main-stage stage)
-
-     ;; If a sign-in was initiated but never completed, make sure we start from
-     ;; the beginning on successive sign-in attempts.
-     (ui/on-closed! stage (fn [_] (login/abort-incomplete-sign-in! dashboard-client)))
 
      ;; Install pending update check.
      (when (some? updater)
@@ -847,9 +699,6 @@
      ;; Select the home pane button.
      (.selectToggle pane-buttons-toggle-group home-pane-button)
 
-     ;; Configure the sign-out button.
-     (login/configure-sign-out-button! sign-out-button dashboard-client)
-
      ;; Apply opts if supplied.
      (when-some [{:keys [x y pane-index]} opts]
        (.setX stage x)
@@ -864,7 +713,7 @@
                                   (when (and (.isShortcutDown key-event)
                                              (= "r" (.getText key-event)))
                                     (ui/close! stage)
-                                    (show-welcome-dialog! prefs dashboard-client updater open-project-fn
+                                    (show-welcome-dialog! prefs updater open-project-fn
                                                           {:x (.getX stage)
                                                            :y (.getY stage)
                                                            :pane-index (first (keep-indexed (fn [pane-index pane-button]

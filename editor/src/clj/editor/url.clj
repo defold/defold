@@ -3,10 +3,6 @@
            (java.net HttpURLConnection MalformedURLException URISyntaxException URI URL)
            (java.nio.charset Charset)))
 
-(defn defold-hosted?
-  [^URI uri]
-  (= "www.defold.com" (.getHost uri)))
-
 (defn reachable?
   [^URI uri]
   (let [url (.toURL uri)
