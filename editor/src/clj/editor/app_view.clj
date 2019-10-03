@@ -1886,23 +1886,3 @@ If you do not specifically require different script states, consider changing th
          (open-resource app-view prefs workspace project existing-resource)
          (create-and-open-live-update-settings! app-view changes-view prefs project))))
 
-(handler/defhandler :sign-ios-app :global
-  (active? [] (util/is-mac-os?))
-  (run [workspace project prefs build-errors-view main-stage tool-tab-pane]
-    (build-errors-view/clear-build-errors build-errors-view)
-    (let [result (bundle/make-sign-dialog workspace prefs project)]
-      (when-let [error (:error result)]
-        (g/with-auto-evaluation-context evaluation-context
-          (let [main-scene (.getScene ^Stage main-stage)
-                render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
-            (if (engine-build-errors/handle-build-error! render-build-error! project evaluation-context error)
-              (dialogs/make-info-dialog
-                {:title "Build Failed"
-                 :icon :icon/triangle-error
-                 :header "Failed to build ipa with native extensions, please fix build errors and try again"})
-              (do (error-reporting/report-exception! error)
-                  (when-let [message (:message result)]
-                    (dialogs/make-info-dialog
-                      {:title "Error"
-                       :icon :icon/triangle-error
-                       :header message}))))))))))

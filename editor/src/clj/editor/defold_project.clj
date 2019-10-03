@@ -399,8 +399,6 @@
                                                 :command :fetch-libraries}
                                                {:label "Live Update Settings"
                                                 :command :live-update-settings}
-                                               {:label "Sign iOS App..."
-                                                :command :sign-ios-app}
                                                {:label :separator
                                                 :id ::project-end}]))}])
 

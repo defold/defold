@@ -266,33 +266,3 @@
                          (merge env step-result))))))
           (ui/close! stage))))))
 
-(defn make-sign-dialog [workspace prefs project]
-  (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["identities" "sign" "provisioning-profile" "provisioning-profile-button" "build-dir" "build-dir-button"])
-        identities (find-identities)
-        result (atom nil)]
-
-    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :result result} nil)
-    (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
-
-    (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))
-    (ui/text! (:build-dir controls) (prefs/get-prefs prefs "last-ios-build-dir" (str (workspace/project-path workspace) "/build")))
-
-    (ui/bind-action! (:provisioning-profile-button controls) ::select-provisioning-profile)
-    (ui/bind-action! (:build-dir-button controls) ::select-build-dir)
-    (ui/bind-action! (:sign controls) ::sign)
-
-    (ui/items! (:identities controls) identities)
-
-    (let [last-identity (prefs/get-prefs prefs "last-identity" "")]
-      (when (some #(= % last-identity) identities)
-        (ui/select! (:identities controls) last-identity)))
-
-    (.initOwner stage (ui/main-stage))
-    (ui/title! stage "Sign iOS Application")
-    (.initModality stage Modality/NONE)
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result))
