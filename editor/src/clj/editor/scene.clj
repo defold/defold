@@ -36,7 +36,7 @@
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
-           [java.lang Runnable Math]
+           [java.lang Math Runnable]
            [java.nio IntBuffer]
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
@@ -1128,7 +1128,7 @@
           frame-version (cond-> (or last-frame-version 0)
                           (or (nil? last-renderables-invalidate-counter)
                               (not= last-renderables-invalidate-counter renderables-invalidate-counter)
-                              (seq active-updatables))
+                              (and (= :playing play-mode) (seq active-updatables)))
                           inc)]
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
