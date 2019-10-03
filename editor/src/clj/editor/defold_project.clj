@@ -288,11 +288,6 @@
   ([project evaluation-context]
    (g/node-value project :workspace evaluation-context)))
 
-(defn make-collect-progress-steps-tracer [watched-label steps-atom]
-  (fn [state node output-type label]
-    (when (and (= label watched-label) (= state :begin) (= output-type :output))
-      (swap! steps-atom conj node))))
-
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]
     (when (and (= label watched-label) (= state :begin) (= output-type :output))
@@ -325,41 +320,6 @@
           :fail
           nil)))))
 
-(defn- batched-pmap [f batches]
-  (->> batches
-       (pmap (fn [batch] (doall (map f batch))))
-       (reduce concat)
-       doall))
-
-(defn- available-processors []
-  (.. Runtime getRuntime availableProcessors))
-
-(defn- compiling-progress-message [node-id->resource-path node-id]
-  (if (nil? node-id)
-    "Compiling..."
-    (when-some [resource-path (node-id->resource-path node-id)]
-      (str "Compiling " resource-path))))
-
-(defn build!
-  [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
-  (let [steps (atom [])
-        collect-tracer (make-collect-progress-steps-tracer :build-targets steps)
-        _ (g/node-value node :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer))
-        progress-message-fn (partial compiling-progress-message (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context)))
-        step-count (count @steps)
-        progress-tracer (make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
-        evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
-        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
-        _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
-        node-build-targets (g/node-value node :build-targets evaluation-context)
-        build-targets (cond-> node-build-targets
-                        (seq extra-build-targets)
-                        (into extra-build-targets))
-        build-dir (workspace/build-path (workspace project))]
-    (if (g/error? build-targets)
-      {:error build-targets}
-      (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5)))))
-
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
   (run [project-graph] (g/undo! project-graph)))
@@ -377,31 +337,33 @@
                  [:linux   "Linux Application..."]
                  [:html5   "HTML5 Application..."]])))
 
-(ui/extend-menu ::menubar :editor.app-view/view
-                [{:label "Project"
-                  :id ::project
-                  :children (vec (remove nil? [{:label "Build"
-                                                :command :build}
-                                               {:label "Rebuild"
-                                                :command :rebuild}
-                                               {:label "Build HTML5"
-                                                :command :build-html5}
-                                               {:label "Bundle"
-                                                :children (mapv (fn [[platform label]]
-                                                                  {:label label
-                                                                   :command :bundle
-                                                                   :user-data {:platform platform}})
-                                                                bundle-targets)}
-                                               {:label "Rebundle"
-                                                :command :rebundle}
-                                               {:label "Fetch Libraries"
-                                                :command :fetch-libraries}
-                                               {:label "Live Update Settings"
-                                                :command :live-update-settings}
-                                               {:label "Sign iOS App..."
-                                                :command :sign-ios-app}
-                                               {:label :separator
-                                                :id ::project-end}]))}])
+(handler/register-menu! ::menubar :editor.app-view/view
+  [{:label "Project"
+    :id ::project
+    :children [{:label "Build"
+                :command :build}
+               {:label "Rebuild"
+                :command :rebuild}
+               {:label "Build HTML5"
+                :command :build-html5}
+               {:label "Bundle"
+                :children (mapv (fn [[platform label]]
+                                  {:label label
+                                   :command :bundle
+                                   :user-data {:platform platform}})
+                                bundle-targets)}
+               {:label "Rebundle"
+                :command :rebundle}
+               {:label "Fetch Libraries"
+                :command :fetch-libraries}
+               {:label "Reload Extensions"
+                :command :reload-extensions}
+               {:label "Live Update Settings"
+                :command :live-update-settings}
+               {:label "Sign iOS App..."
+                :command :sign-ios-app}
+               {:label :separator
+                :id ::project-end}]}])
 
 (defn- update-selection [s open-resource-nodes active-resource-node selection-value]
   (->> (assoc s active-resource-node selection-value)
@@ -429,21 +391,21 @@
 
 (defn select
   ([project resource-node node-ids open-resource-nodes]
-    (assert (every? some? node-ids) "Attempting to select nil values")
-    (let [node-ids (if (seq node-ids)
-                     (-> node-ids distinct vec)
-                     [resource-node])
-          all-selections (-> (g/node-value project :all-selections)
-                           (update-selection open-resource-nodes resource-node node-ids))]
-      (perform-selection project all-selections))))
+   (assert (every? some? node-ids) "Attempting to select nil values")
+   (let [node-ids (if (seq node-ids)
+                    (-> node-ids distinct vec)
+                    [resource-node])
+         all-selections (-> (g/node-value project :all-selections)
+                            (update-selection open-resource-nodes resource-node node-ids))]
+     (perform-selection project all-selections))))
 
 (defn- perform-sub-selection
   ([project all-sub-selections]
-    (g/set-property project :all-sub-selections all-sub-selections)))
+   (g/set-property project :all-sub-selections all-sub-selections)))
 
 (defn sub-select
   ([project resource-node sub-selection open-resource-nodes]
-    (g/update-property project :all-sub-selections update-selection open-resource-nodes resource-node sub-selection)))
+   (g/update-property project :all-sub-selections update-selection open-resource-nodes resource-node sub-selection)))
 
 (defn- remap-selection [m key-m val-fn]
   (reduce (fn [m [old new]]
@@ -598,6 +560,7 @@
   (property all-sub-selections g/Any)
 
   (input script-intelligence g/NodeID :cascade-delete)
+  (input editor-extensions g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -657,17 +620,6 @@
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
-
-(defn build-project!
-  [project evaluation-context extra-build-targets old-artifact-map render-progress!]
-  (let [game-project  (get-resource-node project "/game.project" evaluation-context)
-        render-progress! (progress/throttle-render-progress render-progress!)]
-    (try
-      (ui/with-progress [render-progress! render-progress!]
-        (build! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
-      (catch Throwable error
-        (error-reporting/report-exception! error)
-        nil))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -747,7 +699,7 @@
   (handle-changes [this changes render-progress!]
     (handle-resource-changes project-id changes render-progress!)))
 
-(defn make-project [graph workspace-id]
+(defn make-project [graph workspace-id extensions]
   (let [project-id
         (second
           (g/tx-nodes-added
@@ -755,6 +707,7 @@
               (g/make-nodes graph
                   [script-intelligence si/ScriptIntelligenceNode
                    project [Project :workspace workspace-id]]
+                (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
@@ -798,7 +751,7 @@
         (ui/run-later
           (update-system-cache-save-data! evaluation-context))))))
 
-(defn open-project! [graph workspace-id game-project-resource render-progress!]
+(defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
         progress (atom (progress/make "Updating dependencies..." 13 0))]
     (render-progress! @progress)
@@ -812,7 +765,7 @@
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
-    (let [project (make-project graph workspace-id)
+    (let [project (make-project graph workspace-id extensions)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)

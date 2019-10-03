@@ -9,6 +9,7 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.defold-project :as project]
+            [editor.editor-extensions :as extensions]
             [editor.material :as material]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
@@ -115,13 +116,15 @@
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
-         project (project/make-project proj-graph workspace)
+         extensions (extensions/make proj-graph)
+         project (project/make-project proj-graph workspace extensions)
          project (project/load-project project)]
      (g/reset-undo! proj-graph)
      project))
   ([workspace resources]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
-         project (project/make-project proj-graph workspace)
+         extensions (extensions/make proj-graph)
+         project (project/make-project proj-graph workspace extensions)
          project (project/load-project project resources)]
      (g/reset-undo! proj-graph)
      project)))
