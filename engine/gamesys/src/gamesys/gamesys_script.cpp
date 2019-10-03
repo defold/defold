@@ -20,6 +20,7 @@
 #include "scripts/script_model.h"
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
+#include "scripts/script_buffer.h"
 #include <liveupdate/liveupdate.h>
 
 extern "C"
@@ -45,6 +46,7 @@ namespace dmGameSystem
 
         bool result = true;
 
+        ScriptBufferRegister(context);
         ScriptLabelRegister(context);
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);

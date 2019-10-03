@@ -277,9 +277,25 @@ namespace dmScript
      * @member m_Buffer [type:dmBuffer::HBuffer]    The buffer
      * @member m_UseLuaGC [type:bool]               If true, it will be garbage collected by Lua. If false, the C++ extension still owns the reference.
      */
+    enum LuaBufferOwnership
+    {
+        OWNER_C   = 0,
+        OWNER_LUA = 1,
+        OWNER_RES = 2,
+    };
+
     struct LuaHBuffer
     {
-        dmBuffer::HBuffer   m_Buffer;
+        // LuaHBuffer() {
+        //     m_Buffer = 0x0;
+        //     // m_UseLuaGC = false;
+        // }
+        // union {
+            dmBuffer::HBuffer   m_Buffer;
+            // void*               m_BufferRes;
+        // };
+
+        // LuaBufferOwnership  m_Owner;
         bool                m_UseLuaGC;     //!< If true, Lua will delete the buffer in the Lua GC phase
     };
 
@@ -329,6 +345,8 @@ namespace dmScript
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      */
     LuaHBuffer* CheckBuffer(lua_State* L, int index);
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index);
 
     /*# get the value at index as a Vectormath::Aos::Vector3*
      * Get the value at index as a Vectormath::Aos::Vector3*

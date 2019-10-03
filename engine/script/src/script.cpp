@@ -10,7 +10,7 @@
 #include "script_hash.h"
 #include "script_msg.h"
 #include "script_vmath.h"
-#include "script_buffer.h"
+// #include "script_buffer.h"
 #include "script_sys.h"
 #include "script_module.h"
 #include "script_image.h"
@@ -148,7 +148,7 @@ namespace dmScript
         InitializeHash(L);
         InitializeMsg(L);
         InitializeVmath(L);
-        InitializeBuffer(L);
+        // InitializeBuffer(L);
         InitializeSys(L);
         InitializeModule(L);
         InitializeImage(L);
@@ -1119,7 +1119,7 @@ namespace dmScript
         lua_insert(L, -2);
         // [-2] value
         // [-1] instance context table
-        
+
         lua_pop(L, 1);
         // [-1] value
     }
@@ -1132,7 +1132,7 @@ namespace dmScript
         GetInstanceContextTable(L);
         // [-2] value
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             // [-2] value
@@ -1162,7 +1162,7 @@ namespace dmScript
 
         GetInstanceContextTable(L);
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             // [-1] LUA_NIL
@@ -1184,7 +1184,7 @@ namespace dmScript
 
         GetInstanceContextTable(L);
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 1);
@@ -1360,7 +1360,7 @@ namespace dmScript
         int        m_Callback;
         int        m_Self;
     };
-    
+
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {
         luaL_checktype(L, callback_stack_index, LUA_TFUNCTION);
@@ -1413,7 +1413,7 @@ namespace dmScript
 
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
-        
+
         // For the callback ref (that can actually outlive the script instance)
         // we want to add to the lua debug count
         cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -1674,7 +1674,7 @@ namespace dmScript
                 {
                     w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
                 }
-                
+
             }
             else
             {

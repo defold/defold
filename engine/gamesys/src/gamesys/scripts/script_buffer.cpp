@@ -1,4 +1,4 @@
-#include "script.h"
+#include <script/script.h>
 
 #include <assert.h>
 #include <stdint.h>
@@ -7,6 +7,8 @@
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+
+#include "script_buffer.h"
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -19,7 +21,10 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-namespace dmScript
+static uint32_t SCRIPT_BUFFER_TYPE_HASH = 0;
+static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
+
+namespace dmGameSystem
 {
     /*# Buffer API documentation
      *
@@ -80,9 +85,6 @@ namespace dmScript
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
 
-    static uint32_t SCRIPT_BUFFER_TYPE_HASH = 0;
-    static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
-
     typedef void (*FStreamSetter)(void* data, int index, lua_Number v);
     typedef lua_Number (*FStreamGetter)(void* data, int index);
 
@@ -100,48 +102,6 @@ namespace dmScript
         dmBuffer::ValueType m_Type;		// The type of elements in the array
         int                 m_BufferRef;// Holds a reference to the Lua object
     };
-
-    bool IsBuffer(lua_State *L, int index)
-    {
-        return dmScript::GetUserType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
-    }
-
-    void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
-        luabuf->m_Buffer = v.m_Buffer;
-        luabuf->m_UseLuaGC = v.m_UseLuaGC;
-        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
-        lua_setmetatable(L, -2);
-    }
-
-    static dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            if( buffer && dmBuffer::IsBufferValid(buffer->m_Buffer))
-            {
-                return buffer;
-            }
-        }
-        return 0x0;
-    }
-
-    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
-            if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
-                return buffer;
-            }
-            luaL_error(L, "The buffer handle is invalid");
-        }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
-        return 0x0;
-    }
 
     static bool IsStream(lua_State *L, int index)
     {
@@ -518,13 +478,13 @@ namespace dmScript
     static int CopyStream(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        BufferStream* dststream = dmScript::CheckStream(L, 1);
+        BufferStream* dststream = CheckStream(L, 1);
         int dstoffset = luaL_checkint(L, 2);
 
         BufferStream* srcstream = 0;
-        if( dmScript::IsStream(L, 3) )
+        if( IsStream(L, 3) )
         {
-            srcstream = dmScript::CheckStream(L, 3);
+            srcstream = CheckStream(L, 3);
         }
         else
         {
@@ -709,10 +669,16 @@ namespace dmScript
 
     static int Buffer_gc(lua_State *L)
     {
-        dmScript::LuaHBuffer* buffer = CheckBufferNoError(L, 1);
-        if( buffer && buffer->m_UseLuaGC )
+        dmScript::LuaHBuffer* buffer = dmScript::CheckBufferNoError(L, 1);
+        if( buffer )
         {
-            dmBuffer::Destroy(buffer->m_Buffer);
+            // if (buffer->m_Owner == OWNER_LUA)
+            // {
+                dmBuffer::Destroy(buffer->m_Buffer);
+            // } else if (buffer->m_Owner == OWNER_RES) {
+
+            // }
+
         }
         return 0;
     }
@@ -720,7 +686,7 @@ namespace dmScript
     static int Buffer_tostring(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
 
         uint32_t num_streams;
         dmBuffer::GetNumStreams(buffer->m_Buffer, &num_streams);
@@ -768,7 +734,7 @@ namespace dmScript
     static int Buffer_len(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = CheckBuffer(L, 1);
+        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
         uint32_t count = 0;
         dmBuffer::Result r = dmBuffer::GetCount(buffer->m_Buffer, &count);
         if (r != dmBuffer::RESULT_OK) {
@@ -903,8 +869,10 @@ namespace dmScript
         uint32_t* m_TypeHash;
     };
 
-    void InitializeBuffer(lua_State* L)
+    // void InitializeBuffer(lua_State* L)
+    void ScriptBufferRegister(const ScriptLibContext& context)
     {
+        lua_State* L = context.m_LuaState;
         int top = lua_gettop(L);
 
         const uint32_t type_count = 2;
@@ -940,4 +908,50 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
+}
+
+// TODO(andsve): Move this back to script/script_buffer.cpp instead?
+namespace dmScript
+{
+    bool IsBuffer(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == SCRIPT_BUFFER_TYPE_HASH;
+    }
+
+    void PushBuffer(lua_State* L, const dmScript::LuaHBuffer& v)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
+        luabuf->m_Buffer = v.m_Buffer;
+        luabuf->m_UseLuaGC = v.m_UseLuaGC;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
+        lua_setmetatable(L, -2);
+    }
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA)
+        {
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
+            if( buffer && dmBuffer::IsBufferValid(buffer->m_Buffer))
+            {
+                return buffer;
+            }
+        }
+        return 0x0;
+    }
+
+    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA)
+        {
+            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
+            if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
+                return buffer;
+            }
+            luaL_error(L, "The buffer handle is invalid");
+        }
+        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
+        return 0x0;
+    }
 }

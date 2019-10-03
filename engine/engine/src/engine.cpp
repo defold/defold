@@ -17,6 +17,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/http_client.h>
+#include <dlib/buffer.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
