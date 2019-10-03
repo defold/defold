@@ -27,7 +27,8 @@ def build(bld):
                              proto_gen_py = True,
                              protoc_includes = '../proto',
                              uselib = 'DDF DLIB',
-                             target = 'graphics_vulkan')
+                             target = 'graphics_vulkan',
+                             defines = ['DM_GRAPHICS_VULKAN'])
 
       obj.find_sources_in_dirs('. vulkan ../proto/graphics')
 
