@@ -18,10 +18,36 @@
   [width height]
   (let [buf (doto (ByteBuffer/allocateDirect (* width height 4))
               (.order (ByteOrder/nativeOrder)))
-        pixelBuffer (PixelBuffer. width height buf pixel-format)]
+        pixel-buffer (PixelBuffer. width height buf pixel-format)]
     {:byte-buffer buf
-     :pixel-buffer pixelBuffer
-     :image (WritableImage. pixelBuffer)}))
+     :pixel-buffer pixel-buffer
+     :image (WritableImage. pixel-buffer)}))
+
+(definterface IPixelWriteCallback
+  (set_buffer_BANG_ [x]))
+
+(deftype PixelWriteCallback
+    [^:unsynchronized-mutable ^ByteBuffer from-buf]
+  IPixelWriteCallback
+  (set-buffer! [_ x]
+    (set! from-buf x))
+  Callback
+  (call [_ pb]
+    (let [^ByteBuffer to-buf (.getBuffer ^PixelBuffer pb)]
+      (.rewind from-buf)
+      (.rewind to-buf)
+      ;; NOTE: We copy the pixels here instead of just letting OpenGL write
+      ;; directly to the backing ByteBuffer of the PixelBuffer. This may seem
+      ;; strange. And it is. The reason we do it is that this turned out to
+      ;; actually be faster! glBufferSubData was tested, which can put the
+      ;; pixels directly in the buffer instead of returning a new one like
+      ;; glMapBuffer does. But glBufferSubData turned out to be slower. At least
+      ;; this way of copying pixels is slightly faster than what we had before
+      ;; (just putting pixels in the WritableImage without accessing the
+      ;; underlying buffer).
+      (.put to-buf from-buf)
+      (.flip to-buf)
+      nil)))
 
 (defn make-async-copy-state [width height]
   {:width width
@@ -31,7 +57,7 @@
    :pbo-size nil
    :images [(make-direct-buffer-backed-writable-image width height)
             (make-direct-buffer-backed-writable-image width height)]
-   :buffer-update-callback (reify Callback (call [_ _] nil))
+   :buffer-update-callback (->PixelWriteCallback nil)
    :current-image 0})
 
 (defn request-resize! [async-copy-state width height]
@@ -50,10 +76,10 @@
 
 (defn- lazy-init! [{:keys [^int pbo] :as async-copy-state} ^GL2 gl]
   (cond-> async-copy-state
-    (zero? pbo)
-    (assoc :pbo (let [pbos (int-array 1)]
-                  (.glGenBuffers gl 1 pbos 0)
-                  (first pbos)))))
+          (zero? pbo)
+          (assoc :pbo (let [pbos (int-array 1)]
+                        (.glGenBuffers gl 1 pbos 0)
+                        (first pbos)))))
 
 (defn- bind-pbo! [async-copy-state ^GL2 gl]
   (.glBindBuffer gl GL2/GL_PIXEL_PACK_BUFFER (:pbo async-copy-state))
@@ -106,23 +132,16 @@
           writable-image ^WritableImage (:image image)
           {:keys [^int width ^int height]} pbo-size]
       (cond-> async-copy-state
-        (or (not= (.getWidth writable-image) width)
-            (not= (.getHeight writable-image) height))
-        (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
+              (or (not= (.getWidth writable-image) width)
+                  (not= (.getHeight writable-image) height))
+              (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
 
 (defn- copy-pbo-to-image! [async-copy-state ^GL2 gl]
   (profiler/profile "pbo->image" -1
-    (let [image (get-in async-copy-state [:images (:current-image async-copy-state)])
-          ^ByteBuffer bb (:byte-buffer image)
-          ^PixelBuffer pb (:pixel-buffer image)
-          ^WritableImage wi (:image image)
-          ^Callback cb (:buffer-update-callback async-copy-state)
-          {:keys [^int width ^int height]} (:pbo-size async-copy-state)
+    (let [^PixelBuffer pb (:pixel-buffer (nth (:images async-copy-state) (:current-image async-copy-state)))
+          ^PixelWriteCallback cb (:buffer-update-callback async-copy-state)
           ^ByteBuffer gl-buffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
-      (.rewind gl-buffer)
-      (.rewind bb)
-      (.put bb gl-buffer)
-      (.flip bb)
+      (.set-buffer! cb gl-buffer)
       (.updateBuffer pb cb)
       (.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
       (assoc async-copy-state :state :done))))
