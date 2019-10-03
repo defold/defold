@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.disk-availability :as disk-availability]
@@ -10,7 +9,6 @@
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
-            [editor.login :as login]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.sync :as sync]
@@ -31,10 +29,10 @@
 
 (defn refresh! [changes-view render-progress!]
   (let [list-view (g/node-value changes-view :list-view)
-        unconfigured-git (g/node-value changes-view :unconfigured-git)
+        git (g/node-value changes-view :git)
         refresh-pending (ui/user-data list-view :refresh-pending)
         schedule-refresh (ref nil)]
-    (when unconfigured-git
+    (when git
       (dosync
         (ref-set schedule-refresh (not @refresh-pending))
         (ref-set refresh-pending true))
@@ -43,7 +41,7 @@
         (future
           (try
             (dosync (ref-set refresh-pending false))
-            (let [unified-status (git/unified-status unconfigured-git)]
+            (let [unified-status (git/unified-status git)]
               (ui/run-later
                 (ui/with-progress [render-progress! render-progress!]
                   (refresh-list-view! list-view unified-status))))
@@ -115,31 +113,16 @@
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
 (defn project-is-git-repo? [changes-view]
-  (some? (g/node-value changes-view :unconfigured-git)))
+  (some? (g/node-value changes-view :git)))
 
-(defn first-sync! [changes-view dashboard-client project]
-  (let [workspace (project/workspace project)
-        proj-path (.getPath (workspace/project-path workspace))
-        project-title (project/project-title project)
-        prefs (g/node-value changes-view :prefs)]
-    (-> (sync/begin-first-flow! proj-path project-title prefs dashboard-client
-                                (fn [git]
-                                  (ui/run-later
-                                    (g/set-property! changes-view :unconfigured-git git))))
-        (sync/open-sync-dialog))))
-
-(defn regular-sync! [changes-view dashboard-client]
-  (if-not (login/sign-in! dashboard-client :synchronize)
-    false
-    (let [git (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)
-          creds (git/credentials prefs)
-          flow (sync/begin-flow! git creds)]
-      (sync/open-sync-dialog flow)
-      true)))
+(defn regular-sync! [changes-view]
+  (let [git (g/node-value changes-view :git)
+        prefs (g/node-value changes-view :prefs)
+        flow (sync/begin-flow! git prefs)]
+    (sync/open-sync-dialog flow prefs)))
 
 (defn ensure-no-locked-files! [changes-view]
-  (let [git (g/node-value changes-view :unconfigured-git)]
+  (let [git (g/node-value changes-view :git)]
     (loop []
       (if-some [locked-files (not-empty (git/locked-files git))]
         ;; Found locked files below the project. Notify user and offer to retry.
@@ -165,11 +148,7 @@
 (g/defnode ChangesView
   (inherits core/Scope)
   (property list-view g/Any)
-  (property unconfigured-git g/Any)
-  (output git g/Any (g/fnk [unconfigured-git prefs]
-                      (when unconfigured-git
-                        (doto unconfigured-git
-                          (git/ensure-user-configured! prefs)))))
+  (property git g/Any)
   (property prefs g/Any))
 
 (defn- status->resource [workspace status]
@@ -192,7 +171,7 @@
         diff-button             (.lookup parent "#changes-diff")
         revert-button           (.lookup parent "#changes-revert")
         git                     (try-open-git workspace)
-        view-id                 (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)
+        view-id                 (g/make-node! view-graph ChangesView :list-view list-view :git git :prefs prefs)
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (ui/refresh-bound-action-enabled! revert-button)))]
@@ -202,7 +181,7 @@
       (ui/user-data! list-view :refresh-pending (ref false))
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
       (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
-        {:git [:changes-view :unconfigured-git]}
+        {:git [:changes-view :git]}
         {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
       (ui/cell-factory! list-view vcs-status/render)

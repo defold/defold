@@ -114,12 +114,11 @@
   (with-clean-system
     (test-util/with-ui-run-later-rebound
       (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
-            ^File project-directory (workspace/project-path workspace)
             server (test-util/->lib-server)
             uri (test-util/lib-server-uri server "lib_resource_project")
             game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
         (write-deps! game-project-res uri)
-        (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
+        (let [project (project/open-project! world workspace game-project-res progress/null-render-progress!)
               ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
               int-gui (test-util/resource-node project "/gui/empty.gui")]
           (is (some? ext-gui))
@@ -132,8 +131,8 @@
             (is (= [or] (g/overrides original)))))
         (test-util/kill-lib-server server)))))
 
-(defn- fetch-validate-install-libraries! [workspace library-uris render-fn login-fn]
-  (when (workspace/dependencies-reachable? library-uris login-fn)
+(defn- fetch-validate-install-libraries! [workspace library-uris render-fn]
+  (when (workspace/dependencies-reachable? library-uris)
     (->> (workspace/fetch-and-validate-libraries workspace library-uris render-fn)
          (workspace/install-validated-libraries! workspace library-uris))
     (workspace/resource-sync! workspace)))
@@ -148,11 +147,11 @@
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
       ;; add dependency, fetch libraries, we should now have library file
       (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
       ;; remove dependency again, fetch libraries, we should no longer have the file
       (game-project/set-setting! game-project ["project" "dependencies"] nil)
-      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
@@ -166,5 +165,5 @@
 
       ;; add dependency, fetch libraries, we should now have library file
       (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
