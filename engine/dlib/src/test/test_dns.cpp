@@ -9,7 +9,7 @@
 #include <jc_test/jc_test.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmDNS::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmDNS::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmDNS::ResultToString(r));
 }
 
 

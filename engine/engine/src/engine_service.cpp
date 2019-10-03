@@ -281,7 +281,7 @@ namespace dmEngineService
         {
             HEngineService engine_service = (HEngineService)ctx;
             char redirect[256];
-            DM_SNPRINTF(redirect, sizeof(redirect), "http://%s:%d%s", engine_service->m_LocalAddress, engine_service->m_Port, request->m_Resource);
+            dmSnPrintf(redirect, sizeof(redirect), "http://%s:%d%s", engine_service->m_LocalAddress, engine_service->m_Port, request->m_Resource);
             dmWebServer::SetStatusCode(request, 302);
             dmWebServer::SendAttribute(request, "Location", redirect);
             dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
@@ -329,8 +329,8 @@ namespace dmEngineService
 
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
-            DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
-            DM_SNPRINTF(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
+            dmSnPrintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
+            dmSnPrintf(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
 
             // The redirect server
             params.m_Port = 8002;

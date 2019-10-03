@@ -1119,7 +1119,7 @@ namespace dmScript
         lua_insert(L, -2);
         // [-2] value
         // [-1] instance context table
-        
+
         lua_pop(L, 1);
         // [-1] value
     }
@@ -1132,7 +1132,7 @@ namespace dmScript
         GetInstanceContextTable(L);
         // [-2] value
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             // [-2] value
@@ -1162,7 +1162,7 @@ namespace dmScript
 
         GetInstanceContextTable(L);
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             // [-1] LUA_NIL
@@ -1184,7 +1184,7 @@ namespace dmScript
 
         GetInstanceContextTable(L);
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 1);
@@ -1360,7 +1360,7 @@ namespace dmScript
         int        m_Callback;
         int        m_Self;
     };
-    
+
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {
         luaL_checktype(L, callback_stack_index, LUA_TFUNCTION);
@@ -1413,7 +1413,7 @@ namespace dmScript
 
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
-        
+
         // For the callback ref (that can actually outlive the script instance)
         // we want to add to the lua debug count
         cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -1635,8 +1635,8 @@ namespace dmScript
     }
 
     /**
-    * To reduce the overhead of the profiler when calling lua functions we avoid using DM_SNPRINTF.
-    * DM_SNPRINTF uses vsnprintf with variable number of arguments but we only need string concatenation for
+    * To reduce the overhead of the profiler when calling lua functions we avoid using dmSnPrintf.
+    * dmSnPrintf uses vsnprintf with variable number of arguments but we only need string concatenation for
     * the most part. Also, we use our knownledge when building the string to get the string length directly
     * without resorting to strlen.
     * Building this string is particularly expensive on low end devices and using this more optimal way reduces
@@ -1666,7 +1666,7 @@ namespace dmScript
                     else
                     {
                         char function_line_number_buffer[16];
-                        DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                        dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
                         w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
                     }
                 }
@@ -1674,7 +1674,7 @@ namespace dmScript
                 {
                     w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
                 }
-                
+
             }
             else
             {

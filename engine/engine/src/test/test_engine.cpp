@@ -93,7 +93,7 @@ void HttpPostThread(void* params)
 {
     HttpTestContext* http_ctx = (HttpTestContext*) params;
     char cmd[256];
-    DM_SNPRINTF(cmd, sizeof(cmd), "python src/test/%s %d", http_ctx->m_Script, http_ctx->m_Port);
+    dmSnPrintf(cmd, sizeof(cmd), "python src/test/%s %d", http_ctx->m_Script, http_ctx->m_Port);
 #if !defined(DM_NO_SYSTEM_FUNCTION)
     g_PostExitResult = system(cmd);
 #endif
@@ -276,7 +276,7 @@ TEST_P(DrawCountTest, DrawCount)
     char state[] = {"--config=script.shared_state=1"};
     char dont_unload[] = {"--config=dmengine.unload_builtins=0"};
     char project[512];
-    DM_SNPRINTF(project, sizeof(project), "%s%s", CONTENT_ROOT, p.m_ProjectPath);
+    dmSnPrintf(project, sizeof(project), "%s%s", CONTENT_ROOT, p.m_ProjectPath);
     char* argv[] = {name, state, dont_unload, project};
 
     ASSERT_TRUE(dmEngine::Init(m_Engine, sizeof(argv)/sizeof(argv[0]), argv));

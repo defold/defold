@@ -96,7 +96,7 @@ union SaveLoadBuffer
         // accidentally writes to it.
         static int save_counter = 0;
         uint32_t hash = dmHashString32(filename);
-        int res = DM_SNPRINTF(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
+        int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
         if (res == -1)
         {
             return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
@@ -766,7 +766,7 @@ union SaveLoadBuffer
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
                 char tmp[64];
-                DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
+                dmSnPrintf(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
                         ifa->m_MacAddress[0],
                         ifa->m_MacAddress[1],
                         ifa->m_MacAddress[2],

@@ -590,7 +590,7 @@ namespace dmHttpClient
         // DEF-2889 most webservers have a header length limit of 8096 bytes
         char buf[8096];
         const int bufsize = sizeof(buf);
-        if(DM_SNPRINTF(buf, bufsize, "%s: %s\r\n", name, value) > bufsize) {
+        if(dmSnPrintf(buf, bufsize, "%s: %s\r\n", name, value) > bufsize) {
             dmLogWarning("Truncated HTTP request header %s since it was larger than %d", name, bufsize);
         }
 
@@ -645,7 +645,7 @@ if (sock_res != dmSocket::RESULT_OK)\
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
             HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
             char buf[64];
-            DM_SNPRINTF(buf, sizeof(buf), "%d", send_content_length);
+            dmSnPrintf(buf, sizeof(buf), "%d", send_content_length);
             HTTP_CLIENT_SENDALL_AND_BAIL(buf);
             HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
         }
@@ -1095,7 +1095,7 @@ bail:
 
     Result Get(HClient client, const char* path)
     {
-        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+        dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
         client->m_RequestStart = dmTime::GetTime();
 
         Result r;
@@ -1152,7 +1152,7 @@ bail:
         if (strcmp(method, "GET") == 0) {
             return Get(client, path);
         } else {
-            DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
+            dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
             client->m_RequestStart = dmTime::GetTime();
             Result r = DoRequest(client, path, method);
             return r;
