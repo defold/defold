@@ -33,9 +33,9 @@
   (if-let [extension-error (extensions/execute-hook! project :on-build-started {:exception-policy :as-error
                                                                                 :opts {:platform (engine/current-platform)}})]
     (do
-      (extensions/execute-hook! project :on-build-completed {:exception-policy :ignore
-                                                             :opts {:success false
-                                                                    :platform (engine/current-platform)}})
+      (extensions/execute-hook! project :on-build-finished {:exception-policy :ignore
+                                                            :opts {:success false
+                                                                   :platform (engine/current-platform)}})
       {:error extension-error})
     (let [steps (atom [])
           collect-tracer (make-collect-progress-steps-tracer :build-targets steps)
@@ -55,7 +55,7 @@
                 {:error build-targets}
                 (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5)))]
       (extensions/execute-hook! project
-                                :on-build-completed
+                                :on-build-finished
                                 {:exception-policy :ignore
                                  :opts {:success (not (:error ret))
                                         :platform (engine/current-platform)}})

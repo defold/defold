@@ -170,8 +170,8 @@
                                                            {:exception-policy :as-error
                                                             :opts hook-opts})]
           (try
-            (extensions/execute-hook! project :on-bundle-completed {:exception-policy :ignore
-                                                                    :opts (assoc hook-opts :success false)})
+            (extensions/execute-hook! project :on-bundle-finished {:exception-policy :ignore
+                                                                   :opts (assoc hook-opts :success false)})
             (ui/run-later
               (try
                 (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
@@ -206,7 +206,7 @@
                                    (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! task-cancelled?)]
                                      (extensions/execute-hook!
                                        project
-                                       :on-bundle-completed
+                                       :on-bundle-finished
                                        {:exception-policy :ignore
                                         :opts (assoc hook-opts
                                                 :success (not (or (:error result)
