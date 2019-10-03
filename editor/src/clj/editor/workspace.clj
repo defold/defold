@@ -208,12 +208,9 @@ ordinary paths."
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
 
-(defn dependencies-reachable? [dependencies login-fn]
+(defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
-    (and (every? url/reachable? hosts)
-         (or (nil? login-fn)
-             (not-any? url/defold-hosted? dependencies)
-             (login-fn)))))
+    (every? url/reachable? hosts)))
 
 (defn missing-dependencies [workspace]
   (let [project-directory (project-path workspace)

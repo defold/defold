@@ -1,27 +1,24 @@
 (ns editor.boot
-  (:require
-   [clojure.java.io :as io]
-   [clojure.stacktrace :as stack]
-   [clojure.tools.cli :as cli]
-   [editor.analytics :as analytics]
-   [editor.code.view :as code-view]
-   [editor.connection-properties :refer [connection-properties]]
-   [editor.dialogs :as dialogs]
-   [editor.error-reporting :as error-reporting]
-   [editor.login :as login]
-   [editor.gl :as gl]
-   [editor.prefs :as prefs]
-   [editor.progress :as progress]
-   [editor.system :as system]
-   [editor.ui :as ui]
-   [editor.updater :as updater]
-   [editor.welcome :as welcome]
-   [service.log :as log]
-   [util.repo :as repo])
-  (:import
-   [com.defold.editor Shutdown]
-   [java.util Arrays]
-   [javax.imageio ImageIO]))
+  (:require [clojure.java.io :as io]
+            [clojure.stacktrace :as stack]
+            [clojure.tools.cli :as cli]
+            [editor.analytics :as analytics]
+            [editor.code.view :as code-view]
+            [editor.connection-properties :refer [connection-properties]]
+            [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
+            [editor.gl :as gl]
+            [editor.prefs :as prefs]
+            [editor.progress :as progress]
+            [editor.system :as system]
+            [editor.ui :as ui]
+            [editor.updater :as updater]
+            [editor.welcome :as welcome]
+            [service.log :as log]
+            [util.repo :as repo])
+  (:import [com.defold.editor Shutdown]
+           [java.util Arrays]
+           [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,7 +39,7 @@
                     (apply f prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project dashboard-client updater newly-created?]
+  [namespace-loader prefs project updater newly-created?]
   (dialogs/make-load-project-dialog
     (fn [render-progress!]
       (let [namespace-progress (progress/make "Loading editor" 1471) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
@@ -55,15 +52,15 @@
         (code-view/initialize! prefs)
         (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
         (welcome/add-recent-project! prefs project-file)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! dashboard-client updater newly-created?])
+        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
         (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs dashboard-client updater]
+  [namespace-loader prefs updater]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs dashboard-client updater
+    (welcome/show-welcome-dialog! prefs updater
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs project dashboard-client updater newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs project updater newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
@@ -111,21 +108,19 @@
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
-        dashboard-client (login/make-dashboard-client prefs)
         updater (updater/start!)
         analytics-url "https://www.google-analytics.com/batch"
-        analytics-send-interval 300
-        invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
+        analytics-send-interval 300]
     (when (some? updater)
       (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
+    (analytics/start! analytics-url analytics-send-interval true)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (let [game-project-path (get-in opts [:arguments 0])]
         (if (and game-project-path
                  (.exists (io/file game-project-path)))
-          (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client updater false)
-          (select-project-from-welcome namespace-loader prefs dashboard-client updater)))
+          (open-project-with-progress-dialog namespace-loader prefs game-project-path updater false)
+          (select-project-from-welcome namespace-loader prefs updater)))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

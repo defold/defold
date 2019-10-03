@@ -20,7 +20,6 @@
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
-            [editor.login :as login]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
@@ -45,7 +44,7 @@
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent]
-           [javafx.scene.layout Region VBox]
+           [javafx.scene.layout VBox]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -122,13 +121,13 @@
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-info-dialog
-    {:title "Internal Files Under Source Control"
+    {:title "Internal Files Under Version Control"
      :size :large
      :icon :icon/triangle-error
-     :header "Internal files were placed under source control"
+     :header "Internal files were placed under version control"
      :content {:pref-row-count 6
                :wrap-text true
-               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
+               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under version control.\n"
                           "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
                           "\n"
                           "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}}))
@@ -140,7 +139,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn load-stage [workspace project prefs dashboard-client updater newly-created?]
+(defn- load-stage [workspace project prefs updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
@@ -260,7 +259,6 @@
                              #_(g/transact (g/delete-node project))))
 
       (let [context-env {:app-view            app-view
-                         :dashboard-client    dashboard-client
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
@@ -310,33 +308,30 @@
       (let [git (g/node-value changes-view :git)]
         (if (sync/flow-in-progress? git)
           (ui/run-later
-            (loop []
-              (if-not (dialogs/make-confirmation-dialog
-                        {:title "Resume Sync?"
-                         :size :large
-                         :header {:fx/type :v-box
-                                  :children [{:fx/type fxui/label
-                                              :variant :header
-                                              :text "The editor was shut down while synchronizing with the server"}
-                                             {:fx/type fxui/label
-                                              :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
-                         :buttons [{:text "Cancel and Revert"
-                                    :cancel-button true
-                                    :result false}
-                                   {:text "Resume Sync"
-                                    :default-button true
-                                    :result true}]})
-                ;; User chose to cancel sync.
-                (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                    (async-reload! workspace changes-view))
+            (if-not (dialogs/make-confirmation-dialog
+                      {:title "Resume Sync?"
+                       :size :large
+                       :header {:fx/type :v-box
+                                :children [{:fx/type fxui/label
+                                            :variant :header
+                                            :text "The editor was shut down while synchronizing with the server"}
+                                           {:fx/type fxui/label
+                                            :text "Resume syncing or cancel and revert to the pre-sync state?"}]}
+                       :buttons [{:text "Cancel and Revert"
+                                  :cancel-button true
+                                  :result false}
+                                 {:text "Resume Sync"
+                                  :default-button true
+                                  :result true}]})
 
-                ;; User chose to resume sync.
-                (if-not (login/sign-in! dashboard-client :synchronize)
-                  (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
-                  (let [creds (git/credentials prefs)
-                        flow (sync/resume-flow git creds)]
-                    (sync/open-sync-dialog flow)
-                    (async-reload! workspace changes-view))))))
+              ;; User chose to cancel sync.
+              (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
+                  (async-reload! workspace changes-view))
+
+              ;; User chose to resume sync.
+              (let [flow (sync/resume-flow git)]
+                (sync/open-sync-dialog flow prefs)
+                (async-reload! workspace changes-view))))
 
           ;; A sync was not in progress.
           (do
@@ -384,15 +379,15 @@
                                          "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
 (defn open-project
-  [^File game-project-file prefs render-progress! dashboard-client updater newly-created?]
+  [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
-        project (project/open-project! *project-graph* extensions workspace game-project-res render-progress! (partial login/sign-in! dashboard-client :fetch-libraries))]
+        project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
-      (load-stage workspace project prefs dashboard-client updater newly-created?)
+      (load-stage workspace project prefs updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

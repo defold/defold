@@ -96,20 +96,11 @@
   [^String user-info]
   {"Authorization" (format "Basic %s" (str->b64 user-info))})
 
-(defn- make-defold-auth-headers
-  [prefs]
-  {"X-Auth" (prefs/get-prefs prefs "token" nil)
-   "X-Email" (prefs/get-prefs prefs "email" nil)})
-
 (defn- headers-for-uri [^URI lib-uri]
-  (let [host (str/lower-case (.getHost lib-uri))
-        user-info (.getUserInfo lib-uri)]
+  (let [user-info (.getUserInfo lib-uri)]
     (cond
       (some? user-info)
-      (make-basic-auth-headers user-info)
-
-      (some #{host} ["www.defold.com"])
-      (make-defold-auth-headers (prefs/make-prefs "defold")))))
+      (make-basic-auth-headers user-info))))
 
 (defn default-http-resolver [^URI uri ^String tag]
   (let [http-headers (headers-for-uri uri)

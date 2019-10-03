@@ -1,47 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.text.*?>
 <?import javafx.geometry.*?>
-<?import javafx.scene.*?>
 <?import javafx.scene.control.*?>
-<?import java.lang.*?>
 <?import javafx.scene.layout.*?>
-
+<?import javafx.scene.text.*?>
 
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/8.0.40" xmlns:fx="http://javafx.com/fxml/1">
-   <bottom>
-      <HBox BorderPane.alignment="CENTER">
-         <children>
+    <bottom>
+        <HBox BorderPane.alignment="CENTER">
             <Pane HBox.hgrow="ALWAYS" />
-         </children>
-      </HBox>
-   </bottom>
-   <padding>
-      <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />
-   </padding>
-   <top>
-      <Label id="main-label" text="Get Remote Changes" BorderPane.alignment="CENTER">
-         <font>
-            <Font size="18.0" />
-         </font>
-      </Label>
-   </top>
-   <center>
-      <StackPane BorderPane.alignment="CENTER">
-         <children>
-            <VBox id="conflict-box" prefHeight="200.0" prefWidth="100.0" visible="false">
-               <children>
-                  <Label text="Conflicting" />
-                  <ListView id="conflicting" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
-                  <Label text="Resolved">
-                     <padding>
-                        <Insets top="16.0" />
-                     </padding>
-                  </Label>
-                  <ListView id="resolved" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
-               </children>
+        </HBox>
+    </bottom>
+    <padding>
+        <Insets bottom="16.0" left="16.0" right="16.0" top="16.0" />
+    </padding>
+    <top>
+        <Label id="main-label" text="Get Remote Changes" BorderPane.alignment="CENTER">
+            <font>
+                <Font size="18.0" />
+            </font>
+        </Label>
+    </top>
+    <center>
+        <StackPane BorderPane.alignment="CENTER">
+            <TextFlow id="pull-info-box" visible="false" />
+            <VBox id="pull-start-box" visible="false">
+                <Label text="Username" />
+                <TextField id="username-field" styleClass="error" />
+                <Label text="Password / Personal Access Token" />
+                <PasswordField id="password-field" />
+                <CheckBox id="save-password-checkbox">Save password</CheckBox>
+                <TextFlow id="personal-access-token-info">
+                    <Text text="Using an online host like GitHub or Bitbucket? You can use a " />
+                    <Hyperlink text="Personal Access Token" id="personal-access-token-link" />
+                    <Text text=" instead of a password. Defold needs " />
+                    <Text text="repo" styleClass="strong" />
+                    <Text text=" access to synchronize.&#13;&#13;" />
+                    <Text text="Also note that some forms of two-factor authentication may " />
+                    <Text text="only" styleClass="emphasis" />
+                    <Text text=" work if you use a Personal Access Token." />
+                </TextFlow>
             </VBox>
-         </children>
-      </StackPane>
-   </center>
+            <VBox id="conflict-box" prefHeight="200.0" prefWidth="100.0" visible="false">
+                <Label text="Conflicting" />
+                <ListView id="conflicting" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+                <Label text="Resolved">
+                    <padding>
+                        <Insets top="16.0" />
+                    </padding>
+                </Label>
+                <ListView id="resolved" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+            </VBox>
+        </StackPane>
+    </center>
 </BorderPane>

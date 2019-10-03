@@ -373,6 +373,15 @@
 (defn remove-style! [^Styleable node ^String class]
   (remove-styles! node [class]))
 
+(defn set-style! [^Styleable node ^String class enabled]
+  (let [styles (.getStyleClass node)]
+    (if (some (partial = class) styles)
+      (when (not enabled)
+        (.remove styles class))
+      (when enabled
+        (.add styles class)))
+    nil))
+
 (defn update-tree-cell-style! [^TreeCell cell]
   (let [tree-view (.getTreeView cell)
         expanded-count (.getExpandedItemCount tree-view)
