@@ -19,7 +19,7 @@
            [clojure.lang MultiFn]
            [com.defold.editor Platform]
            [java.io File]
-           [java.nio.file Path]))
+           [java.nio.file Path LinkOption]))
 
 (set! *warn-on-reflection* true)
 
@@ -589,11 +589,11 @@
 (defn- remove-file [^Path project-path ^String file-name]
   (let [file-path (ensure-file-path-in-project-directory project-path file-name)
         file (File. file-path)]
-    (vreset! (:request-sync *execution-context*) true)
     (when-not (.exists file)
       (throw (LuaError. (str "No such file or directory: " file-name))))
     (when-not (.delete file)
-      (throw (LuaError. (str "Failed to delete " file-name))))))
+      (throw (LuaError. (str "Failed to delete " file-name))))
+    (vreset! (:request-sync *execution-context*) true)))
 
 (defn reload! [project kind ui]
   (g/with-auto-evaluation-context ec
