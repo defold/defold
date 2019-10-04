@@ -379,9 +379,7 @@ namespace dmRender
 
         if (state != dmGraphics::STATE_DEPTH_TEST &&
             state != dmGraphics::STATE_STENCIL_TEST &&
-#ifndef GL_ES_VERSION_2_0
             state != dmGraphics::STATE_ALPHA_TEST &&
-#endif
             state != dmGraphics::STATE_BLEND &&
             state != dmGraphics::STATE_CULL_FACE &&
             state != dmGraphics::STATE_POLYGON_OFFSET_FILL)
@@ -427,9 +425,7 @@ namespace dmRender
         uint32_t state = luaL_checknumber(L, 1);
         if (state != dmGraphics::STATE_DEPTH_TEST &&
             state != dmGraphics::STATE_STENCIL_TEST &&
-#ifndef GL_ES_VERSION_2_0
             state != dmGraphics::STATE_ALPHA_TEST &&
-#endif
             state != dmGraphics::STATE_BLEND &&
             state != dmGraphics::STATE_CULL_FACE &&
             state != dmGraphics::STATE_POLYGON_OFFSET_FILL)
@@ -2373,9 +2369,7 @@ namespace dmRender
 
         REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
         REGISTER_STATE_CONSTANT(STATE_STENCIL_TEST);
-#ifndef GL_ES_VERSION_2_0
         REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
-#endif
         REGISTER_STATE_CONSTANT(STATE_BLEND);
         REGISTER_STATE_CONSTANT(STATE_CULL_FACE);
         REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_FILL);

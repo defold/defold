@@ -64,8 +64,12 @@ namespace dmGraphics
     const State STATE_DEPTH_TEST            = GL_DEPTH_TEST;
     const State STATE_SCISSOR_TEST          = GL_SCISSOR_TEST;
     const State STATE_STENCIL_TEST          = GL_STENCIL_TEST;
-#ifndef GL_ES_VERSION_2_0
+#if !defined(GL_ES_VERSION_2_0)
     const State STATE_ALPHA_TEST            = GL_ALPHA_TEST;
+    const bool  STATE_ALPHA_TEST_SUPPORTED  = 1;
+#else
+    const State STATE_ALPHA_TEST            = 0x0BC0;
+    const bool  STATE_ALPHA_TEST_SUPPORTED  = 0;
 #endif
     const State STATE_BLEND                 = GL_BLEND;
     const State STATE_CULL_FACE             = GL_CULL_FACE;

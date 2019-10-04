@@ -66,12 +66,11 @@ namespace dmGraphics
     extern const State STATE_DEPTH_TEST;
     extern const State STATE_SCISSOR_TEST;
     extern const State STATE_STENCIL_TEST;
-#ifndef GL_ES_VERSION_2_0
     extern const State STATE_ALPHA_TEST;
-#endif
     extern const State STATE_BLEND;
     extern const State STATE_CULL_FACE;
     extern const State STATE_POLYGON_OFFSET_FILL;
+    extern const bool  STATE_ALPHA_TEST_SUPPORTED;
 
     // data types
     typedef uint32_t Type;
