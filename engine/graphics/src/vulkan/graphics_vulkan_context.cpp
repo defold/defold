@@ -3,6 +3,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 
+#include "graphics_vulkan_defines.h"
 #include "../graphics.h"
 #include "graphics_vulkan_private.h"
 

@@ -11,6 +11,7 @@
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "../graphics.h"
+#include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
@@ -377,22 +378,22 @@ namespace dmGraphics
         PipelineState vk_default_pipeline;
         vk_default_pipeline.m_WriteColorMask     = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
         vk_default_pipeline.m_WriteDepth         = 1;
-        vk_default_pipeline.m_PrimtiveType       = DMGRAPHICS_PRIMITIVE_TRIANGLES;
+        vk_default_pipeline.m_PrimtiveType       = PRIMITIVE_TRIANGLES;
         vk_default_pipeline.m_DepthTestEnabled   = 1;
-        vk_default_pipeline.m_DepthTestFunc      = DMGRAPHICS_COMPARE_FUNC_LEQUAL;
+        vk_default_pipeline.m_DepthTestFunc      = COMPARE_FUNC_LEQUAL;
         vk_default_pipeline.m_BlendEnabled       = 0;
-        vk_default_pipeline.m_BlendSrcFactor     = DMGRAPHICS_BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_BlendDstFactor     = DMGRAPHICS_BLEND_FACTOR_ZERO;
+        vk_default_pipeline.m_BlendSrcFactor     = BLEND_FACTOR_ZERO;
+        vk_default_pipeline.m_BlendDstFactor     = BLEND_FACTOR_ZERO;
         vk_default_pipeline.m_StencilEnabled     = 0;
-        vk_default_pipeline.m_StencilOpFail      = DMGRAPHICS_STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpDepthFail = DMGRAPHICS_STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpPass      = DMGRAPHICS_STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilTestFunc    = DMGRAPHICS_COMPARE_FUNC_ALWAYS;
+        vk_default_pipeline.m_StencilOpFail      = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilOpDepthFail = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilOpPass      = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilTestFunc    = COMPARE_FUNC_ALWAYS;
         vk_default_pipeline.m_StencilWriteMask   = 0xff;
         vk_default_pipeline.m_StencilCompareMask = 0xff;
         vk_default_pipeline.m_StencilReference   = 0x0;
         vk_default_pipeline.m_CullFaceEnabled    = 0;
-        vk_default_pipeline.m_CullFaceType       = DMGRAPHICS_FACE_TYPE_BACK;
+        vk_default_pipeline.m_CullFaceType       = FACE_TYPE_BACK;
         vk_default_pipeline.m_ScissorEnabled     = 0;
         context->m_PipelineState = vk_default_pipeline;
 
@@ -1184,19 +1185,17 @@ bail:
 
     static inline uint32_t GetTypeSize(Type type)
     {
-        switch (type)
+        if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
         {
-            case TYPE_BYTE:
-            case TYPE_UNSIGNED_BYTE:
-                return 1;
-            case TYPE_SHORT:
-            case TYPE_UNSIGNED_SHORT:
-                return 2;
-            case TYPE_INT:
-            case TYPE_UNSIGNED_INT:
-            case TYPE_FLOAT:
-                return 4;
-            default: break;
+            return 1;
+        }
+        else if (type == TYPE_SHORT || TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == TYPE_INT || type == TYPE_UNSIGNED_INT || type == TYPE_FLOAT)
+        {
+            return 4;
         }
         assert(0 && "Unsupported data type");
         return 0;
@@ -1206,36 +1205,27 @@ bail:
     {
         if (type == TYPE_FLOAT)
         {
-            switch(size)
-            {
-                case 1: return VK_FORMAT_R32_SFLOAT;
-                case 2: return VK_FORMAT_R32G32_SFLOAT;
-                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
-                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
-                default: return VK_FORMAT_R32_SFLOAT;
-            }
+            if (size == 1)     return VK_FORMAT_R32_SFLOAT;
+            else if(size == 2) return VK_FORMAT_R32G32_SFLOAT;
+            else if(size == 3) return VK_FORMAT_R32G32B32_SFLOAT;
+            else if(size == 4) return VK_FORMAT_R32G32B32A32_SFLOAT;
+            else               return VK_FORMAT_R32_SFLOAT;
         }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
-            switch(size)
-            {
-                case 1: return VK_FORMAT_R8_UINT;
-                case 2: return VK_FORMAT_R8G8_UINT;
-                case 3: return VK_FORMAT_R8G8B8_UINT;
-                case 4: return VK_FORMAT_R8G8B8A8_UINT;
-                default: return VK_FORMAT_R8_UINT;
-            }
+            if (size == 1)     return VK_FORMAT_R8_UINT;
+            else if(size == 2) return VK_FORMAT_R8G8_UINT;
+            else if(size == 3) return VK_FORMAT_R8G8B8_UINT;
+            else if(size == 4) return VK_FORMAT_R8G8B8A8_UINT;
+            else               return VK_FORMAT_R8_UINT;
         }
         else if (type == TYPE_UNSIGNED_SHORT)
         {
-            switch(size)
-            {
-                case 1: return VK_FORMAT_R16_UINT;
-                case 2: return VK_FORMAT_R16G16_UINT;
-                case 3: return VK_FORMAT_R16G16B16_UINT;
-                case 4: return VK_FORMAT_R16G16B16A16_UINT;
-                default: return VK_FORMAT_R16_UINT;
-            }
+            if (size == 1)     return VK_FORMAT_R16_UINT;
+            else if(size == 2) return VK_FORMAT_R16G16_UINT;
+            else if(size == 3) return VK_FORMAT_R16G16B16_UINT;
+            else if(size == 4) return VK_FORMAT_R16G16B16A16_UINT;
+            else               return VK_FORMAT_R16_UINT;
         }
         else if (type == TYPE_FLOAT_MAT4)
         {

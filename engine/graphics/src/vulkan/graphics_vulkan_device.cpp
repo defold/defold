@@ -1,6 +1,7 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
+#include "graphics_vulkan_defines.h"
 #include "../graphics.h"
 #include "graphics_vulkan_private.h"
 
@@ -662,7 +663,7 @@ bail:
         VkPipelineColorBlendAttachmentState vk_color_blend_attachment;
         memset(&vk_color_blend_attachment, 0, sizeof(vk_color_blend_attachment));
 
-        uint8_t state_write_mask    = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;// pipelineState.m_WriteColorMask;
+        uint8_t state_write_mask    = pipelineState.m_WriteColorMask;
         uint8_t vk_color_write_mask = 0;
         vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;

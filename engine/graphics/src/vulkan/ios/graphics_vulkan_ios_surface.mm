@@ -6,6 +6,7 @@
 
 #include <graphics/glfw/glfw_native.h>
 
+#include "../graphics_vulkan_defines.h"
 #include "../../graphics.h"
 
 namespace dmGraphics

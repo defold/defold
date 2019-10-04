@@ -1,6 +1,7 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
+#include "../graphics_vulkan_defines.h"
 #include "../../graphics.h"
 #include "../graphics_vulkan_private.h"
 

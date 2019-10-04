@@ -4,6 +4,7 @@
     <item key="editor.git-test/with-new-git" resolves-as="clojure.core/def" />
     <item key="dynamo.graph/fnk" resolves-as="clojure.core/fn" />
     <item key="editor.ui/with-controls" resolves-as="clojure.core/fn" />
+    <item key="clojure.spec.alpha/fdef" resolves-as="clojure.core/def" />
     <item key="dynamo.graph/deftype" resolves-as="clojure.core/def" />
     <item key="dynamo.graph/defnk" resolves-as="clojure.core/defn" />
     <item key="dynamo.graph/defnode" resolves-as="clojure.core/def" />

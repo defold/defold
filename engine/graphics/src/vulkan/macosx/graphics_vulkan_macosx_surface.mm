@@ -8,8 +8,8 @@
     #include <Carbon/Carbon.h>
 #endif
 
+#include "../graphics_vulkan_defines.h"
 #include "../../graphics.h"
-
 #include "../graphics_vulkan_private.h"
 
 namespace dmGraphics
