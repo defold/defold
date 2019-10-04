@@ -357,7 +357,7 @@
                 :command :rebundle}
                {:label "Fetch Libraries"
                 :command :fetch-libraries}
-               {:label "Reload Extensions"
+               {:label "Reload Editor Scripts"
                 :command :reload-extensions}
                {:label "Live Update Settings"
                 :command :live-update-settings}

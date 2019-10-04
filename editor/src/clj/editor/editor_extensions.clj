@@ -17,7 +17,9 @@
             [editor.workspace :as workspace])
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
            [clojure.lang MultiFn]
-           [com.defold.editor Platform]))
+           [com.defold.editor Platform]
+           [java.io File]
+           [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
 
@@ -337,6 +339,7 @@
     node-id-or-path))
 
 (defn- do-ext-get [node-id-or-path property]
+  (ensure-spec ::node-id node-id-or-path)
   (let [{:keys [evaluation-context project]} *execution-context*]
     (ext-get (node-id-or-path->node-id node-id-or-path project evaluation-context)
              property
@@ -561,6 +564,37 @@
             :when dynamic-handler]
         dynamic-handler))))
 
+(defn- ensure-file-path-in-project-directory
+  ^String [^Path project-path ^String file-name]
+  (let [normalized-path (-> project-path
+                            (.resolve file-name)
+                            .normalize)]
+    (if (.startsWith normalized-path project-path)
+      (.toString normalized-path)
+      (throw (LuaError. (str "Can't open "
+                             file-name
+                             ": outside of project directory"))))))
+
+(defn- open-file [project-path file-name read-mode]
+  (let [file-path (ensure-file-path-in-project-directory project-path file-name)]
+    (when-not read-mode
+      (vreset! (:request-sync *execution-context*) true))
+    file-path))
+
+(defn- find-resource [project evaluation-context path]
+  (some-> (project/get-resource-node project path evaluation-context)
+          (g/node-value :lines evaluation-context)
+          (data/lines-input-stream)))
+
+(defn- remove-file [^Path project-path ^String file-name]
+  (let [file-path (ensure-file-path-in-project-directory project-path file-name)
+        file (File. file-path)]
+    (when-not (.exists file)
+      (throw (LuaError. (str "No such file or directory: " file-name))))
+    (when-not (.delete file)
+      (throw (LuaError. (str "Failed to delete " file-name))))
+    (vreset! (:request-sync *execution-context*) true)))
+
 (defn reload! [project kind ui]
   (g/with-auto-evaluation-context ec
     (g/user-data-swap!
@@ -573,26 +607,20 @@
                                (workspace/project-path ec)
                                .toPath
                                .normalize)
-              env (luart/make-env (fn [path]
-                                    (some-> (project/get-resource-node project path ec)
-                                            (g/node-value :lines ec)
-                                            (data/lines-input-stream)))
-                                  (fn [^String filename read-mode]
-                                    (when-not read-mode
-                                      (vreset! (:request-sync *execution-context*) true))
-                                    (let [normalized-path (-> project-path
-                                                              (.resolve filename)
-                                                              .normalize)]
-                                      (if (.startsWith normalized-path project-path)
-                                        (.toString normalized-path)
-                                        (throw (ex-info (str "Can't open "
-                                                             filename
-                                                             ": outside of project directory")
-                                                        {:filename filename
-                                                         :project-path project-path})))))
-                                  {"editor" {"get" do-ext-get
-                                             "platform" (.getPair (Platform/getHostPlatform))}}
-                                  #(display-output! ui %1 %2))]
+              env (luart/make-env
+                    :find-resource #(find-resource project ec %)
+                    :open-file #(open-file project-path %1 %2)
+                    :out #(display-output! ui %1 %2)
+                    :globals {"editor" {"get" do-ext-get
+                                        "platform" (.getPair (Platform/getHostPlatform))}
+                              "package" {"config" (string/join "\n" [File/pathSeparatorChar \; \? \! \-])}
+                              "io" {"tmpfile" nil}
+                              "os" {"execute" nil
+                                    "exit" nil
+                                    "remove" #(remove-file project-path %)
+                                    "rename" nil
+                                    "setlocale" nil
+                                    "tmpname" nil}})]
           (-> state
               (assoc :ui ui)
               (cond-> (#{:library :all} kind)
