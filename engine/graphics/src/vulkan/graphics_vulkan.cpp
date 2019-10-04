@@ -153,7 +153,7 @@ namespace dmGraphics
         // Id 0 is taken for the main framebuffer
         if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            next_id = 1;
+            next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
         }
 
         return next_id++;
@@ -1133,7 +1133,7 @@ bail:
 
     uint32_t GetMaxElementsVertices(HContext context)
     {
-        // There's no real max in Vulkan, it's up to the developer.
+        // There's no real max limit in Vulkan, it's bound by memory and not by spec.
         return 4294967295; // 2^32-1
     }
 
@@ -1179,7 +1179,7 @@ bail:
 
     uint32_t GetMaxElementsIndices(HContext context)
     {
-        // There's no real max in Vulkan, it's up to the developer.
+        // There's no real max limit in Vulkan, it's bound by memory and not by spec.
         return 4294967295; // 2^32-1
     }
 
@@ -1189,7 +1189,7 @@ bail:
         {
             return 1;
         }
-        else if (type == TYPE_SHORT || TYPE_UNSIGNED_SHORT)
+        else if (type == TYPE_SHORT || type == TYPE_UNSIGNED_SHORT)
         {
             return 2;
         }
@@ -1594,6 +1594,8 @@ bail:
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         // Defer this to when we actually draw, since we *might* need to flip the viewport
+        // depending on wether or not we have set a different rendertarget from when
+        // this call was made.
         context->m_MainViewport.m_HasChanged = 1;
         context->m_MainViewport.m_X          = (uint16_t) x;
         context->m_MainViewport.m_Y          = (uint16_t) y;

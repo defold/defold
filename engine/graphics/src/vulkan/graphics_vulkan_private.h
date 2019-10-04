@@ -38,7 +38,10 @@ namespace dmGraphics
             uint16_t m_Location;
             uint16_t m_Offset;
             VkFormat m_Format;
-            // bool        m_Normalize; // Not sure how to deal with this in VK
+
+            // TODO: Not sure how to deal with normalizing
+            //       a vertex stream in VK.
+            // bool        m_Normalize;
         };
 
         uint64_t    m_Hash;

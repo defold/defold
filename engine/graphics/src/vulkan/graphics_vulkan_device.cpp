@@ -529,14 +529,11 @@ bail:
         return res;
     }
 
+    // These lookup values should match the ones in graphics_vulkan_constants.cpp
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
-        VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
-        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP,
-        VK_PRIMITIVE_TOPOLOGY_MAX_ENUM,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
     };
 
     static const VkCullModeFlagBits g_vk_cull_modes[] = {
@@ -584,7 +581,6 @@ bail:
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
     {
         assert(pipelineOut && pipelineOut->m_Pipeline == VK_NULL_HANDLE);
-        // PipelineState pipelineState = g_vk_context.m_PipelineState;
 
         VkVertexInputAttributeDescription vk_vertex_input_descs[DM_MAX_VERTEX_STREAM_COUNT];
         uint16_t active_attributes = FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
