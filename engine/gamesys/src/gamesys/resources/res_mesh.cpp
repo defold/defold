@@ -275,6 +275,9 @@ namespace dmGameSystem
         resource->m_MeshDDF = 0x0;
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
+        if (resource->m_BufferResource != 0x0)
+            dmResource::Release(factory, resource->m_BufferResource);
+
         resource->m_Material = 0x0;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {

@@ -286,17 +286,16 @@ namespace dmScript
 
     struct LuaHBuffer
     {
-        // LuaHBuffer() {
-        //     m_Buffer = 0x0;
-        //     // m_UseLuaGC = false;
-        // }
-        // union {
+        union {
             dmBuffer::HBuffer   m_Buffer;
-            // void*               m_BufferRes;
-        // };
+            void*               m_BufferRes;
+        };
 
-        // LuaBufferOwnership  m_Owner;
-        bool                m_UseLuaGC;     //!< If true, Lua will delete the buffer in the Lua GC phase
+        /// Specifies the owner of the buffer.
+        /// OWNER_C   - m_Buffer is owned by C side, should not be destroyed when GCed
+        /// OWNER_LUA - m_Buffer is owned by Lua side, will be destroyed when GCed
+        /// OWNER_RES - m_Buffer not used, has a reference to a buffer resource instead. m_BufferRes is owned by C side, will be released when GCed
+        LuaBufferOwnership  m_Owner;
     };
 
     /*# check if the value is a dmScript::LuaHBuffer

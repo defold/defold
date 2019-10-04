@@ -9,6 +9,7 @@
 #include <dlib/log.h>
 
 #include "script_buffer.h"
+#include "../resources/res_buffer.h"
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -26,6 +27,8 @@ static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
 
 namespace dmGameSystem
 {
+    static dmResource::HFactory g_Factory = 0x0;
+
     /*# Buffer API documentation
      *
      * Functions for manipulating buffers and streams
@@ -102,6 +105,16 @@ namespace dmGameSystem
         dmBuffer::ValueType m_Type;		// The type of elements in the array
         int                 m_BufferRef;// Holds a reference to the Lua object
     };
+
+    static inline dmBuffer::HBuffer UnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
+    {
+        if (lua_buffer->m_Owner == dmScript::OWNER_RES) {
+            BufferResource* res = (BufferResource*)lua_buffer->m_BufferRes;
+            return res->m_Buffer;
+        } else {
+            return lua_buffer->m_Buffer;
+        }
+    }
 
     static bool IsStream(lua_State *L, int index)
     {
@@ -371,7 +384,7 @@ namespace dmGameSystem
             return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        dmScript::LuaHBuffer luabuf = { buffer, true };
+        dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
         PushBuffer(L, luabuf);
 
         assert(top + 1 == lua_gettop(L));
@@ -391,8 +404,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
         dmhash_t stream_name = dmScript::CheckHashOrString(L, 2);
-        PushStream(L, 1, buffer->m_Buffer, stream_name);
+        PushStream(L, 1, hbuffer, stream_name);
         return 1;
     }
 
@@ -556,8 +570,10 @@ namespace dmGameSystem
 
         dmScript::LuaHBuffer* _dstbuffer = dmScript::CheckBuffer(L, 1);
         dmScript::LuaHBuffer* _srcbuffer = dmScript::CheckBuffer(L, 3);
-        dmBuffer::HBuffer dstbuffer = _dstbuffer->m_Buffer;
-        dmBuffer::HBuffer srcbuffer = _srcbuffer->m_Buffer;
+        dmBuffer::HBuffer dst_hbuffer = UnpackLuaBuffer(_dstbuffer);
+        dmBuffer::HBuffer src_hbuffer = UnpackLuaBuffer(_srcbuffer);
+        dmBuffer::HBuffer dstbuffer = dst_hbuffer;
+        dmBuffer::HBuffer srcbuffer = src_hbuffer;
         int dstoffset = luaL_checkint(L, 2);
         int srcoffset = luaL_checkint(L, 4);
         int count = luaL_checkint(L, 5);
@@ -651,10 +667,11 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
 
         uint8_t* data;
         uint32_t datasize;
-        dmBuffer::Result r = dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
+        dmBuffer::Result r = dmBuffer::GetBytes(hbuffer, (void**)&data, &datasize);
         if( r != dmBuffer::RESULT_OK )
         {
             return DM_LUA_ERROR("buffer.create: Failed getting buffer: %s", dmBuffer::GetResultString(r));
@@ -672,12 +689,13 @@ namespace dmGameSystem
         dmScript::LuaHBuffer* buffer = dmScript::CheckBufferNoError(L, 1);
         if( buffer )
         {
-            // if (buffer->m_Owner == OWNER_LUA)
-            // {
+            if (buffer->m_Owner == dmScript::OWNER_LUA)
+            {
                 dmBuffer::Destroy(buffer->m_Buffer);
-            // } else if (buffer->m_Owner == OWNER_RES) {
-
-            // }
+            } else if (buffer->m_Owner == dmScript::OWNER_RES) {
+                dmLogError("released a buffer resource");
+                dmResource::Release(g_Factory, buffer->m_BufferRes);
+            }
 
         }
         return 0;
@@ -689,10 +707,11 @@ namespace dmGameSystem
         dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
 
         uint32_t num_streams;
-        dmBuffer::GetNumStreams(buffer->m_Buffer, &num_streams);
+        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::GetNumStreams(hbuffer, &num_streams);
 
         uint32_t out_element_count = 0;
-        dmBuffer::Result r = dmBuffer::GetCount(buffer->m_Buffer, &out_element_count);
+        dmBuffer::Result r = dmBuffer::GetCount(hbuffer, &out_element_count);
         if( r != dmBuffer::RESULT_OK )
         {
             lua_pushfstring(L, "buffer.%s(invalid)", SCRIPT_TYPE_NAME_BUFFER);
@@ -714,11 +733,11 @@ namespace dmGameSystem
         for( uint32_t i = 0; i < num_streams; ++i )
         {
             dmhash_t stream_name = 0;
-            dmBuffer::GetStreamName(buffer->m_Buffer, i, &stream_name);
+            dmBuffer::GetStreamName(hbuffer, i, &stream_name);
 
             dmBuffer::ValueType type;
             uint32_t type_count = 0;
-            GetStreamType(buffer->m_Buffer, stream_name, &type, &type_count);
+            GetStreamType(hbuffer, stream_name, &type, &type_count);
 
             const char* comma = i<(num_streams-1)?", ":"";
             const char* typestring = dmBuffer::GetValueTypeString(type);
@@ -735,8 +754,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
         uint32_t count = 0;
-        dmBuffer::Result r = dmBuffer::GetCount(buffer->m_Buffer, &count);
+        dmBuffer::Result r = dmBuffer::GetCount(hbuffer, &count);
         if (r != dmBuffer::RESULT_OK) {
             return DM_LUA_ERROR("%s.%s could not get buffer length", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFER);
         }
@@ -873,6 +893,7 @@ namespace dmGameSystem
     void ScriptBufferRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
+        g_Factory = context.m_Factory;
         int top = lua_gettop(L);
 
         const uint32_t type_count = 2;
@@ -923,7 +944,8 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 1);
         dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
         luabuf->m_Buffer = v.m_Buffer;
-        luabuf->m_UseLuaGC = v.m_UseLuaGC;
+        luabuf->m_BufferRes = v.m_BufferRes;
+        luabuf->m_Owner = v.m_Owner;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);
     }
@@ -933,7 +955,8 @@ namespace dmScript
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            if( buffer && dmBuffer::IsBufferValid(buffer->m_Buffer))
+            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
+            if( buffer && dmBuffer::IsBufferValid(hbuffer))
             {
                 return buffer;
             }
@@ -946,7 +969,8 @@ namespace dmScript
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
-            if( dmBuffer::IsBufferValid( buffer->m_Buffer ) ) {
+            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
+            if( dmBuffer::IsBufferValid( hbuffer ) ) {
                 return buffer;
             }
             luaL_error(L, "The buffer handle is invalid");

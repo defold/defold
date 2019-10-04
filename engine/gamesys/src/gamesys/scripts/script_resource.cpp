@@ -251,7 +251,7 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::LuaHBuffer luabuf = {buffer, true};
+    dmScript::LuaHBuffer luabuf = {buffer, dmScript::OWNER_LUA};
     dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;
@@ -453,7 +453,10 @@ static int GetBuffer(lua_State* L)
     }
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
-    dmScript::LuaHBuffer luabuf = { buffer_resource->m_Buffer, false };
+    dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
+    dmScript::LuaHBuffer luabuf;
+    luabuf.m_BufferRes = (void*)buffer_resource;
+    luabuf.m_Owner = dmScript::OWNER_RES;
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));
@@ -467,6 +470,9 @@ static int SetBuffer(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
     dmBuffer::HBuffer src_buffer = luabuf->m_Buffer;
+    if (luabuf->m_Owner == dmScript::OWNER_RES) {
+        src_buffer = ((BufferResource*)luabuf->m_BufferRes)->m_Buffer;
+    }
 
     dmResource::SResourceDescriptor* rd = dmResource::GetByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
