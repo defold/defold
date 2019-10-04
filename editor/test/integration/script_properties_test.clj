@@ -5,6 +5,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
+            [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.code.script :as script]
             [editor.collection :as collection]
@@ -350,7 +351,7 @@
         evaluation-context (g/make-evaluation-context)
         old-artifact-map (workspace/artifact-map workspace)
         build-path (workspace/build-path workspace)
-        build-result (project/build! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-result (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
     (g/update-cache-from-evaluation-context! evaluation-context)
     [build-path build-result]))
 

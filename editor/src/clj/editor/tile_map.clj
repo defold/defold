@@ -1192,11 +1192,11 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
-(ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:label   "Select Tile..."
-                  :command :show-palette}
-                 {:label   "Select Eraser"
-                  :command :erase-tool}])
+(handler/register-menu! ::menubar :editor.app-view/edit-end
+  [{:label "Select Tile..."
+    :command :show-palette}
+   {:label "Select Eraser"
+    :command :erase-tool}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

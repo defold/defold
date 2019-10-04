@@ -336,7 +336,7 @@
   (input gpu-texture g/Any)
 
   (output animation Animation (g/fnk [id atlas-images fps flip-horizontal flip-vertical playback]
-                                      (types/->Animation id atlas-images fps flip-horizontal flip-vertical playback)))
+                                (types/->Animation id atlas-images fps flip-horizontal flip-vertical playback)))
 
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id child-outlines id own-build-errors]
@@ -633,8 +633,8 @@
             (if (contains? m key)
               (update m key (complement zero?))
               m))
-            m
-            keys))
+          m
+          keys))
 
 (defn load-atlas [project self resource atlas]
   (let [workspace (project/workspace project)
