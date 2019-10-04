@@ -11,8 +11,8 @@ the flag needs to be set for the graphics system to poll for support.
 By default, we link the engine with a static version of the MoltenVK library, which doesn't
 have any support for. To get validation layers to work on OSX and iOS platforms,
 you need to copy the vulkan dylib files from the SDK (typically resides under `<path-to-sdk>/macOS/lib/)`
-to the `$DYNAMO_HOME/tmp/share/lib/x86_64-darwin` directory
-and link with the vulkan library instead of MoltenVK in the `engine/engine/wscript` file. However, you don't need to copy the actual
+to the `$DYNAMO_HOME/tmp/share/lib/x86_64-darwin` directory, the `engine/engine/wscript` will link with
+the dylib library when `DM_VULKAN_VALIDATION` is set. You don't need to copy the actual
 validation layer libraries, since they will be automatically picked up by the loader from the paths
 specified in the manifest files.
 
