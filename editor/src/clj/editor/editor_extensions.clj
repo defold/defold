@@ -19,7 +19,7 @@
            [clojure.lang MultiFn]
            [com.defold.editor Platform]
            [java.io File]
-           [java.nio.file Path LinkOption]))
+           [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
 
