@@ -76,49 +76,51 @@
             (.setAll children (list-children (.getValue this))))
           children)))))
 
-(ui/extend-menu ::resource-menu nil
-                [{:label "Open"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open}
-                 {:label "Open As"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open-as}
-                 {:label :separator}
-                 {:label "Copy Project Path"
-                  :command :copy-project-path}
-                 {:label "Copy Full Path"
-                  :command :copy-full-path}
-                 {:label "Copy Require Path"
-                  :command :copy-require-path}
-                 {:label :separator}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}
-                 {:label "Referencing Files..."
-                  :command :referencing-files}
-                 {:label "Dependencies..."
-                  :command :dependencies}
-                 {:label :separator}
-                 {:label "New"
-                  :command :new-file
-                  :expand? true
-                  :icon "icons/64/Icons_29-AT-Unknown.png"}
-                 {:label "New Folder"
-                  :command :new-folder
-                  :icon "icons/32/Icons_01-Folder-closed.png"}
-                 {:label :separator}
-                 {:label "Cut"
-                  :command :cut}
-                 {:label "Copy"
-                  :command :copy}
-                 {:label "Paste"
-                  :command :paste}
-                 {:label "Delete"
-                  :command :delete
-                  :icon "icons/32/Icons_M_06_trash.png"}
-                 {:label :separator}
-                 {:label "Rename..."
-                  :command :rename}])
+(handler/register-menu! ::resource-menu
+  [{:label "Open"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :open}
+   {:label "Open As"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :open-as}
+   {:label :separator}
+   {:label "Copy Project Path"
+    :command :copy-project-path}
+   {:label "Copy Full Path"
+    :command :copy-full-path}
+   {:label "Copy Require Path"
+    :command :copy-require-path}
+   {:label :separator}
+   {:label "Show in Desktop"
+    :icon "icons/32/Icons_S_14_linkarrow.png"
+    :command :show-in-desktop}
+   {:label "Referencing Files..."
+    :command :referencing-files}
+   {:label "Dependencies..."
+    :command :dependencies}
+   {:label :separator}
+   {:label "New"
+    :command :new-file
+    :expand? true
+    :icon "icons/64/Icons_29-AT-Unknown.png"}
+   {:label "New Folder"
+    :command :new-folder
+    :icon "icons/32/Icons_01-Folder-closed.png"}
+   {:label :separator}
+   {:label "Cut"
+    :command :cut}
+   {:label "Copy"
+    :command :copy}
+   {:label "Paste"
+    :command :paste}
+   {:label "Delete"
+    :command :delete
+    :icon "icons/32/Icons_M_06_trash.png"}
+   {:label :separator}
+   {:label "Rename..."
+    :command :rename}
+   {:label :separator
+    :id ::context-menu-end}])
 
 (def fixed-resource-paths #{"/" "/game.project"})
 

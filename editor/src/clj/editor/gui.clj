@@ -3009,11 +3009,11 @@
                     :command :set-gui-layout
                     :user-data l}))))))
 
-(ui/extend-menu :toolbar :visibility-settings
-                [{:label :separator}
-                 {:icon layout-icon
-                  :command :set-gui-layout
-                  :label "Test"}])
+(handler/register-menu! ::toolbar :visibility-settings
+  [{:label :separator}
+   {:icon layout-icon
+    :command :set-gui-layout
+    :label "Test"}])
 
 (def ^:private node-type->kw {BoxNode :type-box
                               PieNode :type-pie

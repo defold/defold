@@ -1,18 +1,18 @@
 (ns integration.library-test
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
-            [editor.library :as library]
+            [editor.editor-extensions :as extensions]
             [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.progress :as progress]
-            [editor.settings-core :as settings-core]
             [editor.game-project :as game-project]
             [editor.gui :as gui]
-            [editor.url :as url]
+            [editor.library :as library]
+            [editor.progress :as progress]
+            [editor.settings-core :as settings-core]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [service.log :as log])
+            [service.log :as log]
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.net URI]
            [org.apache.commons.io FileUtils]
            [org.apache.commons.codec.digest DigestUtils]))
@@ -21,11 +21,11 @@
 
 (defn- setup-scratch
   ([ws-graph]
-    (setup-scratch ws-graph *project-path*))
+   (setup-scratch ws-graph *project-path*))
   ([ws-graph project-path]
-    (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
-          project (test-util/setup-project! workspace)]
-      [workspace project])))
+   (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
+         project (test-util/setup-project! workspace)]
+     [workspace project])))
 
 (def ^:private uri-string "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus")
 (def ^:private uris (library/parse-library-uris uri-string))
@@ -118,7 +118,8 @@
             uri (test-util/lib-server-uri server "lib_resource_project")
             game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
         (write-deps! game-project-res uri)
-        (let [project (project/open-project! world workspace game-project-res progress/null-render-progress!)
+        (let [extensions (extensions/make world)
+              project (project/open-project! world extensions workspace game-project-res progress/null-render-progress!)
               ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
               int-gui (test-util/resource-node project "/gui/empty.gui")]
           (is (some? ext-gui))

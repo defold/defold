@@ -2,13 +2,11 @@
   (:require [clojure.test :refer :all]
             [clojure.set]
             [dynamo.graph :as g]
-            [internal.graph :as ig]
-            [support.test-support :refer [with-clean-system]]
-            [integration.test-util :as test-util]
-            [editor.atlas :as atlas]
             [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.collection :as collection]))
+            [editor.editor-extensions :as extensions]
+            [integration.test-util :as test-util]
+            [internal.graph :as ig]
+            [support.test-support :refer [with-clean-system]]))
 
 (defn node-count [graph]
   (count (:nodes graph)))
@@ -17,7 +15,8 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
           proj-graph-id (g/make-graph! :history true :volatility 1)
-          project-id (project/make-project proj-graph-id workspace)]
+          extensions (extensions/make proj-graph-id)
+          project-id (project/make-project proj-graph-id workspace extensions)]
       (project/load-project project-id)
       (is (not= 0 (node-count (g/graph proj-graph-id))))
       (g/delete-node! project-id)

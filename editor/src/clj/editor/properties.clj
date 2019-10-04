@@ -13,7 +13,7 @@
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
-           [javax.vecmath Quat4d Point3d Matrix4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -55,13 +55,13 @@
 
 (defn- curve-aabbs
   ([curve]
-    (curve-aabbs curve nil))
+   (curve-aabbs curve nil))
   ([curve ids]
-    (->> (iv/iv-filter-ids (:points curve) ids)
-      (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                     v [x y 0.0]]
-                                 [id [v v]])))
-      (into {}))))
+   (->> (iv/iv-filter-ids (:points curve) ids)
+        (iv/iv-mapv (fn [[id v]] (let [[x y] v
+                                       v [x y 0.0]]
+                                   [id [v v]])))
+        (into {}))))
 
 (defn- curve-insert [curve positions]
   (let [spline (->> (:points curve)
@@ -331,19 +331,19 @@
         link->props (into {} (map (fn [[k v]] [k (flatten-properties (:link v))]) link-pairs))
         override-pairs (filter #(contains? (second %) :override) pairs)
         override->props (into {} (map (fn [[k v]]
-                                     (let [v (let [k (if (vector? k) k (vector k))
-                                                 properties (flatten-properties (:override v))
-                                                 new-keys (into {} (map #(do [% (conj k %)]) (keys (:properties properties))))]
-                                               {:properties (into {} (map (fn [[o-k o-v]]
-                                                                      (let [prop (-> o-v
-                                                                                   (set/rename-keys {:value :original-value})
-                                                                                   (assoc :node-id (:node-id v)
-                                                                                          :value (get (:value v) o-k)))]
-                                                                        [(conj k o-k) prop]))
-                                                                   (:properties properties)))
-                                                  :display-order (replace-display-order (:display-order properties) new-keys)})]
-                                       [k v]))
-                                   override-pairs))
+                                        (let [v (let [k (if (vector? k) k (vector k))
+                                                      properties (flatten-properties (:override v))
+                                                      new-keys (into {} (map #(do [% (conj k %)]) (keys (:properties properties))))]
+                                                  {:properties (into {} (map (fn [[o-k o-v]]
+                                                                               (let [prop (-> o-v
+                                                                                              (set/rename-keys {:value :original-value})
+                                                                                              (assoc :node-id (:node-id v)
+                                                                                                     :value (get (:value v) o-k)))]
+                                                                                 [(conj k o-k) prop]))
+                                                                             (:properties properties)))
+                                                   :display-order (replace-display-order (:display-order properties) new-keys)})]
+                                          [k v]))
+                                      override-pairs))
         key->display-order (apply merge-with concat (mapv (fn [m] (into {} (map (fn [[k v]] [k (:display-order v)]) m))) [link->props override->props]))
         display-order (reduce (fn [display-order [key injected]] (inject-display-order display-order key injected))
                               (:display-order properties)
@@ -443,15 +443,15 @@
 
 (defn set-values!
   ([property values]
-    (set-values! property values (gensym)))
+   (set-values! property values (gensym)))
   ([property values op-seq]
-    (when (not (read-only? property))
-      (let [evaluation-context (g/make-evaluation-context)]
-        (g/transact
-          (concat
-            (g/operation-label (str "Set " (label property)))
-            (g/operation-sequence op-seq)
-            (set-values evaluation-context property values)))))))
+   (when (not (read-only? property))
+     (let [evaluation-context (g/make-evaluation-context)]
+       (g/transact
+         (concat
+           (g/operation-label (str "Set " (label property)))
+           (g/operation-sequence op-seq)
+           (set-values evaluation-context property values)))))))
 
 (defn unify-values [values]
   (loop [v0 (first values)

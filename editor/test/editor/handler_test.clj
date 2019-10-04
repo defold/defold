@@ -9,8 +9,8 @@
   (:import [clojure.lang Keyword]))
 
 (defn fixture [f]
-  (with-redefs [handler/*handlers* (atom {})]
-   (f)))
+  (with-redefs [handler/state-atom (atom {})]
+    (f)))
 
 (use-fixtures :each fixture)
 
@@ -302,3 +302,39 @@
       (is (enabled? :string-command [global] {}))
       (select! [lonely-i])
       (is (not (enabled? :string-command [global] {}))))))
+
+(def main-menu-data [{:label "File"
+                      :id ::file
+                      :children [{:label "New"
+                                  :id ::new
+                                  :command :new}
+                                 {:label "Open"
+                                  :id ::open
+                                  :command :open}]}
+                     {:label "Edit"
+                      :id ::edit
+                      :children [{:label "Undo"
+                                  :icon "icons/undo.png"
+                                  :command :undo}
+                                 {:label "Redo"
+                                  :icon "icons/redo.png"
+                                  :command :redo}]}
+                     {:label "Help"
+                      :children [{:label "About"
+                                  :command :about}]}])
+
+(def scene-menu-data [{:label "Scene"
+                       :children [{:label "Do stuff"}
+                                  {:label :separator
+                                   :id ::scene-end}]}])
+
+(def tile-map-data [{:label "Tile Map"
+                     :children [{:label "Erase Tile"}]}])
+
+(deftest main-menu
+  (with-redefs [handler/state-atom (atom {})]
+    (handler/register-menu! ::menubar main-menu-data)
+    (handler/register-menu! ::edit scene-menu-data)
+    (handler/register-menu! ::scene-end tile-map-data)
+    (let [m (handler/realize-menu ::menubar)]
+      (is (some? (get-in m [2 :children]))))))

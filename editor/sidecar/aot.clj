@@ -4,8 +4,7 @@
             [clojure.tools.namespace.dependency :as dep]
             [clojure.tools.namespace.file :as file]
             [clojure.tools.namespace.find :as find]
-            [clojure.tools.namespace.track :as track]
-            [clojure.walk :as walk]))
+            [clojure.tools.namespace.track :as track]))
 
 (def excluded-sources-by-build-type
   {"release" ["src/clj/dev.clj"
@@ -63,28 +62,24 @@
 
 (def srcdirs (map io/file ["src/clj"]))
 
-(defn system-properties
-  []
-  (walk/keywordize-keys (into {} (System/getProperties))))
-
-(def build-type (atom (get (system-properties) :defold.build "development")))
+(def build-type (System/getProperty "defold.build" "development"))
 
 (def build->compiler-options
   {"development"
-   {:elide-meta           #{:file :line :column}
+   {:elide-meta #{:added :column :doc :file :line}
     :defold/check-schemas true}
 
    "release"
-   {:elide-meta     #{:file :line :column}
+   {:elide-meta #{:added :column :doc :file :line}
     :direct-linking true
-    :defold/check-schemas  false}})
+    :defold/check-schemas false}})
 
 (def default-compiler-options (build->compiler-options "development"))
 
 (defn compile-clj
   [namespaces]
-  (binding [*compiler-options* (build->compiler-options @build-type default-compiler-options)]
-    (println "Using build profile " @build-type)
+  (binding [*compiler-options* (build->compiler-options build-type default-compiler-options)]
+    (println "Using build profile " build-type)
     (println "Compiler options: " *compiler-options*)
     (doseq [n namespaces]
       (println "Compiling " n)
@@ -92,7 +87,7 @@
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))
-  (let [order (compile-order srcdirs @build-type)]
+  (let [order (compile-order srcdirs build-type)]
     (println "Compiling in order " order)
     (compile-clj order))
   (println "Done compiling")

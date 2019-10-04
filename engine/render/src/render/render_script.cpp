@@ -51,7 +51,6 @@ namespace dmRender
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
-    
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -378,19 +377,14 @@ namespace dmRender
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t state = luaL_checknumber(L, 1);
 
-        switch (state)
+        if (state != dmGraphics::STATE_DEPTH_TEST &&
+            state != dmGraphics::STATE_STENCIL_TEST &&
+            state != dmGraphics::STATE_ALPHA_TEST &&
+            state != dmGraphics::STATE_BLEND &&
+            state != dmGraphics::STATE_CULL_FACE &&
+            state != dmGraphics::STATE_POLYGON_OFFSET_FILL)
         {
-            case dmGraphics::STATE_DEPTH_TEST:
-            case dmGraphics::STATE_STENCIL_TEST:
-#ifndef GL_ES_VERSION_2_0
-            case dmGraphics::STATE_ALPHA_TEST:
-#endif
-            case dmGraphics::STATE_BLEND:
-            case dmGraphics::STATE_CULL_FACE:
-            case dmGraphics::STATE_POLYGON_OFFSET_FILL:
-                break;
-            default:
-                return luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
+            return luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state))) {
             assert(top == lua_gettop(L));
@@ -429,19 +423,14 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t state = luaL_checknumber(L, 1);
-        switch (state)
+        if (state != dmGraphics::STATE_DEPTH_TEST &&
+            state != dmGraphics::STATE_STENCIL_TEST &&
+            state != dmGraphics::STATE_ALPHA_TEST &&
+            state != dmGraphics::STATE_BLEND &&
+            state != dmGraphics::STATE_CULL_FACE &&
+            state != dmGraphics::STATE_POLYGON_OFFSET_FILL)
         {
-            case dmGraphics::STATE_DEPTH_TEST:
-            case dmGraphics::STATE_STENCIL_TEST:
-#ifndef GL_ES_VERSION_2_0
-            case dmGraphics::STATE_ALPHA_TEST:
-#endif
-            case dmGraphics::STATE_BLEND:
-            case dmGraphics::STATE_CULL_FACE:
-            case dmGraphics::STATE_POLYGON_OFFSET_FILL:
-                break;
-            default:
-                return luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
+            return luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state))) {
             assert(top == lua_gettop(L));
@@ -1114,14 +1103,11 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        switch(buffer_type)
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
-            case dmGraphics::BUFFER_TYPE_COLOR_BIT:
-            case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
-            case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
-                break;
-            default:
-                return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t width, height;
         dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
@@ -1168,14 +1154,11 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        switch(buffer_type)
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
-            case dmGraphics::BUFFER_TYPE_COLOR_BIT:
-            case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
-            case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
-                break;
-            default:
-                return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t width, height;
         dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
@@ -1236,21 +1219,24 @@ namespace dmRender
         {
             uint32_t buffer_type = luaL_checknumber(L, -2);
             flags |= buffer_type;
-            switch (buffer_type)
+
+            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR_BIT)
             {
-                case dmGraphics::BUFFER_TYPE_COLOR_BIT:
-                    color = *dmScript::CheckVector4(L, -1);
-                    break;
-                case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
-                    depth = (float)luaL_checknumber(L, -1);
-                    break;
-                case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
-                    stencil = (uint32_t)luaL_checknumber(L, -1);
-                    break;
-                default:
-                    lua_pop(L, 2);
-                    assert(top == lua_gettop(L));
-                    return luaL_error(L, "Unknown buffer type supplied to %s.clear.", RENDER_SCRIPT_LIB_NAME);
+                color = *dmScript::CheckVector4(L, -1);
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+            {
+                depth = (float)luaL_checknumber(L, -1);
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+            {
+                stencil = (uint32_t)luaL_checknumber(L, -1);
+            }
+            else
+            {
+                lua_pop(L, 2);
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Unknown buffer type supplied to %s.clear.", RENDER_SCRIPT_LIB_NAME);
             }
             lua_pop(L, 1);
         }
@@ -1582,26 +1568,23 @@ namespace dmRender
         }
         for (uint32_t i = 0; i < 2; ++i)
         {
-            switch (factors[i])
+            if (factors[i] != dmGraphics::BLEND_FACTOR_ZERO &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE &&
+                factors[i] != dmGraphics::BLEND_FACTOR_SRC_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_DST_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_SRC_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_DST_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_SRC_ALPHA_SATURATE &&
+                factors[i] != dmGraphics::BLEND_FACTOR_CONSTANT_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA)
             {
-                case dmGraphics::BLEND_FACTOR_ZERO:
-                case dmGraphics::BLEND_FACTOR_ONE:
-                case dmGraphics::BLEND_FACTOR_SRC_COLOR:
-                case dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
-                case dmGraphics::BLEND_FACTOR_DST_COLOR:
-                case dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR:
-                case dmGraphics::BLEND_FACTOR_SRC_ALPHA:
-                case dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:
-                case dmGraphics::BLEND_FACTOR_DST_ALPHA:
-                case dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
-                case dmGraphics::BLEND_FACTOR_SRC_ALPHA_SATURATE:
-                case dmGraphics::BLEND_FACTOR_CONSTANT_COLOR:
-                case dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR:
-                case dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA:
-                case dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA:
-                    break;
-                default:
-                    return luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
+                return luaL_error(L, "Invalid blend types: %s.set_blend_func(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC, factors[0], factors[1])))
@@ -1790,19 +1773,16 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t func = luaL_checknumber(L, 1);
-        switch (func)
+        if (func != dmGraphics::COMPARE_FUNC_NEVER &&
+            func != dmGraphics::COMPARE_FUNC_LESS &&
+            func != dmGraphics::COMPARE_FUNC_LEQUAL &&
+            func != dmGraphics::COMPARE_FUNC_GREATER &&
+            func != dmGraphics::COMPARE_FUNC_GEQUAL &&
+            func != dmGraphics::COMPARE_FUNC_EQUAL &&
+            func != dmGraphics::COMPARE_FUNC_NOTEQUAL &&
+            func != dmGraphics::COMPARE_FUNC_ALWAYS)
         {
-            case dmGraphics::COMPARE_FUNC_NEVER:
-            case dmGraphics::COMPARE_FUNC_LESS:
-            case dmGraphics::COMPARE_FUNC_LEQUAL:
-            case dmGraphics::COMPARE_FUNC_GREATER:
-            case dmGraphics::COMPARE_FUNC_GEQUAL:
-            case dmGraphics::COMPARE_FUNC_EQUAL:
-            case dmGraphics::COMPARE_FUNC_NOTEQUAL:
-            case dmGraphics::COMPARE_FUNC_ALWAYS:
-                break;
-            default:
-                return luaL_error(L, "Invalid depth func: %s.set_depth_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
+            return luaL_error(L, "Invalid depth func: %s.set_depth_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_FUNC, func)))
@@ -1859,19 +1839,16 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t func = luaL_checknumber(L, 1);
-        switch (func)
+        if (func != dmGraphics::COMPARE_FUNC_NEVER &&
+            func != dmGraphics::COMPARE_FUNC_LESS &&
+            func != dmGraphics::COMPARE_FUNC_LEQUAL &&
+            func != dmGraphics::COMPARE_FUNC_GREATER &&
+            func != dmGraphics::COMPARE_FUNC_GEQUAL &&
+            func != dmGraphics::COMPARE_FUNC_EQUAL &&
+            func != dmGraphics::COMPARE_FUNC_NOTEQUAL &&
+            func != dmGraphics::COMPARE_FUNC_ALWAYS)
         {
-            case dmGraphics::COMPARE_FUNC_NEVER:
-            case dmGraphics::COMPARE_FUNC_LESS:
-            case dmGraphics::COMPARE_FUNC_LEQUAL:
-            case dmGraphics::COMPARE_FUNC_GREATER:
-            case dmGraphics::COMPARE_FUNC_GEQUAL:
-            case dmGraphics::COMPARE_FUNC_EQUAL:
-            case dmGraphics::COMPARE_FUNC_NOTEQUAL:
-            case dmGraphics::COMPARE_FUNC_ALWAYS:
-                break;
-            default:
-                return luaL_error(L, "Invalid stencil func: %s.set_stencil_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
+            return luaL_error(L, "Invalid stencil func: %s.set_stencil_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
         }
         uint32_t ref = luaL_checknumber(L, 2);
         uint32_t mask = luaL_checknumber(L, 3);
@@ -1974,22 +1951,18 @@ namespace dmRender
         }
         for (uint32_t i = 0; i < 3; ++i)
         {
-            switch (ops[i])
+            if (ops[i] != dmGraphics::STENCIL_OP_KEEP &&
+                ops[i] != dmGraphics::STENCIL_OP_ZERO &&
+                ops[i] != dmGraphics::STENCIL_OP_REPLACE &&
+                ops[i] != dmGraphics::STENCIL_OP_INCR &&
+                ops[i] != dmGraphics::STENCIL_OP_INCR_WRAP &&
+                ops[i] != dmGraphics::STENCIL_OP_DECR &&
+                ops[i] != dmGraphics::STENCIL_OP_DECR_WRAP &&
+                ops[i] != dmGraphics::STENCIL_OP_INVERT)
             {
-                case dmGraphics::STENCIL_OP_KEEP:
-                case dmGraphics::STENCIL_OP_ZERO:
-                case dmGraphics::STENCIL_OP_REPLACE:
-                case dmGraphics::STENCIL_OP_INCR:
-                case dmGraphics::STENCIL_OP_INCR_WRAP:
-                case dmGraphics::STENCIL_OP_DECR:
-                case dmGraphics::STENCIL_OP_DECR_WRAP:
-                case dmGraphics::STENCIL_OP_INVERT:
-                    break;
-                default:
-                    return luaL_error(L, "Invalid stencil ops: %s.set_stencil_op(self, %d, %d, %d)", RENDER_SCRIPT_LIB_NAME, ops[0], ops[1], ops[2]);
+                return luaL_error(L, "Invalid stencil ops: %s.set_stencil_op(self, %d, %d, %d)", RENDER_SCRIPT_LIB_NAME, ops[0], ops[1], ops[2]);
             }
         }
-
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_OP, ops[0], ops[1], ops[2])))
             return 0;
@@ -2041,14 +2014,11 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t face_type = luaL_checknumber(L, 1);
-        switch (face_type)
+        if (face_type != dmGraphics::FACE_TYPE_FRONT &&
+            face_type != dmGraphics::FACE_TYPE_BACK &&
+            face_type != dmGraphics::FACE_TYPE_FRONT_AND_BACK)
         {
-            case dmGraphics::FACE_TYPE_FRONT:
-            case dmGraphics::FACE_TYPE_BACK:
-            case dmGraphics::FACE_TYPE_FRONT_AND_BACK:
-                break;
-            default:
-                return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
+            return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uintptr_t)face_type)))
             return 0;
@@ -2399,9 +2369,7 @@ namespace dmRender
 
         REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
         REGISTER_STATE_CONSTANT(STATE_STENCIL_TEST);
-#ifndef GL_ES_VERSION_2_0
         REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
-#endif
         REGISTER_STATE_CONSTANT(STATE_BLEND);
         REGISTER_STATE_CONSTANT(STATE_CULL_FACE);
         REGISTER_STATE_CONSTANT(STATE_POLYGON_OFFSET_FILL);

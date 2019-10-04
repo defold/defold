@@ -511,35 +511,38 @@ namespace dmGraphics
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
     {
         const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
-        uint32_t result = ~0;
-        switch (type)
+
+        if (type == dmGraphics::TYPE_BYTE)
         {
-            case dmGraphics::TYPE_BYTE:
-                result = ((char*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_BYTE:
-                result = ((unsigned char*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_SHORT:
-                result = ((short*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_SHORT:
-                result = ((unsigned short*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_INT:
-                result = ((int*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_INT:
-                result = ((unsigned int*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_FLOAT:
-                result = ((float*)index_buffer)[index];
-                break;
-            default:
-                assert(0);
-                break;
+            return ((char*)index_buffer)[index];
         }
-        return result;
+        else if (type == dmGraphics::TYPE_UNSIGNED_BYTE)
+        {
+            return ((unsigned char*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_SHORT)
+        {
+            return ((short*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return ((unsigned short*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_INT)
+        {
+            return ((int*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_UNSIGNED_INT)
+        {
+            return ((unsigned int*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_FLOAT)
+        {
+            return ((float*)index_buffer)[index];
+        }
+
+        assert(0);
+        return ~0;
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)

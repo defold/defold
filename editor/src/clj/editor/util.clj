@@ -126,3 +126,17 @@
                  (some->> coll
                           last
                           list))))
+
+(defn dissoc-in
+  "Dissociates an entry from a nested associative structure returning a new
+  nested structure. k & ks is a sequence of keys. Any empty maps that result
+  will not be present in the new structure."
+  [m [k & ks]]
+  (if ks
+    (if-let [child (get m k)]
+      (let [new-child (dissoc-in child ks)]
+        (if (zero? (count new-child))
+          (dissoc m k)
+          (assoc m k new-child)))
+      m)
+    (dissoc m k)))
