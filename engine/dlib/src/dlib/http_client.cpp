@@ -333,7 +333,7 @@ namespace dmHttpClient
             case MBEDTLS_ERR_NET_RECV_FAILED:
             return dmSocket::RESULT_TRY_AGAIN;
             default:
-                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r);
+                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r<0?-r:r);
                 // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
                 // and abort the request
                 return dmSocket::RESULT_UNKNOWN;
