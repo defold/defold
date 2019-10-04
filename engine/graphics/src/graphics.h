@@ -8,8 +8,6 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include "opengl/graphics_opengl_defines.h"
-
 namespace dmGraphics
 {
     typedef uintptr_t                 HVertexProgram;
@@ -231,39 +229,39 @@ namespace dmGraphics
 
     enum WindowState
     {
-        WINDOW_STATE_OPENED             = DMGRAPHICS_WINDOW_STATE_OPENED,
-        WINDOW_STATE_ACTIVE             = DMGRAPHICS_WINDOW_STATE_ACTIVE,
-        WINDOW_STATE_ICONIFIED          = DMGRAPHICS_WINDOW_STATE_ICONIFIED,
-        WINDOW_STATE_ACCELERATED        = DMGRAPHICS_WINDOW_STATE_ACCELERATED,
-        WINDOW_STATE_RED_BITS           = DMGRAPHICS_WINDOW_STATE_RED_BITS,
-        WINDOW_STATE_GREEN_BITS         = DMGRAPHICS_WINDOW_STATE_GREEN_BITS,
-        WINDOW_STATE_BLUE_BITS          = DMGRAPHICS_WINDOW_STATE_BLUE_BITS,
-        WINDOW_STATE_ALPHA_BITS         = DMGRAPHICS_WINDOW_STATE_ALPHA_BITS,
-        WINDOW_STATE_DEPTH_BITS         = DMGRAPHICS_WINDOW_STATE_DEPTH_BITS,
-        WINDOW_STATE_STENCIL_BITS       = DMGRAPHICS_WINDOW_STATE_STENCIL_BITS,
-        WINDOW_STATE_REFRESH_RATE       = DMGRAPHICS_WINDOW_STATE_REFRESH_RATE,
-        WINDOW_STATE_ACCUM_RED_BITS     = DMGRAPHICS_WINDOW_STATE_ACCUM_RED_BITS,
-        WINDOW_STATE_ACCUM_GREEN_BITS   = DMGRAPHICS_WINDOW_STATE_ACCUM_GREEN_BITS,
-        WINDOW_STATE_ACCUM_BLUE_BITS    = DMGRAPHICS_WINDOW_STATE_ACCUM_BLUE_BITS,
-        WINDOW_STATE_ACCUM_ALPHA_BITS   = DMGRAPHICS_WINDOW_STATE_ACCUM_ALPHA_BITS,
-        WINDOW_STATE_AUX_BUFFERS        = DMGRAPHICS_WINDOW_STATE_AUX_BUFFERS,
-        WINDOW_STATE_STEREO             = DMGRAPHICS_WINDOW_STATE_STEREO,
-        WINDOW_STATE_WINDOW_NO_RESIZE   = DMGRAPHICS_WINDOW_STATE_WINDOW_NO_RESIZE,
-        WINDOW_STATE_FSAA_SAMPLES       = DMGRAPHICS_WINDOW_STATE_FSAA_SAMPLES
+        WINDOW_STATE_OPENED             = 0x00020001,
+        WINDOW_STATE_ACTIVE             = 0x00020002,
+        WINDOW_STATE_ICONIFIED          = 0x00020003,
+        WINDOW_STATE_ACCELERATED        = 0x00020004,
+        WINDOW_STATE_RED_BITS           = 0x00020005,
+        WINDOW_STATE_GREEN_BITS         = 0x00020006,
+        WINDOW_STATE_BLUE_BITS          = 0x00020007,
+        WINDOW_STATE_ALPHA_BITS         = 0x00020008,
+        WINDOW_STATE_DEPTH_BITS         = 0x00020009,
+        WINDOW_STATE_STENCIL_BITS       = 0x0002000A,
+        WINDOW_STATE_REFRESH_RATE       = 0x0002000B,
+        WINDOW_STATE_ACCUM_RED_BITS     = 0x0002000C,
+        WINDOW_STATE_ACCUM_GREEN_BITS   = 0x0002000D,
+        WINDOW_STATE_ACCUM_BLUE_BITS    = 0x0002000E,
+        WINDOW_STATE_ACCUM_ALPHA_BITS   = 0x0002000F,
+        WINDOW_STATE_AUX_BUFFERS        = 0x00020010,
+        WINDOW_STATE_STEREO             = 0x00020011,
+        WINDOW_STATE_WINDOW_NO_RESIZE   = 0x00020012,
+        WINDOW_STATE_FSAA_SAMPLES       = 0x00020013
     };
 
     enum WindowResult
     {
-        WINDOW_RESULT_ALREADY_OPENED = 1,
-        WINDOW_RESULT_OK = 0,
+        WINDOW_RESULT_ALREADY_OPENED    = 1,
+        WINDOW_RESULT_OK                = 0,
         WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
-        WINDOW_RESULT_UNKNOWN_ERROR = -1000,
+        WINDOW_RESULT_UNKNOWN_ERROR     = -1000,
     };
 
     enum TextureStatusFlags
     {
-        TEXTURE_STATUS_OK =             0,
-        TEXTURE_STATUS_DATA_PENDING =   (1 << 0),
+        TEXTURE_STATUS_OK           = 0,
+        TEXTURE_STATUS_DATA_PENDING = (1 << 0),
     };
 
     struct VertexElement
@@ -285,11 +283,11 @@ namespace dmGraphics
             m_OriginalHeight(0)
         {}
 
-        TextureType   m_Type;
-        uint16_t m_Width;
-        uint16_t m_Height;
-        uint16_t m_OriginalWidth;
-        uint16_t m_OriginalHeight;
+        TextureType m_Type;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_OriginalWidth;
+        uint16_t    m_OriginalHeight;
     };
 
     struct TextureParams

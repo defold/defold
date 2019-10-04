@@ -16,6 +16,7 @@
     #include <emscripten/emscripten.h>
 #endif
 
+#include "graphics_opengl_defines.h"
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "async/job_queue.h"
@@ -1088,17 +1089,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return context->m_MaxElementIndices;
     }
 
-    static uint32_t GetTypeSize(Type type)
+    static uint32_t GetTypeSize(dmGraphics::Type type)
     {
-        if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
         {
             return 1;
         }
-        else if (type == TYPE_SHORT || type == TYPE_UNSIGNED_SHORT)
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
         {
             return 2;
         }
-        else if (type == TYPE_INT || type == TYPE_UNSIGNED_INT || type == TYPE_FLOAT)
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
         {
              return 4;
         }
@@ -2012,7 +2013,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         GLenum gl_format;
-        GLenum gl_type = TYPE_UNSIGNED_BYTE;
+        GLenum gl_type = dmGraphics::TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format = -1;
         switch (params.m_Format)
@@ -2077,7 +2078,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             break;
         case TEXTURE_FORMAT_RGB32F:
-            gl_type = TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
             break;
@@ -2087,7 +2088,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
-            gl_type = TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
@@ -2097,7 +2098,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_R32F:
-            gl_type = TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
@@ -2107,7 +2108,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_RG32F:
-            gl_type = TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
