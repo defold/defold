@@ -35,6 +35,7 @@ var LibraryGLFW = {
     closeFunc: null,
     refreshFunc: null,
     focusFunc: null,
+    touchFunc: null,
     params: null,
     initTime: null,
     wheelPos: 0,
@@ -266,13 +267,27 @@ var LibraryGLFW = {
       Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
     },
 
-    onTouchEnd: function(event) {
+    fillTouch: function(id, x, y, phase) {
+      if (GLFW.touchFunc) {
+        Runtime.dynCall('viffi', GLFW.touchFunc, [id, x, y, phase]);
+      }
+    },
+
+    touchWasFinished: function(event, phase) {
         if (!GLFW.isCanvasActive(event)) { return; }
+
+        for(var i = 0; i < event.changedTouches.length; ++i) {
+          var touch = event.changedTouches[i];
+          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          var canvasX = coord[0];
+          var canvasY = coord[1];
+          GLFW.fillTouch(touch.identifier, canvasX, canvasY, phase);
+        }
 
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
-
+        GLFW.fillTouch(touch.identifier, canvasX, canvasY);
         // Audio is blocked by default in some browsers until a user performs an interaction,
         // so we need to try to resume it here (on mouse button up and touch end).
         // We must also check that the sound device is not null since it could have been stripped
@@ -281,6 +296,14 @@ var LibraryGLFW = {
         }
 
         event.preventDefault();
+    },
+
+    onTouchEnd: function(event) {
+      GLFW.touchWasFinished(event, GLFW.GLFW_PHASE_ENDED);
+    },
+
+    onTouchCancel: function(event) {
+      GLFW.touchWasFinished(event, GLFW.GLFW_PHASE_CANCELLED);
     },
 
     convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
@@ -308,9 +331,11 @@ var LibraryGLFW = {
           var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
           var canvasX = coord[0];
           var canvasY = coord[1];
-          Browser.mouseX = canvasX;
-          Browser.mouseY = canvasY;
-          break;
+          if (i == 0) {
+            Browser.mouseX = canvasX;
+            Browser.mouseY = canvasY;
+          }
+          GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_MOVED);
         }
 
         event.preventDefault();
@@ -327,10 +352,12 @@ var LibraryGLFW = {
           var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
           var canvasX = coord[0];
           var canvasY = coord[1];
-          GLFW.buttons |= (1 << 0);
-          Browser.mouseX = canvasX;
-          Browser.mouseY = canvasY;
-          break;
+          if (i == 0) {
+            GLFW.buttons |= (1 << 0);
+            Browser.mouseX = canvasX;
+            Browser.mouseY = canvasY;
+          }
+          GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_BEGAN);
         }
 
         event.preventDefault();
@@ -481,7 +508,7 @@ var LibraryGLFW = {
  ******************************************************************************/
 
   /* GLFW initialization, termination and version querying */
-  glfwInit: function() {
+  _glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
@@ -496,7 +523,7 @@ var LibraryGLFW = {
     GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
     GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
 
     __ATEXIT__.push({ func: function() {
@@ -559,6 +586,11 @@ var LibraryGLFW = {
     GLFW.params[0x00020019] = 0; // GLFW_WINDOW_HIGH_DPI
 
     GLFW.keys = new Array();
+
+    GLFW.GLFW_PHASE_BEGAN = 0;
+    GLFW.GLFW_PHASE_MOVED = 1;
+    GLFW.GLFW_PHASE_ENDED = 3;
+    GLFW.GLFW_PHASE_CANCELLED = 4;
 
     return 1; // GL_TRUE
   },
@@ -925,13 +957,11 @@ var LibraryGLFW = {
   },
 
   glfwSetTouchCallback: function(cbfun) {
+    GLFW.touchFunc = cbfun;
+    return 1;
   },
 
   glfwGetAcceleration: function(x, y, z) {
-      return 0;
-  },
-
-  glfwGetTouch: function(touch, count, out_count) {
       return 0;
   },
 

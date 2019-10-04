@@ -463,6 +463,7 @@ typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
+typedef void (GLFWCALL * GLFWtouchfun)(int,float,float,int);
 
 
 /*************************************************************************
@@ -515,6 +516,7 @@ GLFWAPI int  GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun )
 GLFWAPI int  GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count);
+GLFWAPI int  GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
 
