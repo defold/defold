@@ -269,7 +269,7 @@ var LibraryGLFW = {
 
     fillTouch: function(id, x, y, phase) {
       if (GLFW.touchFunc) {
-        Runtime.dynCall('viffi', GLFW.touchFunc, [id, x, y, phase]);
+        Runtime.dynCall('viiii', GLFW.touchFunc, [id, x, y, phase]);
       }
     },
 
@@ -287,7 +287,6 @@ var LibraryGLFW = {
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
-        GLFW.fillTouch(touch.identifier, canvasX, canvasY);
         // Audio is blocked by default in some browsers until a user performs an interaction,
         // so we need to try to resume it here (on mouse button up and touch end).
         // We must also check that the sound device is not null since it could have been stripped

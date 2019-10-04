@@ -463,7 +463,7 @@ typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
-typedef void (GLFWCALL * GLFWtouchfun)(int,float,float,int);
+typedef void (GLFWCALL * GLFWtouchfun)(int,int,int,int);
 
 
 /*************************************************************************

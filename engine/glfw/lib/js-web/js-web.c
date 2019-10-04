@@ -1,6 +1,8 @@
 #include "../../include/GL/glfw.h"
 #include "platform.h"
 
+#include <string.h>
+
 GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count)
 {
     int i, touchCount;
@@ -42,13 +44,14 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
     return 1;
 }
 
-static GLFWTouch* getTouchById(int id)
+static GLFWTouch* touchById(int id)
 {
     int32_t i;
+
     GLFWTouch* freeTouch = 0x0;
     for (i = 0; i != GLFW_MAX_TOUCH; i++)
     {
-        if (_glfwInput.Touch[i].Reference && _glfwInput.Touch[i].Id == i){
+        if (_glfwInput.Touch[i].Reference != 0x0 && _glfwInput.Touch[i].Id == id){
             return &_glfwInput.Touch[i];
         }
 
@@ -58,35 +61,35 @@ static GLFWTouch* getTouchById(int id)
     }
 
     if (freeTouch != 0x0) {
-    	freeTouch->Id = id;
         freeTouch->Reference = freeTouch;
     }
 
     return freeTouch;
 }
 
-static GLFWTouch* touchUpdate(GLFWTouch *touch, int32_t x, int32_t y, int phase)
+static void touchUpdate(GLFWTouch *touch, int x, int y, int phase)
 {
-    if (touch)
-    {
         // We can only update previous touches that has been initialized (began, moved etc).
         if (touch->Phase == GLFW_PHASE_IDLE) {
             touch->Reference = 0x0;
-            return 0x0;
+            return;
         }
 
         int prevPhase = touch->Phase;
         int newPhase = phase;
+        if (phase == GLFW_PHASE_CANCELLED) {
+            newPhase = GLFW_PHASE_ENDED;
+        }
 
         // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
         if (prevPhase == GLFW_PHASE_TAPPED) {
-            return 0x0;
+            return;
         }
 
         // This is an invalid touch order, we need to recieve a began or moved
         // phase before moving pushing any more move inputs.
         if (prevPhase == GLFW_PHASE_ENDED && newPhase == GLFW_PHASE_MOVED) {
-            return touch;
+            return;
         }
 
         touch->DX = x - touch->X;
@@ -97,62 +100,58 @@ static GLFWTouch* touchUpdate(GLFWTouch *touch, int32_t x, int32_t y, int phase)
         // If we recieved both a began and moved for the same touch during one frame/update,
         // just update the coordinates but leave the phase as began.
         if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
-            return touch;
+            return;
 
         // If a touch both began and ended during one frame/update, set the phase as
         // tapped and we will send the released event during next update (see input.c).
         } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
             touch->Phase = GLFW_PHASE_TAPPED;
-            return touch;
+            return;
         }
 
         touch->Phase = phase;
-
-        return touch;
-    }
-    return 0;
 }
 
-static GLFWTouch* touchStart(GLFWTouch *touch, int32_t x, int32_t y)
+static void touchStart(GLFWTouch *touch, int id, int x, int y)
 {
-    if (touch)
-    {
-        // We can't start/begin a new touch if it already has an ongoing phase (ie not idle).
-        if (touch->Phase != GLFW_PHASE_IDLE) {
-            return 0x0;
-        }
-
-        touch->Phase = GLFW_PHASE_BEGAN;
-        touch->X = x;
-        touch->Y = y;
-        touch->DX = 0;
-        touch->DY = 0;
-
-        return touch;
+    if (touch->Phase != GLFW_PHASE_IDLE) {
+        return;
     }
 
-    return 0;
+    touch->Phase = GLFW_PHASE_BEGAN;
+    touch->Id = id;
+    touch->X = x;
+    touch->Y = y;
+    touch->DX = 0;
+    touch->DY = 0;
 }
 
-static void GLFWCALL handleTouches(int id, float x, float y, int phase)
+static void GLFWCALL handleTouches(int id, int x, int y, int phase)
 {
-    if (phase == GLFW_PHASE_BEGAN) {
-        GLFWTouch* glfwt = getTouchById(id);
-
-        // We can only update previous touches that has been initialized (began, moved etc).
-        if (glfwt->Phase == GLFW_PHASE_IDLE) {
-            glfwt->Reference = 0x0;
-            return;
+    GLFWTouch* glfwt = touchById(id);
+    if (glfwt != 0x0) {
+        if (phase == GLFW_PHASE_BEGAN) {
+            touchStart(glfwt, id, x, y);
+        } else {
+            touchUpdate(glfwt, x, y, phase);
         }
-        touchUpdate(glfwt, x, y, phase);
-    } else {
-    	GLFWTouch* glfwt = getTouchById(id);
-    	touchStart(glfwt, x, y);
+    }
+}
+
+void _glfwClearInput( void )
+{
+    int i;
+    for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
+        memset(&_glfwInput.Touch[i], 0, sizeof(_glfwInput.Touch[i]));
+        _glfwInput.Touch[i].Id = i;
+        _glfwInput.Touch[i].Reference = 0x0;
+        _glfwInput.Touch[i].Phase = GLFW_PHASE_IDLE;
     }
 }
 
 GLFWAPI int GLFWAPIENTRY glfwInit()
 {
+    _glfwClearInput();
     _glfwInitJS();
     glfwSetTouchCallback( handleTouches );
     return 1;
