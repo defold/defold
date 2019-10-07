@@ -990,20 +990,34 @@ union SaveLoadBuffer
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmSystemDDF::Reboot msg;
-        msg.m_Arg1 = lua_gettop(L) > 0 ? luaL_checkstring(L, 1) : 0;
-        msg.m_Arg2 = lua_gettop(L) > 1 ? luaL_checkstring(L, 2) : 0;
-        msg.m_Arg3 = lua_gettop(L) > 2 ? luaL_checkstring(L, 3) : 0;
-        msg.m_Arg4 = lua_gettop(L) > 3 ? luaL_checkstring(L, 4) : 0;
-        msg.m_Arg5 = lua_gettop(L) > 4 ? luaL_checkstring(L, 5) : 0;
-        msg.m_Arg6 = lua_gettop(L) > 5 ? luaL_checkstring(L, 6) : 0;
+#define PUSH_FIELD(name, index) \
+        if (lua_isstring(L, index)) { \
+            lua_pushstring(L, luaL_checkstring(L, index)); \
+            lua_setfield(L, -2, name);\
+        }
+
+        lua_newtable(L);
+        PUSH_FIELD("arg1", 1);
+        PUSH_FIELD("arg2", 2);
+        PUSH_FIELD("arg3", 3);
+        PUSH_FIELD("arg4", 4);
+        PUSH_FIELD("arg5", 5);
+        PUSH_FIELD("arg6", 6);
+
+#undef PUSH_FIELD
+
+        uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
+        uint32_t data_size = dmScript::CheckDDF(L, dmSystemDDF::Reboot::m_DDFDescriptor, (char*)data, sizeof(data), -1);
 
         dmMessage::URL url;
         GetSystemURL(&url);
 
-        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(result == dmMessage::RESULT_OK);
-
+        dmMessage::Result result = dmMessage::Post(0, &url, dmSystemDDF::Reboot::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmSystemDDF::Reboot::m_DDFDescriptor, data, data_size, 0);
+        if (result != dmMessage::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Failed to send reboot message!");
+        }
+        lua_pop(L, 1);
         return 0;
     }
 
