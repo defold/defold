@@ -273,54 +273,6 @@
                                            :default true
                                            :optional true}]}]}}]}]}}]}]}))
 
-(defmethod protobuf-form-data BufferProto$BufferDesc [node-id pb def]
-  (let [value-type-values (protobuf/enum-values BufferProto$ValueType)]
-    {:navigation false
-     :sections
-     [{:title "Buffer"
-       :fields
-       [{:path [:streams]
-         :label "Streams"
-         :type :table
-         :columns [{:path [:name]
-                    :label "Stream Name"
-                    :type :string
-                    :default "position"}
-                   {:path [:value-type]
-                    :label "Type"
-                    :type :choicebox
-                    :options (make-options value-type-values)
-                    :default (ffirst value-type-values)}
-                   {:path [:value-count]
-                    :label "Count"
-                    :type :integer
-                    :default 3}
-                   {:path [:f]
-                    :label "Float"
-                    :type :list
-                    :element {:type :number
-                              :default 0.0}}
-                   {:path [:i]
-                    :label "Int"
-                    :type :list
-                    :element {:type :integer
-                              :default 0}}
-                   {:path [:ui]
-                    :label "UInt"
-                    :type :list
-                    :element {:type :integer
-                              :default 0}}
-                   {:path [:i64]
-                    :label "Int64"
-                    :type :list
-                    :element {:type :integer
-                              :default 0}}
-                   {:path [:ui64]
-                    :label "UInt64"
-                    :type :list
-                    :element {:type :integer
-                              :default 0}}]}]}]}))
-
 (defn produce-form-data
   ([node-id pb def]
    (produce-form-data node-id pb def (protobuf-form-data node-id pb def)))
