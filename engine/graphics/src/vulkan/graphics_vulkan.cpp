@@ -1182,8 +1182,9 @@ bail:
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(buffer);
+        assert(size > 0);
         GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        assert(offset + size < buffer_ptr->m_DeviceMemory.m_MemorySize);
+        assert(offset + size <= buffer_ptr->m_DeviceMemory.m_MemorySize);
         GeometryBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
     }
 

@@ -62,7 +62,7 @@ namespace dmGraphics
         VkBuffer           m_Buffer;
         VkBufferUsageFlags m_Usage;
         uint8_t            m_Frame : 1;
-        uint8_t            : 7;
+        uint8_t                    : 7; // unused
     };
 
     struct RenderTarget
@@ -79,7 +79,7 @@ namespace dmGraphics
         VkExtent2D     m_Extent;
         const uint32_t m_Id;
         uint8_t        m_IsBound : 1;
-        uint8_t        : 7;
+        uint8_t                  : 7; // unused
     };
 
     struct Viewport
@@ -89,6 +89,7 @@ namespace dmGraphics
         uint16_t m_W;
         uint16_t m_H;
         uint8_t  m_HasChanged : 1;
+        uint8_t               : 7; // unused
     };
 
     struct FrameResource
