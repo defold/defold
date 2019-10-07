@@ -133,7 +133,7 @@ SResourceType* FindResourceType(SResourceFactory* factory, const char* extension
 // TODO: Test this...
 uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
 {
-    DM_SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
+    dmSnPrintf(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
 
     char* source = buf;
     char* dest = buf;
@@ -247,7 +247,7 @@ void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_
         for (uint32_t i = 0; i < byte_buf_len; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x", byte_buf[i]);
+            dmSnPrintf(current, 3, "%02x", byte_buf[i]);
 
             if (i < out_len_cond)
                 strncat(out_buf, current, 1);
@@ -276,7 +276,7 @@ Result StoreManifest(Manifest* manifest)
 
     dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
-    DM_SNPRINTF(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", manifest_file_path);
+    dmSnPrintf(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", manifest_file_path);
     // write to tempfile, if successful move/rename and then delete tmpfile
     dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
     if (ddf_result != dmDDF::RESULT_OK)

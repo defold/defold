@@ -17,11 +17,11 @@
 #include <jc_test/jc_test.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
 }
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
 int g_HttpPort = -1;
@@ -75,7 +75,7 @@ public:
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         char scale[128];
-        DM_SNPRINTF(scale, sizeof(scale), "%d", self->m_XScale);
+        dmSnPrintf(scale, sizeof(scale), "%d", self->m_XScale);
         return dmHttpClient::WriteHeader(response, "X-Scale", scale);
     }
 

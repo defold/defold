@@ -532,7 +532,7 @@ namespace dmSys
     Result OpenURL(const char* url)
     {
         char buf[1024];
-        DM_SNPRINTF(buf, 1024, "xdg-open %s", url);
+        dmSnPrintf(buf, 1024, "xdg-open %s", url);
         int ret = system(buf);
         if (ret == 0)
         {
@@ -803,7 +803,7 @@ namespace dmSys
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
         jint sdkint = (jint) env->GetStaticIntField(build_version_class, env->GetStaticFieldID(build_version_class, "SDK_INT", "I")); // supported from api level 4
 
-        DM_SNPRINTF(info->m_ApiVersion, sizeof(info->m_ApiVersion), "%d", sdkint);
+        dmSnPrintf(info->m_ApiVersion, sizeof(info->m_ApiVersion), "%d", sdkint);
 
         if (manufacturerObj) {
             const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
@@ -859,7 +859,7 @@ namespace dmSys
         char lang[max_len];
         dmStrlCpy(lang, "en-US", max_len);
 
-        DM_SNPRINTF(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
+        dmSnPrintf(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
         if (GetUserDefaultLocaleName) {
             // Only availble on >= Vista
             wchar_t tmp[max_len];

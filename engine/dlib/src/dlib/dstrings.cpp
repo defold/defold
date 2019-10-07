@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #endif
 
-int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...)
+int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
     // MS-compliance
     if (buffer == 0x0 || count == 0 || format == 0x0)

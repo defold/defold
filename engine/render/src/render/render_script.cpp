@@ -2253,7 +2253,7 @@ namespace dmRender
                 assert(top == lua_gettop(L));
                 char str[128];
                 char buffer[256];
-                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
+                dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
                 return luaL_error(L, "%s", buffer);
             }
             else

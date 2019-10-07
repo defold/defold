@@ -200,11 +200,11 @@ TEST_F(ScriptTest, TestReload)
 {
     const char* script_resource_name = "/__test__.scriptc";
     char script_file_name[512];
-    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
+    dmSnPrintf(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
 
     const char* go_resource_name = "/__go__.goc";
     char go_file_name[512];
-    DM_SNPRINTF(go_file_name, sizeof(go_file_name), "/%s%s", m_Path, go_resource_name);
+    dmSnPrintf(go_file_name, sizeof(go_file_name), "/%s%s", m_Path, go_resource_name);
 
     dmGameObjectDDF::PrototypeDesc prototype;
     memset(&prototype, 0, sizeof(prototype));
@@ -300,7 +300,7 @@ TEST_F(ScriptTest, TestReloadModule)
 {
     const char* script_resource_name = "/test_reload_mod.luac";
     char script_file_name[512];
-    DM_SNPRINTF(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
+    dmSnPrintf(script_file_name, sizeof(script_file_name), "/%s%s", m_Path, script_resource_name);
 
     // NOTE: +1 to remove /
     CreateScriptFile(script_file_name + 1,
@@ -408,7 +408,7 @@ TEST_F(ScriptTest, TestScriptMany)
     const uint32_t num_components = 300;
     for( uint32_t i = 0; i < num_components; ++i)
     {
-        DM_SNPRINTF(name, sizeof(name), "script%d", i);
+        dmSnPrintf(name, sizeof(name), "script%d", i);
         dmhash_t id = dmHashString64(name);
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
         ASSERT_EQ(i, component_index);
@@ -416,7 +416,7 @@ TEST_F(ScriptTest, TestScriptMany)
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
         ASSERT_EQ(id, component_id);
     }
-    DM_SNPRINTF(name, sizeof(name), "script%d", num_components);
+    dmSnPrintf(name, sizeof(name), "script%d", num_components);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
 

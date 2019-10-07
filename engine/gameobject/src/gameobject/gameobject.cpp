@@ -816,7 +816,7 @@ namespace dmGameObject
     dmhash_t ConstructInstanceId(uint32_t index)
     {
         char buffer[16] = { 0 };
-        DM_SNPRINTF(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
         return dmHashString64(buffer);
     }
 
@@ -862,7 +862,7 @@ namespace dmGameObject
         dmMutex::Lock(collection->m_Mutex);
         index = collection->m_GenCollectionInstanceCounter++;
         dmMutex::Unlock(collection->m_Mutex);
-        DM_SNPRINTF(buf, bufsize, id_format, ID_SEPARATOR, index);
+        dmSnPrintf(buf, bufsize, id_format, ID_SEPARATOR, index);
     }
 
     Result SetIdentifier(Collection* collection, HInstance instance, dmhash_t id)

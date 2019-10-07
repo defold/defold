@@ -42,7 +42,7 @@ namespace dmScript
 
         if (index >= doc->m_NodeCount)
         {
-            DM_SNPRINTF(error_str_out, error_str_size, "Unexpected JSON index, unable to parse content.");
+            dmSnPrintf(error_str_out, error_str_size, "Unexpected JSON index, unable to parse content.");
             return -1;
         }
 
@@ -78,7 +78,7 @@ namespace dmScript
                 }
                 else
                 {
-                    DM_SNPRINTF(error_str_out, error_str_size, "Invalid JSON primitive: %s", buffer);
+                    dmSnPrintf(error_str_out, error_str_size, "Invalid JSON primitive: %s", buffer);
                     return -1;
                 }
             }
@@ -124,12 +124,12 @@ namespace dmScript
             {
                 char buffer[buffer_len] = { 0 };
                 memcpy(buffer, json + n.m_Start, dmMath::Min(buffer_len - 1, l));
-                DM_SNPRINTF(error_str_out, error_str_size, "Incomplete JSON object: %s", buffer);
+                dmSnPrintf(error_str_out, error_str_size, "Incomplete JSON object: %s", buffer);
                 return -1;
             }
         }
 
-        DM_SNPRINTF(error_str_out, error_str_size, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
+        dmSnPrintf(error_str_out, error_str_size, "Unsupported JSON type (%d), unable to parse content.", n.m_Type);
         return -1;
     }
 

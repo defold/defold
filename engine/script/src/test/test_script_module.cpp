@@ -57,7 +57,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromText(const char *text)
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         const char* str = lua_tostring(L, -1);

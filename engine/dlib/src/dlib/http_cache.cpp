@@ -146,7 +146,7 @@ namespace dmHttpCache
         char identifier_string[8 * 2 + 1];
         identifier_string[sizeof(identifier_string)-1] = '\0';
         HashToString(identifier_hash, &identifier_string[0]);
-        DM_SNPRINTF(path, path_len, "%s/%c%c/%s",
+        dmSnPrintf(path, path_len, "%s/%c%c/%s",
                     cache->m_Path,
                     identifier_string[0],
                     identifier_string[1],
@@ -208,7 +208,7 @@ namespace dmHttpCache
         }
 
         char cache_file[DMPATH_MAX_PATH];
-        DM_SNPRINTF(cache_file, sizeof(cache_file), "%s/%s", path, "index");
+        dmSnPrintf(cache_file, sizeof(cache_file), "%s/%s", path, "index");
         FILE* f = fopen(cache_file, "rb");
         if (f)
         {
@@ -359,7 +359,7 @@ namespace dmHttpCache
         dmLogInfo("Flushing http cache to disk");
 
         char cache_file[DMPATH_MAX_PATH];
-        DM_SNPRINTF(cache_file, sizeof(cache_file), "%s/%s", cache->m_Path, "index");
+        dmSnPrintf(cache_file, sizeof(cache_file), "%s/%s", cache->m_Path, "index");
         FILE* f = fopen(cache_file, "wb");
         if (f) {
             Result r = WriteIndex(cache, f);
@@ -472,7 +472,7 @@ namespace dmHttpCache
 
         int file_name_len = strlen(cache->m_Path) + 1 /* slash */ + 8 /* tempXXXX */ + 1 /* '\0' */;
         char* file_name = (char*) malloc(file_name_len);
-        DM_SNPRINTF(file_name, file_name_len, "%s/temp%04d", cache->m_Path, (int) index);
+        dmSnPrintf(file_name, file_name_len, "%s/temp%04d", cache->m_Path, (int) index);
         FILE* f = fopen(file_name, "wb");
         if (f == 0)
         {
