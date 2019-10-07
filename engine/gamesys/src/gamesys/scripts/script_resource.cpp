@@ -155,7 +155,7 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation (%d): %llu, %s"; break;
     default:                                    format = "The resource was not updated (%d): %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+    dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     return luaL_error(L, "%s", msg);
 }
 
@@ -266,7 +266,7 @@ static int CheckTableNumber(lua_State* L, int index, const char* name)
         result = lua_tointeger(L, -1);
     } else {
         char msg[256];
-        DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
+        dmSnPrintf(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
         return luaL_error(L, "%s", msg);
     }
     lua_pop(L, 1);
@@ -292,11 +292,14 @@ static int GraphicsTextureFormatToImageFormat(int textureformat)
 
 static int GraphicsTextureTypeToImageType(int texturetype)
 {
-    switch(texturetype)
+    if (texturetype == dmGraphics::TEXTURE_TYPE_2D)
     {
-        case dmGraphics::TEXTURE_TYPE_2D:          return dmGraphics::TextureImage::TYPE_2D;
-        case dmGraphics::TEXTURE_TYPE_CUBE_MAP:    return dmGraphics::TextureImage::TYPE_CUBEMAP;
-    };
+        return dmGraphics::TextureImage::TYPE_2D;
+    }
+    else if (texturetype == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+    {
+        return dmGraphics::TextureImage::TYPE_CUBEMAP;
+    }
     assert(false);
     return -1;
 }

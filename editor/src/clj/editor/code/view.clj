@@ -2077,47 +2077,47 @@
 
 ;; -----------------------------------------------------------------------------
 
-(ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:command :find-text                  :label "Find..."}
-                 {:command :find-next                  :label "Find Next"}
-                 {:command :find-prev                  :label "Find Previous"}
-                 {:label :separator}
-                 {:command :replace-text               :label "Replace..."}
-                 {:command :replace-next               :label "Replace Next"}
-                 {:label :separator}
-                 {:command :toggle-comment             :label "Toggle Comment"}
-                 {:command :reindent                   :label "Reindent Lines"}
+(handler/register-menu! ::menubar :editor.app-view/edit-end
+  [{:command :find-text :label "Find..."}
+   {:command :find-next :label "Find Next"}
+   {:command :find-prev :label "Find Previous"}
+   {:label :separator}
+   {:command :replace-text :label "Replace..."}
+   {:command :replace-next :label "Replace Next"}
+   {:label :separator}
+   {:command :toggle-comment :label "Toggle Comment"}
+   {:command :reindent :label "Reindent Lines"}
 
-                 {:label "Convert Indentation"
-                  :children [{:label "To Tabs"
-                              :command :convert-indentation
-                              :user-data :tabs}
-                             {:label "To Two Spaces"
-                              :command :convert-indentation
-                              :user-data :two-spaces}
-                             {:label "To Four Spaces"
-                              :command :convert-indentation
-                              :user-data :four-spaces}]}
+   {:label "Convert Indentation"
+    :children [{:label "To Tabs"
+                :command :convert-indentation
+                :user-data :tabs}
+               {:label "To Two Spaces"
+                :command :convert-indentation
+                :user-data :two-spaces}
+               {:label "To Four Spaces"
+                :command :convert-indentation
+                :user-data :four-spaces}]}
 
-                 {:label :separator}
-                 {:command :sort-lines                 :label "Sort Lines"}
-                 {:command :sort-lines-case-sensitive  :label "Sort Lines (Case Sensitive)"}
-                 {:label :separator}
-                 {:command :select-next-occurrence     :label "Select Next Occurrence"}
-                 {:command :split-selection-into-lines :label "Split Selection Into Lines"}
-                 {:label :separator}
-                 {:command :toggle-breakpoint          :label "Toggle Breakpoint"}])
+   {:label :separator}
+   {:command :sort-lines :label "Sort Lines"}
+   {:command :sort-lines-case-sensitive :label "Sort Lines (Case Sensitive)"}
+   {:label :separator}
+   {:command :select-next-occurrence :label "Select Next Occurrence"}
+   {:command :split-selection-into-lines :label "Split Selection Into Lines"}
+   {:label :separator}
+   {:command :toggle-breakpoint :label "Toggle Breakpoint"}])
 
-(ui/extend-menu ::menubar :editor.app-view/view-end
-                [{:command :toggle-minimap             :label "Minimap" :check true}
-                 {:command :toggle-indentation-guides  :label "Indentation Guides" :check true}
-                 {:command :toggle-visible-whitespace  :label "Visible Whitespace" :check true}
-                 {:label :separator}
-                 {:command :zoom-in                    :label "Increase Font Size"}
-                 {:command :zoom-out                   :label "Decrease Font Size"}
-                 {:command :reset-zoom                 :label "Reset Font Size"}
-                 {:label :separator}
-                 {:command :goto-line                  :label "Go to Line..."}])
+(handler/register-menu! ::menubar :editor.app-view/view-end
+  [{:command :toggle-minimap :label "Minimap" :check true}
+   {:command :toggle-indentation-guides :label "Indentation Guides" :check true}
+   {:command :toggle-visible-whitespace :label "Visible Whitespace" :check true}
+   {:label :separator}
+   {:command :zoom-in :label "Increase Font Size"}
+   {:command :zoom-out :label "Decrease Font Size"}
+   {:command :reset-zoom :label "Reset Font Size"}
+   {:label :separator}
+   {:command :goto-line :label "Go to Line..."}])
 
 ;; -----------------------------------------------------------------------------
 

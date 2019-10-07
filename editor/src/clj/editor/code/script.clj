@@ -89,7 +89,7 @@
               {:match #"\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)"
                :name "keyword.operator.lua"}]})
 
-(def ^:private lua-code-opts {:code {:grammar lua-grammar}})
+(def lua-code-opts {:code {:grammar lua-grammar}})
 
 (defn script-property-type->property-type
   "Controls how script property values are represented in the graph and edited."

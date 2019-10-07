@@ -74,7 +74,7 @@ public:
             sscanf(self->m_Resource.c_str(), "/mul/%d/%d", &a,&b);
             int c = a + b;
             char buf[16];
-            DM_SNPRINTF(buf, sizeof(buf), "%d", c);
+            dmSnPrintf(buf, sizeof(buf), "%d", c);
             dmHttpServer::Send(request, buf, strlen(buf));
         }
         else if (strstr(self->m_Resource.c_str(), "/test_html"))
@@ -108,7 +108,7 @@ public:
             }
 
             char str_buf[32];
-            DM_SNPRINTF(str_buf, sizeof(str_buf), "%llu", (unsigned long long)dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
+            dmSnPrintf(str_buf, sizeof(str_buf), "%llu", (unsigned long long)dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
             dmHttpServer::Send(request, str_buf, strlen(str_buf));
         }
         else
@@ -308,7 +308,7 @@ TEST_F(dmHttpServerTest, TestServerClient)
     for (int i = 0; i < 5000; i += 97)
     {
         char uri[64];
-        DM_SNPRINTF(uri, sizeof(uri), "/respond_with_n/%d", i);
+        dmSnPrintf(uri, sizeof(uri), "/respond_with_n/%d", i);
         m_ClientData = "";
 
         r = dmHttpClient::Get(client, uri);

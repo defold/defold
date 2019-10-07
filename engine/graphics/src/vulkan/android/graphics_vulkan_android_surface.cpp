@@ -1,5 +1,10 @@
+#include <vulkan/vulkan.h>
+#include <dlib/math.h>
+#include <dlib/array.h>
 
-#include "../graphics_vulkan.h"
+#include "../../graphics.h"
+
+#include "../graphics_vulkan_private.h"
 
 #include <graphics/glfw/glfw_native.h>
 #include <vulkan/vulkan_android.h>

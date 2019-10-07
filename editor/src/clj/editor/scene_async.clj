@@ -1,10 +1,53 @@
 (ns editor.scene-async
   (:require [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL2]
-           [java.nio ByteBuffer]
-           [javafx.scene.image PixelFormat WritableImage]))
+           [java.nio ByteBuffer ByteOrder]
+           [javafx.scene.image PixelBuffer PixelFormat WritableImage]
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
+
+;; NOTE You have to know what you are doing if you want to change this value. If
+;; it does not match the native format exactly,
+;; image.getPixelWriter().setPixels(...) below will take a lot more time. BGRA
+;; is the native format for most GPUs so by using that in our CPU side buffers
+;; we avoid conversions.
+(def ^:private ^PixelFormat pixel-format (PixelFormat/getByteBgraPreInstance))
+
+(defn- make-direct-buffer-backed-writable-image
+  [width height]
+  (let [buf (doto (ByteBuffer/allocateDirect (* width height 4))
+              (.order (ByteOrder/nativeOrder)))
+        pixel-buffer (PixelBuffer. width height buf pixel-format)]
+    {:byte-buffer buf
+     :pixel-buffer pixel-buffer
+     :image (WritableImage. pixel-buffer)}))
+
+(definterface IPixelWriteCallback
+  (set_buffer_BANG_ [x]))
+
+(deftype PixelWriteCallback
+    [^:unsynchronized-mutable ^ByteBuffer from-buf]
+  IPixelWriteCallback
+  (set-buffer! [_ x]
+    (set! from-buf x))
+  Callback
+  (call [_ pb]
+    (let [^ByteBuffer to-buf (.getBuffer ^PixelBuffer pb)]
+      (.rewind from-buf)
+      (.rewind to-buf)
+      ;; NOTE: We copy the pixels here instead of just letting OpenGL write
+      ;; directly to the backing ByteBuffer of the PixelBuffer. This may seem
+      ;; strange. And it is. The reason we do it is that this turned out to
+      ;; actually be faster! glBufferSubData was tested, which can put the
+      ;; pixels directly in the buffer instead of returning a new one like
+      ;; glMapBuffer does. But glBufferSubData turned out to be slower. At least
+      ;; this way of copying pixels is slightly faster than what we had before
+      ;; (just putting pixels in the WritableImage without accessing the
+      ;; underlying buffer).
+      (.put to-buf from-buf)
+      (.flip to-buf)
+      nil)))
 
 (defn make-async-copy-state [width height]
   {:width width
@@ -12,8 +55,9 @@
    :state :done
    :pbo 0
    :pbo-size nil
-   :images [(WritableImage. width height)
-            (WritableImage. width height)]
+   :images [(make-direct-buffer-backed-writable-image width height)
+            (make-direct-buffer-backed-writable-image width height)]
+   :buffer-update-callback (->PixelWriteCallback nil)
    :current-image 0})
 
 (defn request-resize! [async-copy-state width height]
@@ -26,8 +70,9 @@
 (defmulti begin-read! (fn [async-copy-state ^GL2 gl] (:state async-copy-state)))
 (defmulti finish-image! :state)
 
-(defn image ^WritableImage [{:keys [current-image images] :as async-copy-state}]
-  (nth images current-image))
+(defn image
+  ^WritableImage [{:keys [current-image images] :as async-copy-state}]
+  (:image (nth images current-image)))
 
 (defn- lazy-init! [{:keys [^int pbo] :as async-copy-state} ^GL2 gl]
   (cond-> async-copy-state
@@ -83,24 +128,21 @@
 
 (defn- resize-image-to-pbo! [{:keys [current-image pbo-size] :as async-copy-state}]
   (profiler/profile "resize-image" -1
-    (let [image ^WritableImage (get-in async-copy-state [:images current-image])
+    (let [image (get-in async-copy-state [:images current-image])
+          writable-image ^WritableImage (:image image)
           {:keys [^int width ^int height]} pbo-size]
       (cond-> async-copy-state
-              (or (not= (.getWidth image) width)
-                  (not= (.getHeight image) height))
-              (assoc-in [:images current-image] (WritableImage. width height))))))
-
-;; NOTE You have to know what you are doing if you want to change this value.
-;; If it does not match the native format exactly, image.getPixelWriter().setPixels(...) below will take a lot more time.
-(def ^:private ^PixelFormat pixel-format (PixelFormat/getByteBgraPreInstance))
+              (or (not= (.getWidth writable-image) width)
+                  (not= (.getHeight writable-image) height))
+              (assoc-in [:images current-image] (make-direct-buffer-backed-writable-image width height))))))
 
 (defn- copy-pbo-to-image! [async-copy-state ^GL2 gl]
   (profiler/profile "pbo->image" -1
-    (let [image (image async-copy-state)
-          {:keys [^int width ^int height]} (:pbo-size async-copy-state)
-          ;; glMapBuffer will wait until glReadPixels completes
-          buffer ^ByteBuffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
-      (.. image getPixelWriter (setPixels 0 0 width height pixel-format buffer (* width 4)))
+    (let [^PixelBuffer pb (:pixel-buffer (nth (:images async-copy-state) (:current-image async-copy-state)))
+          ^PixelWriteCallback cb (:buffer-update-callback async-copy-state)
+          ^ByteBuffer gl-buffer (.glMapBuffer gl GL2/GL_PIXEL_PACK_BUFFER GL2/GL_READ_ONLY)]
+      (.set-buffer! cb gl-buffer)
+      (.updateBuffer pb cb)
       (.glUnmapBuffer gl GL2/GL_PIXEL_PACK_BUFFER)
       (assoc async-copy-state :state :done))))
 
@@ -112,3 +154,4 @@
       (bind-pbo! gl)
       (copy-pbo-to-image! gl)
       (unbind-pbo! gl)))
+

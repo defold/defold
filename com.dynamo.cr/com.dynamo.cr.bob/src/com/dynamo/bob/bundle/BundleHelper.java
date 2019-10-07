@@ -643,6 +643,9 @@ public class BundleHelper {
     // This regexp catches conflicts between jar files
     private static Pattern jarConflictIssue = Pattern.compile("Uncaught translation error:*.+");
 
+    // In case something really bad happened on the server
+    private static Pattern internalServerIssue = Pattern.compile("Internal Server Error*.+");
+
     private static List<String> excludeMessages = new ArrayList<String>() {{
         add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
     }};
@@ -781,7 +784,7 @@ public class BundleHelper {
         }
     }
 
-    public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
+    public static void parseLog(String platform, String log, List<ResourceInfo> issues) throws CompileExceptionError {
         String[] lines = log.split("\\r?\\n");
 
         List<ResourceInfo> allIssues = new ArrayList<ResourceInfo>();
@@ -805,6 +808,11 @@ public class BundleHelper {
             if (m.matches()) {
                 allIssues.add( new BundleHelper.ResourceInfo("error", m.group(1), "1", log) );
                 return;
+            }
+
+            m = BundleHelper.internalServerIssue.matcher(line);
+            if (m.matches()) {
+                throw new CompileExceptionError(null, 0, "Internal Server Error. Read the full logs on the cloud service");
             }
 
             m = BundleHelper.nonResourceIssueRe.matcher(line);
@@ -883,6 +891,9 @@ public class BundleHelper {
                     throw exception;
                 } catch (IOException ioe) {
                     buildError = "<failed reading log>";
+                } catch (CompileExceptionError ioe) {
+                    buildError = String.format("'%s' could not be built. Sdk version: '%s'\nLog: '%s'", platform, sdkVersion, buildError);
+                    throw new CompileExceptionError(buildError, e.getCause());
                 }
             }
             buildError = String.format("'%s' could not be built. Sdk version: '%s'\nLog: '%s'", platform, sdkVersion, buildError);

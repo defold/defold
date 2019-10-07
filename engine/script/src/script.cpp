@@ -1633,8 +1633,8 @@ namespace dmScript
     }
 
     /**
-    * To reduce the overhead of the profiler when calling lua functions we avoid using DM_SNPRINTF.
-    * DM_SNPRINTF uses vsnprintf with variable number of arguments but we only need string concatenation for
+    * To reduce the overhead of the profiler when calling lua functions we avoid using dmSnPrintf.
+    * dmSnPrintf uses vsnprintf with variable number of arguments but we only need string concatenation for
     * the most part. Also, we use our knownledge when building the string to get the string length directly
     * without resorting to strlen.
     * Building this string is particularly expensive on low end devices and using this more optimal way reduces
@@ -1664,7 +1664,7 @@ namespace dmScript
                     else
                     {
                         char function_line_number_buffer[16];
-                        DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                        dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
                         w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
                     }
                 }

@@ -460,5 +460,8 @@ To debug memory and alignment issues the following parameters should be added bo
 
 ## Porting to another compiler
 
-You will likely need to recompile external libraries. Source code for most is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).
+You will likely need to recompile external libraries.
+Check the `share/ext` folder for building the external packages for each platform
+(Source code for some old packages is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).)
+
 

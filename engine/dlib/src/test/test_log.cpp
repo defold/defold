@@ -46,7 +46,7 @@ TEST(dmLog, Client)
     dmLogInitialize(&params);
     uint16_t port = dmLogGetPort();
     ASSERT_GT(port, 0);
-    DM_SNPRINTF(buf, sizeof(buf), "python src/test/test_log.py %d", port);
+    dmSnPrintf(buf, sizeof(buf), "python src/test/test_log.py %d", port);
 #ifdef _WIN32
     FILE* f = _popen(buf, "rb");
 #else

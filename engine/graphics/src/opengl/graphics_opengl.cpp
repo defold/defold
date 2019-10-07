@@ -16,10 +16,11 @@
     #include <emscripten/emscripten.h>
 #endif
 
+#include "graphics_opengl_defines.h"
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "async/job_queue.h"
-#include "graphics_opengl.h"
+#include "graphics_opengl_private.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -955,6 +956,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    void BeginFrame(HContext context)
+    {
+        // NOP
+    }
+
     void Flip(HContext context)
     {
         DM_PROFILE(VSync, "Wait");
@@ -1083,32 +1089,23 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return context->m_MaxElementIndices;
     }
 
-    static uint32_t GetTypeSize(Type type)
+    static uint32_t GetTypeSize(dmGraphics::Type type)
     {
-        uint32_t size = 0;
-        switch (type)
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
         {
-            case TYPE_BYTE:
-            case TYPE_UNSIGNED_BYTE:
-                size = 1;
-                break;
-
-            case TYPE_SHORT:
-            case TYPE_UNSIGNED_SHORT:
-                size = 2;
-                break;
-
-            case TYPE_INT:
-            case TYPE_UNSIGNED_INT:
-            case TYPE_FLOAT:
-                size = 4;
-                break;
-
-            default:
-                assert(0);
-                break;
+            return 1;
         }
-        return size;
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
+        {
+             return 4;
+        }
+
+        assert(0);
+        return 0;
     }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
@@ -2048,7 +2045,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         GLenum gl_format;
-        GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
+        GLenum gl_type = dmGraphics::TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format = -1;
         switch (params.m_Format)
@@ -2113,7 +2110,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             break;
         case TEXTURE_FORMAT_RGB32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
             break;
@@ -2123,7 +2120,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
@@ -2133,7 +2130,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_R32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
@@ -2143,7 +2140,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_RG32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
@@ -2375,7 +2372,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
     #if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport && state == DMGRAPHICS_STATE_ALPHA_TEST)
+        if (context->m_RenderDocSupport && state == STATE_ALPHA_TEST)
         {
             dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
             return;
@@ -2389,7 +2386,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
     #if defined(GL_HAS_RENDERDOC_SUPPORT)
-        if (context->m_RenderDocSupport && state == DMGRAPHICS_STATE_ALPHA_TEST)
+        if (context->m_RenderDocSupport && state == STATE_ALPHA_TEST)
         {
             dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
             return;

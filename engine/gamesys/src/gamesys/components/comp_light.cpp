@@ -90,7 +90,7 @@ namespace dmGameSystem
             Quat rotation = dmGameObject::GetRotation(light->m_Instance);
 
             dmGameSystemDDF::LightDesc* light_desc = *light->m_LightResource;
-            DM_SNPRINTF(buf + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light_desc->m_Id));
+            dmSnPrintf(buf + sizeof(dmGameSystemDDF::SetLight), 9, "%X", dmHashString32(light_desc->m_Id));
             set_light->m_Light.m_Id = (const char*) sizeof(dmGameSystemDDF::SetLight);
             set_light->m_Light.m_Type = light_desc->m_Type;
             set_light->m_Light.m_Intensity = light_desc->m_Intensity;

@@ -120,7 +120,9 @@
                               {:fx/type :h-box
                                :style-class "spacing-smaller"
                                :alignment :center-left
-                               :children [{:fx/type fxui/icon :type icon}
+                               :children [(if (keyword? icon)
+                                            {:fx/type fxui/icon :type icon}
+                                            icon)
                                           header-desc]})))))))
 
 (defn make-confirmation-dialog

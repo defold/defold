@@ -1,13 +1,19 @@
-#include "../graphics.h"
-#include "graphics_vulkan.h"
-
-#include <dlib/log.h>
-#include <dlib/dstrings.h>
+#include "graphics_vulkan_defines.h"
+#include <vulkan/vulkan.h>
 
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
+#include <dlib/math.h>
+#include <dlib/array.h>
+#include <dlib/profile.h>
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
+
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
+
+#include "../graphics.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
@@ -20,7 +26,16 @@ namespace dmGraphics
         } \
     }
 
-    struct Context
+    // Validation layers to enable
+    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
+    static const uint8_t g_validation_layer_count     = 1;
+    // Validation layer extensions
+    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    static const uint8_t g_validation_layer_ext_count = 1;
+    // In flight frames - number of concurrent frames being processed
+    static const uint8_t g_max_frames_in_flight       = 2;
+
+    static struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
         : m_Instance(vk_instance)
@@ -45,6 +60,7 @@ namespace dmGraphics
         SwapChainCapabilities    m_SwapChainCapabilities;
         PhysicalDevice           m_PhysicalDevice;
         LogicalDevice            m_LogicalDevice;
+        FrameResource            m_FrameResources[g_max_frames_in_flight];
         VkInstance               m_Instance;
         VkSurfaceKHR             m_WindowSurface;
 
@@ -55,62 +71,65 @@ namespace dmGraphics
         Texture                  m_MainTextureDepthStencil;
         RenderTarget             m_MainRenderTarget;
 
+        // Rendering state
+        RenderTarget*            m_CurrentRenderTarget;
+
         TextureFilter            m_DefaultTextureMinFilter;
         TextureFilter            m_DefaultTextureMagFilter;
-        uint32_t                 m_WindowOpened        : 1;
-        uint32_t                 m_VerifyGraphicsCalls : 1;
-        uint32_t                 : 30;
-    };
+        uint32_t                 m_Width;
+        uint32_t                 m_Height;
+        uint32_t                 m_WindowWidth;
+        uint32_t                 m_WindowHeight;
+        uint32_t                 m_CurrentFrameInFlight : 1;
+        uint32_t                 m_WindowOpened         : 1;
+        uint32_t                 m_VerifyGraphicsCalls  : 1;
+        uint32_t                 : 29;
+    } *g_Context = 0;
 
-    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
-    static const uint8_t g_validation_layer_count     = 1;
-    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
-    static const uint8_t g_validation_layer_ext_count = 1;
-
-    static Context* g_Context = 0;
-
+    #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
     {
         switch(res)
         {
-            case VK_SUCCESS: return "VK_SUCCESS";
-            case VK_NOT_READY: return "VK_NOT_READY";
-            case VK_TIMEOUT: return "VK_TIMEOUT";
-            case VK_EVENT_SET: return "VK_EVENT_SET";
-            case VK_EVENT_RESET: return "VK_EVENT_RESET";
-            case VK_INCOMPLETE: return "VK_INCOMPLETE";
-            case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
-            case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
-            case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
-            case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
-            case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
-            case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
-            case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
-            case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
-            case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
-            case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
-            case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
-            case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
-            case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
-            case VK_ERROR_INVALID_EXTERNAL_HANDLE: return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
-            case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
-            case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
-            case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
-            case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
-            case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
-            case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
-            case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
-            case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT: return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
-            case VK_ERROR_FRAGMENTATION_EXT: return "VK_ERROR_FRAGMENTATION_EXT";
-            case VK_ERROR_NOT_PERMITTED_EXT: return "VK_ERROR_NOT_PERMITTED_EXT";
-            case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT: return "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT";
-            case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
-            case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
+            DM_VK_RESULT_TO_STR_CASE(VK_SUCCESS);
+            DM_VK_RESULT_TO_STR_CASE(VK_NOT_READY);
+            DM_VK_RESULT_TO_STR_CASE(VK_TIMEOUT);
+            DM_VK_RESULT_TO_STR_CASE(VK_EVENT_SET);
+            DM_VK_RESULT_TO_STR_CASE(VK_EVENT_RESET);
+            DM_VK_RESULT_TO_STR_CASE(VK_INCOMPLETE);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_HOST_MEMORY);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_DEVICE_MEMORY);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INITIALIZATION_FAILED);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_DEVICE_LOST);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_MEMORY_MAP_FAILED);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_LAYER_NOT_PRESENT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_EXTENSION_NOT_PRESENT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FEATURE_NOT_PRESENT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INCOMPATIBLE_DRIVER);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_TOO_MANY_OBJECTS);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FORMAT_NOT_SUPPORTED);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FRAGMENTED_POOL);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_POOL_MEMORY);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_EXTERNAL_HANDLE);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_SURFACE_LOST_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_NATIVE_WINDOW_IN_USE_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_SUBOPTIMAL_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_OUT_OF_DATE_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INCOMPATIBLE_DISPLAY_KHR);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_VALIDATION_FAILED_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_SHADER_NV);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FRAGMENTATION_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_NOT_PERMITTED_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_INVALID_DEVICE_ADDRESS_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT);
+            DM_VK_RESULT_TO_STR_CASE(VK_RESULT_MAX_ENUM);
             default: break;
         }
 
         return "UNKNOWN_ERROR";
     }
+    #undef DM_VK_RESULT_TO_STRING_CASE
 
     static inline void SynchronizeDevice(VkDevice vk_device)
     {
@@ -130,271 +149,85 @@ namespace dmGraphics
         return next_id++;
     }
 
-    static VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
+    static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t numFrameResources, FrameResource* frameResourcesOut)
     {
-        VkCommandBufferAllocateInfo vk_buffers_allocate_info;
-        memset(&vk_buffers_allocate_info, 0, sizeof(vk_buffers_allocate_info));
+        VkSemaphoreCreateInfo vk_create_semaphore_info;
+        memset(&vk_create_semaphore_info, 0, sizeof(vk_create_semaphore_info));
+        vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        vk_buffers_allocate_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        vk_buffers_allocate_info.commandPool        = vk_command_pool;
-        vk_buffers_allocate_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        vk_buffers_allocate_info.commandBufferCount = numBuffersToCreate;
+        VkFenceCreateInfo vk_create_fence_info;
+        memset(&vk_create_fence_info, 0, sizeof(vk_create_fence_info));
+        vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        vk_create_fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
-    }
-
-    static VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass, uint32_t width, uint32_t height, VkImageView* vk_attachments, uint8_t attachmentCount, VkFramebuffer* vk_framebuffer_out)
-    {
-        VkFramebufferCreateInfo vk_framebuffer_create_info;
-        memset(&vk_framebuffer_create_info, 0, sizeof(vk_framebuffer_create_info));
-
-        vk_framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        vk_framebuffer_create_info.renderPass      = vk_render_pass;
-        vk_framebuffer_create_info.attachmentCount = attachmentCount;
-        vk_framebuffer_create_info.pAttachments    = vk_attachments;
-        vk_framebuffer_create_info.width           = width;
-        vk_framebuffer_create_info.height          = height;
-        vk_framebuffer_create_info.layers          = 1;
-
-        return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
-    }
-
-    static bool FindMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags, uint32_t* memoryIndexOut)
-    {
-        VkPhysicalDeviceMemoryProperties vk_memory_props;
-        vkGetPhysicalDeviceMemoryProperties(vk_physical_device, &vk_memory_props);
-
-        for (uint32_t i = 0; i < vk_memory_props.memoryTypeCount; i++)
+        for(uint8_t i=0; i < numFrameResources; i++)
         {
-            if ((typeFilter & (1 << i)) && (vk_memory_props.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags)
+            if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frameResourcesOut[i].m_ImageAvailable) != VK_SUCCESS ||
+                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frameResourcesOut[i].m_RenderFinished) != VK_SUCCESS ||
+                vkCreateFence(vk_device, &vk_create_fence_info, 0, &frameResourcesOut[i].m_SubmitFence) != VK_SUCCESS)
             {
-                *memoryIndexOut = i;
-                return true;
+                return VK_ERROR_INITIALIZATION_FAILED;
             }
         }
-
-        return false;
-    }
-
-    // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
-    // Optimal is always sought after since it should be the most performant (depending on hardware),
-    // but is not always supported.
-    static const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
-        uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags)
-    {
-        for (uint32_t i=0; i < vk_num_format_candidates; i++)
-        {
-            VkFormatProperties format_properties;
-            VkFormat formatCandidate = vk_format_candidates[i];
-
-            vkGetPhysicalDeviceFormatProperties(vk_physical_device, formatCandidate, &format_properties);
-
-            if ((vk_tiling_type == VK_IMAGE_TILING_LINEAR && (format_properties.linearTilingFeatures & vk_format_flags) == vk_format_flags) ||
-                (vk_tiling_type == VK_IMAGE_TILING_OPTIMAL && (format_properties.optimalTilingFeatures & vk_format_flags) == vk_format_flags))
-            {
-                return formatCandidate;
-            }
-        }
-
-        return VK_FORMAT_UNDEFINED;
-    }
-
-    static VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout)
-    {
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-
-        VkImageMemoryBarrier vk_memory_barrier;
-        memset(&vk_memory_barrier, 0, sizeof(vk_memory_barrier));
-
-        vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        vk_memory_barrier.oldLayout                       = vk_from_layout;
-        vk_memory_barrier.newLayout                       = vk_to_layout;
-        vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = vk_image;
-        vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = 0;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
-        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = 1;
-
-        VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        // These stage changes are explicit in our case:
-        //   1) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   2) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   3) undefined -> depth stencil. This transition is used when creating a depth buffer.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        vkCmdPipelineBarrier(
-            vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            0,
-            0, 0,
-            0, 0,
-            1, &vk_memory_barrier
-        );
-
-        vkEndCommandBuffer(vk_command_buffer);
-
-        VkSubmitInfo vk_submit_info;
-        memset(&vk_submit_info, 0, sizeof(VkSubmitInfo));
-
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-        vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(vk_graphics_queue);
-        vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
         return VK_SUCCESS;
     }
 
-    static void ResetTexture(VkDevice vk_device, Texture* texture)
+    static bool EndRenderPass(HContext context)
     {
-        if (texture->m_ImageView != VK_NULL_HANDLE)
+        assert(context->m_CurrentRenderTarget);
+        if (!context->m_CurrentRenderTarget->m_IsBound)
         {
-            vkDestroyImageView(vk_device, texture->m_ImageView, 0);
-            texture->m_ImageView = VK_NULL_HANDLE;
+            return false;
         }
 
-        if (texture->m_Image != VK_NULL_HANDLE)
-        {
-            vkDestroyImage(vk_device, texture->m_Image, 0);
-            texture->m_Image = VK_NULL_HANDLE;
-        }
-
-        if (texture->m_DeviceMemory.m_Memory != VK_NULL_HANDLE)
-        {
-            vkFreeMemory(vk_device, texture->m_DeviceMemory.m_Memory, 0);
-            texture->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-            texture->m_DeviceMemory.m_MemorySize = 0;
-        }
+        vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex]);
+        context->m_CurrentRenderTarget->m_IsBound = 0;
+        return true;
     }
 
-    static VkResult AllocateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
-        VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
-        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut)
+    static void BeginRenderPass(HContext context, RenderTarget* rt)
     {
-        assert(textureOut);
-        assert(textureOut->m_ImageView == VK_NULL_HANDLE);
-        assert(textureOut->m_DeviceMemory.m_Memory == VK_NULL_HANDLE && textureOut->m_DeviceMemory.m_MemorySize == 0);
-
-        VkImageCreateInfo vk_image_create_info;
-        memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
-
-        vk_image_create_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        vk_image_create_info.imageType     = VK_IMAGE_TYPE_2D;
-        vk_image_create_info.extent.width  = imageWidth;
-        vk_image_create_info.extent.height = imageHeight;
-        vk_image_create_info.extent.depth  = 1;
-        vk_image_create_info.mipLevels     = imageMips;
-        vk_image_create_info.arrayLayers   = 1;
-        vk_image_create_info.format        = vk_format;
-        vk_image_create_info.tiling        = vk_tiling;
-        vk_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        vk_image_create_info.usage         = vk_usage;
-        vk_image_create_info.samples       = VK_SAMPLE_COUNT_1_BIT;
-        vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-        vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
-
-        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
-        CHECK_VK_ERROR(res);
-
-        // Allocate GPU memory to hold texture
-        VkMemoryRequirements vk_memory_req;
-        vkGetImageMemoryRequirements(vk_device, textureOut->m_Image, &vk_memory_req);
-
-        VkMemoryAllocateInfo vk_memory_alloc_info;
-        memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
-
-        vk_memory_alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        vk_memory_alloc_info.allocationSize  = vk_memory_req.size;
-        vk_memory_alloc_info.memoryTypeIndex = 0;
-
-        uint32_t memory_type_index = 0;
-        if (!FindMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
+        assert(context->m_CurrentRenderTarget);
+        if (context->m_CurrentRenderTarget->m_Id == rt->m_Id &&
+            context->m_CurrentRenderTarget->m_IsBound)
         {
-            res = VK_ERROR_INITIALIZATION_FAILED;
-            goto bail;
+            return;
         }
 
-        vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
-
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_DeviceMemory.m_Memory);
-        CHECK_VK_ERROR(res);
-
-        if (res != VK_SUCCESS)
+        // If we bind a render pass without explicitly unbinding
+        // the current render pass, we must first unbind it.
+        if (context->m_CurrentRenderTarget->m_IsBound)
         {
-            goto bail;
+            EndRenderPass(context);
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_DeviceMemory.m_Memory, 0);
-        CHECK_VK_ERROR(res);
+        VkClearValue vk_clear_values[2];
+        memset(vk_clear_values, 0, sizeof(vk_clear_values));
 
-        textureOut->m_DeviceMemory.m_MemorySize = vk_memory_req.size;
+        // Clear color and depth/stencil separately
+        vk_clear_values[0].color.float32[3]     = 1.0f;
+        vk_clear_values[1].depthStencil.depth   = 1.0f;
+        vk_clear_values[1].depthStencil.stencil = 0;
 
-        VkImageViewCreateInfo vk_view_create_info;
-        memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
+        VkRenderPassBeginInfo vk_render_pass_begin_info;
+        vk_render_pass_begin_info.sType               = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        vk_render_pass_begin_info.renderPass          = rt->m_RenderPass;
+        vk_render_pass_begin_info.framebuffer         = rt->m_Framebuffer;
+        vk_render_pass_begin_info.pNext               = 0;
+        vk_render_pass_begin_info.renderArea.offset.x = 0;
+        vk_render_pass_begin_info.renderArea.offset.y = 0;
+        vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
+        vk_render_pass_begin_info.clearValueCount     = 2;
+        vk_render_pass_begin_info.pClearValues        = 0;
 
-        vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        vk_view_create_info.image                           = textureOut->m_Image;
-        vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-        vk_view_create_info.format                          = vk_format;
-        vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
-        vk_view_create_info.subresourceRange.baseMipLevel   = 0;
-        vk_view_create_info.subresourceRange.levelCount     = 1;
-        vk_view_create_info.subresourceRange.baseArrayLayer = 0;
-        vk_view_create_info.subresourceRange.layerCount     = 1;
+        vk_render_pass_begin_info.clearValueCount = 2;
+        vk_render_pass_begin_info.pClearValues    = vk_clear_values;
 
-        textureOut->m_Format = vk_format;
+        vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);
-bail:
-        ResetTexture(vk_device, textureOut);
-        return res;
+        context->m_CurrentRenderTarget = rt;
+        context->m_CurrentRenderTarget->m_IsBound = 1;
     }
 
     static VkResult AllocateDepthStencilTexture(HContext context, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
@@ -435,7 +268,7 @@ bail:
             vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
         }
 
-        VkResult res = AllocateTexture2D(vk_physical_device, vk_device, width, height, 1,
+        VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
             vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, depthStencilTextureOut);
         CHECK_VK_ERROR(res);
@@ -446,99 +279,6 @@ bail:
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
-
-        return res;
-    }
-
-    static VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
-    {
-        assert(*renderPassOut == VK_NULL_HANDLE);
-
-        uint8_t num_attachments  = numColorAttachments + (depthStencilAttachment ? 1 : 0);
-        VkAttachmentDescription* vk_attachment_desc    = new VkAttachmentDescription[num_attachments];
-        VkAttachmentReference* vk_attachment_color_ref = new VkAttachmentReference[numColorAttachments];
-        VkAttachmentReference vk_attachment_depth_ref  = {};
-
-        memset(vk_attachment_desc, 0, sizeof(VkAttachmentDescription) * num_attachments);
-        memset(vk_attachment_color_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
-
-        for (uint16_t i=0; i < numColorAttachments; i++)
-        {
-            VkAttachmentDescription& attachment_color = vk_attachment_desc[i];
-
-            attachment_color.format         = colorAttachments[i].m_Format;
-            attachment_color.samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment_color.finalLayout    = colorAttachments[i].m_ImageLayout;
-
-            VkAttachmentReference& ref = vk_attachment_color_ref[i];
-            ref.attachment = i;
-            ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        }
-
-        if (depthStencilAttachment)
-        {
-            VkAttachmentDescription& attachment_depth = vk_attachment_desc[numColorAttachments];
-
-            attachment_depth.format         = depthStencilAttachment->m_Format;
-            attachment_depth.samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
-
-            vk_attachment_depth_ref.attachment = numColorAttachments;
-            vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        }
-
-        // Subpass dependencies describe access patterns between several 'sub-passes',
-        // e.g for a post-processing stack you would likely have a dependency chain between
-        // the results of various draw calls, which could then be specefied as subpass dependencies
-        // which could yield optimal performance. We don't have any way of describing the access flow
-        // yet so for now we just create a single subpass that connects an external source
-        // (anything that has happend before this call) to the color output of the render pass,
-        // which should be fine in most cases.
-        VkSubpassDependency vk_sub_pass_dependency;
-        memset(&vk_sub_pass_dependency, 0, sizeof(vk_sub_pass_dependency));
-        vk_sub_pass_dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        vk_sub_pass_dependency.dstSubpass    = 0;
-        vk_sub_pass_dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.srcAccessMask = 0;
-        vk_sub_pass_dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-        // The subpass description connects the input attachments to the render pass,
-        // in a MRT situation writing to specific color outputs (gl_FragData[x]) match these numbers.
-        VkSubpassDescription vk_sub_pass_description;
-        memset(&vk_sub_pass_description, 0, sizeof(vk_sub_pass_description));
-
-        vk_sub_pass_description.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        vk_sub_pass_description.colorAttachmentCount    = numColorAttachments;
-        vk_sub_pass_description.pColorAttachments       = vk_attachment_color_ref;
-        vk_sub_pass_description.pDepthStencilAttachment = depthStencilAttachment ? &vk_attachment_depth_ref : 0;
-
-        VkRenderPassCreateInfo render_pass_create_info;
-        memset(&render_pass_create_info, 0, sizeof(render_pass_create_info));
-
-        render_pass_create_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        render_pass_create_info.attachmentCount = num_attachments;
-        render_pass_create_info.pAttachments    = vk_attachment_desc;
-        render_pass_create_info.subpassCount    = 1;
-        render_pass_create_info.pSubpasses      = &vk_sub_pass_description;
-        render_pass_create_info.dependencyCount = 1;
-        render_pass_create_info.pDependencies   = &vk_sub_pass_dependency;
-
-        VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
-        CHECK_VK_ERROR(res);
-
-        delete[] vk_attachment_desc;
-        delete[] vk_attachment_color_ref;
 
         return res;
     }
@@ -576,6 +316,7 @@ bail:
         RenderTarget& rt = context->m_MainRenderTarget;
         rt.m_RenderPass  = context->m_MainRenderPass;
         rt.m_Framebuffer = context->m_MainFrameBuffers[0];
+        rt.m_Extent      = swapChain->m_ImageExtent;
 
         return res;
     }
@@ -604,6 +345,7 @@ bail:
 
         res = CreateMainRenderTarget(context);
         CHECK_VK_ERROR(res);
+        context->m_CurrentRenderTarget = &context->m_MainRenderTarget;
 
         uint32_t num_swap_chain_images = context->m_SwapChain->m_Images.Size();
         context->m_MainCommandBuffers.SetCapacity(num_swap_chain_images);
@@ -613,6 +355,9 @@ bail:
             context->m_LogicalDevice.m_CommandPool,
             context->m_MainCommandBuffers.Size(),
             context->m_MainCommandBuffers.Begin());
+        CHECK_VK_ERROR(res);
+
+        res = CreateMainFrameSyncObjects(vk_device, g_max_frames_in_flight, context->m_FrameResources);
         CHECK_VK_ERROR(res);
 
         return res;
@@ -634,6 +379,9 @@ bail:
             &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
+        context->m_WindowWidth  = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight = context->m_SwapChain->m_ImageExtent.height;
+
         // Reset main rendertarget (but not the render pass)
         RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
         mainRenderTarget->m_RenderPass = VK_NULL_HANDLE;
@@ -650,82 +398,13 @@ bail:
         SynchronizeDevice(vk_device);
     }
 
-    HContext NewContext(const ContextParams& params)
+    static bool InitializeVulkan(HContext context, const WindowParams* params)
     {
-        if (g_Context == 0x0)
-        {
-            if (glfwInit() == 0)
-            {
-                dmLogError("Could not initialize glfw.");
-                return 0x0;
-            }
-
-            uint16_t validation_layer_count = 0;
-
-            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
-            if (env_vulkan_validation != 0x0)
-            {
-                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
-            }
-
-            VkInstance vk_instance;
-            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
-            {
-                dmLogError("Could not create Vulkan instance");
-                return 0x0;
-            }
-
-            g_Context = new Context(params, vk_instance);
-
-            return g_Context;
-        }
-        return 0x0;
-    }
-
-    void DeleteContext(HContext context)
-    {
-        if (context != 0x0)
-        {
-            delete context;
-            g_Context = 0x0;
-        }
-    }
-
-    bool Initialize()
-    {
-        return glfwInit();
-    }
-
-    void Finalize()
-    {
-        glfwTerminate();
-    }
-
-    uint32_t GetWindowRefreshRate(HContext context)
-    {
-        return 0;
-    }
-
-    WindowResult OpenWindow(HContext context, WindowParams *params)
-    {
-        assert(context);
-        assert(context->m_WindowSurface == VK_NULL_HANDLE);
-
-        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
-
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
-
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            return false;
         }
 
         uint32_t device_count = GetPhysicalDeviceCount(context->m_Instance);
@@ -733,7 +412,7 @@ bail:
         if (device_count == 0)
         {
             dmLogError("Could not get any Vulkan devices.");
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            return false;
         }
 
         PhysicalDevice* device_list     = new PhysicalDevice[device_count];
@@ -826,7 +505,6 @@ bail:
             goto bail;
         }
 
-        context->m_WindowOpened   = 1;
         context->m_PhysicalDevice = *selected_device;
         context->m_LogicalDevice  = logical_device;
 
@@ -851,14 +529,102 @@ bail:
             goto bail;
         }
 
-        return WINDOW_RESULT_OK;
+        return true;
 bail:
         if (context->m_SwapChain)
             delete context->m_SwapChain;
         if (device_list)
             delete[] device_list;
+        return false;
+    }
 
-        return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+    HContext NewContext(const ContextParams& params)
+    {
+        if (g_Context == 0x0)
+        {
+            if (glfwInit() == 0)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0x0;
+            }
+
+            uint16_t validation_layer_count = 0;
+
+            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
+            if (env_vulkan_validation != 0x0)
+            {
+                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
+            }
+
+            VkInstance vk_instance;
+            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
+            {
+                dmLogError("Could not create Vulkan instance");
+                return 0x0;
+            }
+
+            g_Context = new Context(params, vk_instance);
+
+            return g_Context;
+        }
+        return 0x0;
+    }
+
+    void DeleteContext(HContext context)
+    {
+        if (context != 0x0)
+        {
+            delete context;
+            g_Context = 0x0;
+        }
+    }
+
+    bool Initialize()
+    {
+        return glfwInit();
+    }
+
+    void Finalize()
+    {
+        glfwTerminate();
+    }
+
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        return 0;
+    }
+
+    WindowResult OpenWindow(HContext context, WindowParams* params)
+    {
+        assert(context);
+        assert(context->m_WindowSurface == VK_NULL_HANDLE);
+
+        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
+        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
+
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        if (!InitializeVulkan(context, params))
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+    #if !defined(__EMSCRIPTEN__)
+        glfwSetWindowTitle(params->m_Title);
+    #endif
+
+        context->m_WindowOpened   = 1;
+        context->m_Width          = params->m_Width;
+        context->m_Height         = params->m_Height;
+        context->m_WindowWidth    = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight   = context->m_SwapChain->m_ImageExtent.height;
+
+        return WINDOW_RESULT_OK;
     }
 
     void CloseWindow(HContext context)
@@ -881,6 +647,13 @@ bail:
             for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
             {
                 vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
+            }
+
+            for (size_t i = 0; i < g_max_frames_in_flight; i++) {
+                FrameResource& frame_resource = context->m_FrameResources[i];
+                vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
+                vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
+                vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
 
             ResetSwapChain(context->m_SwapChain);
@@ -921,36 +694,53 @@ bail:
 
     uint32_t GetWidth(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_Width;
     }
 
     uint32_t GetHeight(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_Height;
     }
 
     uint32_t GetWindowWidth(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_WindowWidth;
     }
 
     uint32_t GetWindowHeight(HContext context)
     {
-        return 0;
+        assert(context);
+        return context->m_WindowHeight;
     }
 
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
-    {}
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_Width        = width;
+            context->m_Height       = height;
+            context->m_WindowWidth  = width;
+            context->m_WindowHeight = height;
+            glfwSetWindowSize((int)width, (int)height);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+        }
+    }
 
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
         {
-            uint32_t wanted_width = width;
-            uint32_t wanted_height = height;
-            SwapChainChanged(context, &wanted_width, &wanted_height);
-            glfwSetWindowSize((int)wanted_width, (int)wanted_height);
+            context->m_Width        = width;
+            context->m_Height       = height;
+            context->m_WindowWidth  = width;
+            context->m_WindowHeight = height;
+            glfwSetWindowSize((int)width, (int)height);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
         }
     }
 
@@ -960,14 +750,145 @@ bail:
         out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
+    void BeginFrame(HContext context)
+    {
+        FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
+
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
+
+        VkResult res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+
+        if (res != VK_SUCCESS)
+        {
+            if (res == VK_ERROR_OUT_OF_DATE_KHR)
+            {
+                context->m_WindowWidth  = context->m_Width;
+                context->m_WindowHeight = context->m_Height;
+                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+                res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+                assert(res == VK_SUCCESS);
+            }
+            else if (res == VK_SUBOPTIMAL_KHR)
+            {
+                // Presenting the swap chain will still work but not optimally, but we should still notify.
+                dmLogOnceWarning("Vulkan swapchain is out of date, reason: VK_SUBOPTIMAL_KHR.");
+            }
+            else
+            {
+                dmLogOnceError("Vulkan swapchain is out of date, reason: %s.", VkResultToStr(res));
+                return;
+            }
+        }
+
+        uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+
+        vk_command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        vk_command_buffer_begin_info.pInheritanceInfo = 0;
+        vk_command_buffer_begin_info.pNext            = 0;
+
+        vkBeginCommandBuffer(context->m_MainCommandBuffers[frame_ix], &vk_command_buffer_begin_info);
+
+        context->m_MainRenderTarget.m_Framebuffer = context->m_MainFrameBuffers[frame_ix];
+
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
+    }
+
     void Flip(HContext context)
-    {}
+    {
+        uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
+        FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
+
+        if (!EndRenderPass(context))
+        {
+            assert(0);
+            return;
+        }
+
+        VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
+        CHECK_VK_ERROR(res);
+
+        VkPipelineStageFlags vk_pipeline_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        VkSubmitInfo vk_submit_info;
+        vk_submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        vk_submit_info.pNext                = 0;
+        vk_submit_info.waitSemaphoreCount   = 1;
+        vk_submit_info.pWaitSemaphores      = &current_frame_resource.m_ImageAvailable;
+        vk_submit_info.pWaitDstStageMask    = &vk_pipeline_stage_flags;
+        vk_submit_info.commandBufferCount   = 1;
+        vk_submit_info.pCommandBuffers      = &context->m_MainCommandBuffers[frame_ix];
+        vk_submit_info.signalSemaphoreCount = 1;
+        vk_submit_info.pSignalSemaphores    = &current_frame_resource.m_RenderFinished;
+
+        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, current_frame_resource.m_SubmitFence);
+        CHECK_VK_ERROR(res);
+
+        VkPresentInfoKHR vk_present_info;
+        vk_present_info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        vk_present_info.pNext              = 0;
+        vk_present_info.waitSemaphoreCount = 1;
+        vk_present_info.pWaitSemaphores    = &current_frame_resource.m_RenderFinished;
+        vk_present_info.swapchainCount     = 1;
+        vk_present_info.pSwapchains        = &context->m_SwapChain->m_SwapChain;
+        vk_present_info.pImageIndices      = &frame_ix;
+        vk_present_info.pResults           = 0;
+
+        res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &vk_present_info);
+        CHECK_VK_ERROR(res);
+
+        // Advance frame index
+        context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
+
+    #if (defined(__arm__) || defined(__arm64__))
+        glfwSwapBuffers();
+    #endif
+    }
 
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {}
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
-    {}
+    {
+        assert(context);
+        assert(context->m_CurrentRenderTarget);
+        DM_PROFILE(Graphics, "Clear");
+
+        float r = ((float)red)/255.0f;
+        float g = ((float)green)/255.0f;
+        float b = ((float)blue)/255.0f;
+        float a = ((float)alpha)/255.0f;
+
+        VkClearRect vk_clear_rect;
+        vk_clear_rect.rect.offset.x      = 0;
+        vk_clear_rect.rect.offset.y      = 0;
+        vk_clear_rect.rect.extent.width  = context->m_CurrentRenderTarget->m_Extent.width;
+        vk_clear_rect.rect.extent.height = context->m_CurrentRenderTarget->m_Extent.height;
+        vk_clear_rect.baseArrayLayer     = 0;
+        vk_clear_rect.layerCount         = 1;
+
+        VkClearAttachment vk_clear_attachments[2];
+        memset(vk_clear_attachments, 0, sizeof(vk_clear_attachments));
+
+        // Clear color
+        vk_clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_clear_attachments[0].clearValue.color.float32[0] = r;
+        vk_clear_attachments[0].clearValue.color.float32[1] = g;
+        vk_clear_attachments[0].clearValue.color.float32[2] = b;
+        vk_clear_attachments[0].clearValue.color.float32[3] = a;
+
+        // Clear depth / stencil
+        vk_clear_attachments[1].aspectMask                      = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        vk_clear_attachments[1].clearValue.depthStencil.stencil = stencil;
+        vk_clear_attachments[1].clearValue.depthStencil.depth   = depth;
+
+        vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+            2, vk_clear_attachments, 1, &vk_clear_rect);
+    }
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
@@ -1218,7 +1139,23 @@ bail:
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
-        return new Texture;
+        Texture* tex  = new Texture;
+        tex->m_Type   = params.m_Type;
+        tex->m_Width  = params.m_Width;
+        tex->m_Height = params.m_Height;
+
+        if (params.m_OriginalWidth == 0)
+        {
+            tex->m_OriginalWidth  = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
+        }
+        else
+        {
+            tex->m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
+
+        return (HTexture) tex;
     }
 
     void DeleteTexture(HTexture t)
@@ -1247,22 +1184,22 @@ bail:
 
     uint16_t GetTextureWidth(HTexture texture)
     {
-        return 0;
+        return texture->m_Width;
     }
 
     uint16_t GetTextureHeight(HTexture texture)
     {
-        return 0;
+        return texture->m_Height;
     }
 
     uint16_t GetOriginalTextureWidth(HTexture texture)
     {
-        return 0;
+        return texture->m_OriginalWidth;
     }
 
     uint16_t GetOriginalTextureHeight(HTexture texture)
     {
-        return 0;
+        return texture->m_OriginalHeight;
     }
 
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1273,7 +1210,7 @@ bail:
 
     uint32_t GetMaxTextureSize(HContext context)
     {
-        return context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;;
+        return context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;
     }
 
     uint32_t GetTextureStatusFlags(HTexture texture)

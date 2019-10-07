@@ -713,7 +713,8 @@
                                               [:undecorated-save-data :source-save-data]
                                               [:build-targets :source-build-targets]
                                               [:scene :scene]
-                                              [:ddf-component-properties :ddf-component-properties]])
+                                              [:ddf-component-properties :ddf-component-properties]
+                                              [:resource-property-build-targets :resource-property-build-targets]])
                   (attach-coll-embedded-go self go-node)
                   (when parent
                     (if (= parent self)
