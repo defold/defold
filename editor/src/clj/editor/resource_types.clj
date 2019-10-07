@@ -2,6 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
+            [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
@@ -43,6 +44,7 @@
     (concat
       (animation-set/register-resource-types workspace)
       (atlas/register-resource-types workspace)
+      (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)
       (collada-scene/register-resource-types workspace)
       (collection/register-resource-types workspace)

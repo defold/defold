@@ -83,20 +83,20 @@ namespace dmGameSystem
     {
         switch (primitive_type)
         {
-            case dmMeshDDF::MeshDesc::PRIMITIVE_POINTS:
-                return dmGraphics::PRIMITIVE_POINTS;
+            // case dmMeshDDF::MeshDesc::PRIMITIVE_POINTS:
+            //     return dmGraphics::PRIMITIVE_POINTS;
             case dmMeshDDF::MeshDesc::PRIMITIVE_LINES:
                 return dmGraphics::PRIMITIVE_LINES;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_LOOP:
-                return dmGraphics::PRIMITIVE_LINE_LOOP;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_STRIP:
-                return dmGraphics::PRIMITIVE_LINE_STRIP;
+            // case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_LOOP:
+            //     return dmGraphics::PRIMITIVE_LINE_LOOP;
+            // case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_STRIP:
+            //     return dmGraphics::PRIMITIVE_LINE_STRIP;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES:
                 return dmGraphics::PRIMITIVE_TRIANGLES;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP:
                 return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
-                return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
+            // case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
+            //     return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
         }
     }
 

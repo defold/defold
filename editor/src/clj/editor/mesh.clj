@@ -12,10 +12,8 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.rig :as rig]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [util.digest :as digest])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.mesh.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]))
