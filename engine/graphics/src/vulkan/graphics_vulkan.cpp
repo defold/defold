@@ -1140,7 +1140,7 @@ bail:
 
     uint32_t GetMaxElementsVertices(HContext context)
     {
-        return 4294967295; // 2^32-1
+        return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1203,11 +1203,6 @@ bail:
         //   "fullDrawIndexUint32 - If this feature is supported, maxDrawIndexedIndexValue must be 2^32-1;
         //   otherwise it must be no smaller than 2^24-1."
         return true;
-    }
-
-    uint32_t GetMaxElementsIndices(HContext context)
-    {
-        return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
     static inline uint32_t GetTypeSize(Type type)
