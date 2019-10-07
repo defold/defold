@@ -195,7 +195,7 @@ namespace dmGraphics
 
     struct Program
     {
-        uint64_t                        m_AttributeInputHash;
+        uint64_t                        m_Hash;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[2];

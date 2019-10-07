@@ -158,7 +158,7 @@ namespace dmGraphics
     {
         static uint32_t next_id = 1;
 
-        // Id 0 is taken for the main framebuffer
+        // DM_RENDERTARGET_BACKBUFFER_ID is taken for the main framebuffer
         if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
             next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
@@ -1101,8 +1101,7 @@ bail:
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
-        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_VertexModule->m_Hash, sizeof(program->m_VertexModule->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_FragmentModule->m_Hash, sizeof(program->m_FragmentModule->m_Hash));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
@@ -1563,22 +1562,25 @@ bail:
 
         program->m_PipelineStageInfo[0] = vk_vertex_shader_create_info;
         program->m_PipelineStageInfo[1] = vk_fragment_shader_create_info;
-        program->m_AttributeInputHash   = 0;
+        program->m_Hash                 = 0;
         program->m_VertexModule         = vertex_module;
         program->m_FragmentModule       = fragment_module;
 
+        HashState64 program_hash;
+        dmHashInit64(&program_hash, false);
+
         if (vertex_module->m_AttributeCount > 0)
         {
-            HashState64 attr_input_hash;
-            dmHashInit64(&attr_input_hash, false);
-
             for (uint32_t i=0; i < vertex_module->m_AttributeCount; i++)
             {
-                dmHashUpdateBuffer64(&attr_input_hash, &vertex_module->m_Attributes[i].m_Binding, sizeof(vertex_module->m_Attributes[i].m_Binding));
+                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Attributes[i].m_Binding, sizeof(vertex_module->m_Attributes[i].m_Binding));
             }
-
-            program->m_AttributeInputHash = dmHashFinal64(&attr_input_hash);
         }
+
+        dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
+        dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
+
+        program->m_Hash = dmHashFinal64(&program_hash);
 
         return (HProgram) program;
     }
