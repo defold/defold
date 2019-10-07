@@ -53,6 +53,7 @@ var LibraryGLFW = {
     prevNonFSHeight: 0,
     isFullscreen: false,
     dpi: 1,
+    mouseTouchId:null,
 
 /*******************************************************************************
  * DOM EVENT CALLBACKS
@@ -282,6 +283,10 @@ var LibraryGLFW = {
           var canvasX = coord[0];
           var canvasY = coord[1];
           GLFW.fillTouch(touch.identifier, canvasX, canvasY, phase);
+          if (touch.identifier == GLFW.mouseTouchId) {
+              GLFW.mouseTouchId = null;
+              GLFW.buttons &= ~(1 << 0);
+            }
         }
 
         if (event.touches.length == 0){
@@ -325,12 +330,16 @@ var LibraryGLFW = {
         if (!GLFW.isCanvasActive(event)) { return; }
 
         var e = event;
+        var touch;
+        var coord;
+        var canvasX;
+        var canvasY
         for(var i = 0; i < e.changedTouches.length; ++i) {
-          var touch = e.changedTouches[i];
-          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
-          var canvasX = coord[0];
-          var canvasY = coord[1];
-          if (i == 0) {
+          touch = e.changedTouches[i];
+          coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          canvasX = coord[0];
+          canvasY = coord[1];
+          if (touch.identifier == GLFW.mouseTouchId) {
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
           }
@@ -346,12 +355,17 @@ var LibraryGLFW = {
         if (event.target != Module["canvas"]) { return; }
 
         var e = event;
+        var touch;
+        var coord;
+        var canvasX;
+        var canvasY
         for(var i = 0; i < e.changedTouches.length; ++i) {
-          var touch = e.changedTouches[i];
-          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
-          var canvasX = coord[0];
-          var canvasY = coord[1];
-          if (i == 0) {
+          touch = e.changedTouches[i];
+          coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          canvasX = coord[0];
+          canvasY = coord[1];
+          if (i == 0 && GLFW.mouseTouchId == null) {
+            GLFW.mouseTouchId = touch.identifier;
             GLFW.buttons |= (1 << 0);
             Browser.mouseX = canvasX;
             Browser.mouseY = canvasY;
