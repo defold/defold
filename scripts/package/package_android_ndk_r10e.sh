@@ -45,7 +45,7 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sources/cxx-stl/llvm-libc++)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sources/cxx-stl/llvm-libc++abi)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sources/cxx-stl/gnu-libstdc++/4.9)
+	#(cd ${TMP} && rm -rf ${ANDROID_NDK}/sources/cxx-stl/gnu-libstdc++/4.9)
 
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/samples)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-3)
@@ -89,7 +89,6 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/mipsel-linux-android-4.8)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/mips64el-linux-android-4.9)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/mipsel-linux-android-4.9)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/aarch64-linux-android-4.9)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/i686-linux-android)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/x86_64-linux-android)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/i686-linux-android)
@@ -97,4 +96,6 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 
 	echo "Creating NDK archive" ${TMP}/${ANDROID_NDK_BASENAME}.tar.gz
 	(cd ${TMP} && tar -czf ${ANDROID_NDK_BASENAME}.tar.gz ${ANDROID_NDK})
+else
+	echo "Found "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz""
 fi
