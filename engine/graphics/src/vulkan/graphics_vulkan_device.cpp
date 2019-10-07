@@ -731,7 +731,8 @@ bail:
         const VkDynamicState vk_dynamic_states[] =
         {
             VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_STENCIL_REFERENCE
+            VK_DYNAMIC_STATE_STENCIL_REFERENCE,
+            VK_DYNAMIC_STATE_SCISSOR
         };
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;

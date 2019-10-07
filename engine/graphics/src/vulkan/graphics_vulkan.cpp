@@ -69,6 +69,14 @@ namespace dmGraphics
         VkSurfaceKHR             m_WindowSurface;
         dmArray<GeometryBuffer>  m_BuffersToDelete;
 
+        // Window callbacks
+        WindowResizeCallback     m_WindowResizeCallback;
+        void*                    m_WindowResizeCallbackUserData;
+        WindowCloseCallback      m_WindowCloseCallback;
+        void*                    m_WindowCloseCallbackUserData;
+        WindowFocusCallback      m_WindowFocusCallback;
+        void*                    m_WindowFocusCallbackUserData;
+
         // Main device rendering constructs
         dmArray<VkFramebuffer>   m_MainFrameBuffers;
         dmArray<VkCommandBuffer> m_MainCommandBuffers;
@@ -394,7 +402,6 @@ namespace dmGraphics
         vk_default_pipeline.m_StencilReference   = 0x0;
         vk_default_pipeline.m_CullFaceEnabled    = 0;
         vk_default_pipeline.m_CullFaceType       = FACE_TYPE_BACK;
-        vk_default_pipeline.m_ScissorEnabled     = 0;
         context->m_PipelineState = vk_default_pipeline;
 
         return res;
@@ -405,6 +412,12 @@ namespace dmGraphics
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         // Flush all current commands
         SynchronizeDevice(vk_device);
+
+        // Update swap chain capabilities
+        SwapChainCapabilities swap_chain_capabilities;
+        GetSwapChainCapabilities(&context->m_PhysicalDevice, context->m_WindowSurface, swap_chain_capabilities);
+        context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
+
         VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
         CHECK_VK_ERROR(res);
 
@@ -655,6 +668,39 @@ bail:
         glfwTerminate();
     }
 
+    static void OnWindowResize(int width, int height)
+    {
+        assert(g_Context);
+        g_Context->m_WindowWidth  = (uint32_t)width;
+        g_Context->m_WindowHeight = (uint32_t)height;
+
+        SwapChainChanged(g_Context, &g_Context->m_WindowWidth, &g_Context->m_WindowHeight);
+
+        if (g_Context->m_WindowResizeCallback != 0x0)
+        {
+            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+        }
+    }
+
+    static int OnWindowClose()
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowCloseCallback != 0x0)
+        {
+            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
+        }
+        return 1;
+    }
+
+    static void OnWindowFocus(int focus)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowFocusCallback != 0x0)
+        {
+            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
+        }
+    }
+
     uint32_t GetWindowRefreshRate(HContext context)
     {
         return 0;
@@ -684,11 +730,21 @@ bail:
         glfwSetWindowTitle(params->m_Title);
     #endif
 
-        context->m_WindowOpened   = 1;
-        context->m_Width          = params->m_Width;
-        context->m_Height         = params->m_Height;
-        context->m_WindowWidth    = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight   = context->m_SwapChain->m_ImageExtent.height;
+        glfwSetWindowSizeCallback(OnWindowResize);
+        glfwSetWindowCloseCallback(OnWindowClose);
+        glfwSetWindowFocusCallback(OnWindowFocus);
+
+        context->m_WindowOpened                 = 1;
+        context->m_Width                        = params->m_Width;
+        context->m_Height                       = params->m_Height;
+        context->m_WindowWidth                  = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight                 = context->m_SwapChain->m_ImageExtent.height;
+        context->m_WindowResizeCallback         = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback          = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback          = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
 
         return WINDOW_RESULT_OK;
     }
@@ -791,12 +847,21 @@ bail:
         assert(context);
         if (context->m_WindowOpened)
         {
-            context->m_Width        = width;
-            context->m_Height       = height;
-            context->m_WindowWidth  = width;
-            context->m_WindowHeight = height;
+            context->m_Width  = width;
+            context->m_Height = height;
             glfwSetWindowSize((int)width, (int)height);
+            int window_width, window_height;
+            glfwGetWindowSize(&window_width, &window_height);
+            context->m_WindowWidth  = window_width;
+            context->m_WindowHeight = window_height;
+
             SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+
+            // The callback is not called from glfw when the size is set manually
+            if (context->m_WindowResizeCallback)
+            {
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
+            }
         }
     }
 
@@ -805,12 +870,7 @@ bail:
         assert(context);
         if (context->m_WindowOpened)
         {
-            context->m_Width        = width;
-            context->m_Height       = height;
-            context->m_WindowWidth  = width;
-            context->m_WindowHeight = height;
             glfwSetWindowSize((int)width, (int)height);
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
         }
     }
 
@@ -837,8 +897,10 @@ bail:
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                context->m_WindowWidth  = context->m_Width;
-                context->m_WindowHeight = context->m_Height;
+                int width, height;
+                glfwGetWindowSize(&width, &height);
+                context->m_WindowWidth  = width;
+                context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
                 res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
                 assert(res == VK_SUCCESS);
@@ -1381,13 +1443,19 @@ bail:
         {
             Viewport& vp = context->m_MainViewport;
 
+            // Update scissor
+            VkRect2D vk_scissor;
+            memset(&vk_scissor, 0, sizeof(vk_scissor));
+            vk_scissor.extent = context->m_SwapChain->m_ImageExtent;
+            vkCmdSetScissor(vk_command_buffer, 0, 1, &vk_scissor);
+
             // If we are rendering to the backbuffer, we must invert the viewport on
             // the y axis. Otherwise we just use the values as-is.
             // (otherwise all FBO rendering is upside down)
             if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
             {
                 SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
-                    vp.m_X, context->m_Height - vp.m_Y, vp.m_W, -vp.m_H);
+                    vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
             }
             else
             {
@@ -1612,14 +1680,15 @@ bail:
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
-        // Defer this to when we actually draw, since we *might* need to flip the viewport
+        // Defer the update to when we actually draw, since we *might* need to invert the viewport
         // depending on wether or not we have set a different rendertarget from when
         // this call was made.
-        context->m_MainViewport.m_HasChanged = 1;
-        context->m_MainViewport.m_X          = (uint16_t) x;
-        context->m_MainViewport.m_Y          = (uint16_t) y;
-        context->m_MainViewport.m_W          = (uint16_t) width;
-        context->m_MainViewport.m_H          = (uint16_t) height;
+        Viewport& viewport    = context->m_MainViewport;
+        viewport.m_HasChanged = 1;
+        viewport.m_X          = (uint16_t) x;
+        viewport.m_Y          = (uint16_t) y;
+        viewport.m_W          = (uint16_t) width;
+        viewport.m_H          = (uint16_t) height;
     }
 
     void EnableState(HContext context, State state)

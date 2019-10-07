@@ -163,8 +163,7 @@ namespace dmGraphics
             // Culling
             uint64_t m_CullFaceEnabled    : 1;
             uint64_t m_CullFaceType       : 2;
-            uint64_t m_ScissorEnabled     : 1;
-            uint64_t                      : 2; // Unused
+            uint64_t                      : 3; // Unused
         };
 
         uint64_t m_State;
