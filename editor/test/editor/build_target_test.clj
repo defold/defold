@@ -103,6 +103,7 @@
           ;; Sequential
           "[]" []
           "[]" (list)
+          "[nil]" [nil]
           "[0, 1, 2]" (range 3)
           "[:class, #dg/Class java.io.StringWriter]" [:class StringWriter]
 
@@ -115,6 +116,7 @@
           ;; Sets
           "#{}" #{}
           "#{}" (sorted-set)
+          "#{nil}" #{nil}
           "#{:a, :b}" #{:a :b}
           "#{:a, :b}" #{:b :a})) ; Entries are always sorted.
 

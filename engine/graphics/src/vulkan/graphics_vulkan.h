@@ -6,9 +6,20 @@
 
 namespace dmGraphics
 {
+    struct DeviceMemory
+    {
+        VkDeviceMemory m_Memory;
+        size_t         m_MemorySize;
+    };
+
     struct Texture
     {
-        uint32_t dummy;
+        VkImage      m_Image;
+        VkImageView  m_ImageView;
+        VkFormat     m_Format;
+        DeviceMemory m_DeviceMemory;
+        uint16_t     m_Width;
+        uint16_t     m_Height;
     };
 
     struct VertexDeclaration
@@ -18,7 +29,21 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        uint32_t dummy;
+        RenderTarget(const uint32_t rtId)
+        : m_RenderPass(VK_NULL_HANDLE)
+        , m_Framebuffer(VK_NULL_HANDLE)
+        , m_Id(rtId)
+        {}
+
+        VkRenderPass   m_RenderPass;
+        VkFramebuffer  m_Framebuffer;
+        const uint32_t m_Id;
+    };
+
+    struct RenderPassAttachment
+    {
+        VkFormat      m_Format;
+        VkImageLayout m_ImageLayout;
     };
 
     struct QueueFamily
@@ -48,9 +73,10 @@ namespace dmGraphics
 
     struct LogicalDevice
     {
-        VkDevice m_Device;
-        VkQueue  m_GraphicsQueue;
-        VkQueue  m_PresentQueue;
+        VkDevice      m_Device;
+        VkQueue       m_GraphicsQueue;
+        VkQueue       m_PresentQueue;
+        VkCommandPool m_CommandPool;
     };
 
     struct SwapChainCapabilities
@@ -73,6 +99,7 @@ namespace dmGraphics
     struct SwapChain
     {
         dmArray<VkImage>     m_Images;
+        dmArray<VkImageView> m_ImageViews;
         const LogicalDevice* m_LogicalDevice;
         const VkSurfaceKHR   m_Surface;
         const QueueFamily    m_QueueFamily;
@@ -84,20 +111,12 @@ namespace dmGraphics
             const SwapChainCapabilities& capabilities, const QueueFamily queueFamily);
     };
 
-    struct Context
-    {
-        SwapChain*            m_SwapChain;
-        SwapChainCapabilities m_SwapChainCapabilities;
-        VkInstance            m_Instance;
-        VkSurfaceKHR          m_WindowSurface;
-        PhysicalDevice        m_PhysicalDevice;
-        LogicalDevice         m_LogicalDevice;
-        uint32_t              m_WindowOpened : 1;
-        uint32_t              : 31;
-    };
-
     // Implemented in graphics_vulkan_context.cpp
-    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount);
+    VkResult CreateInstance(VkInstance* vkInstanceOut,
+        // Validation Layer Names, i.e "VK_LAYER_LUNARG_standard_validation"
+        const char** validationLayers, uint16_t validationLayerCount,
+        // Req. Validation Layer Extensions, i.e "VK_EXT_DEBUG_UTILS_EXTENSION_NAME"
+        const char** validationLayerExtensions, uint16_t validationLayerExtensionCount);
     void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan_device.cpp
@@ -109,6 +128,8 @@ namespace dmGraphics
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
+    void        ResetLogicalDevice(LogicalDevice* device);
+    void        ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the

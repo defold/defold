@@ -1,0 +1,37 @@
+size {
+  x: 1.0
+  y: 1.0
+  z: 1.0
+  w: 1.0
+}
+scale {
+  x: 1.0
+  y: 1.0
+  z: 1.0
+}
+color {
+  x: 1.0
+  y: 1.0
+  z: 1.0
+  w: 1.0
+}
+outline {
+  x: 1.0
+  y: 1.0
+  z: 1.0
+  w: 1.0
+}
+shadow {
+  x: 1.0
+  y: 1.0
+  z: 1.0
+  w: 1.0
+}
+leading: 1.0
+tracking: 0.0
+pivot: PIVOT_CENTER
+blend_mode: BLEND_MODE_ALPHA
+line_break: false
+text: "Label"
+font: "/font/valid_font.font"
+material: "/resource/resource_alt.material"

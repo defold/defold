@@ -38,17 +38,32 @@ namespace dmGraphics
         return vk_swap_chain_format;
     }
 
+    static void ResetVkSwapChain(const VkDevice device, const VkSwapchainKHR swapChain, const dmArray<VkImageView>& imageViews)
+    {
+        if (swapChain != VK_NULL_HANDLE)
+        {
+            for (uint32_t i=0; i < imageViews.Size(); i++)
+            {
+                vkDestroyImageView(device, imageViews[i], 0);
+            }
+            vkDestroySwapchainKHR(device, swapChain, 0);
+        }
+    }
+
     SwapChain::SwapChain(const LogicalDevice* logicalDevice, const VkSurfaceKHR surface, const SwapChainCapabilities& capabilities, const QueueFamily queueFamily)
         : m_LogicalDevice(logicalDevice)
         , m_Surface(surface)
         , m_QueueFamily(queueFamily)
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
+        , m_SwapChain(VK_NULL_HANDLE)
     {
     }
 
     VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
         const bool wantVSync, SwapChainCapabilities& capabilities)
     {
+        VkSwapchainKHR vk_old_swap_chain = swapChain->m_SwapChain;
+
         VkPresentModeKHR vk_present_mode = VK_PRESENT_MODE_FIFO_KHR;
         if (!wantVSync)
         {
@@ -143,12 +158,17 @@ namespace dmGraphics
         vk_swap_chain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         vk_swap_chain_create_info.presentMode    = vk_present_mode;
         vk_swap_chain_create_info.clipped        = VK_TRUE;
-        vk_swap_chain_create_info.oldSwapchain   = VK_NULL_HANDLE;
+        vk_swap_chain_create_info.oldSwapchain   = vk_old_swap_chain;
 
         VkResult res = vkCreateSwapchainKHR(swapChain->m_LogicalDevice->m_Device, &vk_swap_chain_create_info, 0, &swapChain->m_SwapChain);
         if (res != VK_SUCCESS)
         {
             return res;
+        }
+
+        if (vk_old_swap_chain != VK_NULL_HANDLE)
+        {
+            ResetVkSwapChain(swapChain->m_LogicalDevice->m_Device, vk_old_swap_chain, swapChain->m_ImageViews);
         }
 
         vkGetSwapchainImagesKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, &swap_chain_image_count, 0);
@@ -160,13 +180,44 @@ namespace dmGraphics
 
         swapChain->m_ImageExtent = vk_extent;
 
+        swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
+        swapChain->m_ImageViews.SetSize(swap_chain_image_count);
+
+        for (uint32_t i=0; i < swap_chain_image_count; i++)
+        {
+            VkImageViewCreateInfo vk_create_info_image_view;
+            memset((void*)&vk_create_info_image_view, 0, sizeof(vk_create_info_image_view));
+
+            vk_create_info_image_view.sType        = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            vk_create_info_image_view.viewType     = VK_IMAGE_VIEW_TYPE_2D;
+            vk_create_info_image_view.image        = swapChain->m_Images[i];
+            vk_create_info_image_view.format       = swapChain->m_SurfaceFormat.format;
+            vk_create_info_image_view.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            vk_create_info_image_view.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            vk_create_info_image_view.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            vk_create_info_image_view.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+            vk_create_info_image_view.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_create_info_image_view.subresourceRange.baseMipLevel   = 0;
+            vk_create_info_image_view.subresourceRange.levelCount     = 1;
+            vk_create_info_image_view.subresourceRange.baseArrayLayer = 0;
+            vk_create_info_image_view.subresourceRange.layerCount     = 1;
+
+            res = vkCreateImageView(swapChain->m_LogicalDevice->m_Device, &vk_create_info_image_view, 0, &swapChain->m_ImageViews[i]);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+        }
+
         return VK_SUCCESS;
     }
 
     void ResetSwapChain(SwapChain* swapChain)
     {
         assert(swapChain);
-        vkDestroySwapchainKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, 0);
+        ResetVkSwapChain(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, swapChain->m_ImageViews);
+        swapChain->m_SwapChain = VK_NULL_HANDLE;
     }
 
     void GetSwapChainCapabilities(PhysicalDevice* device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)

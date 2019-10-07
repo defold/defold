@@ -11,6 +11,7 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 
 public class LuaScanner {
@@ -54,8 +55,10 @@ public class LuaScanner {
     private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern boolPattern = Pattern.compile("(false|true)");
+    private static Pattern resourcePattern = Pattern.compile("resource\\.(.*?)\\s*\\(([\"'](.*?)[\"']|)?\\)");
     private static Pattern[] patterns = new Pattern[] { numPattern, hashPattern, urlPattern,
-            vec3Pattern, vec4Pattern, quatPattern, boolPattern};
+            vec3Pattern, vec4Pattern, quatPattern, boolPattern, resourcePattern};
+
 
     private static String stripSingleLineComments(String str) {
         str = str.replace("\r", "");
@@ -120,6 +123,7 @@ public class LuaScanner {
             INVALID_ARGS,
             INVALID_VALUE
         }
+
         /// Set iff status != INVALID_ARGS
         public String name;
         /// Set iff status == OK
@@ -136,6 +140,25 @@ public class LuaScanner {
         public Property(int line) {
             this.line = line;
         }
+    }
+
+    public static String stripProperties(String str) {
+        str = stripComments(str);
+        str = str.replace("\r", "");
+        StringBuffer sb = new StringBuffer();
+        String[] lines = str.split("\n");
+        for (String line : lines) {
+            Matcher propDeclMatcher = propertyDeclPattern.matcher(line.trim());
+            if (!propDeclMatcher.matches()) {
+                sb.append(line);
+            } else {
+                for (int i = 0; i < line.length(); ++i) {
+                    sb.append(" ");
+                }
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     public static List<Property> scanProperties(String str) {
@@ -219,6 +242,9 @@ public class LuaScanner {
                     } else if (matcher.pattern() == boolPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
                         property.value = Boolean.parseBoolean(rawValue);
+                    } else if (matcher.pattern() == resourcePattern) {
+                        property.type = PropertyType.PROPERTY_TYPE_HASH;
+                        property.value = matcher.group(3) == null ? "" :  matcher.group(3).trim();
                     }
                     result = true;
                 } catch (NumberFormatException e) {

@@ -130,7 +130,7 @@ namespace dmGraphics
         *vkInstance = VK_NULL_HANDLE;
     }
 
-    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, const uint8_t validationLayerCount)
+    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, uint16_t validationLayerCount, const char** validationLayerExtensions, uint16_t validationLayerExtensionCount)
     {
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};
@@ -162,14 +162,13 @@ namespace dmGraphics
 
         int enabled_layer_count = 0;
 
-        if (validationLayerCount > 0)
+        if (validationLayerCount > 0 && GetValidationSupport(validationLayers, validationLayerCount))
         {
-            if (GetValidationSupport(validationLayers, validationLayerCount))
+            enabled_layer_count = validationLayerCount;
+
+            for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
             {
-                for (; enabled_layer_count < validationLayerCount; ++enabled_layer_count)
-                {
-                    vk_required_extensions.Push(validationLayers[enabled_layer_count]);
-                }
+                vk_required_extensions.Push(validationLayerExtensions[i]);
             }
         }
 

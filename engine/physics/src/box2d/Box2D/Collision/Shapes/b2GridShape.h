@@ -104,14 +104,16 @@ public:
 
     uint32 CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column);
 
-    b2Vec2  m_position;
-    Cell*   m_cells;
+    b2Vec2   m_position;
+    Cell*    m_cells;
     CellFlags* m_cellFlags;
     const b2HullSet* m_hullSet;
     float32  m_cellWidth;
     float32  m_cellHeight;
-    uint32  m_rowCount;
-    uint32  m_columnCount;
+    uint32   m_rowCount;
+    uint32   m_columnCount;
+    uint8    m_enabled:1;
+    uint8    m_flags:7;
 
 private:
     uint32 GetCellVertices(uint32 index, b2Vec2* vertices) const;

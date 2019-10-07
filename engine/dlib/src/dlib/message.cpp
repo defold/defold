@@ -421,7 +421,7 @@ namespace dmMessage
         return w_ptr;
     }
 
-    // Low level string concatenation to void the overhead of DM_SNPRINTF and having to call strlen
+    // Low level string concatenation to void the overhead of dmSnPrintf and having to call strlen
     static const char* GetProfilerString(const char* socket_name, uint32_t* out_profiler_hash)
     {
         const char* profiler_string = 0;

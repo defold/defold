@@ -15,7 +15,7 @@
 #include <jc_test/jc_test.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
 const uint16_t CONST_TEST_PORT = 8008;
@@ -846,7 +846,7 @@ TEST(Socket, GetHostByName_IPv4_External)
 {
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "prod-cr-909202183.eu-west-1.elb.amazonaws.com";
+    const char* hostname = "build.defold.com";
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);

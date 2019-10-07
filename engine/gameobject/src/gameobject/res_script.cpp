@@ -21,6 +21,13 @@ namespace dmGameObject
             dmResource::PreloadHint(params.m_HintInfo, lua_module->m_Resources[i]);
         }
 
+        const char** resources = lua_module->m_PropertyResources.m_Data;
+        uint32_t n_resources = lua_module->m_PropertyResources.m_Count;
+        for (uint32_t i = 0; i < n_resources; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
+        }
+
         *params.m_PreloadData = lua_module;
         return dmResource::RESULT_OK;
     }
@@ -41,6 +48,12 @@ namespace dmGameObject
         HScript script = NewScript(L, lua_module);
         if (script)
         {
+            dmResource::Result res = LoadPropertyResources(params.m_Factory, lua_module->m_PropertyResources.m_Data, lua_module->m_PropertyResources.m_Count, script->m_PropertyResources);
+            if(res != dmResource::RESULT_OK)
+            {
+                DeleteScript(script);
+                return res;
+            }
             params.m_Resource->m_Resource = (void*) script;
             params.m_Resource->m_ResourceSize = params.m_BufferSize - script->m_LuaModule->m_Source.m_Script.m_Count;
             return dmResource::RESULT_OK;
@@ -55,6 +68,7 @@ namespace dmGameObject
     dmResource::Result ResScriptDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HScript script = (HScript)params.m_Resource->m_Resource;
+        UnloadPropertyResources(params.m_Factory, script->m_PropertyResources);
         dmDDF::FreeMessage(script->m_LuaModule);
         DeleteScript((HScript) script);
         return dmResource::RESULT_OK;
@@ -80,6 +94,13 @@ namespace dmGameObject
         bool ok = ReloadScript(script, lua_module);
         if (ok)
         {
+            dmArray<void*> tmp_res;
+            dmResource::Result res = LoadPropertyResources(params.m_Factory, lua_module->m_PropertyResources.m_Data, lua_module->m_PropertyResources.m_Count, tmp_res);
+            if(res == dmResource::RESULT_OK)
+            {
+                UnloadPropertyResources(params.m_Factory, script->m_PropertyResources);
+                script->m_PropertyResources.Swap(tmp_res);
+            }
             dmDDF::FreeMessage(old_lua_module);
             params.m_Resource->m_ResourceSize = params.m_BufferSize - script->m_LuaModule->m_Source.m_Script.m_Count;
             return dmResource::RESULT_OK;

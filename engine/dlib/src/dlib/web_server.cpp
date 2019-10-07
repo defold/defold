@@ -137,7 +137,7 @@ namespace dmWebServer
         {
             dmHttpServer::SetStatusCode(request, 404);
             char not_found[256];
-            DM_SNPRINTF(not_found, sizeof(not_found), "Resource '%s' not found", request->m_Resource);
+            dmSnPrintf(not_found, sizeof(not_found), "Resource '%s' not found", request->m_Resource);
             dmHttpServer::Send(request, not_found, strlen(not_found));
         }
 

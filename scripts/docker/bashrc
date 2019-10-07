@@ -1,0 +1,26 @@
+#!/usr/bash
+
+function _setjdk {
+	export PATH=$JAVA_HOME/bin:$PATH
+	java -version
+}
+
+function _jdk8 {
+	export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+	_setjdk
+}
+
+function _jdk11 {
+	export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+	_setjdk
+}
+
+alias jdk8='_jdk8'
+alias jdk11='_jdk11'
+
+
+echo "DEFOLD DOCKER"
+echo ""
+echo " - type \"jdk8\" to set the java 8 jdk environment"
+echo " - type \"jdk11\" to set the java 11 jdk environment"
+echo ""

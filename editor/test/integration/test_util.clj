@@ -389,20 +389,25 @@
     outline->str
     println))
 
+(defn resolve-prop [node-id label]
+  (let [prop (get-in (g/node-value node-id :_properties) [:properties label])
+        resolved-node-id (:node-id prop)
+        resolved-label (get prop :prop-kw label)]
+    [resolved-node-id resolved-label]))
+
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
 (defn prop-error [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :error]))
 
-(defn prop-node-id [node-id label]
-  (get-in (g/node-value node-id :_properties) [:properties label :node-id]))
-
 (defn prop! [node-id label val]
-  (g/transact (g/set-property (prop-node-id node-id label) label val)))
+  (let [[node-id label] (resolve-prop node-id label)]
+    (g/set-property! node-id label val)))
 
 (defn prop-clear! [node-id label]
-  (g/transact (g/clear-property (prop-node-id node-id label) label)))
+  (let [[node-id label] (resolve-prop node-id label)]
+    (g/clear-property! node-id label)))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))
@@ -412,6 +417,9 @@
 
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
+
+(defn file ^File [workspace path]
+  (File. (workspace/project-path workspace) path))
 
 (defn selection [app-view]
   (-> app-view
@@ -518,6 +526,27 @@
                        [(deref var#) calls#]))))
            binding-map#)))
 
+(def temp-directory-path
+  (memoize
+    (fn temp-directory-path []
+      (let [temp-file (fs/create-temp-file!)
+            parent-directory-path (.getAbsolutePath (.getParentFile temp-file))]
+        (fs/delete! temp-file {:fail :silently})
+        parent-directory-path))))
+
+(defn make-directory-deleter
+  "Returns an AutoCloseable that deletes the directory at the specified
+  path when closed. Suitable for use with the (with-open) macro. The
+  directory path must be a temp directory."
+  [directory-path]
+  (let [directory (io/file directory-path)]
+    (assert (string/starts-with? (.getAbsolutePath directory)
+                                 (temp-directory-path))
+            (str "directory-path `" (.getAbsolutePath directory) "` is not a temp directory"))
+    (reify java.lang.AutoCloseable
+      (close [_]
+        (fs/delete-directory! directory {:fail :silently})))))
+
 (defn make-graph-reverter
   "Returns an AutoCloseable that reverts the specified graph to
   the state it was at construction time when its close method
@@ -538,6 +567,55 @@
   [app-view select-fn resource-type go-id]
   (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
   (first (selection app-view)))
+
+(defonce ^:private png-image-bytes
+  ;; Bytes representing a single-color 256 by 256 pixel PNG file.
+  ;; Source: https://www.mjt.me.uk/posts/smallest-png/
+  (byte-array [0x89 0x50 0x4E 0x47  0x0D 0x0A 0x1A 0x0A  0x00 0x00 0x00 0x0D  0x49 0x48 0x44 0x52
+               0x00 0x00 0x01 0x00  0x00 0x00 0x01 0x00  0x01 0x03 0x00 0x00  0x00 0x66 0xBC 0x3A
+               0x25 0x00 0x00 0x00  0x03 0x50 0x4C 0x54  0x45 0xB5 0xD0 0xD0  0x63 0x04 0x16 0xEA
+               0x00 0x00 0x00 0x1F  0x49 0x44 0x41 0x54  0x68 0x81 0xED 0xC1  0x01 0x0D 0x00 0x00
+               0x00 0xC2 0xA0 0xF7  0x4F 0x6D 0x0E 0x37  0xA0 0x00 0x00 0x00  0x00 0x00 0x00 0x00
+               0x00 0xBE 0x0D 0x21  0x00 0x00 0x01 0x9A  0x60 0xE1 0xD5 0x00  0x00 0x00 0x00 0x49
+               0x45 0x4E 0x44 0xAE  0x42 0x60 0x82]))
+
+(defn make-png-resource!
+  [workspace proj-path]
+  "Adds a PNG image file to the workspace. Returns the created FileResource."
+  (assert (integer? workspace))
+  (assert (.startsWith proj-path "/"))
+  (let [resource (resource workspace proj-path)]
+    (with-open [out (io/output-stream resource)]
+      (.write out png-image-bytes))
+    resource))
+
+(defn make-resource!
+  "Adds a new file to the workspace. Returns the created FileResource."
+  [workspace proj-path]
+  (assert (integer? workspace))
+  (assert (.startsWith proj-path "/"))
+  (let [resource (resource workspace proj-path)
+        resource-type (resource/resource-type resource)
+        template (workspace/template resource-type)]
+    (spit resource template)
+    resource))
+
+(defn make-resource-node!
+  "Adds a new file to the project. Returns the node-id of the created resource."
+  [project proj-path]
+  (assert (integer? project))
+  (let [workspace (project/workspace project)
+        resource (make-resource! workspace proj-path)]
+    (workspace/resource-sync! workspace)
+    (project/get-resource-node project resource)))
+
+(defn move-file!
+  "Moves or renames a file in the workspace, then performs a resource sync."
+  [workspace ^String from-proj-path ^String to-proj-path]
+  (let [from-file (file workspace from-proj-path)
+        to-file (file workspace to-proj-path)]
+    (fs/move-file! from-file to-file)
+    (workspace/resource-sync! workspace [[from-file to-file]])))
 
 (defn block-until
   "Blocks the calling thread until the supplied predicate is satisfied for the

@@ -33,6 +33,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -41,6 +42,14 @@ import java.util.Comparator;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
+import com.sun.jna.Pointer;
+
+import com.dynamo.bob.TexcLibrary;
+import com.dynamo.bob.TexcLibrary.PixelFormat;
+import com.dynamo.bob.TexcLibrary.CompressionLevel;
+import com.dynamo.bob.TexcLibrary.CompressionType;
+
+import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
@@ -275,13 +284,6 @@ public class Fontc {
                       .setMaxDescent(maxDescent);
     }
 
-    // We use repeatedWrite to create a (cell) padding around the glyph bitmap data
-    private void repeatedWrite(ByteArrayOutputStream dataOut, int repeat, int value) {
-        for (int i = 0; i < repeat; i++) {
-            dataOut.write(value);
-        }
-    }
-
     private float getPaddedSdfSpread(float spreadInput)
     {
         // Make sure the output spread value is not zero. We distribute the distance values over
@@ -301,7 +303,42 @@ public class Fontc {
         return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
     }
 
-    public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException {
+    private ByteBuffer toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
+        int dataSize = width * height * bpp;
+        ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
+
+        int[] rasterData = new int[width * height * 4];
+        image.getRaster().getPixels(0, 0, width, height, rasterData);
+
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                // BGRA to RGBA
+                int i = y*width*bpp + x*bpp;
+                int green = 0;
+                int red = 0;
+                int alpha = 0;
+                int blue = rasterData[i + 0];
+                if (bpp > 1)
+                    green = rasterData[i + 1];
+                if (bpp > 2)
+                    red = rasterData[i + 2];
+                if (bpp > 3)
+                    alpha = rasterData[i + 3];
+
+                buffer.put((byte)(red & 0xFF));
+                if (targetBpp > 1)
+                    buffer.put((byte)(green & 0xFF));
+                if (targetBpp > 2)
+                    buffer.put((byte)(blue & 0xFF));
+                if (targetBpp > 3)
+                    buffer.put((byte)(alpha & 0xFF));
+            }
+        }
+        buffer.flip(); // limit is set to current position, and position is set to zero
+        return buffer;
+    }
+
+    public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws TextureGeneratorException, FontFormatException {
 
         ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
 
@@ -488,7 +525,6 @@ public class Fontc {
 
             // Generate bitmap for each glyph depending on format
             BufferedImage glyphImage = null;
-            int clearData = 0;
             if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
                 inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
                 glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
@@ -498,7 +534,6 @@ public class Fontc {
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
                 glyphImage = makeDistanceField(glyph, padding, sdf_spread, sdf_shadow_spread, font, sdf_edge, shadowConvolve);
-                clearData = 0;
             } else {
                 throw new FontFormatException("Invalid font format combination!");
             }
@@ -508,17 +543,27 @@ public class Fontc {
                 glyph.image = glyphImage;
 
             } else {
+                BufferedImage paddedGlyphImage = new BufferedImage(glyphImage.getWidth() + cell_padding * 2,
+                                                                    glyphImage.getHeight() + cell_padding * 2, BufferedImage.TYPE_4BYTE_ABGR);
 
-                glyph.cache_entry_offset = dataOffset;
+                int clearData = 0;
+                int mask = 0xFFFFFFFF;
+                if (channelCount==1)
+                    mask = 0xFF;
+                else if (channelCount==2)
+                    mask = 0xFFFF;
+                else if (channelCount==3)
+                    mask = 0xFFFFFF;
+
+                int py = 0;
                 // Get raster data from rendered glyph and store in glyph data bank
-                int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
-
-                repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
-                for (int y = 0; y < glyphImage.getHeight(); y++) {
-
-                    repeatedWrite(glyphDataBank, channelCount, clearData);
-                    for (int x = 0; x < glyphImage.getWidth(); x++) {
-
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
+                    paddedGlyphImage.setRGB(x, py, clearData);
+                py++;
+                for (int y = 0; y < glyphImage.getHeight(); y++, py++) {
+                    int px = 0;
+                    paddedGlyphImage.setRGB(px++, py, clearData);
+                    for (int x = 0; x < glyphImage.getWidth(); x++, px++) {
                         int color = glyphImage.getRGB(x, y);
                         int blue  = (color) & 0xff;
                         int green = (color >> 8) & 0xff;
@@ -527,28 +572,54 @@ public class Fontc {
                         blue = (blue * alpha) / 255;
                         green = (green * alpha) / 255;
                         red = (red * alpha) / 255;
+                        color = ((alpha << 24) |
+                                (blue << 16) |
+                                (green << 8) |
+                                (red << 0)) & mask;
 
-
-                        glyphDataBank.write((byte)red);
-
-                        if (channelCount > 1) {
-                            glyphDataBank.write((byte)green);
-                            glyphDataBank.write((byte)blue);
-
-                            if (channelCount > 3) {
-
-                                glyphDataBank.write((byte)alpha);
-                            }
-                        }
+                        paddedGlyphImage.setRGB(px, py, color);
                     }
-
-                    repeatedWrite(glyphDataBank, channelCount, clearData);
+                    paddedGlyphImage.setRGB(px++, py, clearData);
                 }
-                repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
-                dataOffset += dataSizeOut;
-                glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
-            }
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
+                    paddedGlyphImage.setRGB(x, 0, clearData);
 
+                Pointer compressedTexture = null;
+                try {
+                    int width = paddedGlyphImage.getWidth();
+                    int height = paddedGlyphImage.getHeight();
+                    int compressionLevel = TexcLibrary.CompressionLevel.CL_BEST;
+                    int compressionType = TexcLibrary.CompressionType.CT_WEBP;
+
+                    int pixelFormat = PixelFormat.L8;
+                    if (channelCount > 3)
+                        pixelFormat = PixelFormat.R8G8B8A8;
+                    else if (channelCount > 1)
+                        pixelFormat = PixelFormat.R8G8B8;
+
+                    ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
+
+                    compressedTexture = TexcLibrary.TEXC_CompressWebPBuffer(width, height, channelCount*8, paddedBuffer, width*height*channelCount, pixelFormat, compressionLevel, compressionType);
+
+                    int bufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
+                    ByteBuffer buffer = ByteBuffer.allocateDirect(bufferSize);
+                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, bufferSize);
+
+                    glyph.cache_entry_offset = dataOffset;
+                    dataOffset += bufferSize;
+
+                    byte[] arr = new byte[buffer.limit()];
+                    buffer.get(arr);
+                    glyphDataBank.write(arr);
+
+                    glyph.cache_entry_size = bufferSize;
+
+                } catch(IOException e) {
+                    throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
+                } finally {
+                    TexcLibrary.TEXC_DestroyBuffer(compressedTexture);
+                }
+            }
         }
 
         // Sanity check;
@@ -832,7 +903,7 @@ public class Fontc {
         return fontMapLayerMask;
     }
 
-    public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
+    public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, TextureGeneratorException, IOException {
         this.fontDesc = fontDesc;
         this.fontMapBuilder = FontMap.newBuilder();
 
@@ -891,7 +962,7 @@ public class Fontc {
         return previewImage;
     }
 
-    public static void main(String[] args) throws FontFormatException {
+    public static void main(String[] args) throws FontFormatException, TextureGeneratorException {
         try {
             System.setProperty("java.awt.headless", "true");
             if (args.length != 2 && args.length != 3 && args.length != 4)    {

@@ -35,11 +35,11 @@ protected:
 
         // Register dummy physical resource type
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, 0, BDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, 0, BDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, 0, CDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, 0, CDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -436,7 +436,7 @@ TEST_F(ComponentTest, TestManyComponents)
     const uint32_t num_components = 300;
     for( uint32_t i = 0; i < num_components; ++i)
     {
-        DM_SNPRINTF(name, sizeof(name), "script%d", i);
+        dmSnPrintf(name, sizeof(name), "script%d", i);
         dmhash_t id = dmHashString64(name);
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
         ASSERT_EQ(i, component_index);
@@ -444,7 +444,7 @@ TEST_F(ComponentTest, TestManyComponents)
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
         ASSERT_EQ(id, component_id);
     }
-    DM_SNPRINTF(name, sizeof(name), "script%d", num_components);
+    dmSnPrintf(name, sizeof(name), "script%d", num_components);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
 
@@ -495,7 +495,7 @@ TEST_F(ComponentTest, FinalCallsFinal)
     char buf[5];
     for (uint32_t i = 0; i < 10; ++i) {
         dmGameObject::HInstance go_b = dmGameObject::New(collection, "/test_final_final.goc");
-        DM_SNPRINTF(buf, 5, "id%d", i);
+        dmSnPrintf(buf, 5, "id%d", i);
         dmGameObject::SetIdentifier(collection, go_b, buf);
     }
 

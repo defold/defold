@@ -15,6 +15,15 @@ namespace dmGraphics
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, int base_register);
 }
 
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+{
+    dmGraphics::ShaderDesc::Shader ddf;
+    memset(&ddf,0,sizeof(ddf));
+    ddf.m_Source.m_Data  = (uint8_t*)data;
+    ddf.m_Source.m_Count = count;
+    return ddf;
+}
+
 TEST(dmMaterialTest, TestTags)
 {
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -22,8 +31,9 @@ TEST(dmMaterialTest, TestTags)
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, "foo", 3);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, "foo", 3);
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &shader);
 
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
@@ -53,8 +63,11 @@ TEST(dmMaterialTest, TestMaterialConstants)
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     // create default material
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, "uniform vec4 tint;\n", 19);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, "foo", 3);
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader("uniform vec4 tint;\n", 19);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &vp_shader);
+
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &fp_shader);
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
     // renderobject default setup
@@ -91,14 +104,17 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     // create default material
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, "uniform vec4 tint;\n", 19);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, "foo", 3);
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader("uniform vec4 tint;\n", 19);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &vp_shader);
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &fp_shader);
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
 
     // create override material which contains tint, but at a different location
-    dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(context, "uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
-    dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(context, "foo", 3);
+    vp_shader = MakeDDFShader("uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
+    dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(context, &vp_shader);
+    dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(context, &fp_shader);
     dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, vp_ovr, fp_ovr);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);
 
