@@ -52,8 +52,15 @@
   (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
     (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets material]
-  (or (some->> [(prop-resource-error :fatal _node-id :material material "Material")]
+(defn- validate-stream-id [_node-id label vertices-resource stream-id stream-ids]
+  (when (and vertices-resource (not-empty stream-id))
+    (validation/prop-error :fatal _node-id label validation/prop-stream-missing? stream-id stream-ids)))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets material vertices position-stream normal-stream stream-ids]
+  (or (some->> [(prop-resource-error :fatal _node-id :material material "Material")
+                (prop-resource-error :fatal _node-id :vertices vertices "Vertices")
+                (validate-stream-id _node-id :position-stream vertices position-stream stream-ids)
+                (validate-stream-id _node-id :normal-stream vertices normal-stream stream-ids)]
                (filterv some?)
                not-empty
                g/error-aggregate)
@@ -129,7 +136,8 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :vertices-resource]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:stream-ids :stream-ids])))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "buffer"})))
   (property textures resource/ResourceVec
@@ -154,10 +162,16 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType))))
 
   (property position-stream g/Str
-            (dynamic edit-type (g/constantly {:type g/Str})))
-  (property normal-stream g/Str
-            (dynamic edit-type (g/constantly {:type g/Str})))
+            (dynamic error (g/fnk [_node-id vertices stream-ids position-stream]
+                             (validate-stream-id _node-id :position-stream vertices position-stream stream-ids)))
+            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
 
+  (property normal-stream g/Str
+            (dynamic error (g/fnk [_node-id vertices stream-ids normal-stream]
+                             (validate-stream-id _node-id :normal-stream vertices normal-stream stream-ids)))
+            (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
+
+  (input stream-ids g/Any)
   (input material-resource resource/Resource)
   (input samplers g/Any)
   (input vertices-resource resource/Resource)

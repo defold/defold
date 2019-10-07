@@ -33,31 +33,40 @@
           :value-count count}
     (pb-value-type->pb-stream-field type) data))
 
-(defn- lines->pb-msg [lines]
-  (let [json-streams (json/lines->json lines
-                                       :key-fn keyword
-                                       :value-fn (fn [k v]
-                                                   (case k
-                                                     :type (type->pb-value-type v)
-                                                     v)))]
-    {:streams (map json-stream->pb-stream json-streams)}))
+(defn- lines->json-streams [lines]
+  (json/lines->json lines
+                    :key-fn keyword
+                    :value-fn (fn [k v]
+                                (case k
+                                  :type (type->pb-value-type v)
+                                  v))))
 
-(g/defnk produce-build-targets [_node-id lines resource]
-  (let [pb-msg (try
-                 (lines->pb-msg lines)
-                 (catch Exception error
-                   error))]
-    (if (instance? Exception pb-msg)
+(g/defnk produce-build-targets [json-streams resource]
+  [(pipeline/make-protobuf-build-target resource nil
+                                        BufferProto$BufferDesc
+                                        {:streams (map json-stream->pb-stream json-streams)}
+                                        nil)])
+
+(g/defnk produce-json-streams [_node-id lines]
+  (let [json-streams (try
+                       (lines->json-streams lines)
+                       (catch Exception error
+                         error))]
+    (if (instance? Exception json-streams)
       (g/->error _node-id :lines :fatal lines "Syntax error in buffer file.")
-      [(pipeline/make-protobuf-build-target resource nil
-                                            BufferProto$BufferDesc
-                                            pb-msg
-                                            nil)])))
+      json-streams)))
+
+(g/defnk produce-stream-ids [json-streams]
+  (into (sorted-set)
+        (map :name)
+        json-streams))
 
 (g/defnode BufferNode
   (inherits r/CodeEditorResourceNode)
 
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any produce-build-targets)
+  (output json-streams g/Any :cached produce-json-streams)
+  (output stream-ids g/Any produce-stream-ids))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
