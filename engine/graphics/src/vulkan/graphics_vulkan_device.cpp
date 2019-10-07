@@ -220,7 +220,7 @@ namespace dmGraphics
         assert(buffer);
 
         void* mapped_data_ptr;
-        VkResult res = vkMapMemory(vk_device, buffer->m_DeviceMemory.m_Memory, 0, size, 0, &mapped_data_ptr);
+        VkResult res = vkMapMemory(vk_device, buffer->m_DeviceMemory.m_Memory, offset, size, 0, &mapped_data_ptr);
 
         if (res != VK_SUCCESS)
         {

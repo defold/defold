@@ -994,7 +994,7 @@ bail:
         }
 
         res = UploadToGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-            vk_command_buffer, size, 0, data, bufferOut);
+            vk_command_buffer, size, offset, data, bufferOut);
         CHECK_VK_ERROR(res);
 
         if (!context->m_FrameBegun)
@@ -1119,21 +1119,27 @@ bail:
     }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
-    {}
+    {
+        assert(buffer);
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        assert(offset + size < buffer_ptr->m_DeviceMemory.m_MemorySize);
+        GeometryBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
+    }
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
+        assert(0 && "Not supported for Vulkan");
         return 0;
     }
 
     bool UnmapVertexBuffer(HVertexBuffer buffer)
     {
+        assert(0 && "Not supported for Vulkan");
         return true;
     }
 
     uint32_t GetMaxElementsVertices(HContext context)
     {
-        // There's no real max limit in Vulkan, it's bound by memory and not by spec.
         return 4294967295; // 2^32-1
     }
 
@@ -1157,30 +1163,51 @@ bail:
     }
 
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
-    {}
+    {
+        assert(size > 0);
+        assert(buffer);
+
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+
+        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        {
+            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+        }
+
+        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+    }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
-    {}
+    {
+        assert(buffer);
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        assert(offset + size < buffer_ptr->m_DeviceMemory.m_MemorySize);
+        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+    }
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
+        assert(0 && "Not supported for Vulkan");
         return 0;
     }
 
     bool UnmapIndexBuffer(HIndexBuffer buffer)
     {
+        assert(0 && "Not supported for Vulkan");
         return true;
     }
 
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
+        // From VkPhysicalDeviceFeatures spec:
+        //   "fullDrawIndexUint32 - If this feature is supported, maxDrawIndexedIndexValue must be 2^32-1;
+        //   otherwise it must be no smaller than 2^24-1."
         return true;
     }
 
     uint32_t GetMaxElementsIndices(HContext context)
     {
-        // There's no real max limit in Vulkan, it's bound by memory and not by spec.
-        return 4294967295; // 2^32-1
+        return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
     static inline uint32_t GetTypeSize(Type type)
@@ -1209,7 +1236,6 @@ bail:
             else if(size == 2) return VK_FORMAT_R32G32_SFLOAT;
             else if(size == 3) return VK_FORMAT_R32G32B32_SFLOAT;
             else if(size == 4) return VK_FORMAT_R32G32B32A32_SFLOAT;
-            else               return VK_FORMAT_R32_SFLOAT;
         }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
@@ -1217,7 +1243,6 @@ bail:
             else if(size == 2) return VK_FORMAT_R8G8_UINT;
             else if(size == 3) return VK_FORMAT_R8G8B8_UINT;
             else if(size == 4) return VK_FORMAT_R8G8B8A8_UINT;
-            else               return VK_FORMAT_R8_UINT;
         }
         else if (type == TYPE_UNSIGNED_SHORT)
         {
@@ -1225,7 +1250,6 @@ bail:
             else if(size == 2) return VK_FORMAT_R16G16_UINT;
             else if(size == 3) return VK_FORMAT_R16G16B16_UINT;
             else if(size == 4) return VK_FORMAT_R16G16B16A16_UINT;
-            else               return VK_FORMAT_R16_UINT;
         }
         else if (type == TYPE_FLOAT_MAT4)
         {
