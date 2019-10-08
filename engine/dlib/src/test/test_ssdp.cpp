@@ -313,7 +313,7 @@ TEST_F(dmSSDPTest, Renew)
 
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(GITHUB_CI)
 #include <sys/select.h>
 
 /*
