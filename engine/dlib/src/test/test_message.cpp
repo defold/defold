@@ -172,7 +172,7 @@ TEST(dmMessage, OutofResources)
     int i = 0;
     for (;;)
     {
-        DM_SNPRINTF(name, sizeof(name), "my_socket_%d", i++);
+        dmSnPrintf(name, sizeof(name), "my_socket_%d", i++);
         dmMessage::HSocket socket;
         r = dmMessage::NewSocket(name, &socket);
         if (r == dmMessage::RESULT_OK)
@@ -195,7 +195,7 @@ TEST(dmMessage, OutofResources)
     // Create the sockets again
     for (int j = 0; j < i; ++j)
     {
-        DM_SNPRINTF(name, sizeof(name), "my_socket_%d", j);
+        dmSnPrintf(name, sizeof(name), "my_socket_%d", j);
         dmMessage::HSocket socket;
         r = dmMessage::NewSocket(name, &socket);
         if (r == dmMessage::RESULT_OK)

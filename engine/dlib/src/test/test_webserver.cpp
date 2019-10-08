@@ -42,7 +42,7 @@ public:
         sscanf(request->m_Resource, "/mul/%d/%d", &a,&b);
         int c = a + b;
         char buf[16];
-        DM_SNPRINTF(buf, sizeof(buf), "%d", c);
+        dmSnPrintf(buf, sizeof(buf), "%d", c);
         dmWebServer::Send(request, buf, strlen(buf));
     }
 
@@ -56,7 +56,7 @@ public:
         b = atoi(bs);
         int c = a + b;
         char buf[16];
-        DM_SNPRINTF(buf, sizeof(buf), "%d", c);
+        dmSnPrintf(buf, sizeof(buf), "%d", c);
         dmWebServer::Send(request, buf, strlen(buf));
     }
 

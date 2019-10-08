@@ -69,8 +69,9 @@ namespace dmEngineVersion
         if Options.options.with_vulkan and architecture == 'x86_64':
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface'])
 
-            # Note: To get validation layers to work, replace MoltenVK with 'vulkan'. For more info, see README.md in engine/graphics/src/vulkan
-            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
+            # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
+            validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))
+            conf.env.append_value('LINKFLAGS', ['-l', validation and 'vulkan' or 'MoltenVK'])
 
             # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
             conf.env.append_value('LINKFLAGS', ['-l', 'c++'])

@@ -268,7 +268,7 @@ namespace dmHttpServer
         internal_req->m_HeaderSent = 1;
 
         char header[128];
-        DM_SNPRINTF(header, sizeof(header), "HTTP/1.1 %d %s\r\n",
+        dmSnPrintf(header, sizeof(header), "HTTP/1.1 %d %s\r\n",
                     internal_req->m_StatusCode,
                     StatusCodeString(internal_req->m_StatusCode));
 
@@ -362,7 +362,7 @@ bail:
             internal_req->m_SendBufferPos = 0;
 
             char buf[16];
-            DM_SNPRINTF(buf, sizeof(buf), "%x", data_length);
+            dmSnPrintf(buf, sizeof(buf), "%x", data_length);
             HTTP_SERVER_SENDALL_AND_BAIL(buf);
             HTTP_SERVER_SENDALL_AND_BAIL("\r\n")
 

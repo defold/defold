@@ -59,12 +59,12 @@ void CreateRandomUDN(char* string, unsigned int size)
 {
     char deviceId[9] = { 0 };
     CreateRandomNumberString(deviceId, 9);
-    DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", deviceId);
+    dmSnPrintf(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", deviceId);
 }
 
 void CreateDeviceDescriptionXML(char* string, const char* udn, unsigned int size)
 {
-    DM_SNPRINTF(string, size, DEVICE_DESC, udn);
+    dmSnPrintf(string, size, DEVICE_DESC, udn);
 }
 
 void WaitPackage()
@@ -383,7 +383,7 @@ TEST_F(dmSSDPTest, JavaClient)
     printf("(C++) Sending USN2 = \"%s\"\n", device2_usn);
     char* dynamo_home = getenv("DYNAMO_HOME");
     char command[2048];
-    DM_SNPRINTF(command, sizeof(command),
+    dmSnPrintf(command, sizeof(command),
             "java -cp build/default/src/java:build/default/src/java_test:%s/ext/share/java/junit-4.6.jar -DUSN1=%s -DUSN2=%s org.junit.runner.JUnitCore com.dynamo.upnp.SSDPTest", dynamo_home, device1_usn, device2_usn);
 
 #if !defined(__EMSCRIPTEN__) // no support for popen

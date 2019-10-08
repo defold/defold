@@ -17,7 +17,7 @@
  *
  * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated.
  *
- * @name DM_SNPRINTF
+ * @name dmSnPrintf
  * @param buffer Buffer to write to
  * @param count Size of the buffer
  * @param format String format
@@ -26,14 +26,14 @@
  *
  * ```cpp
  * char path[64];
- * DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+ * dmSnPrintf(path, 64, PATH_FORMAT, filename);
  * ```
  */
 
 #ifdef __GNUC__
-	int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...) __attribute__ ((format (printf, 3, 4)));
+	int dmSnPrintf(char *buffer, size_t count, const char *format, ...) __attribute__ ((format (printf, 3, 4)));
 #else
-	int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...);
+	int dmSnPrintf(char *buffer, size_t count, const char *format, ...);
 #endif
 
 /*# Tokenize strings.
@@ -58,8 +58,8 @@
 char* dmStrTok(char *string, const char *delim, char **lasts);
 
 /*# Size-bounded string copying.
- * 
- * Size-bounded string copying. Same as OpenBSD 2.4 [strlcpy](http://www.manpagez.com/man/3/strlcpy/). 
+ *
+ * Size-bounded string copying. Same as OpenBSD 2.4 [strlcpy](http://www.manpagez.com/man/3/strlcpy/).
  * Copy src to string dst of size siz.  At most siz-1 characters will be copied.
  * Always NUL terminates (unless siz == 0).Returns strlen(src); if retval >= siz, truncation occurred.
  *
@@ -79,7 +79,7 @@ char* dmStrTok(char *string, const char *delim, char **lasts);
 size_t dmStrlCpy(char *dst, const char *src, size_t size);
 
 /*# Size-bounded string concatenation.
- * 
+ *
  * Size-bounded string concatenation. Same as OpenBSD 2.4 [strlcat](http://www.manpagez.com/man/3/strlcat).
  * Appends src to string dst of size siz (unlike strncat, siz is the full size of dst, not space left).
  * At most siz-1 characters will be copied.  Always NUL terminates (unless siz == 0).
@@ -101,7 +101,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
 size_t dmStrlCat(char *dst, const char *src, size_t size);
 
 /*# Case-insensitive string comparison
- * 
+ *
  * Case-insensitive string comparison
  *
  * @name dmStrCaseCmp

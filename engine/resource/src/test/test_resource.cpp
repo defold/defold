@@ -964,7 +964,7 @@ TEST(RecreateTest, RecreateTest)
 
     const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
-    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
+    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 
@@ -1047,7 +1047,7 @@ TEST(RecreateTest, RecreateTestHttp)
 
     const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
-    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
+    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 
@@ -1147,7 +1147,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testfilename__.foo";
-    DM_SNPRINTF(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
+    dmSnPrintf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 
@@ -1213,7 +1213,7 @@ TEST(RecreateTest, ReloadCallbackTest)
 
     const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
-    DM_SNPRINTF(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
+    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     FILE* f;
 

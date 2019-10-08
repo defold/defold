@@ -3181,7 +3181,7 @@ TEST_F(dmGuiTest, ScriptPicking)
 }
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, Vector4 v) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "vector4(%.3f, %.3f, %.3f, %.3f)", v.getX(), v.getY(), v.getZ(), v.getW());
+    return buffer + dmSnPrintf(buffer, buffer_len, "vector4(%.3f, %.3f, %.3f, %.3f)", v.getX(), v.getY(), v.getZ(), v.getW());
 }
 
 template <> int jc_test_cmp_EQ(Vector4 a, Vector4 b, const char* exprA, const char* exprB) {
@@ -5596,7 +5596,7 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;

@@ -277,7 +277,7 @@ TEST_F(AnimTest, DeleteInAnim)
     for (uint32_t i = 0; i < instance_count; ++i)
     {
         gos[i] = dmGameObject::New(m_Collection, "/dummy.goc");
-        DM_SNPRINTF(id_buffer, 32, id_fmt, i);
+        dmSnPrintf(id_buffer, 32, id_fmt, i);
         orig_instance_ids[i] = dmHashString64(id_buffer);
         dmGameObject::SetIdentifier(m_Collection, gos[i], id_buffer);
     }
@@ -574,7 +574,7 @@ TEST_F(AnimTest, ScriptedDemo)
     char id[8];
     for (uint32_t i = 0; i < count; ++i)
     {
-        DM_SNPRINTF(id, 8, "box%d", i + 1);
+        dmSnPrintf(id, 8, "box%d", i + 1);
         dmGameObject::HInstance box = Spawn(m_Factory, m_Collection, "/demo_box.goc", hash(id), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
         ASSERT_NE((void*)0, box);
     }
