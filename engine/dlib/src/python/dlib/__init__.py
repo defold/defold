@@ -1,20 +1,19 @@
 import ctypes, os, sys, platform
 
+# NOTE: The output here is parsed later on, so don't print invalid code!
+
+if platform.architecture()[0] == '32bit':
+    raise Exception("32 bit hosts are not supported!")
+
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
-    if platform.architecture()[0] == '64bit':
-        libdir = "lib/x86_64-darwin"
-    else:
-        libdir = "lib/darwin"
+    libdir = "lib/x86_64-darwin"
 elif sys.platform == "linux2":
     libname = "libdlib_shared.so"
-    if platform.architecture()[0] == '64bit':
-        libdir = "lib/x86_64-linux"
-    else:
-        libdir = "lib/linux"
+    libdir = "lib/x86_64-linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
-    libdir = "lib/win32"
+    libdir = "lib/x86_64-win32"
 
 dlib = None
 try:
