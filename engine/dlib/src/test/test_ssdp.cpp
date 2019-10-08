@@ -227,7 +227,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 }
 
-#if !defined(_WIN32) && !defined(__MACH__)
+#if !defined(_WIN32) && !defined(GITHUB_CI)
 
 TEST_F(dmSSDPTest, Search)
 {
@@ -298,7 +298,8 @@ TEST_F(dmSSDPTest, Expire)
     ASSERT_FALSE(TestDeviceDiscovered());
 }
 
-#if !defined(_WIN32) && !defined(__MACH__)
+
+#if !defined(_WIN32) && !defined(GITHUB_CI)
 
 TEST_F(dmSSDPTest, Renew)
 {

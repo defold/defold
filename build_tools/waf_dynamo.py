@@ -245,6 +245,10 @@ def default_flags(self):
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
+   if os.environ.get('GITHUB_WORKFLOW', None) is not None:
+       for f in ['CCFLAGS', 'CXXFLAGS']:
+           self.env.append_value(f, self.env.CXXDEFINES_ST + "GITHUB_CI")
+
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
