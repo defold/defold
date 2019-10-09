@@ -9,8 +9,13 @@ from argparse import ArgumentParser
 def call(args):
     args.replace("--release", "")
     print(args)
-    ret = os.system(args)
-    if ret != 0:
+    # ret = os.system(args)
+    try:
+        ret = subprocess.call(args, shell=True)
+        if ret != 0:
+            exit(1)
+    except OSError as e:
+        print("Execution failed:", e)
         exit(1)
     # subprocess.check_call(args, shell=True)
     # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
