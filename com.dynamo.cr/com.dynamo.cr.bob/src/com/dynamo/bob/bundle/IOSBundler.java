@@ -378,14 +378,14 @@ public class IOSBundler implements IBundler {
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
             String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
-            String overrideEntitlementsProperty = projectProperties.getStringValue("ios", "override_entitlements");
+            Boolean overrideEntitlementsProperty = projectProperties.getBooleanValue("ios", "override_entitlements", false);
 
             BundleHelper.throwIfCanceled(canceled);
 
-            // If an override entitlements file has been set, use that entitlements file directly instead of trying to merge it.
-            if (overrideEntitlementsProperty != null && overrideEntitlementsProperty.length() > 0) {
-                IResource overrideEntitlementsResource = project.getResource(overrideEntitlementsProperty);
-                InputStream is = new ByteArrayInputStream(overrideEntitlementsResource.getContent());
+            // If an override entitlements has been set, use that custom entitlements file directly instead of trying to merge it.
+            if (overrideEntitlementsProperty) {
+                IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
                 OutputStream outStream = new FileOutputStream(entitlementOut);
                 byte[] buffer = new byte[is.available()];
                 is.read(buffer);
