@@ -1520,13 +1520,26 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    bool GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        // Not supported
+        return false;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
+        // Not supported
+        return -1;
+    }
+
+    bool GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
         GLenum uniform_type;
         glGetActiveUniform(prog, index, buffer_size, 0, &uniform_size, &uniform_type, buffer);
         *type = (Type) uniform_type;
         CHECK_GL_ERROR
+        return true;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
