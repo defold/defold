@@ -1,7 +1,5 @@
 #include <string.h>
 
-#include "../graphics_vulkan_defines.h"
-#include <vulkan/vulkan.h>
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/math.h>
@@ -10,6 +8,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xlib-xcb.h>
 
+#include "../graphics_vulkan_defines.h"
 #include "../../graphics.h"
 #include "../graphics_vulkan_private.h"
 
