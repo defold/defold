@@ -231,7 +231,7 @@
      (ui/add-style! "settings")
      (ui/add-style! "toggles")
      (ui/children! [(doto (CheckBox. "Generate debug symbols") (.setId "generate-debug-symbols-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
-     															(doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                    (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
                     (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
 
 (defn- load-generic-prefs! [prefs view]
