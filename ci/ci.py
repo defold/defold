@@ -179,8 +179,7 @@ def main(argv):
         release = False
 
     # set DYNAMO_HOME
-    call('python scripts/build.py shell')
-    call("echo WAWAWAWA")
+    # call('python scripts/build.py shell')
     call('set')
     call('cd engine/liveupdate')
     call('PREFIX=$DYNAMO_HOME waf configure --platform=x86_64-darwin')
