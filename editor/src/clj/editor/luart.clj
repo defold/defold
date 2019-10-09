@@ -8,7 +8,7 @@
            [org.luaj.vm2.compiler LuaC]
            [org.luaj.vm2.lib Bit32Lib CoroutineLib PackageLib StringLib TableLib VarArgFunction]
            [org.luaj.vm2.lib.jse JseBaseLib JseMathLib JseOsLib]
-           [java.io ByteArrayInputStream File PrintStream]
+           [java.io ByteArrayInputStream PrintStream]
            [java.nio.charset Charset]))
 
 (set! *warn-on-reflection* true)
@@ -110,7 +110,13 @@
 
 (defn- set-globals! [^LuaValue globals m]
   (doseq [[k v] m]
-    (.set globals (clj->lua k) (clj->lua v))))
+    (if (map? v)
+      (let [lua-key (clj->lua k)
+            x (.get globals lua-key)]
+        (if (.istable x)
+          (set-globals! x v)
+          (.set globals lua-key (clj->lua v))))
+      (.set globals (clj->lua k) (clj->lua v)))))
 
 (defn- line-print-stream [f]
   (let [sb (StringBuilder.)]
@@ -128,13 +134,27 @@
       "UTF-8")))
 
 (defn make-env
-  ^Globals [resource-path->input-stream validate-opened-filename extra-globals display-output!]
+  "Create lua environment
+
+  Expected keys:
+  - `:find-resource` (required) - function from resource path to optional input
+    stream, gets called when lua requires other lua modules
+  - `:open-file` (required) - function called with file name and a boolean
+    indicating whether it's open for read (true) or write (false), should return
+    resolved file name (string)
+  - `:out` (required) - function called when lua prints a line of text, called
+    with 2 args: type of output (`:err` or `:out`) and single-line string
+  - `:globals` (optional) - additional globals that will be merged into existing
+    ones, you can set values to `nil` to remove parts of globals"
+  ^Globals [& {:keys [find-resource
+                      open-file
+                      globals
+                      out]}]
   (doto (Globals.)
     (.load (proxy [JseBaseLib] []
              (findResource [filename]
-               (resource-path->input-stream (str "/" filename)))))
+               (find-resource (str "/" filename)))))
     (.load (PackageLib.))
-    (-> (.get "package") (.set "config" (string/join "\n" [File/pathSeparatorChar \; \? \! \-])))
     (.load (Bit32Lib.))
     (.load (TableLib.))
     (.load (StringLib.))
@@ -144,25 +164,17 @@
              (openFile [filename read-mode append-mode update-mode binary-mode]
                (let [^IoLib this this]
                  (proxy-super openFile
-                              (validate-opened-filename filename read-mode)
+                              (open-file filename read-mode)
                               read-mode
                               append-mode
                               update-mode
                               binary-mode)))))
-    (-> (.get "io") (.set "tmpfile" LuaValue/NIL))
     (.load (JseOsLib.))
-    (-> (.get "os") (doto
-                      (.set "execute" LuaValue/NIL)
-                      (.set "exit" LuaValue/NIL)
-                      (.set "remove" LuaValue/NIL)
-                      (.set "rename" LuaValue/NIL)
-                      (.set "setlocale" LuaValue/NIL)
-                      (.set "tmpname" LuaValue/NIL)))
     (LoadState/install)
     (LuaC/install)
-    (-> (.-STDOUT) (set! (line-print-stream #(display-output! :out %))))
-    (-> (.-STDERR) (set! (line-print-stream #(display-output! :err %))))
-    (set-globals! extra-globals)))
+    (-> (.-STDOUT) (set! (line-print-stream #(out :out %))))
+    (-> (.-STDERR) (set! (line-print-stream #(out :err %))))
+    (set-globals! globals)))
 
 (defn read
   ^Prototype [^String chunk chunk-name]
