@@ -181,7 +181,7 @@ def main(argv):
     # set DYNAMO_HOME
     # call('python scripts/build.py shell')
     call('set')
-    call('echo("DYNAMO HOME ${DYNAMO_HOME}")')
+    call('echo "DYNAMO HOME ${DYNAMO_HOME}"')
     call('cd engine/liveupdate')
     call('PREFIX=$DYNAMO_HOME waf configure --platform=x86_64-darwin')
     exit(1)
