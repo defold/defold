@@ -13,10 +13,21 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.gl.texture :as texture]
+            [editor.math :as math]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vtx]
+            [editor.scene-cache :as scene-cache]
+            [editor.buffer :as buffer])
   (:import [com.dynamo.mesh.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [editor.gl.shader ShaderLifecycle]
-           [editor.types AABB]))
+           [editor.types AABB]
+           [com.jogamp.opengl GL2]
+           [javax.vecmath Matrix4d Point3d Matrix3d Vector3d]
+           [editor.gl.vertex2 VertexBuffer]
+           [java.nio ByteBuffer]))
 
 (set! *warn-on-reflection* true)
 
@@ -88,8 +99,100 @@
                 samplers
                 gpu-texture-generators)))
 
-(g/defnk produce-scene [_node-id scene shader gpu-textures vertex-space]
-  (if (some? scene)
+(defn- request-vb! [^GL2 gl node-id user-data]
+  (let [request-id node-id
+        data (-> user-data
+                 (select-keys [:array-streams
+                               :normal-stream-name
+                               :position-stream-name
+                               :scratch-arrays
+                               :vertex-space
+                               :world-transform])
+                 (update :world-transform math/vecmath->clj))] ; todo: do we need to convert it to a clj transform?
+    (scene-cache/request-object! ::vb request-id gl data)))
+
+(defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
+  (let [renderable (first renderables)
+        user-data (:user-data renderable)
+        shader (:shader user-data)
+        textures (:textures user-data)
+        vertex-space (:vertex-space user-data)
+        vertex-space-world-transform (if (= vertex-space :vertex-space-world)
+                                       (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
+                                       (:world-transform renderable))
+        render-args (merge render-args
+                           (math/derive-render-transforms vertex-space-world-transform
+                                                          (:view render-args)
+                                                          (:projection render-args)
+                                                          (:texture render-args)))]
+    (gl/with-gl-bindings gl render-args [shader]
+      (doseq [[name t] textures]
+        (gl/bind gl t render-args)
+        (shader/set-uniform shader gl name (- (:unit t) GL2/GL_TEXTURE0)))
+      (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
+      (gl/gl-enable gl GL2/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL2/GL_BACK)
+      (doseq [renderable renderables
+              :let [node-id (:node-id renderable)
+                    user-data (:user-data renderable)
+                    vb (request-vb! gl node-id user-data)
+                    vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
+        (gl/with-gl-bindings gl render-args [vertex-binding]
+          (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vb))))
+      (gl/gl-disable gl GL2/GL_CULL_FACE)
+      (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)
+      (doseq [[name t] textures]
+        (gl/unbind gl t render-args)))))
+
+(defn- render-scene-opaque-selection [^GL2 gl render-args renderables rcount]
+  ;; todo
+  )
+
+(defn- gen-scratch-arrays [streams]
+  ;; todo
+  )
+
+(defn- render-scene [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (condp = pass
+      pass/opaque
+      (render-scene-opaque gl render-args renderables rcount)
+
+      pass/opaque-selection
+      (render-scene-opaque-selection gl render-args renderables rcount))))
+
+
+(g/defnk produce-scene [_node-id streams position-stream normal-stream shader gpu-textures vertex-space]
+  (if (nil? streams)
+    {:aabb geom/empty-bounding-box
+     :renderable {:passes [pass/selection]}}
+
+    {:node-id _node-id
+     :aabb aabb
+     :renderable {:render-fn render-scene
+                  :tags #{:model}
+                  :batch-key _node-id ; TODO: investigate if we can batch meshes better
+                  :select-batch-key _node-id
+                  :user-data {:array-streams (into []
+                                                   (comp (map buffer/stream->array-stream)
+                                                         (map (fn [{:keys [type count] :as stream}]
+                                                                (assoc stream :put-fn (buffer/get-put-fn type count)))))
+                                                   streams)
+                              :put-vertex-fn ()
+                              :position-stream-name position-stream
+                              :normal-stream-name normal-stream
+                              :shader shader
+                              :textures gpu-textures
+                              :scratch-arrays (gen-scratch-arrays meshes)}
+                  :passes [pass/opaque pass/opaque-selection]}
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-outline
+                              :tags #{:model :outline}
+                              :batch-key _node-id
+                              :select-batch-key _node-id
+                              :passes [pass/outline]}}]}
+
     (update scene :renderable
             (fn [r]
               (cond-> r
@@ -104,8 +207,7 @@
                                      ;; each model instance in the shader uniforms.
                                      (when (= :vertex-space-world vertex-space)
                                        [old-key shader gpu-textures]))))))
-    {:aabb geom/empty-bounding-box
-     :renderable {:passes [pass/selection]}}))
+    ))
 
 (defn- vset [v i value]
   (let [c (count v)
@@ -137,7 +239,8 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :vertices-resource]
                                             [:build-targets :dep-build-targets]
-                                            [:stream-ids :stream-ids])))
+                                            [:stream-ids :stream-ids]
+                                            [:streams :streams])))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "buffer"})))
   (property textures resource/ResourceVec
@@ -178,7 +281,7 @@
   (input texture-resources resource/Resource :array)
   (input gpu-texture-generators g/Any :array)
   (input dep-build-targets g/Any :array)
-  (input scene g/Any)
+  (input streams g/Any)
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
 
@@ -233,3 +336,149 @@
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))
+
+(defn- transform-position-data-v2! [data-array ^Matrix4d world-transform]
+  (let [^Point3d temp-point (Point3d.)
+        array-length (alength data-array)]
+    (loop [i 0]
+      (if (= i array-length)
+        data-array
+        (do
+          (.set temp-point
+                (aget data-array i)
+                (aget data-array (inc i))
+                0.0)
+          (.transform world-transform temp-point)
+          (aset data-array i (.x temp-point))
+          (aset data-array (inc i) (.y temp-point))
+          (recur (+ i 2)))))))
+
+(defn- transform-position-data-v3! [data-array ^Matrix4d world-transform]
+  (let [^Point3d temp-point (Point3d.)
+        array-length (alength data-array)]
+    (loop [i 0]
+      (if (= i array-length)
+        data-array
+        (do
+          (.set temp-point
+                (aget data-array i)
+                (aget data-array (inc i))
+                (aget data-array (+ i 2)))
+          (.transform world-transform temp-point)
+          (aset data-array i (.x temp-point))
+          (aset data-array (inc i) (.y temp-point))
+          (aset data-array (+ i 2) (.z temp-point))
+          (recur (+ i 3)))))))
+
+(defn- transform-normal-data-v3! [data-array ^Matrix3d normal-transform]
+  (let [^Vector3d temp-normal (Vector3d.)
+        array-length (alength data-array)]
+    (loop [i 0]
+      (if (= i array-length)
+        data-array
+        (do
+          (.set temp-normal
+                (aget data-array i)
+                (aget data-array (inc i))
+                (aget data-array (+ i 2)))
+          (.transform normal-transform temp-normal)
+          (.normalize temp-normal)
+          (aset data-array i (.x temp-normal))
+          (aset data-array (inc i) (.y temp-normal))
+          (aset data-array (+ i 2) (.z temp-normal))
+          (recur (+ i 3)))))))
+
+(defn- populate-scratch-array! [scratch-array array-stream-data]
+  (System/arraycopy array-stream-data 0 scratch-array 0 (alength array-stream-data))
+  scratch-array)
+
+(defn- transform-position-array-stream [{:keys [count data] :as array-stream} scratch-array ^Matrix4d world-transform]
+  (assoc array-stream
+    :data (case count
+            2 (transform-position-data-v2! (populate-scratch-array! scratch-array data) world-transform)
+            3 (transform-position-data-v3! (populate-scratch-array! scratch-array data) world-transform))))
+
+(defn- transform-normal-array-stream [{:keys [data] :as array-stream} scratch-array ^Matrix3d normal-transform]
+  (assoc array-stream
+    :data (-> scratch-array
+              (populate-scratch-array! data)
+              (transform-normal-data-v3! normal-transform))))
+
+(defn- world-transform->normal-transform
+  ^Matrix3d [^Matrix4d world-transform]
+  (let [normal-transform (Matrix3d.)]
+    (.getRotationScale world-transform normal-transform)
+    (.invert normal-transform)
+    (.transpose normal-transform)
+    normal-transform))
+
+
+(defn- populate-vb! [^VertexBuffer vb {:keys [array-streams position-stream-name normal-stream-name scratch-arrays vertex-space world-transform]}]
+  (assert (= (count array-streams) (count scratch-arrays)))
+  (let [array-streams' (if (not= vertex-space :vertex-space-world)
+                         array-streams
+                         (map (fn [{:keys [name] :as array-stream} scratch-array]
+                                (cond
+                                  (and (not-empty position-stream-name)
+                                       (= name position-stream-name))
+                                  (transform-position-array-stream array-stream scratch-array world-transform)
+
+                                  (and (not-empty normal-stream-name)
+                                       (= name normal-stream-name))
+                                  (transform-normal-array-stream array-stream scratch-array (world-transform->normal-transform world-transform))
+
+                                  :else
+                                  array-stream))
+                              array-streams
+                              scratch-arrays)]
+
+    ; todo use get-put-fn from buffer to fill interleaved buffer
+    ))
+
+(defn- stream-type->gl-type [stream-type]
+  (case stream-type
+    :value-type-uint8 GL2/GL_UNSIGNED_BYTE
+    :value-type-uint16 GL2/GL_UNSIGNED_SHORT
+    :value-type-uint32 GL2/GL_UNSIGNED_INT
+    :value-type-int8 GL2/GL_BYTE
+    :value-type-int16 GL2/GL_SHORT
+    :value-type-int32 GL2/GL_INT
+    :value-type-float32 GL2/GL_FLOAT))
+
+(defn- stream->attribute [stream]
+  {:components (:count stream)
+   :type (stream-type->gl-type (:type stream))
+   :name (:name stream)
+   :normalized? false}) ; todo figure out if this should be configurable
+
+(defn- max-stream-length [streams]
+  (transduce (map (fn [stream]
+                    (/ (count (:data stream))
+                       (:count stream))))
+             max
+             streams))
+
+(defn- make-vb-from-array-streams [array-streams]
+  (let [attributes (map stream->attribute array-streams)
+        vertex-count (max-stream-length array-streams)
+        vertex-description (vtx/make-vertex-description nil attributes)]
+    (vtx/make-vertex-buffer vertex-description :static vertex-count)))
+
+(defn- update-vb! [^GL2 gl ^VertexBuffer vb data]
+  (let [data' (update data :world-transform
+                      (fn [world-transform]
+                        (doto (Matrix4d.)
+                          (math/clj->vecmath world-transform))))]
+    (-> vb
+        (vtx/clear!)
+        (populate-vb! data')
+        (vtx/flip!))))
+
+(defn- make-vb [^GL2 gl data]
+  (let [{:keys [array-streams]} data
+        vb (make-vb-from-array-streams array-streams)]
+    (update-vb! gl vb data)))
+
+(defn- destroy-vbs! [^GL2 gl vbs _])
+
+(scene-cache/register-object-cache! ::vb make-vb update-vb! destroy-vbs!)

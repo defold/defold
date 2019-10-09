@@ -7,6 +7,34 @@
 
 (def ^:private buffer-icon "icons/32/Icons_61-Buffer.png")
 
+(def ^:private put-functions-by-key
+  (into {}
+        (for [component-count (range 1 5)
+              [source-data-tag-sym put-method-sym pb-value-types]
+              [['bytes 'put [:value-type-uint8 :value-type-int8]]
+               ['shorts 'putShort [:value-type-uint16 :value-type-int16]]
+               ['ints 'putInt [:value-type-uint32 :value-type-int32]]
+               ['longs 'putLong [:value-type-uint64 :value-type-int64]]
+               ['floats 'putFloat [:value-type-float32]]]
+              :let [put-fn (eval (buffers/make-put-fn-form component-count source-data-tag-sym put-method-sym))]
+              pb-value-type pb-value-types]
+          [[component-count pb-value-type] put-fn])))
+
+(defn get-put-fn [pb-value-type ^long component-count]
+  (get put-functions-by-key [component-count pb-value-type]))
+
+(defn stream-data->array [stream-data pb-value-type]
+  (case pb-value-type
+    :value-type-float32 (float-array stream-data)
+    (:value-type-uint8 :value-type-int8) (byte-array stream-data)
+    (:value-type-uint16 :value-type-int16) (short-array stream-data)
+    (:value-type-uint32 :value-type-int32) (int-array stream-data)
+    (:value-type-uint64 :value-type-int64) (long-array stream-data)))
+
+
+(defn stream->array-stream [stream]
+  (update stream :data stream-data->array (:type stream)))
+
 (defn- type->pb-value-type [type]
   (case type
     "uint8" :value-type-uint8
@@ -33,7 +61,7 @@
           :value-count count}
     (pb-value-type->pb-stream-field type) data))
 
-(defn- lines->json-streams [lines]
+(defn- lines->streams [lines]
   (json/lines->json lines
                     :key-fn keyword
                     :value-fn (fn [k v]
@@ -41,31 +69,31 @@
                                   :type (type->pb-value-type v)
                                   v))))
 
-(g/defnk produce-build-targets [json-streams resource]
+(g/defnk produce-build-targets [streams resource]
   [(pipeline/make-protobuf-build-target resource nil
                                         BufferProto$BufferDesc
-                                        {:streams (map json-stream->pb-stream json-streams)}
+                                        {:streams (map json-stream->pb-stream streams)}
                                         nil)])
 
-(g/defnk produce-json-streams [_node-id lines]
-  (let [json-streams (try
-                       (lines->json-streams lines)
-                       (catch Exception error
-                         error))]
-    (if (instance? Exception json-streams)
+(g/defnk produce-streams [_node-id lines]
+  (let [streams (try
+                  (lines->streams lines)
+                  (catch Exception error
+                    error))]
+    (if (instance? Exception streams)
       (g/->error _node-id :lines :fatal lines "Syntax error in buffer file.")
-      json-streams)))
+      streams)))
 
-(g/defnk produce-stream-ids [json-streams]
+(g/defnk produce-stream-ids [streams]
   (into (sorted-set)
         (map :name)
-        json-streams))
+        streams))
 
 (g/defnode BufferNode
   (inherits r/CodeEditorResourceNode)
 
   (output build-targets g/Any produce-build-targets)
-  (output json-streams g/Any :cached produce-json-streams)
+  (output streams g/Any :cached produce-streams)
   (output stream-ids g/Any produce-stream-ids))
 
 (defn register-resource-types [workspace]

@@ -162,7 +162,7 @@
         data {:mesh mesh :world-transform clj-world :scratch scratch :vertex-space vertex-space}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
-(defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
+(defn- render-scene-opaque [^GL2 gl render-args renderables rcount]gen-scratch-arrays
   (let [renderable (first renderables)
         node-id (:node-id renderable)
         user-data (:user-data renderable)
@@ -314,7 +314,13 @@
     (error-values/error-aggregate es)))
 
 (defn- gen-scratch-arrays [meshes]
-  (into {} (map (fn [component] [component (float-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
+  (into {}
+        (map (fn [component]
+               [component (float-array (reduce max
+                                               0
+                                               (map (comp count component)
+                                                    meshes)))]))
+        [:positions :normals :texcoord0]))
 
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)

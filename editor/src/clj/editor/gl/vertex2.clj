@@ -77,7 +77,7 @@
   [attributes]
   (reduce + (attribute-sizes attributes)))
 
-(defn- make-vertex-description
+(defn make-vertex-description
   [name attributes]
   {:name name
    :attributes attributes
