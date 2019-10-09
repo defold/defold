@@ -9,13 +9,8 @@ from argparse import ArgumentParser
 def call(args):
     args.replace("--release", "")
     print(args)
-    # ret = os.system(args)
-    try:
-        ret = subprocess.call(args, shell=True)
-        if ret != 0:
-            exit(1)
-    except OSError as e:
-        print("Execution failed:", e)
+    ret = os.system(args)
+    if ret != 0:
         exit(1)
     # subprocess.check_call(args, shell=True)
     # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
@@ -184,7 +179,7 @@ def main(argv):
         release = False
 
     # set DYNAMO_HOME
-    call('python scripts/build.py shell && set')
+    call('python scripts/build.py shell')
     call("echo WAWAWAWA")
     call('set')
     call('cd engine/liveupdate')
