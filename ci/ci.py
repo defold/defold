@@ -54,7 +54,6 @@ def install():
         aptget("valgrind")
 
 
-
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
     args = 'python scripts/build.py distclean install_ext'.split()
     sub_args = []
@@ -179,7 +178,10 @@ def main(argv):
         channel = None
         release = False
 
+    # set DYNAMO_HOME
+    call('python scripts/build.py shell')
 
+    # execute commands
     for command in args.commands:
         if command == "engine":
             if not platform:
