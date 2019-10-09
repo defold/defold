@@ -180,6 +180,9 @@ def main(argv):
 
     # set DYNAMO_HOME
     call('python scripts/build.py shell')
+    call('cd engine/liveupdate')
+    call('PREFIX=$DYNAMO_HOME waf configure --platform=x86_64-darwin')
+    exit(1)
 
     # execute commands
     for command in args.commands:
