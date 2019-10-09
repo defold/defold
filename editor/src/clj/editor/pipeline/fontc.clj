@@ -155,7 +155,10 @@
                        (throw (ex-info (str "Error while reading BMFont image resource:" path) {:path path} e)))))
         channel-count 4
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
-        line-height (.lineHeight bm-font)
+        ;; Note: see comment in compile-ttf-bitmap regarding the cache ascent/descent
+        ^long cache-cell-max-ascent (reduce max 0 (map :ascent semi-glyphs))
+        ^long cache-cell-max-descent (reduce max 0 (map :descent semi-glyphs))
+        line-height (+ cache-cell-max-ascent cache-cell-max-descent)
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)]
