@@ -53,7 +53,7 @@ namespace dmGraphics
     struct GeometryBuffer
     {
         GeometryBuffer(const VkBufferUsageFlags usage)
-        : m_Buffer(0)
+        : m_Buffer(VK_NULL_HANDLE)
         , m_Usage(usage)
         , m_Frame(0)
         {}
@@ -172,16 +172,15 @@ namespace dmGraphics
 
     struct Pipeline
     {
-        VkPipeline       m_Pipeline;
-        VkPipelineLayout m_Layout;
+        VkPipeline m_Pipeline;
     };
 
     struct ShaderResourceBinding
     {
-        uint64_t m_NameHash;
-        Type     m_Type;
-        uint16_t m_Set;
-        uint16_t m_Binding;
+        uint64_t                    m_NameHash;
+        ShaderDesc:: ShaderDataType m_Type;
+        uint16_t                    m_Set;
+        uint16_t                    m_Binding;
     };
 
     struct ShaderModule
@@ -197,9 +196,17 @@ namespace dmGraphics
     struct Program
     {
         uint64_t                        m_Hash;
+        uint32_t*                       m_UniformOffsets;
+        uint8_t*                        m_UniformData;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
+        VkDescriptorSetLayout           m_DescriptorSetLayout[2];
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[2];
+        VkPipelineLayout                m_PipelineLayout;
+        uint32_t                        m_VertexUniformDataSize;
+        uint32_t                        m_FragmentUniformDataSize;
+        uint8_t                         m_UniformDataIsDirty : 1;
+        uint8_t                                              : 7; // unused
     };
 
     struct SwapChainCapabilities
@@ -251,6 +258,8 @@ namespace dmGraphics
         VkFramebuffer* vk_framebuffer_out);
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool,
         uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
+    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes,
+        uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out);
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,

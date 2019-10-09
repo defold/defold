@@ -241,6 +241,20 @@ namespace dmGraphics
         return res;
     }
 
+    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    {
+        VkDescriptorPoolCreateInfo vk_pool_create_info;
+        memset(&vk_pool_create_info, 0, sizeof(vk_pool_create_info));
+
+        vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        vk_pool_create_info.poolSizeCount = numPoolSizes;
+        vk_pool_create_info.pPoolSizes    = vk_pool_sizes;
+        vk_pool_create_info.maxSets       = maxDescriptors;
+        vk_pool_create_info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+
+        return vkCreateDescriptorPool(vk_device, &vk_pool_create_info, 0, vk_descriptor_pool_out);
+    }
+
     VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass, uint32_t width, uint32_t height, VkImageView* vk_attachments, uint8_t attachmentCount, VkFramebuffer* vk_framebuffer_out)
     {
         VkFramebufferCreateInfo vk_framebuffer_create_info;
@@ -688,6 +702,7 @@ bail:
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
 
+        /*
         VkPipelineLayoutCreateInfo vk_pipeline_create_info;
         memset(&vk_pipeline_create_info, 0, sizeof(vk_pipeline_create_info));
 
@@ -702,6 +717,7 @@ bail:
         {
             return res;
         }
+        */
 
         VkStencilOpState vk_stencil_op_state;
         memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
@@ -756,7 +772,7 @@ bail:
         vk_pipeline_info.pDepthStencilState  = &vk_depth_stencil_create_info;
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
-        vk_pipeline_info.layout              = pipelineOut->m_Layout;
+        vk_pipeline_info.layout              = program->m_PipelineLayout;
         vk_pipeline_info.renderPass          = vk_render_pass;
         vk_pipeline_info.subpass             = 0;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -862,11 +878,13 @@ bail:
     {
         assert(pipeline);
 
+        /*
         if (pipeline->m_Layout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(vk_device, pipeline->m_Layout, 0);
             pipeline->m_Layout = VK_NULL_HANDLE;
         }
+        */
 
         if (pipeline->m_Pipeline != VK_NULL_HANDLE)
         {
