@@ -1060,49 +1060,49 @@ void DeviceLoopbackStop(dmSound::HDevice device)
 // };
 // INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 //
-// TEST_P(dmSoundVerifyWavTest, Mix)
-// {
-//     TestParams params = GetParam();
-//     dmSound::Result r;
-//     dmSound::HSoundData sd = 0;
-//
-//     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-//
-//     uint64_t tstart = dmTime::GetTime();
-//
-//     dmSound::HSoundInstance instance = 0;
-//     r = dmSound::NewSoundInstance(sd, &instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
-//
-//     uint64_t tend = dmTime::GetTime();
-//     ASSERT_GT(250u, tend-tstart);
-//
-//     r = dmSound::Play(instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     do {
-//         r = dmSound::Update();
-//         ASSERT_EQ(dmSound::RESULT_OK, r);
-//     } while (dmSound::IsPlaying(instance));
-//
-//     r = dmSound::DeleteSoundInstance(instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::DeleteSoundData(sd);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-// }
-//
-// const TestParams params_verify_wav_test[] = {TestParams("loopback",
-//                                             DEF2938_WAV,
-//                                             DEF2938_WAV_SIZE,
-//                                             dmSound::SOUND_DATA_TYPE_WAV,
-//                                             2000,
-//                                             22050,
-//                                             35200,
-//                                             2048)};
-// INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
-//
-//
+TEST_P(dmSoundVerifyWavTest, Mix)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    uint64_t tstart = dmTime::GetTime();
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    uint64_t tend = dmTime::GetTime();
+    ASSERT_GT(250u, tend-tstart);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_verify_wav_test[] = {TestParams("loopback",
+                                            DEF2938_WAV,
+                                            DEF2938_WAV_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_WAV,
+                                            2000,
+                                            22050,
+                                            35200,
+                                            2048)};
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
+
+
 TEST_P(dmSoundMixerTest, Mixer)
 {
     TestParams2 params = GetParam();
