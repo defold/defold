@@ -103,6 +103,20 @@ public class OSXBundler implements IBundler {
         File exeOut = new File(macosDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
+
+        // Copy debug symbols
+        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        File buildSymbols = new File(zipDir, "dmengine.dSYM");
+        if (buildSymbols.exists()) {
+            String symbolsDir = String.format("%s.dSYM", BundleHelper.projectNameToBinaryName(title));
+
+            File bundleSymbols = new File(bundleDir, symbolsDir);
+            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
+            // Also rename the executable
+            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
+            File symbolExe = new File(bundleExeOld.getParent(), exeOut.getName());
+            bundleExeOld.renameTo(symbolExe);
+        }
     }
 
 }
