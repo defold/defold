@@ -183,12 +183,6 @@ def main(argv):
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
-            # set DYNAMO_HOME
-            # call('python scripts/build.py shell')
-            call('set')
-            call('echo "DYNAMO HOME ${DYNAMO_HOME}"')
-            call('cd engine/liveupdate && PREFIX=$DYNAMO_HOME waf configure --platform=x86_64-darwin')
-            exit(1)
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
         elif command == "editor":
