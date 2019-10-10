@@ -780,101 +780,101 @@ const TestParams params_speed_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
 
 
-#if !defined(GITHUB_CI)
-TEST_P(dmSoundVerifyOggTest, Mix)
-{
-    TestParams params = GetParam();
-    dmSound::Result r;
-    dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    printf("verifying ogg mix: frames: %d\n", params.m_FrameCount);
-
-    dmSound::HSoundInstance instance = 0;
-    r = dmSound::NewSoundInstance(sd, &instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
-
-    r = dmSound::Play(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    do {
-        r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
-    } while (dmSound::IsPlaying(instance));
-
-    r = dmSound::DeleteSoundInstance(instance);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-}
-
-TEST_P(dmSoundVerifyOggTest, Kill)
-{
-    TestParams params = GetParam();
-    dmSound::Result r;
-    dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-
-    int tick = 0;
-    int killTick = 16;
-    int killed = 0;
-    printf("verifying ogg kill: frames: %d killing on: %d\n", params.m_FrameCount, killTick);
-
-    dmSound::HSoundInstance instanceA = 0;
-    dmSound::HSoundInstance instanceB = 0;
-    r = dmSound::NewSoundInstance(sd, &instanceA);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instanceA);
-
-    r = dmSound::NewSoundInstance(sd, &instanceB);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    ASSERT_NE((dmSound::HSoundInstance) 0, instanceB);
-
-    r = dmSound::Play(instanceA);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::Play(instanceB);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-
-    do {
-        r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
-        if (0 == killed && ++tick == killTick) {
-            r =  dmSound::Stop(instanceB);
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-            r = dmSound::Update();
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-            r = dmSound::DeleteSoundInstance(instanceB);
-            killed = 1;
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-            r = dmSound::Update();
-            ASSERT_EQ(dmSound::RESULT_OK, r);
-        }
-    } while (dmSound::IsPlaying(instanceA));
-
-    if (0 == killed) {
-        r = dmSound::DeleteSoundInstance(instanceB);
-    }
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundInstance(instanceA);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-
-    r = dmSound::DeleteSoundData(sd);
-    ASSERT_EQ(dmSound::RESULT_OK, r);
-}
-
-const TestParams params_verify_ogg_test[] = {TestParams("loopback",
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
-                                            dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
-                                            2000,
-                                            44100,
-                                            35200,
-                                            2048)};
-INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
-#endif
+// #if !defined(GITHUB_CI)
+// TEST_P(dmSoundVerifyOggTest, Mix)
+// {
+//     TestParams params = GetParam();
+//     dmSound::Result r;
+//     dmSound::HSoundData sd = 0;
+//     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+//
+//     printf("verifying ogg mix: frames: %d\n", params.m_FrameCount);
+//
+//     dmSound::HSoundInstance instance = 0;
+//     r = dmSound::NewSoundInstance(sd, &instance);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+//
+//     r = dmSound::Play(instance);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//     do {
+//         r = dmSound::Update();
+//         ASSERT_EQ(dmSound::RESULT_OK, r);
+//     } while (dmSound::IsPlaying(instance));
+//
+//     r = dmSound::DeleteSoundInstance(instance);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//
+//     r = dmSound::DeleteSoundData(sd);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+// }
+//
+// TEST_P(dmSoundVerifyOggTest, Kill)
+// {
+//     TestParams params = GetParam();
+//     dmSound::Result r;
+//     dmSound::HSoundData sd = 0;
+//     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+//
+//     int tick = 0;
+//     int killTick = 16;
+//     int killed = 0;
+//     printf("verifying ogg kill: frames: %d killing on: %d\n", params.m_FrameCount, killTick);
+//
+//     dmSound::HSoundInstance instanceA = 0;
+//     dmSound::HSoundInstance instanceB = 0;
+//     r = dmSound::NewSoundInstance(sd, &instanceA);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//     ASSERT_NE((dmSound::HSoundInstance) 0, instanceA);
+//
+//     r = dmSound::NewSoundInstance(sd, &instanceB);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//     ASSERT_NE((dmSound::HSoundInstance) 0, instanceB);
+//
+//     r = dmSound::Play(instanceA);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//     r = dmSound::Play(instanceB);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//
+//
+//     do {
+//         r = dmSound::Update();
+//         ASSERT_EQ(dmSound::RESULT_OK, r);
+//         if (0 == killed && ++tick == killTick) {
+//             r =  dmSound::Stop(instanceB);
+//             ASSERT_EQ(dmSound::RESULT_OK, r);
+//             r = dmSound::Update();
+//             ASSERT_EQ(dmSound::RESULT_OK, r);
+//             r = dmSound::DeleteSoundInstance(instanceB);
+//             killed = 1;
+//             ASSERT_EQ(dmSound::RESULT_OK, r);
+//             r = dmSound::Update();
+//             ASSERT_EQ(dmSound::RESULT_OK, r);
+//         }
+//     } while (dmSound::IsPlaying(instanceA));
+//
+//     if (0 == killed) {
+//         r = dmSound::DeleteSoundInstance(instanceB);
+//     }
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//
+//     r = dmSound::DeleteSoundInstance(instanceA);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+//
+//     r = dmSound::DeleteSoundData(sd);
+//     ASSERT_EQ(dmSound::RESULT_OK, r);
+// }
+//
+// const TestParams params_verify_ogg_test[] = {TestParams("loopback",
+//                                             MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
+//                                             MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
+//                                             dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
+//                                             2000,
+//                                             44100,
+//                                             35200,
+//                                             2048)};
+// INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
+// #endif
 
 TEST_P(dmSoundTestPlayTest, Play)
 {
