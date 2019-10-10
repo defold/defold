@@ -23,7 +23,8 @@
             [editor.buffer :as buffer]
             [internal.util :as util]
             [editor.types :as types]
-            [editor.render :as render])
+            [editor.render :as render]
+            [editor.scene-picking :as scene-picking])
   (:import [com.dynamo.mesh.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
@@ -35,6 +36,27 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private mesh-icon "icons/32/Icons_22-Model.png")
+
+(shader/defshader model-id-vertex-shader
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (uniform mat4 world_view_proj)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* world_view_proj position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader model-id-fragment-shader
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture_sampler)
+  (uniform vec4 id)
+  (defn void main []
+    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
+    (if (> color.a 0.05)
+      (setq gl_FragColor id)
+      (discard))))
+
+(def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
 
 (g/defnk produce-pb-msg [primitive-type position-stream normal-stream material vertices textures]
   (cond-> {:material (resource/resource->proj-path material)
@@ -103,7 +125,7 @@
                 gpu-texture-generators)))
 
 (defn- request-vb! [^GL2 gl node-id user-data world-transform]
-  (let [request-id node-id
+  (let [request-id [node-id (:vertex-attributes user-data)]
         world-transform-clj (math/vecmath->clj world-transform)
         data (-> user-data
                  (select-keys [:array-streams
@@ -123,11 +145,11 @@
         shader (:shader user-data)
         textures (:textures user-data)
         vertex-space (:vertex-space user-data)
-        vertex-space-world-transform (if (= vertex-space :vertex-space-world)
-                                       (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
-                                       (:world-transform renderable))
+        shader-world-transform (if (= vertex-space :vertex-space-world)
+                                 (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
+                                 (:world-transform renderable))
         render-args (merge render-args
-                           (math/derive-render-transforms vertex-space-world-transform
+                           (math/derive-render-transforms shader-world-transform
                                                           (:view render-args)
                                                           (:projection render-args)
                                                           (:texture render-args)))]
@@ -141,7 +163,7 @@
       (doseq [renderable renderables
               :let [node-id (:node-id renderable)
                     user-data (:user-data renderable)
-                    vb (request-vb! gl node-id user-data vertex-space-world-transform)
+                    vb (request-vb! gl node-id user-data (:world-transform renderable))
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
         (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vb))))
@@ -151,8 +173,31 @@
         (gl/unbind gl t render-args)))))
 
 (defn- render-scene-opaque-selection [^GL2 gl render-args renderables rcount]
-  ;; todo
-  )
+  (assert (= 1 (count renderables)))
+  (let [renderable (first renderables)
+        node-id (:node-id renderable)
+        user-data (assoc (:user-data renderable) :vertex-space :vertex-space-local)
+        textures (:textures user-data)
+        world-transform (:world-transform renderable)
+        render-args (merge render-args
+                           (math/derive-render-transforms world-transform
+                                                          (:view render-args)
+                                                          (:projection render-args)
+                                                          (:texture render-args)))
+        render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]
+    (gl/with-gl-bindings gl render-args [id-shader]
+      (doseq [[name t] textures]
+        (gl/bind gl t render-args)
+        (shader/set-uniform id-shader gl name (- (:unit t) GL2/GL_TEXTURE0)))
+      (gl/gl-enable gl GL2/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL2/GL_BACK)
+      (let [vb (request-vb! gl node-id user-data world-transform)
+            vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]
+        (gl/with-gl-bindings gl render-args [vertex-binding]
+          (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vb))))
+      (gl/gl-disable gl GL2/GL_CULL_FACE)
+      (doseq [[name t] textures]
+        (gl/unbind gl t render-args)))))
 
 (defn- gen-scratch-arrays [array-streams]
   (mapv (fn [{:keys [data type]}]
@@ -407,7 +452,7 @@
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))
 
-(defn- transform-position-data-v2! [data-array ^Matrix4d world-transform]
+(defn- transform-position-data-v2! [^floats data-array ^Matrix4d world-transform]
   (let [^Point3d temp-point (Point3d.)
         array-length (alength data-array)]
     (loop [i 0]
@@ -423,7 +468,7 @@
           (aset data-array (inc i) (.y temp-point))
           (recur (+ i 2)))))))
 
-(defn- transform-position-data-v3! [data-array ^Matrix4d world-transform]
+(defn- transform-position-data-v3! [^floats data-array ^Matrix4d world-transform]
   (let [^Point3d temp-point (Point3d.)
         array-length (alength data-array)]
     (loop [i 0]
@@ -440,7 +485,7 @@
           (aset data-array (+ i 2) (.z temp-point))
           (recur (+ i 3)))))))
 
-(defn- transform-normal-data-v3! [data-array ^Matrix3d normal-transform]
+(defn- transform-normal-data-v3! [^floats data-array ^Matrix3d normal-transform]
   (let [^Vector3d temp-normal (Vector3d.)
         array-length (alength data-array)]
     (loop [i 0]
@@ -462,7 +507,7 @@
   (System/arraycopy array-stream-data 0 scratch-array 0 (alength array-stream-data))
   scratch-array)
 
-(defn- transform-position-array-stream [{:keys [count data] :as array-stream} scratch-array ^Matrix4d world-transform]
+(defn- transform-position-array-stream [{:keys [^long count data] :as array-stream} scratch-array ^Matrix4d world-transform]
   (assoc array-stream
     :data (case count
             2 (transform-position-data-v2! (populate-scratch-array! scratch-array data) world-transform)
