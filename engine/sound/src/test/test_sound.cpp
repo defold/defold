@@ -864,6 +864,16 @@ TEST_P(dmSoundVerifyOggTest, Kill)
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
+
+const TestParams params_verify_ogg_test[] = {TestParams("loopback",
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
+                                            2000,
+                                            44100,
+                                            35200,
+                                            2048)};
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
 
 TEST_P(dmSoundTestPlayTest, Play)
@@ -952,16 +962,6 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
-
-const TestParams params_verify_ogg_test[] = {TestParams("loopback",
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
-                                            dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
-                                            2000,
-                                            44100,
-                                            35200,
-                                            2048)};
-INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 
 const TestParams params_test_play_test[] = {
     TestParams("default",
