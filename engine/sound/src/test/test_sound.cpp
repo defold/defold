@@ -177,6 +177,7 @@ public:
 
     virtual void SetUp()
     {
+        printf("dmSoundTest SetUp\n");
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
         params.m_MaxSources = MAX_SOURCES;
@@ -185,6 +186,7 @@ public:
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        printf("dmSoundTest SetUp done\n");
     }
 
     virtual void TearDown()
@@ -205,6 +207,7 @@ public:
 
     virtual void SetUp()
     {
+        printf("dmSoundTest2 SetUp\n");
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
         params.m_MaxSources = MAX_SOURCES;
@@ -213,6 +216,7 @@ public:
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        printf("dmSoundTest SetUp2 done\n");
     }
 
     virtual void TearDown()
