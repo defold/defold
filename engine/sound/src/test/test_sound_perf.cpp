@@ -121,25 +121,25 @@ public:
     }
 };
 
-TEST_F(dmSoundTest, MeasureStdb)
-{
-    RunSuite("VorbisDecoderStb", false);
-}
-
-TEST_F(dmSoundTest, MeasureStdbSkip)
-{
-    RunSuite("VorbisDecoderStb", true);
-}
-
-TEST_F(dmSoundTest, MeasureTremolo)
-{
-    RunSuite("VorbisDecoderTremolo", false);
-}
-
-TEST_F(dmSoundTest, MeasureTremoloSkip)
-{
-    RunSuite("VorbisDecoderTremolo", true);
-}
+// TEST_F(dmSoundTest, MeasureStdb)
+// {
+//     RunSuite("VorbisDecoderStb", false);
+// }
+//
+// TEST_F(dmSoundTest, MeasureStdbSkip)
+// {
+//     RunSuite("VorbisDecoderStb", true);
+// }
+//
+// TEST_F(dmSoundTest, MeasureTremolo)
+// {
+//     RunSuite("VorbisDecoderTremolo", false);
+// }
+//
+// TEST_F(dmSoundTest, MeasureTremoloSkip)
+// {
+//     RunSuite("VorbisDecoderTremolo", true);
+// }
 
 int main(int argc, char **argv)
 {
