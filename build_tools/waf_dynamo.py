@@ -1160,10 +1160,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_tests(valgrind = False, configfile = None):
-    sys.stdout.flush()
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
-        print("RUN TESTS START - skip")
-        sys.stdout.flush()
         return
 
     # TODO: Add something similar to this
@@ -1191,19 +1188,11 @@ def run_tests(valgrind = False, configfile = None):
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-            print("RUN TESTS STARTING subprocess", cmd)
-            sys.stdout.flush()
             proc = subprocess.Popen(cmd, shell = True)
-            print("RUN TESTS wait()")
-            sys.stdout.flush()
             ret = proc.wait()
-            print("RUN TESTS wait() ret", ret)
-            sys.stdout.flush()
             if ret != 0:
                 print("test failed %s" %(t.target) )
                 sys.exit(ret)
-    print("RUN TESTS END")
-    sys.stdout.flush()
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
