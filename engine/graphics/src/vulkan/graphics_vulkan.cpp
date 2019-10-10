@@ -862,7 +862,6 @@ bail:
             for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
             {
                 ResetScratchBuffer(vk_device, context->m_DescriptorPool, &context->m_MainScratchBuffers[i]);
-                vkUnmapMemory(vk_device, context->m_MainScratchBuffers[i].m_Buffer.m_DeviceMemory.m_Memory);
                 ResetGeometryBuffer(vk_device, &context->m_MainScratchBuffers[i].m_Buffer);
                 delete context->m_MainScratchBuffers[i].m_DescriptorSets;
             }
