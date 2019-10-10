@@ -162,7 +162,7 @@
         data {:mesh mesh :world-transform clj-world :scratch scratch :vertex-space vertex-space}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
-(defn- render-scene-opaque [^GL2 gl render-args renderables rcount]gen-scratch-arrays
+(defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         node-id (:node-id renderable)
         user-data (:user-data renderable)

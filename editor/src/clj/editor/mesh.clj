@@ -20,7 +20,10 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
             [editor.scene-cache :as scene-cache]
-            [editor.buffer :as buffer])
+            [editor.buffer :as buffer]
+            [internal.util :as util]
+            [editor.types :as types]
+            [editor.render :as render])
   (:import [com.dynamo.mesh.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
@@ -99,16 +102,19 @@
                 samplers
                 gpu-texture-generators)))
 
-(defn- request-vb! [^GL2 gl node-id user-data]
+(defn- request-vb! [^GL2 gl node-id user-data world-transform]
   (let [request-id node-id
+        world-transform-clj (math/vecmath->clj world-transform)
         data (-> user-data
                  (select-keys [:array-streams
                                :normal-stream-name
                                :position-stream-name
+                               :put-vertices-fn
                                :scratch-arrays
-                               :vertex-space
-                               :world-transform])
-                 (update :world-transform math/vecmath->clj))] ; todo: do we need to convert it to a clj transform?
+                               :vertex-attributes
+                               :vertex-count
+                               :vertex-space])
+                 (assoc :world-transform world-transform-clj))] ; todo: do we need to convert it to a clj transform?
     (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
@@ -135,7 +141,7 @@
       (doseq [renderable renderables
               :let [node-id (:node-id renderable)
                     user-data (:user-data renderable)
-                    vb (request-vb! gl node-id user-data)
+                    vb (request-vb! gl node-id user-data vertex-space-world-transform)
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
         (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vb))))
@@ -148,9 +154,10 @@
   ;; todo
   )
 
-(defn- gen-scratch-arrays [streams]
-  ;; todo
-  )
+(defn- gen-scratch-arrays [array-streams]
+  (mapv (fn [{:keys [data type]}]
+          (buffer/stream-data->array nil type (count data)))
+        array-streams))
 
 (defn- render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
@@ -161,53 +168,117 @@
       pass/opaque-selection
       (render-scene-opaque-selection gl render-args renderables rcount))))
 
+(defn- render-outline [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (condp = pass
+      pass/outline
+      (let [renderable (first renderables)
+            node-id (:node-id renderable)]
+        (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
 
-(g/defnk produce-scene [_node-id streams position-stream normal-stream shader gpu-textures vertex-space]
+(defn- make-put-vertex-fn-raw [attribute-types component-counts]
+  (let [put-fns (mapv (fn [attribute-type component-count]
+                        (buffer/get-put-fn (vtx/type->stream-type attribute-type) component-count))
+                      attribute-types
+                      component-counts)]
+    (fn [source-arrays ^ByteBuffer byte-buffer ^long vertex-index]
+      (dorun
+        (map (fn [source-array put-fn]
+               (put-fn source-array byte-buffer vertex-index))
+             source-arrays
+             put-fns)))))
+
+(def make-put-vertex-fn
+  (memoize make-put-vertex-fn-raw))
+
+(defn- make-put-vertices-fn-raw [attribute-types component-counts]
+  (let [put-vertex-fn (make-put-vertex-fn attribute-types component-counts)]
+    (fn [source-arrays ^ByteBuffer byte-buffer]
+      (let [vertex-count (/ (count (first source-arrays)) (first component-counts))]
+        (loop [vertex-index 0]
+          (if (= vertex-index vertex-count)
+            vertex-count
+            (do (put-vertex-fn source-arrays byte-buffer vertex-index)
+                (recur (inc vertex-index)))))))))
+
+(def make-put-vertices-fn
+  (memoize make-put-vertices-fn-raw))
+
+(defn- stream->attribute [stream]
+  {:components (:count stream)
+   :type (vtx/stream-type->type (:type stream))
+   :name (:name stream)
+   :normalized? false}) ; todo figure out if this should be configurable
+
+(defn- max-stream-length [streams]
+  (transduce (map (fn [stream]
+                    (/ (count (:data stream))
+                       (:count stream))))
+             max
+             0
+             streams))
+
+(g/defnk produce-scene [_node-id aabb streams position-stream normal-stream shader gpu-textures vertex-space]
   (if (nil? streams)
-    {:aabb geom/empty-bounding-box
+    {:aabb aabb
      :renderable {:passes [pass/selection]}}
 
-    {:node-id _node-id
-     :aabb aabb
-     :renderable {:render-fn render-scene
-                  :tags #{:model}
-                  :batch-key _node-id ; TODO: investigate if we can batch meshes better
-                  :select-batch-key _node-id
-                  :user-data {:array-streams (into []
-                                                   (comp (map buffer/stream->array-stream)
-                                                         (map (fn [{:keys [type count] :as stream}]
-                                                                (assoc stream :put-fn (buffer/get-put-fn type count)))))
-                                                   streams)
-                              :put-vertex-fn ()
-                              :position-stream-name position-stream
-                              :normal-stream-name normal-stream
-                              :shader shader
-                              :textures gpu-textures
-                              :scratch-arrays (gen-scratch-arrays meshes)}
-                  :passes [pass/opaque pass/opaque-selection]}
-     :children [{:node-id _node-id
-                 :aabb aabb
-                 :renderable {:render-fn render-outline
-                              :tags #{:model :outline}
-                              :batch-key _node-id
-                              :select-batch-key _node-id
-                              :passes [pass/outline]}}]}
+    (let [vertex-count (max-stream-length streams)
+          vertex-attributes (mapv stream->attribute streams)
+          array-streams (mapv (partial buffer/stream->array-stream vertex-count) streams)
+          put-vertices-fn (make-put-vertices-fn (mapv :type vertex-attributes)
+                                                (mapv :components vertex-attributes))]
+      {:node-id _node-id
+       :aabb aabb
+       :renderable {:render-fn render-scene
+                    :tags #{:model}
+                    :batch-key (when (= :vertex-space-world vertex-space)
+                                 [vertex-attributes shader gpu-textures])
+                    :select-batch-key _node-id
+                    :user-data {:array-streams array-streams
+                                :vertex-attributes vertex-attributes
+                                :vertex-count vertex-count
+                                :put-vertices-fn put-vertices-fn
+                                :position-stream-name position-stream
+                                :normal-stream-name normal-stream
+                                :shader shader
+                                :textures gpu-textures
+                                :scratch-arrays (gen-scratch-arrays array-streams)
+                                :vertex-space vertex-space}
+                    :passes [pass/opaque pass/opaque-selection]}
+       :children [{:node-id _node-id
+                   :aabb aabb
+                   :renderable {:render-fn render-outline
+                                :tags #{:model :outline}
+                                :batch-key _node-id
+                                :select-batch-key _node-id
+                                :passes [pass/outline]}}]})))
 
-    (update scene :renderable
-            (fn [r]
-              (cond-> r
-                      shader (assoc-in [:user-data :shader] shader)
-                      true (assoc-in [:user-data :textures] gpu-textures)
-                      true (assoc-in [:user-data :vertex-space] vertex-space)
-                      true (update :batch-key
-                                   (fn [old-key]
-                                     ;; We can only batch-render models that use
-                                     ;; :vertex-space-world. In :vertex-space-local
-                                     ;; we must supply individual transforms for
-                                     ;; each model instance in the shader uniforms.
-                                     (when (= :vertex-space-world vertex-space)
-                                       [old-key shader gpu-textures]))))))
-    ))
+(g/defnk produce-aabb [streams position-stream]
+  (if-some [{:keys [count data]} (util/first-where #(= position-stream (:name %)) streams)]
+    (if (empty? data)
+      geom/empty-bounding-box
+      (let [[min-p max-p]
+            (transduce
+              (comp (partition-all count)
+                    (map (fn [[x y z]]
+                           (Point3d. (double x)
+                                     (double y)
+                                     (if (nil? z)
+                                       0.0
+                                       (double z))))))
+              (completing (fn [[^Point3d min-p ^Point3d max-p] ^Point3d p]
+                            [(math/min-point min-p p)
+                             (math/max-point max-p p)]))
+              [(Point3d. Double/POSITIVE_INFINITY
+                         Double/POSITIVE_INFINITY
+                         Double/POSITIVE_INFINITY)
+               (Point3d. Double/NEGATIVE_INFINITY
+                         Double/NEGATIVE_INFINITY
+                         Double/NEGATIVE_INFINITY)]
+              data)]
+        (types/->AABB min-p max-p)))
+    geom/empty-bounding-box))
 
 (defn- vset [v i value]
   (let [c (count v)
@@ -290,8 +361,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output scene g/Any :cached produce-scene)
-  (input aabb AABB)
-  (output aabb AABB (gu/passthrough aabb))
+  (output aabb AABB :cached produce-aabb)
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties textures samplers]
                                                   (let [resource-type (get-in _declared-properties [:properties :material :type])
                                                         prop-entry {:node-id _node-id
@@ -412,8 +482,7 @@
     (.transpose normal-transform)
     normal-transform))
 
-
-(defn- populate-vb! [^VertexBuffer vb {:keys [array-streams position-stream-name normal-stream-name scratch-arrays vertex-space world-transform]}]
+(defn- populate-vb! [^VertexBuffer vb {:keys [array-streams position-stream-name normal-stream-name put-vertices-fn scratch-arrays vertex-space world-transform]}]
   (assert (= (count array-streams) (count scratch-arrays)))
   (let [array-streams' (if (not= vertex-space :vertex-space-world)
                          array-streams
@@ -430,38 +499,13 @@
                                   :else
                                   array-stream))
                               array-streams
-                              scratch-arrays)]
+                              scratch-arrays))
+        source-arrays (mapv :data array-streams')
+        vertex-count (put-vertices-fn source-arrays (.buf vb))]
+    (vtx/position! vb vertex-count)))
 
-    ; todo use get-put-fn from buffer to fill interleaved buffer
-    ))
-
-(defn- stream-type->gl-type [stream-type]
-  (case stream-type
-    :value-type-uint8 GL2/GL_UNSIGNED_BYTE
-    :value-type-uint16 GL2/GL_UNSIGNED_SHORT
-    :value-type-uint32 GL2/GL_UNSIGNED_INT
-    :value-type-int8 GL2/GL_BYTE
-    :value-type-int16 GL2/GL_SHORT
-    :value-type-int32 GL2/GL_INT
-    :value-type-float32 GL2/GL_FLOAT))
-
-(defn- stream->attribute [stream]
-  {:components (:count stream)
-   :type (stream-type->gl-type (:type stream))
-   :name (:name stream)
-   :normalized? false}) ; todo figure out if this should be configurable
-
-(defn- max-stream-length [streams]
-  (transduce (map (fn [stream]
-                    (/ (count (:data stream))
-                       (:count stream))))
-             max
-             streams))
-
-(defn- make-vb-from-array-streams [array-streams]
-  (let [attributes (map stream->attribute array-streams)
-        vertex-count (max-stream-length array-streams)
-        vertex-description (vtx/make-vertex-description nil attributes)]
+(defn- make-vb-from-vertex-attributes [vertex-attributes vertex-count]
+  (let [vertex-description (vtx/make-vertex-description nil vertex-attributes)]
     (vtx/make-vertex-buffer vertex-description :static vertex-count)))
 
 (defn- update-vb! [^GL2 gl ^VertexBuffer vb data]
@@ -475,8 +519,8 @@
         (vtx/flip!))))
 
 (defn- make-vb [^GL2 gl data]
-  (let [{:keys [array-streams]} data
-        vb (make-vb-from-array-streams array-streams)]
+  (let [{:keys [vertex-attributes vertex-count]} data
+        vb (make-vb-from-vertex-attributes vertex-attributes vertex-count)]
     (update-vb! gl vb data)))
 
 (defn- destroy-vbs! [^GL2 gl vbs _])

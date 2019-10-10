@@ -1,5 +1,6 @@
 (ns editor.buffer
   (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.code.resource :as r]
             [editor.json :as json]
             [editor.pipeline :as pipeline])
@@ -23,17 +24,20 @@
 (defn get-put-fn [pb-value-type ^long component-count]
   (get put-functions-by-key [component-count pb-value-type]))
 
-(defn stream-data->array [stream-data pb-value-type]
+(defn stream-data->array [stream-data pb-value-type length]
   (case pb-value-type
-    :value-type-float32 (float-array stream-data)
-    (:value-type-uint8 :value-type-int8) (byte-array stream-data)
-    (:value-type-uint16 :value-type-int16) (short-array stream-data)
-    (:value-type-uint32 :value-type-int32) (int-array stream-data)
-    (:value-type-uint64 :value-type-int64) (long-array stream-data)))
+    :value-type-float32 (float-array length stream-data)
+    (:value-type-uint8 :value-type-int8) (byte-array length stream-data)
+    (:value-type-uint16 :value-type-int16) (short-array length stream-data)
+    (:value-type-uint32 :value-type-int32) (int-array length stream-data)
+    (:value-type-uint64 :value-type-int64) (long-array length stream-data)))
 
 
-(defn stream->array-stream [stream]
-  (update stream :data stream-data->array (:type stream)))
+(defn stream->array-stream [vertex-count stream]
+  (update stream :data stream-data->array
+          (:type stream)
+          (* (:count stream)
+             vertex-count)))
 
 (defn- type->pb-value-type [type]
   (case type
