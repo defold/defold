@@ -94,6 +94,20 @@ namespace dmThread
         return pthread_getspecific(key);
     }
 
+    Thread GetCurrentThread()
+    {
+        return pthread_self();
+    }
+
+    void SetThreadName(Thread thread, const char* name)
+    {
+#if defined(__MACH__)
+        (void)thread;
+        pthread_setname_np(name);
+#else
+        pthread_setname_np(thread, name);
+#endif
+    }
 
 #elif defined(_WIN32)
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
@@ -134,6 +148,26 @@ namespace dmThread
     void* GetTlsValue(TlsKey key)
     {
         return TlsGetValue(key);
+    }
+
+    Thread GetCurrentThread()
+    {
+        return GetCurrentThread();
+    }
+
+    static void* GetFunctionPtr(const char* dllname, const char* fnname)
+    {
+        return (void*)GetProcAddress(GetModuleHandleA(dllname), fnname);
+    }
+
+    typedef HRESULT (*PfnSetThreadDescription)(HANDLE,PCWSTR);
+
+    void SetThreadName(Thread, const char* name)
+    {
+        static PfnSetThreadDescription* pfn = (PfnSetThreadDescription)GetFunctionPtr("kernel32.dll", "SetThreadDescription");
+        if (pfn) {
+            pfn(name);
+        }
     }
 
 #else
