@@ -1,6 +1,11 @@
 #include <assert.h>
 #include "thread.h"
 
+#if defined(_WIN32)
+#include <stdlib.h>
+#include <wchar.h>
+#endif
+
 namespace dmThread
 {
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
@@ -110,14 +115,37 @@ namespace dmThread
     }
 
 #elif defined(_WIN32)
+
+    static void* GetFunctionPtr(const char* dllname, const char* fnname)
+    {
+        return (void*)GetProcAddress(GetModuleHandleA(dllname), fnname);
+    }
+
+    typedef HRESULT (*PfnSetThreadDescription)(HANDLE,PCWSTR);
+
+    void SetThreadName(Thread thread, const char* name)
+    {
+        static PfnSetThreadDescription pfn = (PfnSetThreadDescription)GetFunctionPtr("kernel32.dll", "SetThreadDescription");
+        if (pfn) {
+            size_t wn = mbsrtowcs(NULL, &name, 0, NULL);
+            wchar_t* buf = (wchar_t*)malloc((wn + 1) * sizeof(wchar_t));
+            wn = mbsrtowcs(buf, &name, wn + 1, NULL);
+
+            pfn(thread, buf);
+
+            free(buf);
+        }
+    }
+    
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
-        (void*) name;
         DWORD thread_id;
         HANDLE thread = CreateThread(NULL, stack_size,
                                      (LPTHREAD_START_ROUTINE) thread_start,
                                      arg, 0, &thread_id);
         assert(thread);
+
+        SetThreadName((Thread)thread, name);
 
         return thread;
     }
@@ -153,21 +181,6 @@ namespace dmThread
     Thread GetCurrentThread()
     {
         return GetCurrentThread();
-    }
-
-    static void* GetFunctionPtr(const char* dllname, const char* fnname)
-    {
-        return (void*)GetProcAddress(GetModuleHandleA(dllname), fnname);
-    }
-
-    typedef HRESULT (*PfnSetThreadDescription)(HANDLE,PCWSTR);
-
-    void SetThreadName(Thread, const char* name)
-    {
-        static PfnSetThreadDescription* pfn = (PfnSetThreadDescription)GetFunctionPtr("kernel32.dll", "SetThreadDescription");
-        if (pfn) {
-            pfn(name);
-        }
     }
 
 #else
