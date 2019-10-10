@@ -277,9 +277,16 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
                 ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
 
+                int issue_count = shaderIssues.size();
                 if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
                     shaderIssues.add("Unsupported type for uniform '" + uniform.name + "'");
-                } else {
+                }
+
+                if (uniform.set > 1) {
+                    shaderIssues.add("Unsupported set value for uniform '" + uniform.name + "', expected <= 1 but found " + uniform.set);
+                }
+
+                if (issue_count == shaderIssues.size()) {
                     ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
                     resourceBindingBuilder.setName(MurmurHash.hash64(uniform.name));
                     resourceBindingBuilder.setType(type);
