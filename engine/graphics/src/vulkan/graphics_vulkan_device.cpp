@@ -594,7 +594,7 @@ bail:
 
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
     {
-        assert(pipelineOut && pipelineOut->m_Pipeline == VK_NULL_HANDLE);
+        assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
         VkVertexInputAttributeDescription vk_vertex_input_descs[DM_MAX_VERTEX_STREAM_COUNT];
         uint16_t active_attributes = FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
@@ -702,23 +702,6 @@ bail:
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
 
-        /*
-        VkPipelineLayoutCreateInfo vk_pipeline_create_info;
-        memset(&vk_pipeline_create_info, 0, sizeof(vk_pipeline_create_info));
-
-        vk_pipeline_create_info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        vk_pipeline_create_info.setLayoutCount         = 0; // TODO!
-        vk_pipeline_create_info.pSetLayouts            = 0; // TODO!
-        vk_pipeline_create_info.pushConstantRangeCount = 0;
-        vk_pipeline_create_info.pPushConstantRanges    = 0;
-
-        VkResult res = vkCreatePipelineLayout(vk_device, &vk_pipeline_create_info, 0, &pipelineOut->m_Layout);
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
-        */
-
         VkStencilOpState vk_stencil_op_state;
         memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
 
@@ -778,7 +761,7 @@ bail:
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
-        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, &pipelineOut->m_Pipeline);
+        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
     void ResetPhysicalDevice(PhysicalDevice* device)
@@ -878,18 +861,10 @@ bail:
     {
         assert(pipeline);
 
-        /*
-        if (pipeline->m_Layout != VK_NULL_HANDLE)
+        if (*pipeline != VK_NULL_HANDLE)
         {
-            vkDestroyPipelineLayout(vk_device, pipeline->m_Layout, 0);
-            pipeline->m_Layout = VK_NULL_HANDLE;
-        }
-        */
-
-        if (pipeline->m_Pipeline != VK_NULL_HANDLE)
-        {
-            vkDestroyPipeline(vk_device, pipeline->m_Pipeline, 0);
-            pipeline->m_Pipeline = VK_NULL_HANDLE;
+            vkDestroyPipeline(vk_device, *pipeline, 0);
+            *pipeline = VK_NULL_HANDLE;
         }
     }
 

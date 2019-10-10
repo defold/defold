@@ -986,7 +986,8 @@ bail:
         VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
 
-        // Reset descriptors
+        // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
+        // for the uniform resource bindings.
         ResetScratchBuffer(context->m_LogicalDevice.m_Device, context->m_DescriptorPool, &context->m_MainScratchBuffers[frame_ix]);
 
         if (res != VK_SUCCESS)
@@ -1362,6 +1363,27 @@ bail:
         return true;
     }
 
+    static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
+    {
+        static const uint8_t conversion_table[] = {
+            0,  // SHADER_TYPE_UNKNOWN
+            4,  // SHADER_TYPE_INT
+            4,  // SHADER_TYPE_UINT
+            4,  // SHADER_TYPE_FLOAT
+            8,  // SHADER_TYPE_VEC2
+            12, // SHADER_TYPE_VEC3
+            16, // SHADER_TYPE_VEC4
+            16, // SHADER_TYPE_MAT2
+            36, // SHADER_TYPE_MAT3
+            64, // SHADER_TYPE_MAT4
+            4,  // SHADER_TYPE_SAMPLER2D
+            4,  // SHADER_TYPE_SAMPLER3D
+            4,  // SHADER_TYPE_SAMPLER_CUBE
+        };
+
+        return conversion_table[type];
+    }
+
     static inline uint32_t GetGraphicsTypeSize(Type type)
     {
         if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
@@ -1512,22 +1534,6 @@ bail:
         context->m_CurrentVertexDeclaration = 0;
     }
 
-    static const uint8_t shaderTypeToBytesSize[] = {
-        0,  // SHADER_TYPE_UNKNOWN
-        4,  // SHADER_TYPE_INT
-        4,  // SHADER_TYPE_UINT
-        4,  // SHADER_TYPE_FLOAT
-        8,  // SHADER_TYPE_VEC2
-        12, // SHADER_TYPE_VEC3
-        16, // SHADER_TYPE_VEC4
-        16, // SHADER_TYPE_MAT2
-        36, // SHADER_TYPE_MAT3
-        64, // SHADER_TYPE_MAT4
-        4,  // SHADER_TYPE_SAMPLER2D
-        4,  // SHADER_TYPE_SAMPLER3D
-        4,  // SHADER_TYPE_SAMPLER_CUBE
-    };
-
     static uint32_t UpdateDescriptorSets(VkDevice vk_device, VkDescriptorSet vk_descriptor_set,
         ShaderModule* module, ScratchBuffer* scratchBuffer,
         uint8_t* uniform_data, uint32_t* uniform_offsets,
@@ -1537,7 +1543,7 @@ bail:
         for (int i = 0; i < module->m_UniformCount; ++i)
         {
             offsets[i]                           = dynamic_uniform_offset;
-            const uint32_t uniform_size_nonalign = shaderTypeToBytesSize[module->m_Uniforms[i].m_Type];
+            const uint32_t uniform_size_nonalign = GetShaderTypeSize(module->m_Uniforms[i].m_Type);
             const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, alignment);
             dynamic_uniform_offset              += uniform_size;
 
@@ -1635,7 +1641,7 @@ bail:
 
         delete[] dynamic_uniform_offsets;
 
-        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->m_Pipeline);
+        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
 
         VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_Buffer;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
@@ -1754,7 +1760,7 @@ bail:
             ShaderResourceBinding& uniform = module->m_Uniforms[i];
             assert(uniform.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
             offsets[i]                     = size;
-            size                          += shaderTypeToBytesSize[uniform.m_Type];
+            size                          += GetShaderTypeSize(uniform.m_Type);
         }
 
         return size;
@@ -1823,12 +1829,10 @@ bail:
         if (num_uniforms > 0)
         {
             // TODO: Move to shadermodule?
-            program->m_UniformOffsets          = new uint32_t[num_uniforms];
-            uint32_t vx_last_offset            = FillUniformOffsets(vertex_module, 0, program->m_UniformOffsets);
-            uint32_t fs_last_offset            = FillUniformOffsets(fragment_module, vx_last_offset, &program->m_UniformOffsets[vertex_module->m_UniformCount]);
-            program->m_UniformData             = new uint8_t[vx_last_offset + fs_last_offset];
-            program->m_VertexUniformDataSize   = vx_last_offset; // TODO: don't put this in program
-            program->m_FragmentUniformDataSize = fs_last_offset; //               --||--
+            program->m_UniformOffsets = new uint32_t[num_uniforms];
+            uint32_t vx_last_offset   = FillUniformOffsets(vertex_module, 0, program->m_UniformOffsets);
+            uint32_t fs_last_offset   = FillUniformOffsets(fragment_module, vx_last_offset, &program->m_UniformOffsets[vertex_module->m_UniformCount]);
+            program->m_UniformData    = new uint8_t[vx_last_offset + fs_last_offset];
             memset(program->m_UniformData, 0, vx_last_offset + fs_last_offset);
 
             // Create descriptor set bindings
@@ -2016,11 +2020,30 @@ bail:
         return -1;
     }
 
-    #define UNIFORM_BIT_MASK       0x1fff
-    #define UNIFORM_BIT_MASK_COUNT 15
-    #define BITMASK_VS             (UNIFORM_BIT_MASK)
-    #define BITMASK_FS             (UNIFORM_BIT_MASK << UNIFORM_BIT_MASK_COUNT)
-    #define BITMASK_INVALID        (BITMASK_VS | BITMASK_FS)
+    // In OpenGL, there is a single global resource identifier between
+    // fragment and vertex uniforms for a single program. In Vulkan,
+    // we have to keep track of this ourselves, so we pack resource
+    // locations for uniforms in a single base register with 15 bits
+    // per location. If uniform is not found, we return -1 as usual.
+    #define UNIFORM_LOCATION_MAX                   0x00007FFF
+    #define UNIFORM_LOCATION_BITS                  15
+    #define UNIFORM_LOCATION_GET_VS(location_mask) (location_mask  & UNIFORM_LOCATION_MAX)
+    #define UNIFORM_LOCATION_GET_FS(location_mask) ((location_mask & UNIFORM_LOCATION_MAX) >> UNIFORM_LOCATION_BITS)
+
+    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
+    {
+        assert(uniformCount < UNIFORM_LOCATION_MAX);
+        for (uint32_t i = 0; i < uniformCount; ++i)
+        {
+            if (uniforms[i].m_NameHash == name)
+            {
+                *index_out = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     int32_t GetUniformLocation(HProgram prog, dmhash_t name)
     {
@@ -2029,30 +2052,13 @@ bail:
         assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
 
         // Initialize location to 'not found'
-        uint32_t location = BITMASK_INVALID;
+        uint32_t location_vs = UNIFORM_LOCATION_MAX;
+        uint32_t location_fs = UNIFORM_LOCATION_MAX;
 
-        for (uint32_t i = 0; i < program_ptr->m_VertexModule->m_UniformCount; ++i)
+        if (GetUniformIndex(program_ptr->m_VertexModule->m_Uniforms, program_ptr->m_VertexModule->m_UniformCount, name, &location_vs) ||
+            GetUniformIndex(program_ptr->m_FragmentModule->m_Uniforms, program_ptr->m_FragmentModule->m_UniformCount, name, &location_fs))
         {
-            if (program_ptr->m_VertexModule->m_Uniforms[i].m_NameHash == name)
-            {
-                uint32_t vx_location = i & BITMASK_VS;
-                location             = BITMASK_FS | vx_location;
-                break;
-            }
-        }
-
-        for (uint32_t i = 0; i < program_ptr->m_FragmentModule->m_UniformCount; ++i)
-        {
-            if (program_ptr->m_FragmentModule->m_Uniforms[i].m_NameHash == name)
-            {
-                location = (location & BITMASK_VS) | ((i & UNIFORM_BIT_MASK) << UNIFORM_BIT_MASK_COUNT);
-                break;
-            }
-        }
-
-        if (location != BITMASK_INVALID)
-        {
-            return location;
+            return location_vs | (location_fs << UNIFORM_LOCATION_BITS);
         }
 
         return -1;
@@ -2061,64 +2067,64 @@ bail:
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
     {
         assert(context->m_CurrentProgram);
+        assert(base_register >= 0);
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
-        uint32_t vx_index = base_register & BITMASK_VS;
-        uint32_t fs_index = base_register & BITMASK_FS;
-        assert(vx_index  != BITMASK_INVALID && fs_index != BITMASK_INVALID);
+        uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_register);
+        uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_register);
+        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
 
-        if (vx_index != (BITMASK_INVALID & BITMASK_VS))
+        if (index_vs != UNIFORM_LOCATION_MAX)
         {
-            uint32_t offset = program_ptr->m_UniformOffsets[vx_index];
+            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            uint32_t offset = program_ptr->m_UniformOffsets[index_vs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
 
-        if (fs_index != (BITMASK_INVALID & BITMASK_FS))
+        if (index_fs != UNIFORM_LOCATION_MAX)
         {
+            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
             // Fragment uniforms are packed behind vertex uniforms (if applicable),
             // hence the offset here
-            fs_index       += program_ptr->m_VertexModule->m_UniformCount;
-            uint32_t offset = program_ptr->m_UniformOffsets[fs_index];
+            index_fs       += program_ptr->m_VertexModule->m_UniformCount;
+            uint32_t offset = program_ptr->m_UniformOffsets[index_fs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
-
-        program_ptr->m_UniformDataIsDirty = 1;
     }
 
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
-        uint32_t vx_index = base_register & BITMASK_VS;
-        uint32_t fs_index = base_register & BITMASK_FS;
-        assert(vx_index  != BITMASK_INVALID && fs_index != BITMASK_INVALID);
+        uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_register);
+        uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_register);
+        assert(!(index_vs  == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
 
-        if (vx_index != (BITMASK_INVALID & BITMASK_VS))
+        if (index_vs != UNIFORM_LOCATION_MAX)
         {
-            uint32_t offset = program_ptr->m_UniformOffsets[vx_index];
+            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            uint32_t offset = program_ptr->m_UniformOffsets[index_vs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
         }
 
-        if (fs_index != (BITMASK_INVALID & BITMASK_FS))
+        if (index_fs != UNIFORM_LOCATION_MAX)
         {
+            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
             // Fragment uniforms are packed behind vertex uniforms (if applicable),
             // hence the offset here
-            fs_index       += program_ptr->m_VertexModule->m_UniformCount;
-            uint32_t offset = program_ptr->m_UniformOffsets[fs_index];
+            index_fs       += program_ptr->m_VertexModule->m_UniformCount;
+            uint32_t offset = program_ptr->m_UniformOffsets[index_fs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
         }
-
-        program_ptr->m_UniformDataIsDirty = 1;
     }
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {}
 
-    #undef UNIFORM_BIT_MASK
-    #undef UNIFORM_BIT_MASK_COUNT
-    #undef BITMASK_VS
-    #undef BITMASK_FS
-    #undef BITMASK_INVALID
+    #undef UNIFORM_LOCATION_MAX
+    #undef UNIFORM_LOCATION_BITS
+    #undef UNIFORM_LOCATION_GET_VS
+    #undef UNIFORM_LOCATION_GET_FS
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

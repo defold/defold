@@ -170,17 +170,14 @@ namespace dmGraphics
         uint64_t m_State;
     };
 
-    struct Pipeline
-    {
-        VkPipeline m_Pipeline;
-    };
+    typedef VkPipeline Pipeline;
 
     struct ShaderResourceBinding
     {
-        uint64_t                    m_NameHash;
-        ShaderDesc:: ShaderDataType m_Type;
-        uint16_t                    m_Set;
-        uint16_t                    m_Binding;
+        uint64_t                   m_NameHash;
+        ShaderDesc::ShaderDataType m_Type;
+        uint16_t                   m_Set;
+        uint16_t                   m_Binding;
     };
 
     struct ShaderModule
@@ -189,6 +186,7 @@ namespace dmGraphics
         VkShaderModule         m_Module;
         ShaderResourceBinding* m_Uniforms;
         ShaderResourceBinding* m_Attributes;
+        uint32_t               m_UniformDataSize;
         uint16_t               m_UniformCount;
         uint16_t               m_AttributeCount;
     };
@@ -203,10 +201,6 @@ namespace dmGraphics
         VkDescriptorSetLayout           m_DescriptorSetLayout[2];
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[2];
         VkPipelineLayout                m_PipelineLayout;
-        uint32_t                        m_VertexUniformDataSize;
-        uint32_t                        m_FragmentUniformDataSize;
-        uint8_t                         m_UniformDataIsDirty : 1;
-        uint8_t                                              : 7; // unused
     };
 
     struct SwapChainCapabilities
