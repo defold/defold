@@ -334,7 +334,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                         }
                     }
 
-                    shaderIssues.add("Uniforms '" + duplicateList + " from set " + setIndex + " have the same binding " + bindingIndex);
+                    shaderIssues.add("Uniforms '" + duplicateList + "' from set " + setIndex + " have the same binding " + bindingIndex);
                 }
             }
         }

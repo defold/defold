@@ -62,7 +62,7 @@ namespace dmRender
             }
             else if (name_hash != 0)
             {
-                dmLogWarning("Type for uniform %llu is not supported (%d)", name_hash, type);
+                dmLogWarning("Type for uniform %llu is not supported (%d)", (unsigned long long) name_hash, type);
             }
             else
             {
