@@ -108,7 +108,7 @@ public class OSXBundler implements IBundler {
         String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
         File buildSymbols = new File(zipDir, "dmengine.dSYM");
         if (buildSymbols.exists()) {
-            String symbolsDir = String.format("%s.dSYM", BundleHelper.projectNameToBinaryName(title));
+            String symbolsDir = String.format("%s.dSYM", title);
 
             File bundleSymbols = new File(bundleDir, symbolsDir);
             FileUtils.copyDirectory(buildSymbols, bundleSymbols);

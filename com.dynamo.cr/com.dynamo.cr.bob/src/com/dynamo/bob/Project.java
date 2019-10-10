@@ -743,11 +743,8 @@ public class Project {
 
     private static boolean deleteDirectory(File directoryToBeDeleted) {
         File[] allContents = directoryToBeDeleted.listFiles();
-            System.out.println("MAWE: deleteDirectory: " + directoryToBeDeleted.getAbsolutePath());
         if (allContents != null) {
-
             for (File file : allContents) {
-            System.out.println("MAWE:   file: " + file.getAbsolutePath());
                 deleteDirectory(file);
             }
         }
@@ -756,7 +753,6 @@ public class Project {
 
     private void cleanEngine(Platform platform, File dir) throws IOException, CompileExceptionError {
         if (!dir.exists()) {
-            System.out.println("MAWE: Dir not found: " + dir.getAbsolutePath());
             return;
         }
 
@@ -764,9 +760,7 @@ public class Project {
         List<String> defaultNames = platform.formatBinaryName("dmengine");
         for (String defaultName : defaultNames) {
             File exe = new File(FilenameUtils.concat(dir.getAbsolutePath(), defaultName));
-            System.out.println("MAWE: Exe name: " + exe.getAbsolutePath());
             if (exe.exists()) {
-            System.out.println("MAWE: Exe found found... deleting ");
                 Project.deleteDirectory(dir);
                 break;
             }
