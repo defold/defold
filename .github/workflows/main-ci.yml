@@ -18,7 +18,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Shell', run: 'python scripts/build.py shell\nset\necho "DYANMO_HOME ${DYNAMO_HOME}"\n' },
       { name: 'Install dependencies', run: 'python scripts/build.py shell && python ci/ci.py install' },
       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
 
