@@ -883,7 +883,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     dmSound::HSoundData sd = 0;
     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
-    dmSound::HSoundInstance § = 0;
+    dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
