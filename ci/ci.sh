@@ -11,13 +11,14 @@ PREFIX=$DYNAMO_HOME
 
 cd engine/sound
 # waf configure --platform=x86_64-darwin
+echo "FOOBAR BEFORE build skip tests"
 waf build --skip-tests
+echo "FOOBAR AFTER build skip tests"
 
-echo "FOOBAR build skip tests"
 
+echo "FOOBAR BEFORE build and test"
 waf build
-
-echo "FOOBAR build and test"
+echo "FOOBAR AFTER build and test"
 
 cd ../engine/liveupdate
 # waf configure --platform=x86_64-darwin

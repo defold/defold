@@ -1160,8 +1160,9 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_tests(valgrind = False, configfile = None):
-    print("RUN TESTS")
+    print("RUN TESTS START")
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
+        print("RUN TESTS START - skip")
         return
 
     # TODO: Add something similar to this
@@ -1197,6 +1198,7 @@ def run_tests(valgrind = False, configfile = None):
             if ret != 0:
                 print("test failed %s" %(t.target) )
                 sys.exit(ret)
+    print("RUN TESTS END")
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
