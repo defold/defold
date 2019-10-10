@@ -920,48 +920,48 @@ TEST_P(dmSoundTestPlayTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-// TEST_P(dmSoundTestPlaySpeedTest, Play)
-// {
-//     TestParams params = GetParam();
-//     dmSound::Result r;
-//     dmSound::HSoundData sd = 0;
-//     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
-//
-//     dmSound::HSoundInstance instance = 0;
-//     r = dmSound::NewSoundInstance(sd, &instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
-//
-//     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::Play(instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::Play(instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     float a = 0.0f;
-//     do {
-//         r = dmSound::Update();
-//         ASSERT_EQ(dmSound::RESULT_OK, r);
-//         a += M_PI / 20000000.0f;
-//         if (a > M_PI*2) {
-//             a-= M_PI*2;
-//         }
-//         r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
-//         ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     } while (dmSound::IsPlaying(instance));
-//
-//     r = dmSound::DeleteSoundInstance(instance);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::DeleteSoundData(sd);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-// }
+TEST_P(dmSoundTestPlaySpeedTest, Play)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, Vectormath::Aos::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float a = 0.0f;
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+        a += M_PI / 20000000.0f;
+        if (a > M_PI*2) {
+            a-= M_PI*2;
+        }
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
 //
 // const TestParams params_test_play_test[] = {
 //     TestParams("default",
