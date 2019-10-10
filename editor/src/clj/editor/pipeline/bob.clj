@@ -136,7 +136,7 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -167,6 +167,7 @@
             strip-executable? (assoc "strip-executable" "true")
 
             ;; From BundleGenericHandler
+            generate-debug-symbols? (assoc "with-symbols" "")
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "true"))))
 

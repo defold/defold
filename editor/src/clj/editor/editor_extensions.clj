@@ -17,7 +17,9 @@
             [editor.workspace :as workspace])
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
            [clojure.lang MultiFn]
-           [com.defold.editor Platform]))
+           [com.defold.editor Platform]
+           [java.io File]
+           [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,6 +48,15 @@
 (defn- lua-fn? [x]
   (instance? LuaFunction x))
 
+(defn- resource-path? [x]
+  (and (string? x) (string/starts-with? x "/")))
+
+(def ^:private node-id? int?)
+
+(s/def ::node-id
+  (s/or :internal-id node-id?
+        :resource-path resource-path?))
+
 (s/def :ext-module/get-commands lua-fn?)
 (s/def :ext-module/on-build-started lua-fn?)
 (s/def :ext-module/on-build-successful lua-fn?)
@@ -63,7 +74,7 @@
                    :ext-module/on-bundle-failed]))
 
 (s/def :ext-action/action #{"set" "shell"})
-(s/def :ext-action/node-id int?)
+(s/def :ext-action/node-id ::node-id)
 (s/def :ext-action/property #{"text"})
 (s/def :ext-action/value any?)
 (s/def :ext-action/command (s/coll-of string?))
@@ -175,6 +186,8 @@
                                   (map #(str \" % \"))
                                   (util/join-words ", " " or ")))
             distinct? "should not have repeated elements"
+            node-id? "is not a node id"
+            resource-path? "is not a resource path"
             nil))
 
         (set? pred)
@@ -305,8 +318,14 @@
   (let [{:keys [basis]} ec]
     (:k (g/node-type basis (g/node-by-id basis node-id)))))
 
-(defmulti ext-get (fn [node-id key ec]
-                    [(node-id->type-keyword node-id ec) key]))
+(defmulti ext-get (fn [node-id property ec]
+                    [(node-id->type-keyword node-id ec) property]))
+
+(defmethod ext-get :default [node-id property ec]
+  (throw (LuaError. (str (name (node-id->type-keyword node-id ec))
+                         " has no \""
+                         property
+                         "\" property"))))
 
 (defmethod ext-get [:editor.code.resource/CodeEditorResourceNode "text"] [node-id _ ec]
   (clojure.string/join \newline (g/node-value node-id :lines ec)))
@@ -314,9 +333,17 @@
 (defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
   (resource/resource->proj-path (g/node-value node-id :resource ec)))
 
-(defn- do-ext-get [node-id key]
-  (let [{:keys [evaluation-context]} *execution-context*]
-    (ext-get node-id key evaluation-context)))
+(defn- node-id-or-path->node-id [node-id-or-path project evaluation-context]
+  (if (string? node-id-or-path)
+    (project/get-resource-node project node-id-or-path evaluation-context)
+    node-id-or-path))
+
+(defn- do-ext-get [node-id-or-path property]
+  (ensure-spec ::node-id node-id-or-path)
+  (let [{:keys [evaluation-context project]} *execution-context*]
+    (ext-get (node-id-or-path->node-id node-id-or-path project evaluation-context)
+             property
+             evaluation-context)))
 
 (defn- transact! [txs _execution-context]
   (g/transact txs))
@@ -337,6 +364,13 @@
                                      (node-id->type-keyword (:node-id action) evaluation-context)
                                      (:property action)]))
 
+(defmethod transaction-action->txs :default [action evaluation-context]
+  (throw (LuaError.
+           (format "Can't %s \"%s\" property of %s"
+                   (:action action)
+                   (:property action)
+                   (name (node-id->type-keyword (:node-id action) evaluation-context))))))
+
 (defmethod transaction-action->txs ["set" :editor.code.resource/CodeEditorResourceNode "text"]
   [action _]
   (let [node-id (:node-id action)
@@ -346,23 +380,25 @@
      (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
      (g/set-property node-id :regions [])]))
 
-(defmulti action->batched-executor+input (fn [action _evaluation-context]
+(defmulti action->batched-executor+input (fn [action _execution-context]
                                            (:action action)))
 
-(defmethod action->batched-executor+input "set" [action evaluation-context]
-  [transact! (transaction-action->txs action evaluation-context)])
+(defmethod action->batched-executor+input "set" [action execution-context]
+  (let [{:keys [project evaluation-context]} execution-context]
+    [transact! (transaction-action->txs
+                 (update action :node-id node-id-or-path->node-id project evaluation-context)
+                 evaluation-context)]))
 
 (defmethod action->batched-executor+input "shell" [action _]
   [shell! (:command action)])
 
 (defn- perform-actions! [actions execution-context]
   (ensure-spec ::actions actions)
-  (let [{:keys [evaluation-context]} execution-context]
-    (doseq [[executor inputs] (eduction (map #(action->batched-executor+input % evaluation-context))
-                                        (partition-by first)
-                                        (map (juxt ffirst #(mapv second %)))
-                                        actions)]
-      (executor inputs execution-context))))
+  (doseq [[executor inputs] (eduction (map #(action->batched-executor+input % execution-context))
+                                      (partition-by first)
+                                      (map (juxt ffirst #(mapv second %)))
+                                      actions)]
+    (executor inputs execution-context)))
 
 (defn- hook-exception->error [^Throwable ex project label]
   (let [^Throwable root (stacktrace/root-cause ex)
@@ -528,6 +564,37 @@
             :when dynamic-handler]
         dynamic-handler))))
 
+(defn- ensure-file-path-in-project-directory
+  ^String [^Path project-path ^String file-name]
+  (let [normalized-path (-> project-path
+                            (.resolve file-name)
+                            .normalize)]
+    (if (.startsWith normalized-path project-path)
+      (.toString normalized-path)
+      (throw (LuaError. (str "Can't open "
+                             file-name
+                             ": outside of project directory"))))))
+
+(defn- open-file [project-path file-name read-mode]
+  (let [file-path (ensure-file-path-in-project-directory project-path file-name)]
+    (when-not read-mode
+      (vreset! (:request-sync *execution-context*) true))
+    file-path))
+
+(defn- find-resource [project evaluation-context path]
+  (some-> (project/get-resource-node project path evaluation-context)
+          (g/node-value :lines evaluation-context)
+          (data/lines-input-stream)))
+
+(defn- remove-file [^Path project-path ^String file-name]
+  (let [file-path (ensure-file-path-in-project-directory project-path file-name)
+        file (File. file-path)]
+    (when-not (.exists file)
+      (throw (LuaError. (str "No such file or directory: " file-name))))
+    (when-not (.delete file)
+      (throw (LuaError. (str "Failed to delete " file-name))))
+    (vreset! (:request-sync *execution-context*) true)))
+
 (defn reload! [project kind ui]
   (g/with-auto-evaluation-context ec
     (g/user-data-swap!
@@ -540,26 +607,20 @@
                                (workspace/project-path ec)
                                .toPath
                                .normalize)
-              env (luart/make-env (fn [path]
-                                    (some-> (project/get-resource-node project path ec)
-                                            (g/node-value :lines ec)
-                                            (data/lines-input-stream)))
-                                  (fn [^String filename read-mode]
-                                    (when-not read-mode
-                                      (vreset! (:request-sync *execution-context*) true))
-                                    (let [normalized-path (-> project-path
-                                                              (.resolve filename)
-                                                              .normalize)]
-                                      (if (.startsWith normalized-path project-path)
-                                        (.toString normalized-path)
-                                        (throw (ex-info (str "Can't open "
-                                                             filename
-                                                             ": outside of project directory")
-                                                        {:filename filename
-                                                         :project-path project-path})))))
-                                  {"editor" {"get" do-ext-get
-                                             "platform" (.getPair (Platform/getHostPlatform))}}
-                                  #(display-output! ui %1 %2))]
+              env (luart/make-env
+                    :find-resource #(find-resource project ec %)
+                    :open-file #(open-file project-path %1 %2)
+                    :out #(display-output! ui %1 %2)
+                    :globals {"editor" {"get" do-ext-get
+                                        "platform" (.getPair (Platform/getHostPlatform))}
+                              "package" {"config" (string/join "\n" [File/pathSeparatorChar \; \? \! \-])}
+                              "io" {"tmpfile" nil}
+                              "os" {"execute" nil
+                                    "exit" nil
+                                    "remove" #(remove-file project-path %)
+                                    "rename" nil
+                                    "setlocale" nil
+                                    "tmpname" nil}})]
           (-> state
               (assoc :ui ui)
               (cond-> (#{:library :all} kind)
