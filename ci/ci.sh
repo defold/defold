@@ -5,6 +5,7 @@ source ci/env.sh
 echo "DYNAMO $DYNAMO_HOME"
 echo "PATH $PATH"
 ./scripts/build.py --platform=x86_64-darwin install_ext
+./scripts/build.py --platform=x86_64-darwin --skip-tests build_engine -- --skip-build-tests
 cd engine/liveupdate
 PREFIX=$DYNAMO_HOME
 waf configure --platform=x86_64-darwin
