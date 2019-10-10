@@ -36,20 +36,6 @@ namespace dmGraphics
 
     typedef dmHashTable64<Pipeline> PipelineCache;
 
-    struct ScratchBuffer
-    {
-        ScratchBuffer()
-        : m_Buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
-        {}
-
-        GeometryBuffer   m_Buffer;
-        VkDescriptorSet* m_DescriptorSets;
-        void*            m_Data;
-        uint32_t         m_DataCursor;
-        uint16_t         m_DescriptorSetsCount;
-        uint16_t         m_DescriptorIndex;
-    };
-
     static struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
@@ -986,10 +972,6 @@ bail:
         VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
 
-        // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
-        // for the uniform resource bindings.
-        ResetScratchBuffer(context->m_LogicalDevice.m_Device, context->m_DescriptorPool, &context->m_MainScratchBuffers[frame_ix]);
-
         if (res != VK_SUCCESS)
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
@@ -1013,6 +995,15 @@ bail:
                 return;
             }
         }
+
+        // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
+        // for the uniform resource bindings.
+        ScratchBuffer* scratchBuffer = &context->m_MainScratchBuffers[frame_ix];
+        ResetScratchBuffer(context->m_LogicalDevice.m_Device, context->m_DescriptorPool, scratchBuffer);
+
+        res = vkMapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory, 0,
+            scratchBuffer->m_Buffer.m_DeviceMemory.m_MemorySize, 0, &scratchBuffer->m_Data);
+        CHECK_VK_ERROR(res);
 
         VkCommandBufferBeginInfo vk_command_buffer_begin_info;
 
@@ -1038,6 +1029,8 @@ bail:
             assert(0);
             return;
         }
+
+        vkUnmapMemory(context->m_LogicalDevice.m_Device, context->m_MainScratchBuffers[frame_ix].m_Buffer.m_DeviceMemory.m_Memory);
 
         VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
         CHECK_VK_ERROR(res);
@@ -1540,6 +1533,7 @@ bail:
         uint32_t alignment, uint32_t base_offset, uint32_t* offsets)
     {
         uint32_t dynamic_uniform_offset = base_offset;
+
         for (int i = 0; i < module->m_UniformCount; ++i)
         {
             offsets[i]                           = dynamic_uniform_offset;
@@ -1547,9 +1541,14 @@ bail:
             const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, alignment);
             dynamic_uniform_offset              += uniform_size;
 
+            // Copy client data to aligned host memory
             uint32_t data_offset = uniform_offsets[i];
             memcpy(&((uint8_t*)scratchBuffer->m_Data)[scratchBuffer->m_DataCursor], &uniform_data[data_offset], uniform_size_nonalign);
 
+            // Note in the spec about the offset being zero:
+            //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
+            //    offset is the base offset from which the dynamic offset is applied and range is the static size
+            //    used for all dynamic offsets."
             VkDescriptorBufferInfo vk_buffer_info;
             vk_buffer_info.buffer = scratchBuffer->m_Buffer.m_Buffer; // buffer buffer buffer :(
             vk_buffer_info.offset = 0;
@@ -1589,19 +1588,13 @@ bail:
         vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, vk_descriptor_sets);
         scratchBuffer->m_DescriptorIndex += set_count;
 
+        // const uint8_t num_uniforms_per_batch = 16;
         const uint32_t num_uniforms          = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
         uint32_t dynamic_uniform_offset      = scratchBuffer->m_DataCursor;
         uint32_t* dynamic_uniform_offsets    = new uint32_t[num_uniforms];
 
         VkDescriptorSet vs_set = vk_descriptor_sets[0];
         VkDescriptorSet fs_set = vk_descriptor_sets[1];
-
-        VkResult res = vkMapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory, 0,
-            scratchBuffer->m_Buffer.m_DeviceMemory.m_MemorySize, 0, &scratchBuffer->m_Data);
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
 
         dynamic_uniform_offset = UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
             program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
@@ -1610,14 +1603,13 @@ bail:
             program_ptr->m_UniformData, &program_ptr->m_UniformOffsets[program_ptr->m_VertexModule->m_UniformCount],
             alignment, dynamic_uniform_offset, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
 
-        vkUnmapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory);
-
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
             0, 2, vk_descriptor_sets,
             num_uniforms, dynamic_uniform_offsets);
 
         delete[] dynamic_uniform_offsets;
+        return VK_SUCCESS;
     }
 
     static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, GeometryBuffer* indexBuffer, Type indexBufferType)
@@ -1716,6 +1708,7 @@ bail:
                 res.m_Set                  = ddf->m_Uniforms[i].m_Set;
                 res.m_NameHash             = ddf->m_Uniforms[i].m_Name;
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
+                assert(res.m_Set <= 1);
             }
         }
 
@@ -1741,9 +1734,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-
         TransferResourceBindingsFromDDF(shader, ddf);
-
         return (HVertexProgram) shader;
     }
 
@@ -1753,9 +1744,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-
         TransferResourceBindingsFromDDF(shader, ddf);
-
         return (HFragmentProgram) shader;
     }
 

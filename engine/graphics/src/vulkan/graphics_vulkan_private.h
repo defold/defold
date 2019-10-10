@@ -65,6 +65,20 @@ namespace dmGraphics
         uint8_t                    : 7; // unused
     };
 
+    struct ScratchBuffer
+    {
+        ScratchBuffer()
+        : m_Buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+        {}
+
+        GeometryBuffer   m_Buffer;
+        VkDescriptorSet* m_DescriptorSets;
+        void*            m_Data;
+        uint32_t         m_DataCursor;
+        uint16_t         m_DescriptorSetsCount;
+        uint16_t         m_DescriptorIndex;
+    };
+
     struct RenderTarget
     {
         RenderTarget(const uint32_t rtId)
