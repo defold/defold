@@ -285,107 +285,107 @@ struct LoopbackDevice
 
 LoopbackDevice *g_LoopbackDevice = 0;
 
-// dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
-// {
-//     LoopbackDevice* d = new LoopbackDevice;
-//
-//     // to avoid making big spammy requests and getting huge chunks all at the same time
-//     // set up the buffers as if we have been playing continuously already. first call
-//     // will only ask for one buffer and there will be no bursts
-//     //
-//     // 0 1 2 3 4 5
-//     //             ^
-//     //             +- time & queue time starts here
-//     //
-//     d->m_Buffers.SetCapacity(params->m_BufferCount);
-//     for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
-//         d->m_Buffers.Push(new LoopbackBuffer(params->m_FrameCount, i));
-//     }
-//
-//     d->m_TotalBuffersQueued = 0;
-//     d->m_Time = params->m_BufferCount;
-//     d->m_QueueTime = params->m_BufferCount;
-//     d->m_NumWrites = 0;
-//
-//     *device = d;
-//     g_LoopbackDevice = d;
-//     return dmSound::RESULT_OK;
-// }
-//
-// void DeviceLoopbackClose(dmSound::HDevice device)
-// {
-//     LoopbackDevice* d = (LoopbackDevice*) device;
-//     for (uint32_t i = 0; i < d->m_Buffers.Size(); ++i) {
-//         delete d->m_Buffers[i];
-//     }
-//
-//     delete (LoopbackDevice*) device;
-//     g_LoopbackDevice = 0;
-// }
-//
-// dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
-// {
-//     LoopbackDevice* loopback = (LoopbackDevice*) device;
-//     loopback->m_NumWrites++;
-//
-//     loopback->m_TotalBuffersQueued++;
-//     if (loopback->m_AllOutput.Remaining() < sample_count * 2) {
-//         loopback->m_AllOutput.OffsetCapacity(sample_count * 2);
-//     }
-//     loopback->m_AllOutput.PushArray(samples, sample_count * 2);
-//
-//     LoopbackBuffer* b = 0;
-//     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
-//         if ((uint64_t)loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
-//             continue;
-//         if (loopback->m_Time - loopback->m_Buffers[i]->m_Queued > LOOPBACK_DEVICE_PROCESS_TIME) {
-//             b = loopback->m_Buffers[i];
-//             break;
-//         }
-//     }
-//
-//     loopback->m_QueueTime += LOOPBACK_DEVICE_PROCESS_TIME;
-//
-//     b->m_Queued = loopback->m_QueueTime;
-//     b->m_Buffer.SetSize(0);
-//     b->m_Buffer.PushArray(samples, sample_count * 2);
-//
-//     return dmSound::RESULT_OK;
-// }
-//
-// uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
-// {
-//     LoopbackDevice* loopback = (LoopbackDevice*) device;
-//
-//     uint32_t n = 0;
-//     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
-//         if ((uint64_t)loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
-//             continue;
-//         uint64_t diff = loopback->m_Time - loopback->m_Buffers[i]->m_Queued;
-//         if (diff > LOOPBACK_DEVICE_PROCESS_TIME) {
-//             ++n;
-//         }
-//     }
-//
-//     loopback->m_Time++;
-//     return n;
-// }
-//
-// void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
-// {
-//     info->m_MixRate = 44100;
-// }
-//
-// void DeviceLoopbackRestart(dmSound::HDevice device)
-// {
-//
-// }
-//
-// void DeviceLoopbackStop(dmSound::HDevice device)
-// {
-//
-// }
-//
+dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
+{
+    LoopbackDevice* d = new LoopbackDevice;
+
+    // to avoid making big spammy requests and getting huge chunks all at the same time
+    // set up the buffers as if we have been playing continuously already. first call
+    // will only ask for one buffer and there will be no bursts
+    //
+    // 0 1 2 3 4 5
+    //             ^
+    //             +- time & queue time starts here
+    //
+    d->m_Buffers.SetCapacity(params->m_BufferCount);
+    for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
+        d->m_Buffers.Push(new LoopbackBuffer(params->m_FrameCount, i));
+    }
+
+    d->m_TotalBuffersQueued = 0;
+    d->m_Time = params->m_BufferCount;
+    d->m_QueueTime = params->m_BufferCount;
+    d->m_NumWrites = 0;
+
+    *device = d;
+    g_LoopbackDevice = d;
+    return dmSound::RESULT_OK;
+}
+
+void DeviceLoopbackClose(dmSound::HDevice device)
+{
+    LoopbackDevice* d = (LoopbackDevice*) device;
+    for (uint32_t i = 0; i < d->m_Buffers.Size(); ++i) {
+        delete d->m_Buffers[i];
+    }
+
+    delete (LoopbackDevice*) device;
+    g_LoopbackDevice = 0;
+}
+
+dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+{
+    LoopbackDevice* loopback = (LoopbackDevice*) device;
+    loopback->m_NumWrites++;
+
+    loopback->m_TotalBuffersQueued++;
+    if (loopback->m_AllOutput.Remaining() < sample_count * 2) {
+        loopback->m_AllOutput.OffsetCapacity(sample_count * 2);
+    }
+    loopback->m_AllOutput.PushArray(samples, sample_count * 2);
+
+    LoopbackBuffer* b = 0;
+    for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
+        if ((uint64_t)loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
+            continue;
+        if (loopback->m_Time - loopback->m_Buffers[i]->m_Queued > LOOPBACK_DEVICE_PROCESS_TIME) {
+            b = loopback->m_Buffers[i];
+            break;
+        }
+    }
+
+    loopback->m_QueueTime += LOOPBACK_DEVICE_PROCESS_TIME;
+
+    b->m_Queued = loopback->m_QueueTime;
+    b->m_Buffer.SetSize(0);
+    b->m_Buffer.PushArray(samples, sample_count * 2);
+
+    return dmSound::RESULT_OK;
+}
+
+uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
+{
+    LoopbackDevice* loopback = (LoopbackDevice*) device;
+
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
+        if ((uint64_t)loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
+            continue;
+        uint64_t diff = loopback->m_Time - loopback->m_Buffers[i]->m_Queued;
+        if (diff > LOOPBACK_DEVICE_PROCESS_TIME) {
+            ++n;
+        }
+    }
+
+    loopback->m_Time++;
+    return n;
+}
+
+void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
+{
+    info->m_MixRate = 44100;
+}
+
+void DeviceLoopbackRestart(dmSound::HDevice device)
+{
+
+}
+
+void DeviceLoopbackStop(dmSound::HDevice device)
+{
+
+}
+
 // TEST_P(dmSoundVerifyTest, Mix)
 // {
 //     TestParams params = GetParam();
@@ -1103,214 +1103,214 @@ LoopbackDevice *g_LoopbackDevice = 0;
 // INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
 //
 //
-// TEST_P(dmSoundMixerTest, Mixer)
-// {
-//     TestParams2 params = GetParam();
-//     dmSound::Result r;
-//     dmSound::HSoundData sd1 = 0;
-//     dmSound::HSoundData sd2 = 0;
-//     dmSound::NewSoundData(params.m_Sound1, params.m_SoundSize1, params.m_Type1, &sd1, 1234);
-//     dmSound::NewSoundData(params.m_Sound2, params.m_SoundSize2, params.m_Type2, &sd2, 1234);
-//
-//     printf("tone1: %d, rate1: %d, frames1: %d, tone2: %d, rate2: %d, frames2: %d\n",
-//             params.m_ToneRate1, params.m_MixRate1, params.m_FrameCount1,
-//             params.m_ToneRate2, params.m_MixRate2, params.m_FrameCount2);
-//
-//
-//     float master_gain = 0.75f;
-//
-//     r = dmSound::SetGroupGain(dmHashString64("master"), master_gain);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::AddGroup("g1");
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::AddGroup("g2");
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     ASSERT_EQ(3, dmSound::GetGroupCount());
-//     std::set<dmhash_t> groups;
-//     for (uint32_t i = 0; i < dmSound::GetGroupCount(); i++) {
-//         dmhash_t group = 0;
-//         dmSound::GetGroupHash(i, &group);
-//         groups.insert(group);
-//     }
-//
-//     ASSERT_TRUE(groups.find(dmHashString64("master")) != groups.end());
-//     ASSERT_TRUE(groups.find(dmHashString64("g1")) != groups.end());
-//     ASSERT_TRUE(groups.find(dmHashString64("g2")) != groups.end());
-//
-//     r = dmSound::SetGroupGain(dmHashString64("g1"), params.m_Gain1);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     r = dmSound::SetGroupGain(dmHashString64("g2"), params.m_Gain2);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     dmSound::HSoundInstance instance1 = 0;
-//     dmSound::HSoundInstance instance2 = 0;
-//     r = dmSound::NewSoundInstance(sd1, &instance1);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     ASSERT_NE((dmSound::HSoundInstance) 0, instance1);
-//     r = dmSound::SetInstanceGroup(instance1, "g1");
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::NewSoundInstance(sd1, &instance2);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     ASSERT_NE((dmSound::HSoundInstance) 0, instance2);
-//     r = dmSound::SetInstanceGroup(instance2, "g2");
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     r = dmSound::Play(instance1);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     r = dmSound::Play(instance2);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     do {
-//         r = dmSound::Update();
-//         ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     } while (dmSound::IsPlaying(instance1) || dmSound::IsPlaying(instance2));
-//
-//     r = dmSound::DeleteSoundInstance(instance1);
-//     r = dmSound::DeleteSoundInstance(instance2);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//
-//     const uint32_t frame_count1 = params.m_FrameCount1;
-//     const float rate1 = params.m_ToneRate1;
-//     const uint32_t frame_count2 = params.m_FrameCount2;
-//     const float rate2 = params.m_ToneRate2;
-//     const float mix_rate1 = params.m_MixRate1;
-//     const float mix_rate2 = params.m_MixRate2;
-//
-//     const int n1 = (frame_count1 * 44100) / (int) mix_rate1;
-//     const int n2 = (frame_count2 * 44100) / (int) mix_rate2;
-//     const int n = dmMath::Max(n1, n2);
-//     float sum_square = 0.0f;
-//     float last_rms = 0.0f;
-//     for (int32_t i = 0; i < n - 1; i++) {
-//         const double f = 44100.0;
-//
-//         double ax = 0;
-//         double ay = 0;
-//
-//         int index1 = i * mix_rate1 / f;
-//         float ramp1 = params.m_Ramp1 ? ((n - 1) - i) / (float) n : 1.0f;
-//         double a1x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin((index1 * 2.0 * 3.14159265 * rate1) / mix_rate1);
-//         double a2x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin(((index1 + 1) * 2.0 * 3.14159265 * rate1) / mix_rate1);
-//         double frac1 = fmod(i * mix_rate1 / 44100.0, 1.0);
-//         ax = a1x * (1.0 - frac1) + a2x * frac1;
-//
-//         int index2 = i * mix_rate2 / f;
-//         float ramp2 = params.m_Ramp2 ? ((n - 1) - i) / (float) n : 1.0f;
-//         double a1y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin((index2 * 2.0 * 3.14159265 * rate2) / mix_rate2);
-//         double a2y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin(((index2 + 1) * 2.0 * 3.14159265 * rate2) / mix_rate2);
-//         double frac2 = fmod(i * mix_rate2 / 44100.0, 1.0);
-//         ay = a1y * (1.0 - frac2) + a2y * frac2;
-//
-//         double a = ax + ay;
-//         a = dmMath::Min(32767.0, a);
-//         a = dmMath::Max(-32768.0, a);
-//
-//         sum_square += ax * ax;
-//         if (i % params.m_BufferFrameCount == 0 && i > 0) {
-//             last_rms = sqrtf(sum_square / (float) params.m_BufferFrameCount);
-//             sum_square =0 ;
-//         }
-//
-//         int16_t as = (int16_t) a;
-//
-//         const int abs_error = 36;
-//         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
-//             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain * 0.707107f, abs_error);
-//             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain * 0.707107f, abs_error);
-//         }
-//     }
-//     last_rms /= 32767.0f;
-//
-//     float rms_left, rms_right;
-//     dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
-//     const float rms_tol = 3.0f;
-//     ASSERT_NEAR(rms_left, last_rms, rms_tol);
-//     ASSERT_NEAR(rms_right, last_rms, rms_tol);
-//
-//     ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
-//     for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
-//         ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
-//         ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
-//     }
-//
-//     r = dmSound::DeleteSoundData(sd1);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-//     r = dmSound::DeleteSoundData(sd2);
-//     ASSERT_EQ(dmSound::RESULT_OK, r);
-// }
-//
-// const TestParams2 params_mixer_test[] = {
-//     TestParams2("loopback",
-//                 MONO_TONE_440_22050_44100_WAV,
-//                 MONO_TONE_440_22050_44100_WAV_SIZE,
-//                 dmSound::SOUND_DATA_TYPE_WAV,
-//                 440,
-//                 22050,
-//                 44100,
-//                 0.8f,
-//                 false,
-//
-//                 MONO_TONE_440_22050_44100_WAV,
-//                 MONO_TONE_440_22050_44100_WAV_SIZE,
-//                 dmSound::SOUND_DATA_TYPE_WAV,
-//                 440,
-//                 22050,
-//                 44100,
-//                 0.3f,
-//                 false,
-//
-//                 2048),
-//
-//     TestParams2("loopback",
-//                 MONO_TONE_440_22050_44100_WAV,
-//                 MONO_TONE_440_22050_44100_WAV_SIZE,
-//                 dmSound::SOUND_DATA_TYPE_WAV,
-//                 440,
-//                 22050,
-//                 44100,
-//                 0.6f,
-//                 false,
-//
-//                 MONO_TONE_440_32000_64000_WAV,
-//                 MONO_TONE_440_32000_64000_WAV_SIZE,
-//                 dmSound::SOUND_DATA_TYPE_WAV,
-//                 440,
-//                 32000,
-//                 64000,
-//                 0.4f,
-//                 false,
-//
-//                 2048),
-//
-//     TestParams2("loopback",
-//                 MONO_TONERAMP_440_32000_64000_WAV,
-//                 MONO_TONERAMP_440_32000_64000_WAV_SIZE,
-//                 dmSound::SOUND_DATA_TYPE_WAV,
-//                 440,
-//                 32000,
-//                 64000,
-//                 0.6f,
-//                 true,
-//
-//                 MONO_TONERAMP_440_32000_64000_WAV,
-//                 MONO_TONERAMP_440_32000_64000_WAV_SIZE,
-//                 dmSound::SOUND_DATA_TYPE_WAV,
-//                 440,
-//                 32000,
-//                 64000,
-//                 0.6f,
-//                 true,
-//
-//                 2048)
-// };
-// INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
-//
-//
-// DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
+TEST_P(dmSoundMixerTest, Mixer)
+{
+    TestParams2 params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd1 = 0;
+    dmSound::HSoundData sd2 = 0;
+    dmSound::NewSoundData(params.m_Sound1, params.m_SoundSize1, params.m_Type1, &sd1, 1234);
+    dmSound::NewSoundData(params.m_Sound2, params.m_SoundSize2, params.m_Type2, &sd2, 1234);
+
+    printf("tone1: %d, rate1: %d, frames1: %d, tone2: %d, rate2: %d, frames2: %d\n",
+            params.m_ToneRate1, params.m_MixRate1, params.m_FrameCount1,
+            params.m_ToneRate2, params.m_MixRate2, params.m_FrameCount2);
+
+
+    float master_gain = 0.75f;
+
+    r = dmSound::SetGroupGain(dmHashString64("master"), master_gain);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::AddGroup("g1");
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::AddGroup("g2");
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    ASSERT_EQ(3, dmSound::GetGroupCount());
+    std::set<dmhash_t> groups;
+    for (uint32_t i = 0; i < dmSound::GetGroupCount(); i++) {
+        dmhash_t group = 0;
+        dmSound::GetGroupHash(i, &group);
+        groups.insert(group);
+    }
+
+    ASSERT_TRUE(groups.find(dmHashString64("master")) != groups.end());
+    ASSERT_TRUE(groups.find(dmHashString64("g1")) != groups.end());
+    ASSERT_TRUE(groups.find(dmHashString64("g2")) != groups.end());
+
+    r = dmSound::SetGroupGain(dmHashString64("g1"), params.m_Gain1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetGroupGain(dmHashString64("g2"), params.m_Gain2);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance1 = 0;
+    dmSound::HSoundInstance instance2 = 0;
+    r = dmSound::NewSoundInstance(sd1, &instance1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance1);
+    r = dmSound::SetInstanceGroup(instance1, "g1");
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::NewSoundInstance(sd1, &instance2);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance2);
+    r = dmSound::SetInstanceGroup(instance2, "g2");
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::Play(instance2);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    } while (dmSound::IsPlaying(instance1) || dmSound::IsPlaying(instance2));
+
+    r = dmSound::DeleteSoundInstance(instance1);
+    r = dmSound::DeleteSoundInstance(instance2);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    const uint32_t frame_count1 = params.m_FrameCount1;
+    const float rate1 = params.m_ToneRate1;
+    const uint32_t frame_count2 = params.m_FrameCount2;
+    const float rate2 = params.m_ToneRate2;
+    const float mix_rate1 = params.m_MixRate1;
+    const float mix_rate2 = params.m_MixRate2;
+
+    const int n1 = (frame_count1 * 44100) / (int) mix_rate1;
+    const int n2 = (frame_count2 * 44100) / (int) mix_rate2;
+    const int n = dmMath::Max(n1, n2);
+    float sum_square = 0.0f;
+    float last_rms = 0.0f;
+    for (int32_t i = 0; i < n - 1; i++) {
+        const double f = 44100.0;
+
+        double ax = 0;
+        double ay = 0;
+
+        int index1 = i * mix_rate1 / f;
+        float ramp1 = params.m_Ramp1 ? ((n - 1) - i) / (float) n : 1.0f;
+        double a1x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin((index1 * 2.0 * 3.14159265 * rate1) / mix_rate1);
+        double a2x = ramp1 * params.m_Gain1 * 0.8 * 32768.0 * sin(((index1 + 1) * 2.0 * 3.14159265 * rate1) / mix_rate1);
+        double frac1 = fmod(i * mix_rate1 / 44100.0, 1.0);
+        ax = a1x * (1.0 - frac1) + a2x * frac1;
+
+        int index2 = i * mix_rate2 / f;
+        float ramp2 = params.m_Ramp2 ? ((n - 1) - i) / (float) n : 1.0f;
+        double a1y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin((index2 * 2.0 * 3.14159265 * rate2) / mix_rate2);
+        double a2y = ramp2 * params.m_Gain2 * 0.8 * 32768.0 * sin(((index2 + 1) * 2.0 * 3.14159265 * rate2) / mix_rate2);
+        double frac2 = fmod(i * mix_rate2 / 44100.0, 1.0);
+        ay = a1y * (1.0 - frac2) + a2y * frac2;
+
+        double a = ax + ay;
+        a = dmMath::Min(32767.0, a);
+        a = dmMath::Max(-32768.0, a);
+
+        sum_square += ax * ax;
+        if (i % params.m_BufferFrameCount == 0 && i > 0) {
+            last_rms = sqrtf(sum_square / (float) params.m_BufferFrameCount);
+            sum_square =0 ;
+        }
+
+        int16_t as = (int16_t) a;
+
+        const int abs_error = 36;
+        if ((uint32_t)i > params.m_BufferFrameCount * 2) {
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as * master_gain * 0.707107f, abs_error);
+            ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as * master_gain * 0.707107f, abs_error);
+        }
+    }
+    last_rms /= 32767.0f;
+
+    float rms_left, rms_right;
+    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
+    const float rms_tol = 3.0f;
+    ASSERT_NEAR(rms_left, last_rms, rms_tol);
+    ASSERT_NEAR(rms_right, last_rms, rms_tol);
+
+    ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
+    for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
+        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
+        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
+    }
+
+    r = dmSound::DeleteSoundData(sd1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundData(sd2);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams2 params_mixer_test[] = {
+    TestParams2("loopback",
+                MONO_TONE_440_22050_44100_WAV,
+                MONO_TONE_440_22050_44100_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                22050,
+                44100,
+                0.8f,
+                false,
+
+                MONO_TONE_440_22050_44100_WAV,
+                MONO_TONE_440_22050_44100_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                22050,
+                44100,
+                0.3f,
+                false,
+
+                2048),
+
+    TestParams2("loopback",
+                MONO_TONE_440_22050_44100_WAV,
+                MONO_TONE_440_22050_44100_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                22050,
+                44100,
+                0.6f,
+                false,
+
+                MONO_TONE_440_32000_64000_WAV,
+                MONO_TONE_440_32000_64000_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                32000,
+                64000,
+                0.4f,
+                false,
+
+                2048),
+
+    TestParams2("loopback",
+                MONO_TONERAMP_440_32000_64000_WAV,
+                MONO_TONERAMP_440_32000_64000_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                32000,
+                64000,
+                0.6f,
+                true,
+
+                MONO_TONERAMP_440_32000_64000_WAV,
+                MONO_TONERAMP_440_32000_64000_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                32000,
+                64000,
+                0.6f,
+                true,
+
+                2048)
+};
+INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
+
+
+DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
 
 int main(int argc, char **argv)
 {
