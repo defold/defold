@@ -1527,19 +1527,31 @@ bail:
         context->m_CurrentVertexDeclaration = 0;
     }
 
+    struct UpdateDescriptorSetParams
+    {
+        VkDevice        m_Device;
+        VkDescriptorSet m_DescriptorSet;
+        ShaderModule*   m_ShaderModule;
+        ScratchBuffer*  m_ScratchBuffer;
+        uint8_t*        m_UniformDataPtr;
+        uint32_t*       m_UniformOffsets;
+        uint32_t        m_DynamicAlignment;
+        uint32_t        m_DynamicOffsetBase;
+        uint32_t*       m_DynamicOffsets;
+    };
+
     static uint32_t UpdateDescriptorSets(VkDevice vk_device, VkDescriptorSet vk_descriptor_set,
         ShaderModule* module, ScratchBuffer* scratchBuffer,
-        uint8_t* uniform_data, uint32_t* uniform_offsets,
-        uint32_t alignment, uint32_t base_offset, uint32_t* offsets)
+        uint8_t* uniform_data, const uint32_t* uniform_offsets,
+        uint32_t alignment, uint32_t* offsets)
     {
-        uint32_t dynamic_uniform_offset = base_offset;
+        //uint32_t dynamic_uniform_offset = base_offset;
 
         for (int i = 0; i < module->m_UniformCount; ++i)
         {
-            offsets[i]                           = dynamic_uniform_offset;
+            offsets[i]                           = scratchBuffer->m_DataCursor;
             const uint32_t uniform_size_nonalign = GetShaderTypeSize(module->m_Uniforms[i].m_Type);
             const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, alignment);
-            dynamic_uniform_offset              += uniform_size;
 
             // Copy client data to aligned host memory
             uint32_t data_offset = uniform_offsets[i];
@@ -1566,11 +1578,8 @@ bail:
             vk_write_desc_info.pBufferInfo     = &vk_buffer_info;
 
             vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
-
             scratchBuffer->m_DataCursor += uniform_size;
         }
-
-        return dynamic_uniform_offset;
     }
 
     static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device, VkDescriptorPool vk_descriptor_pool,
@@ -1588,20 +1597,18 @@ bail:
         vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, vk_descriptor_sets);
         scratchBuffer->m_DescriptorIndex += set_count;
 
-        // const uint8_t num_uniforms_per_batch = 16;
-        const uint32_t num_uniforms          = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
-        uint32_t dynamic_uniform_offset      = scratchBuffer->m_DataCursor;
-        uint32_t* dynamic_uniform_offsets    = new uint32_t[num_uniforms];
+        const uint32_t num_uniforms       = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+        uint32_t* dynamic_uniform_offsets = new uint32_t[num_uniforms];
 
         VkDescriptorSet vs_set = vk_descriptor_sets[0];
         VkDescriptorSet fs_set = vk_descriptor_sets[1];
 
-        dynamic_uniform_offset = UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
+        UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
             program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
-            alignment, dynamic_uniform_offset, dynamic_uniform_offsets);
-        dynamic_uniform_offset = UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
+            alignment, dynamic_uniform_offsets);
+        UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
             program_ptr->m_UniformData, &program_ptr->m_UniformOffsets[program_ptr->m_VertexModule->m_UniformCount],
-            alignment, dynamic_uniform_offset, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
+            alignment, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
@@ -2025,7 +2032,7 @@ bail:
     #define UNIFORM_LOCATION_MAX                   0x00007FFF
     #define UNIFORM_LOCATION_BITS                  15
     #define UNIFORM_LOCATION_GET_VS(location_mask) (location_mask  & UNIFORM_LOCATION_MAX)
-    #define UNIFORM_LOCATION_GET_FS(location_mask) ((location_mask & UNIFORM_LOCATION_MAX) >> UNIFORM_LOCATION_BITS)
+    #define UNIFORM_LOCATION_GET_FS(location_mask) ((location_mask & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BITS)) >> UNIFORM_LOCATION_BITS)
 
     static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
     {
