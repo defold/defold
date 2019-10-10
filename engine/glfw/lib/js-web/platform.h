@@ -3,7 +3,7 @@
 
 #include "../../include/GL/glfw.h"
 
-int _glfwInitJS( void );
+int glfwInitJS( void );
 
 struct {
 

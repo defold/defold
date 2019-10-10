@@ -521,7 +521,7 @@ var LibraryGLFW = {
  ******************************************************************************/
 
   /* GLFW initialization, termination and version querying */
-  _glfwInitJS: function() {
+  glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);

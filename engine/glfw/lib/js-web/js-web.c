@@ -152,7 +152,7 @@ void _glfwClearInput( void )
 GLFWAPI int GLFWAPIENTRY glfwInit()
 {
     _glfwClearInput();
-    _glfwInitJS();
+    glfwInitJS();
     glfwSetTouchCallback( handleTouches );
     return 1;
 }
