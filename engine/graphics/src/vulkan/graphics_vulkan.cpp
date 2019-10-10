@@ -1574,6 +1574,52 @@ bail:
         return dynamic_uniform_offset;
     }
 
+    static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device, VkDescriptorPool vk_descriptor_pool,
+        Program* program_ptr, ScratchBuffer* scratchBuffer, const uint32_t alignment)
+    {
+        const uint8_t set_count = 2;
+        VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
+        memset(&vk_descriptor_set_alloc, 0, sizeof(vk_descriptor_set_alloc));
+        vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        vk_descriptor_set_alloc.descriptorPool     = vk_descriptor_pool;
+        vk_descriptor_set_alloc.descriptorSetCount = set_count;
+        vk_descriptor_set_alloc.pSetLayouts        = program_ptr->m_DescriptorSetLayout;
+
+        VkDescriptorSet* vk_descriptor_sets = &scratchBuffer->m_DescriptorSets[scratchBuffer->m_DescriptorIndex];
+        vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, vk_descriptor_sets);
+        scratchBuffer->m_DescriptorIndex += set_count;
+
+        const uint32_t num_uniforms          = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+        uint32_t dynamic_uniform_offset      = scratchBuffer->m_DataCursor;
+        uint32_t* dynamic_uniform_offsets    = new uint32_t[num_uniforms];
+
+        VkDescriptorSet vs_set = vk_descriptor_sets[0];
+        VkDescriptorSet fs_set = vk_descriptor_sets[1];
+
+        VkResult res = vkMapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory, 0,
+            scratchBuffer->m_Buffer.m_DeviceMemory.m_MemorySize, 0, &scratchBuffer->m_Data);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        dynamic_uniform_offset = UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
+            program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
+            alignment, dynamic_uniform_offset, dynamic_uniform_offsets);
+        dynamic_uniform_offset = UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
+            program_ptr->m_UniformData, &program_ptr->m_UniformOffsets[program_ptr->m_VertexModule->m_UniformCount],
+            alignment, dynamic_uniform_offset, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
+
+        vkUnmapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory);
+
+        vkCmdBindDescriptorSets(vk_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
+            0, 2, vk_descriptor_sets,
+            num_uniforms, dynamic_uniform_offsets);
+
+        delete[] dynamic_uniform_offsets;
+    }
+
     static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, GeometryBuffer* indexBuffer, Type indexBufferType)
     {
         assert(context);
@@ -1581,11 +1627,6 @@ bail:
 
         Program* program_ptr = context->m_CurrentProgram;
         VkDevice vk_device   = context->m_LogicalDevice.m_Device;
-
-        Pipeline* pipeline = GetPipeline(vk_device,
-            context->m_PipelineState, context->m_PipelineCache,
-            program_ptr, context->m_CurrentRenderTarget,
-            context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
 
         if (indexBuffer)
         {
@@ -1600,47 +1641,14 @@ bail:
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Buffer, 0, vk_index_type);
         }
 
-
-        const uint8_t set_count = 2;
-        VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
-        memset(&vk_descriptor_set_alloc, 0, sizeof(vk_descriptor_set_alloc));
-        vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorPool     = context->m_DescriptorPool;
-        vk_descriptor_set_alloc.descriptorSetCount = set_count;
-        vk_descriptor_set_alloc.pSetLayouts        = program_ptr->m_DescriptorSetLayout;
-
-        VkDescriptorSet* vk_descriptor_sets = &scratchBuffer->m_DescriptorSets[scratchBuffer->m_DescriptorIndex];
-        vkAllocateDescriptorSets(context->m_LogicalDevice.m_Device, &vk_descriptor_set_alloc, vk_descriptor_sets);
-        scratchBuffer->m_DescriptorIndex += set_count;
-
-        const uint32_t num_uniforms          = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
-        const uint32_t dynamic_uniform_align = context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        uint32_t dynamic_uniform_offset      = scratchBuffer->m_DataCursor;
-        uint32_t* dynamic_uniform_offsets    = new uint32_t[num_uniforms];
-
-        VkDescriptorSet vs_set = vk_descriptor_sets[0];
-        VkDescriptorSet fs_set = vk_descriptor_sets[1];
-
-        VkResult res = vkMapMemory(context->m_LogicalDevice.m_Device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory, 0,
-            scratchBuffer->m_Buffer.m_DeviceMemory.m_MemorySize, 0, &scratchBuffer->m_Data);
+        VkResult res = CommitUniforms(vk_command_buffer, vk_device, context->m_DescriptorPool,
+            program_ptr, scratchBuffer, context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         CHECK_VK_ERROR(res);
 
-        dynamic_uniform_offset = UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
-            program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
-            dynamic_uniform_align, dynamic_uniform_offset, dynamic_uniform_offsets);
-        dynamic_uniform_offset = UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
-            program_ptr->m_UniformData, &program_ptr->m_UniformOffsets[program_ptr->m_VertexModule->m_UniformCount],
-            dynamic_uniform_align, dynamic_uniform_offset, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
-
-        vkUnmapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory);
-
-        vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
-            0, 2, vk_descriptor_sets,
-            num_uniforms, dynamic_uniform_offsets);
-
-        delete[] dynamic_uniform_offsets;
-
+        Pipeline* pipeline = GetPipeline(vk_device,
+            context->m_PipelineState, context->m_PipelineCache,
+            program_ptr, context->m_CurrentRenderTarget,
+            context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
 
         VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_Buffer;
