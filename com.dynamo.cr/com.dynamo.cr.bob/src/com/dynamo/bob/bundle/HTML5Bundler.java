@@ -204,7 +204,7 @@ public class HTML5Bundler implements IBundler {
 
         // Same value as engine is compiled with; 268435456
         int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
-        
+
         {// Deprecated method of setting the heap sie. For backwards compatibility
             if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
                 Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
@@ -281,6 +281,18 @@ public class HTML5Bundler implements IBundler {
             } else {
                 throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
             }
+        }
+
+        // Copy debug symbols if they were generated
+        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
+        File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        if (!bundleSymbols.exists()) {
+            zipDir = FilenameUtils.concat(extenderExeDir, Platform.WasmWeb.getExtenderPair());
+            bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        }
+        if (bundleSymbols.exists()) {
+            File symbolsOut = new File(appDir, enginePrefix + ".symbols");
+            FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 
         for (File bin : binsWasm) {
