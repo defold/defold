@@ -195,7 +195,8 @@ class Configuration(object):
                  channel = None,
                  eclipse_version = None,
                  engine_artifacts = None,
-                 waf_options = []):
+                 waf_options = [],
+                 save_env_path = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -234,6 +235,7 @@ class Configuration(object):
         self.eclipse_version = eclipse_version
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
+        self.save_env_path = save_env_path
 
         self.thread_pool = None
         self.s3buckets = {}
@@ -1205,6 +1207,18 @@ instructions.configure=\
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
+    def save_env(self):
+        if not self.save_env_path:
+            self._log("No --save-env-path set when trying to save environment export")
+            return
+
+        env = self._form_env()
+        res = ""
+        for key in env:
+            res = res + ("export %s='%s'\n" % (key, env[key]))
+        with open(self.save_env_path, "w") as f:
+            f.write(res)
+
     def shell(self):
         print 'Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
         if "win32" in self.host:
@@ -2159,6 +2173,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = 'auto',
                       help = 'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)')
 
+    parser.add_option('--save-env-path', dest='save_env_path',
+                      default = None,
+                      help = 'Save environment variables to a file')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2191,7 +2209,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       channel = options.channel,
                       eclipse_version = options.eclipse_version,
                       engine_artifacts = options.engine_artifacts,
-                      waf_options = waf_options)
+                      waf_options = waf_options,
+                      save_env_path = options.save_env_path)
 
     for cmd in args:
         f = getattr(c, cmd, None)
