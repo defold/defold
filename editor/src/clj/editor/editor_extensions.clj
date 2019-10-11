@@ -18,6 +18,7 @@
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
            [clojure.lang MultiFn]
            [com.defold.editor Platform]
+           [com.defold.editor.luart SearchPath]
            [java.io File]
            [java.nio.file Path]))
 
@@ -621,6 +622,7 @@
                                     "rename" nil
                                     "setlocale" nil
                                     "tmpname" nil}})]
+          (-> env (.get "package") (.set "searchpath" (SearchPath. env)))
           (-> state
               (assoc :ui ui)
               (cond-> (#{:library :all} kind)
