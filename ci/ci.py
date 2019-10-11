@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 
 def call(args):
     args.replace("--release", "")
-    print(args)
+    print("Call: %s" % args)
     ret = os.system(args)
     if ret != 0:
         exit(1)
