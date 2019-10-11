@@ -121,7 +121,7 @@ public:
     }
 };
 
-#if !defined(GITHUB_CI)
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_F(dmSoundTest, MeasureStdb)
 {
     RunSuite("VorbisDecoderStb", false);
