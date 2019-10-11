@@ -135,38 +135,40 @@ def build(bld):
         dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
         dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
-    uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
+    desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
+    if desktop:
+        uselib = ['UUID', 'PLATFORM_SOCKET', 'CARES']
 
-    dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
-                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                            add_objects = local_objs,
-                            uselib_local = 'mbedtls_noasan',
-                            target = 'dlib_shared',
-                            defines= ['VALGRIND'] + extra_defines,
-                            uselib = uselib)
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
+                                includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                add_objects = local_objs,
+                                uselib_local = 'mbedtls_noasan',
+                                target = 'dlib_shared',
+                                defines= ['VALGRIND'] + extra_defines,
+                                uselib = uselib)
 
-    dlib.find_sources_in_dirs(source_dirs)
-    dlib.source.extend(webp_source_no_neon)
-    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
-        # NOTE: See comment above
-        dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
+        dlib.find_sources_in_dirs(source_dirs)
+        dlib.source.extend(webp_source_no_neon)
+        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
+            # NOTE: See comment above
+            dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
-    dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
+        dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
-    if 'web' in bld.env['PLATFORM']:
-        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
-    else:
-        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+        if 'web' in bld.env['PLATFORM']:
+            dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
+        else:
+            dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
 
-    if 'win32' not in bld.env['PLATFORM']:
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
-                                source='dlib/memprofile.cpp',
-                                includes = '.',
-                                target = 'dlib_memprofile',
-                                defines= 'DM_LIBMEMPROFILE')
+        if 'win32' not in bld.env['PLATFORM']:
+            dlib = bld.new_task_gen(features = 'cc cxx cshlib',
+                                    source='dlib/memprofile.cpp',
+                                    includes = '.',
+                                    target = 'dlib_memprofile',
+                                    defines= 'DM_LIBMEMPROFILE')
 
-        if 'linux' in bld.env['PLATFORM']:
-            dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
+            if 'linux' in bld.env['PLATFORM']:
+                dlib.env.append_value('LINKFLAGS', [ '-ldl' ])
 
     classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     classpath = os.pathsep.join(classpath)

@@ -33,11 +33,12 @@ Verify with:
 
 #### Python
 
-* macOS: On macOS you must run the python version shipped with macOS, eg no homebrew installed python versions)
+You need a 64 bit Python 2 to build the engine and tools.
+Latest tested on all platforms is Python 2.7.16.
 
-Make sure you have python2 installed by running `which python2`.
-If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
-`ln -s /usr/bin/python2.7 /usr/local/bin/python2`
+For macOS, you can install using:
+
+        $ brew install python2
 
 ### General Setup
 

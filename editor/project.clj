@@ -157,6 +157,7 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
+                      "-Dfile.encoding=UTF-8"
                       "--illegal-access=warn"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"

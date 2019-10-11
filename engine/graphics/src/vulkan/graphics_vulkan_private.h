@@ -5,6 +5,11 @@ namespace dmGraphics
 {
     struct DeviceMemory
     {
+        DeviceMemory()
+        : m_Memory(VK_NULL_HANDLE)
+        , m_MemorySize(0)
+        {}
+
         VkDeviceMemory m_Memory;
         size_t         m_MemorySize;
     };
@@ -22,9 +27,42 @@ namespace dmGraphics
         uint16_t     m_OriginalHeight;
     };
 
+    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
+    const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
+
     struct VertexDeclaration
     {
-        uint32_t dummy;
+        struct Stream
+        {
+            uint64_t m_NameHash;
+            uint16_t m_Location;
+            uint16_t m_Offset;
+            VkFormat m_Format;
+
+            // TODO: Not sure how to deal with normalizing
+            //       a vertex stream in VK.
+            // bool        m_Normalize;
+        };
+
+        uint64_t    m_Hash;
+        Stream      m_Streams[DM_MAX_VERTEX_STREAM_COUNT];
+        uint16_t    m_StreamCount;
+        uint16_t    m_Stride;
+    };
+
+    struct GeometryBuffer
+    {
+        GeometryBuffer(const VkBufferUsageFlags usage)
+        : m_Buffer(0)
+        , m_Usage(usage)
+        , m_Frame(0)
+        {}
+
+        DeviceMemory       m_DeviceMemory;
+        VkBuffer           m_Buffer;
+        VkBufferUsageFlags m_Usage;
+        uint8_t            m_Frame : 1;
+        uint8_t                    : 7; // unused
     };
 
     struct RenderTarget
@@ -41,7 +79,17 @@ namespace dmGraphics
         VkExtent2D     m_Extent;
         const uint32_t m_Id;
         uint8_t        m_IsBound : 1;
-        uint8_t        : 7;
+        uint8_t                  : 7; // unused
+    };
+
+    struct Viewport
+    {
+        uint16_t m_X;
+        uint16_t m_Y;
+        uint16_t m_W;
+        uint16_t m_H;
+        uint8_t  m_HasChanged : 1;
+        uint8_t               : 7; // unused
     };
 
     struct FrameResource
@@ -88,6 +136,70 @@ namespace dmGraphics
         VkQueue       m_GraphicsQueue;
         VkQueue       m_PresentQueue;
         VkCommandPool m_CommandPool;
+    };
+
+    union PipelineState
+    {
+        struct
+        {
+            uint64_t m_WriteColorMask     : 4;
+            uint64_t m_WriteDepth         : 1;
+            uint64_t m_PrimtiveType       : 3;
+            // Depth Test
+            uint64_t m_DepthTestEnabled   : 1;
+            uint64_t m_DepthTestFunc      : 3;
+            // Stencil Test
+            uint64_t m_StencilEnabled     : 1;
+            uint64_t m_StencilOpFail      : 3;
+            uint64_t m_StencilOpPass      : 3;
+            uint64_t m_StencilOpDepthFail : 3;
+            uint64_t m_StencilTestFunc    : 3;
+            uint64_t m_StencilWriteMask   : 8;
+            uint64_t m_StencilCompareMask : 8;
+            uint64_t m_StencilReference   : 8;
+            // Blending
+            uint64_t m_BlendEnabled       : 1;
+            uint64_t m_BlendSrcFactor     : 4;
+            uint64_t m_BlendDstFactor     : 4;
+            // Culling
+            uint64_t m_CullFaceEnabled    : 1;
+            uint64_t m_CullFaceType       : 2;
+            uint64_t                      : 3; // Unused
+        };
+
+        uint64_t m_State;
+    };
+
+    struct Pipeline
+    {
+        VkPipeline       m_Pipeline;
+        VkPipelineLayout m_Layout;
+    };
+
+    struct ShaderResourceBinding
+    {
+        uint64_t m_NameHash;
+        Type     m_Type;
+        uint16_t m_Set;
+        uint16_t m_Binding;
+    };
+
+    struct ShaderModule
+    {
+        uint64_t               m_Hash;
+        VkShaderModule         m_Module;
+        ShaderResourceBinding* m_Uniforms;
+        ShaderResourceBinding* m_Attributes;
+        uint16_t               m_UniformCount;
+        uint16_t               m_AttributeCount;
+    };
+
+    struct Program
+    {
+        uint64_t                        m_Hash;
+        ShaderModule*                   m_VertexModule;
+        ShaderModule*                   m_FragmentModule;
+        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[2];
     };
 
     struct SwapChainCapabilities
@@ -150,10 +262,20 @@ namespace dmGraphics
     VkResult CreateRenderPass(VkDevice vk_device,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
+    VkResult CreateGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, GeometryBuffer* bufferOut);
+    VkResult CreateShaderModule(VkDevice vk_device,
+        const void* source, size_t sourceSize, ShaderModule* shaderModuleOut);
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor,
+        const PipelineState pipelineState, Program* program, GeometryBuffer* vertexBuffer,
+        HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
     void           ResetPhysicalDevice(PhysicalDevice* device);
     void           ResetLogicalDevice(LogicalDevice* device);
     void           ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
     void           ResetTexture(VkDevice vk_device, Texture* texture);
+    void           ResetGeometryBuffer(VkDevice vk_device, GeometryBuffer* buffer);
+    void           ResetShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
+    void           ResetPipeline(VkDevice vk_device, Pipeline* pipeline);
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
@@ -162,6 +284,8 @@ namespace dmGraphics
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout);
+    VkResult UploadToGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
+        VkDeviceSize size, VkDeviceSize offset, const void* data, GeometryBuffer* buffer);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
