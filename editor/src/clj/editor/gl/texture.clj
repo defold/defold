@@ -39,13 +39,21 @@
    :wrap-r       GL2/GL_TEXTURE_WRAP_R})
 
 (defn- apply-params!
-  [^GL gl ^long texture-target params]
-  (doseq [[p v] params]
-    (if-let [pname (texture-params p)]
-      (.glTexParameteri gl texture-target pname v)
-      (if (integer? p)
-        (.glTexParameteri gl texture-target p v)
-        (println "WARNING: ignoring unknown texture parameter " p)))))
+  [^GL2 gl ^long texture-target params]
+  (let [apply? (if-let [sampler-name (:name params)]
+                 (when-let [program (gl/gl-current-program gl)]
+                   (not= -1 (.glGetUniformLocation gl program sampler-name)))
+                 true)
+        params (if (= :sampler (:type params))
+                 (:params params)
+                 params)]
+    (when apply?
+      (doseq [[p v] params]
+        (if-let [pname (texture-params p)]
+          (.glTexParameteri gl texture-target pname v)
+          (cond
+            (integer? p) (.glTexParameteri gl texture-target p v)
+            :else (println "WARNING: ignoring unknown texture parameter " p)))))))
 
 (defprotocol TextureProxy
   (->texture ^Texture [this ^GL2 gl]))

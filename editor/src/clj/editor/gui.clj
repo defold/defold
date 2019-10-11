@@ -2474,12 +2474,6 @@
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
 
-(defn make-texture-node [self parent name resource]
-  (g/make-nodes (g/node-id->graph-id self) [texture [TextureNode
-                                                     :name name
-                                                     :texture resource]]
-    (attach-texture self parent texture)))
-
 (defn- browse [title project exts]
   (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
