@@ -188,6 +188,7 @@
             distinct? "should not have repeated elements"
             node-id? "is not a node id"
             resource-path? "is not a resource path"
+            map? "is not a table"
             nil))
 
         (set? pred)
