@@ -724,11 +724,9 @@ TEST_P(dmSoundTestSpeedTest, Speed)
 
     uint64_t ts = dmTime::GetTime();
     do {
-        dmLogError("dmSoundTestSpeedTest while playing");
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
         uint64_t delta = (dmTime::GetTime() - ts);
-        dmLogError("dmSoundTestSpeedTest delta %ld", (long)delta);
         if (delta > 5000*1000) {
             dmLogError("dmSoundTestSpeedTest while playing infinite loop");
             break;
@@ -940,7 +938,6 @@ TEST_P(dmSoundTestPlayTest, Play)
         r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
         uint64_t delta = (dmTime::GetTime() - ts);
-        dmLogError("dmSoundTestPlayTest Play delta %ld", (long)delta);
         if (delta > 5000*1000) {
             dmLogError("dmSoundTestPlayTest Play infinite loop");
             break;
