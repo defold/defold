@@ -386,9 +386,9 @@ void DeviceLoopbackStop(dmSound::HDevice device)
 
 }
 
+#if !defined(GITHUB_CI)
 TEST_P(dmSoundVerifyTest, Mix)
 {
-    dmLogError("dmSoundVerifyTest");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -401,16 +401,11 @@ TEST_P(dmSoundVerifyTest, Mix)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
-    uint64_t ts = dmTime::GetTime();
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
-        if ((dmTime::GetTime() - ts) > 5000*1000) {
-            dmLogError("dmSoundVerifyTest infinite loop");
-            break;
-        }
     } while (dmSound::IsPlaying(instance));
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -456,8 +451,8 @@ TEST_P(dmSoundVerifyTest, Mix)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundVerifyTest done");
 }
+#endif
 
 TEST_P(dmSoundVerifyTest, EarlyBailOnNoSoundInstances)
 {
@@ -617,9 +612,9 @@ TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
 
+#if !defined(GITHUB_CI)
 TEST_P(dmSoundTestGroupRampTest, GroupRamp)
 {
-    dmLogError("dmSoundTestGroupRampTest");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -639,7 +634,6 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
     const float mix_rate = params.m_MixRate;
     const int expected_frames = (frame_count * 44100) / (int) mix_rate;
 
-    uint64_t ts = dmTime::GetTime();
     int prev_frames = g_LoopbackDevice->m_AllOutput.Size() / 2;
     float prev_g = 1.0f;
     do {
@@ -664,10 +658,6 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
         }
 
         prev_frames = frames;
-        if ((dmTime::GetTime() - ts) > 5000*1000) {
-            dmLogError("dmSoundTestGroupRampTest while playing infinite loop");
-            break;
-        }
     } while (dmSound::IsPlaying(instance));
 
     r = dmSound::DeleteSoundInstance(instance);
@@ -675,7 +665,6 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundTestGroupRampTest done");
 }
 
 const TestParams params_group_ramp_test[] = {
@@ -689,11 +678,11 @@ const TestParams params_group_ramp_test[] = {
         2048)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest, dmSoundTestGroupRampTest, jc_test_values_in(params_group_ramp_test));
+#endif
 
-
+#if !defined(GITHUB_CI)
 TEST_P(dmSoundTestSpeedTest, Speed)
 {
-    dmLogError("dmSoundTestSpeedTest");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -722,15 +711,9 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     if ((expected_count * buffer_count) < params.m_FrameCount)
         expected_count++;
 
-    uint64_t ts = dmTime::GetTime();
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
-        uint64_t delta = (dmTime::GetTime() - ts);
-        if (delta > 5000*1000) {
-            dmLogError("dmSoundTestSpeedTest while playing infinite loop");
-            break;
-        }
     } while (dmSound::IsPlaying(instance));
 
     // The loop back device will have time to write out another output buffer while the
@@ -799,12 +782,11 @@ const TestParams params_speed_test[] = {
             0.5f),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
-
+#endif
 
 #if !defined(GITHUB_CI)
 TEST_P(dmSoundVerifyOggTest, Mix)
 {
-    dmLogError("dmSoundVerifyOggTest Mix");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -829,12 +811,10 @@ TEST_P(dmSoundVerifyOggTest, Mix)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundVerifyOggTest Mix done");
 }
 
 TEST_P(dmSoundVerifyOggTest, Kill)
 {
-    dmLogError("dmSoundVerifyOggTest Kill");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -887,7 +867,6 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundVerifyOggTest Kill done");
 }
 
 const TestParams params_verify_ogg_test[] = {TestParams("loopback",
@@ -901,9 +880,9 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
 
+#if !defined(GITHUB_CI)
 TEST_P(dmSoundTestPlayTest, Play)
 {
-    dmLogError("dmSoundTestPlayTest Play");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -927,7 +906,6 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    uint64_t ts = dmTime::GetTime();
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -937,11 +915,6 @@ TEST_P(dmSoundTestPlayTest, Play)
         }
         r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
-        uint64_t delta = (dmTime::GetTime() - ts);
-        if (delta > 5000*1000) {
-            dmLogError("dmSoundTestPlayTest Play infinite loop");
-            break;
-        }
 
     } while (dmSound::IsPlaying(instance));
 
@@ -950,12 +923,10 @@ TEST_P(dmSoundTestPlayTest, Play)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundTestPlayTest Play don");
 }
 
 TEST_P(dmSoundTestPlaySpeedTest, Play)
 {
-    dmLogError("dmSoundTestPlaySpeedTest Play");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -995,7 +966,6 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundTestPlaySpeedTest Play done");
 }
 
 const TestParams params_test_play_test[] = {
@@ -1041,7 +1011,6 @@ const TestParams params_test_play_test[] = {
                 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
-
 
 const TestParams params_test_play_speed_test[] = {
     TestParams("default",
@@ -1096,10 +1065,11 @@ const TestParams params_test_play_speed_test[] = {
             0.5f),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
+#endif
 
+#if !defined(GITHUB_CI)
 TEST_P(dmSoundVerifyWavTest, Mix)
 {
-    dmLogError("dmSoundVerifyWavTest Mix");
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
@@ -1128,7 +1098,6 @@ TEST_P(dmSoundVerifyWavTest, Mix)
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundVerifyWavTest Mix done");
 }
 
 const TestParams params_verify_wav_test[] = {TestParams("loopback",
@@ -1140,11 +1109,11 @@ const TestParams params_verify_wav_test[] = {TestParams("loopback",
                                             35200,
                                             2048)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
+#endif
 
-
+#if !defined(GITHUB_CI)
 TEST_P(dmSoundMixerTest, Mixer)
 {
-    dmLogError("dmSoundMixerTest Mixer");
     TestParams2 params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd1 = 0;
@@ -1281,7 +1250,6 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     r = dmSound::DeleteSoundData(sd2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    dmLogError("dmSoundMixerTest Mixer done");
 }
 
 const TestParams2 params_mixer_test[] = {
@@ -1349,14 +1317,12 @@ const TestParams2 params_mixer_test[] = {
                 2048)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
-
+#endif
 
 DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
 
 int main(int argc, char **argv)
 {
-    dmLogError("test_sound main");
-
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
