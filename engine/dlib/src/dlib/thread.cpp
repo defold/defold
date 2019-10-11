@@ -109,6 +109,7 @@ namespace dmThread
 #if defined(__MACH__)
         (void)thread;
         pthread_setname_np(name);
+#elif defined(__EMSCRIPTEN__)
 #else
         pthread_setname_np(thread, name);
 #endif
