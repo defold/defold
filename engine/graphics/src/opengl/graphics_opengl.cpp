@@ -1121,7 +1121,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
-        assert(count < (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
+        assert(count <= (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
 
         for (uint32_t i=0; i<count; i++)
         {
