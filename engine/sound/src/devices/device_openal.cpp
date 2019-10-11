@@ -124,6 +124,7 @@ namespace dmDeviceOpenAL
 
             if (iter > 1000) {
                 dmLogError("Still buffers in OpenAL. Bailing.");
+                break;
             }
         }
 
