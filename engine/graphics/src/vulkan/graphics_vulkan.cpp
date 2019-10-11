@@ -68,7 +68,7 @@ namespace dmGraphics
         VkInstance               m_Instance;
         VkSurfaceKHR             m_WindowSurface;
         VkDescriptorPool         m_DescriptorPool;
-        dmArray<GeometryBuffer>  m_BuffersToDelete;
+        dmArray<DeviceBuffer>    m_DeviceBuffersToDelete;
 
         // Window callbacks
         WindowResizeCallback     m_WindowResizeCallback;
@@ -89,7 +89,7 @@ namespace dmGraphics
 
         // Rendering state
         RenderTarget*            m_CurrentRenderTarget;
-        GeometryBuffer*          m_CurrentVertexBuffer;
+        DeviceBuffer*            m_CurrentVertexBuffer;
         VertexDeclaration*       m_CurrentVertexDeclaration;
         Program*                 m_CurrentProgram;
 
@@ -198,30 +198,31 @@ namespace dmGraphics
     {
         for(uint8_t i=0; i < numBuffers; i++)
         {
-            ScratchBuffer& buffer = scratchBuffersOut[i];
-            memset(&buffer, 0, sizeof(buffer));
-            buffer.m_Buffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; // TODO: Naming, buffer buffer
+            ScratchBuffer& scratchBuffer = scratchBuffersOut[i];
+            memset(&scratchBuffer, 0, sizeof(scratchBuffer));
+            scratchBuffer.m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
-            VkResult res = CreateGeometryBuffer(vk_physical_device, vk_device, bufferSize,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer.m_Buffer);
+            VkResult res = CreateDeviceBuffer(vk_physical_device, vk_device, bufferSize,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &scratchBuffer.m_DeviceBuffer);
             if (res != VK_SUCCESS)
             {
                 return res;
             }
 
-            res = vkMapMemory(vk_device, buffer.m_Buffer.m_DeviceMemory.m_Memory, 0, bufferSize, 0, &buffer.m_Data);
+            res = scratchBuffer.MapMemory(vk_device);
+
             if (res != VK_SUCCESS)
             {
-                ResetGeometryBuffer(vk_device, &buffer.m_Buffer);
+                ResetDeviceBuffer(vk_device, &scratchBuffer.m_DeviceBuffer);
                 return res;
             }
 
             // Clear buffer data
-            memset(buffer.m_Data, 0, bufferSize);
-            vkUnmapMemory(vk_device, buffer.m_Buffer.m_DeviceMemory.m_Memory);
+            memset(scratchBuffer.m_MappedDataPtr, 0, bufferSize);
+            scratchBuffer.UnmapMemory(vk_device);
 
-            buffer.m_DescriptorSets  = new VkDescriptorSet[numDescriptors];
-            buffer.m_DescriptorIndex = 0;
+            scratchBuffer.m_DescriptorSets  = new VkDescriptorSet[numDescriptors];
+            scratchBuffer.m_DescriptorIndex = 0;
         }
 
         return VK_SUCCESS;
@@ -234,8 +235,8 @@ namespace dmGraphics
         {
             vkFreeDescriptorSets(vk_device, vk_descriptor_pool, scratchBuffer->m_DescriptorIndex, scratchBuffer->m_DescriptorSets);
         }
-        scratchBuffer->m_DescriptorIndex = 0;
-        scratchBuffer->m_DataCursor      = 0;
+        scratchBuffer->m_DescriptorIndex  = 0;
+        scratchBuffer->m_MappedDataCursor = 0;
     }
 
     static void ResetPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
@@ -518,16 +519,16 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    static void FlushBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
+    static void FlushDeviceBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
     {
-        for (uint32_t i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_DeviceBuffersToDelete.Size(); ++i)
         {
-            GeometryBuffer& buffer = context->m_BuffersToDelete[i];
+            DeviceBuffer& buffer = context->m_DeviceBuffersToDelete[i];
 
             if (flushAll || buffer.m_Frame == frame)
             {
-                ResetGeometryBuffer(context->m_LogicalDevice.m_Device, &buffer);
-                context->m_BuffersToDelete.EraseSwap(i);
+                ResetDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer);
+                context->m_DeviceBuffersToDelete.EraseSwap(i);
                 --i;
             }
         }
@@ -655,7 +656,7 @@ namespace dmGraphics
         context->m_PhysicalDevice = *selected_device;
         context->m_LogicalDevice  = logical_device;
         context->m_PipelineCache.SetCapacity(32,64);
-        context->m_BuffersToDelete.SetCapacity(8);
+        context->m_DeviceBuffersToDelete.SetCapacity(8);
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
@@ -730,7 +731,7 @@ bail:
 
     bool Initialize()
     {
-        return (bool) glfwInit();
+        return glfwInit() ? true : false;
     }
 
     void Finalize()
@@ -828,7 +829,7 @@ bail:
 
             SynchronizeDevice(vk_device);
 
-            FlushBuffersToDelete(context, 0, true);
+            FlushDeviceBuffersToDelete(context, 0, true);
 
             glfwCloseWindow();
 
@@ -848,7 +849,7 @@ bail:
             for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
             {
                 ResetScratchBuffer(vk_device, context->m_DescriptorPool, &context->m_MainScratchBuffers[i]);
-                ResetGeometryBuffer(vk_device, &context->m_MainScratchBuffers[i].m_Buffer);
+                ResetDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer);
                 delete context->m_MainScratchBuffers[i].m_DescriptorSets;
             }
 
@@ -967,7 +968,7 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
-        FlushBuffersToDelete(context, context->m_CurrentFrameInFlight);
+        FlushDeviceBuffersToDelete(context, context->m_CurrentFrameInFlight);
 
         VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
@@ -1001,8 +1002,7 @@ bail:
         ScratchBuffer* scratchBuffer = &context->m_MainScratchBuffers[frame_ix];
         ResetScratchBuffer(context->m_LogicalDevice.m_Device, context->m_DescriptorPool, scratchBuffer);
 
-        res = vkMapMemory(vk_device, scratchBuffer->m_Buffer.m_DeviceMemory.m_Memory, 0,
-            scratchBuffer->m_Buffer.m_DeviceMemory.m_MemorySize, 0, &scratchBuffer->m_Data);
+        res = scratchBuffer->MapMemory(vk_device);
         CHECK_VK_ERROR(res);
 
         VkCommandBufferBeginInfo vk_command_buffer_begin_info;
@@ -1030,7 +1030,7 @@ bail:
             return;
         }
 
-        vkUnmapMemory(context->m_LogicalDevice.m_Device, context->m_MainScratchBuffers[frame_ix].m_Buffer.m_DeviceMemory.m_Memory);
+        context->m_MainScratchBuffers[frame_ix].UnmapMemory(context->m_LogicalDevice.m_Device);
 
         VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
         CHECK_VK_ERROR(res);
@@ -1114,13 +1114,13 @@ bail:
             2, vk_clear_attachments, 1, &vk_clear_rect);
     }
 
-    static void GeometryBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, GeometryBuffer* bufferOut)
+    static void DeviceBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut)
     {
         VkResult res;
 
-        if (bufferOut->m_Buffer == VK_NULL_HANDLE)
+        if (bufferOut->m_BufferHandle == VK_NULL_HANDLE)
         {
-            res = CreateGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
             CHECK_VK_ERROR(res);
         }
@@ -1144,7 +1144,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        res = UploadToGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+        res = UploadToDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             vk_command_buffer, size, offset, data, bufferOut);
         CHECK_VK_ERROR(res);
 
@@ -1154,39 +1154,39 @@ bail:
         }
     }
 
-    static void ResetGeometryBufferHelper(HContext context, GeometryBuffer* buffer)
+    static void ResetDeviceBufferHelper(HContext context, DeviceBuffer* buffer)
     {
-        assert(buffer->m_Buffer != VK_NULL_HANDLE);
+        assert(buffer->m_BufferHandle != VK_NULL_HANDLE);
 
-        for (uint32_t i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_DeviceBuffersToDelete.Size(); ++i)
         {
-            const GeometryBuffer buffer_to_delete = context->m_BuffersToDelete[i];
-            if (buffer_to_delete.m_Buffer == buffer->m_Buffer)
+            const DeviceBuffer buffer_to_delete = context->m_DeviceBuffersToDelete[i];
+            if (buffer_to_delete.m_BufferHandle == buffer->m_BufferHandle)
             {
-                assert(buffer_to_delete.m_DeviceMemory.m_Memory == buffer->m_DeviceMemory.m_Memory);
+                assert(buffer_to_delete.m_MemoryHandle == buffer->m_MemoryHandle);
                 return;
             }
         }
 
-        if (context->m_BuffersToDelete.Size() == context->m_BuffersToDelete.Capacity())
+        if (context->m_DeviceBuffersToDelete.Size() == context->m_DeviceBuffersToDelete.Capacity())
         {
-            context->m_BuffersToDelete.OffsetCapacity(4);
+            context->m_DeviceBuffersToDelete.OffsetCapacity(4);
         }
 
-        GeometryBuffer buffer_copy = *buffer;
+        DeviceBuffer buffer_copy = *buffer;
         buffer_copy.m_Frame = context->m_CurrentFrameInFlight;
-        context->m_BuffersToDelete.Push(buffer_copy);
+        context->m_DeviceBuffersToDelete.Push(buffer_copy);
 
         // Since the buffer will be deleted later, we just clear the
         // buffer and memory handles here so they won't be used
         // when rendering.
-        buffer->m_Buffer                    = VK_NULL_HANDLE;
-        buffer->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-        buffer->m_DeviceMemory.m_MemorySize = 0;
+        buffer->m_BufferHandle = VK_NULL_HANDLE;
+        buffer->m_MemoryHandle = VK_NULL_HANDLE;
+        buffer->m_MemorySize   = 0;
     }
 
     static Pipeline* GetPipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
-        Program* program, RenderTarget* rt, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+        Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
@@ -1228,11 +1228,11 @@ bail:
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(context);
-        GeometryBuffer* buffer = new GeometryBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
         if (size > 0)
         {
-            GeometryBufferUploadHelper(context, data, size, 0, buffer);
+            DeviceBufferUploadHelper(context, data, size, 0, buffer);
         }
 
         return (HVertexBuffer) buffer;
@@ -1241,11 +1241,11 @@ bail:
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
         assert(buffer);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE)
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            ResetDeviceBufferHelper(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1258,23 +1258,23 @@ bail:
             return;
         }
 
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            ResetDeviceBufferHelper(g_Context, buffer_ptr);
         }
 
-        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(buffer);
         assert(size > 0);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        assert(offset + size <= buffer_ptr->m_DeviceMemory.m_MemorySize);
-        GeometryBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        assert(offset + size <= buffer_ptr->m_MemorySize);
+        DeviceBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
     }
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
@@ -1297,18 +1297,18 @@ bail:
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(size > 0);
-        GeometryBuffer* buffer = new GeometryBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-        GeometryBufferUploadHelper(g_Context, data, size, 0, (GeometryBuffer*) buffer);
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, (DeviceBuffer*) buffer);
         return (HIndexBuffer) buffer;
     }
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
         assert(buffer);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE)
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            ResetDeviceBufferHelper(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1318,22 +1318,22 @@ bail:
         assert(size > 0);
         assert(buffer);
 
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            ResetDeviceBufferHelper(g_Context, buffer_ptr);
         }
 
-        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(buffer);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        assert(offset + size < buffer_ptr->m_DeviceMemory.m_MemorySize);
-        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        assert(offset + size < buffer_ptr->m_MemorySize);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
@@ -1494,7 +1494,7 @@ bail:
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        context->m_CurrentVertexBuffer      = (GeometryBuffer*) vertex_buffer;
+        context->m_CurrentVertexBuffer      = (DeviceBuffer*) vertex_buffer;
         context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
     }
 
@@ -1539,7 +1539,7 @@ bail:
     {
         for (int i = 0; i < shaderModule->m_UniformCount; ++i)
         {
-            dynamicOffsets[i]                    = scratchBuffer->m_DataCursor;
+            dynamicOffsets[i]                    = scratchBuffer->m_MappedDataCursor;
             const uint32_t uniform_size_nonalign = GetShaderTypeSize(shaderModule->m_Uniforms[i].m_Type);
             const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
 
@@ -1547,14 +1547,14 @@ bail:
             // The data_offset here is the offset into the programs uniform data,
             // i.e the source buffer.
             const uint32_t data_offset = uniform_offsets[i];
-            memcpy(&((uint8_t*)scratchBuffer->m_Data)[scratchBuffer->m_DataCursor], &uniform_data[data_offset], uniform_size_nonalign);
+            memcpy(&((uint8_t*)scratchBuffer->m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor], &uniform_data[data_offset], uniform_size_nonalign);
 
             // Note in the spec about the offset being zero:
             //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
             //    offset is the base offset from which the dynamic offset is applied and range is the static size
             //    used for all dynamic offsets."
             VkDescriptorBufferInfo vk_buffer_info;
-            vk_buffer_info.buffer = scratchBuffer->m_Buffer.m_Buffer; // buffer buffer buffer :(
+            vk_buffer_info.buffer = scratchBuffer->m_DeviceBuffer.m_BufferHandle;
             vk_buffer_info.offset = 0;
             vk_buffer_info.range  = uniform_size;
 
@@ -1570,7 +1570,7 @@ bail:
             vk_write_desc_info.pBufferInfo     = &vk_buffer_info;
 
             vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
-            scratchBuffer->m_DataCursor += uniform_size;
+            scratchBuffer->m_MappedDataCursor += uniform_size;
         }
     }
 
@@ -1611,7 +1611,7 @@ bail:
         return VK_SUCCESS;
     }
 
-    static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, GeometryBuffer* indexBuffer, Type indexBufferType)
+    static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         assert(context);
         assert(context->m_CurrentVertexBuffer);
@@ -1629,7 +1629,7 @@ bail:
                 vk_index_type = VK_INDEX_TYPE_UINT32;
             }
 
-            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Buffer, 0, vk_index_type);
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
         }
 
         VkResult res = CommitUniforms(vk_command_buffer, vk_device, context->m_DescriptorPool,
@@ -1642,7 +1642,7 @@ bail:
             context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
 
-        VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_Buffer;
+        VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_BufferHandle;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
@@ -1680,7 +1680,7 @@ bail:
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
-        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (GeometryBuffer*) index_buffer, type);
+        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
 
         // The 'first' value that comes in is intended to be a byte offset, but
         // vkCmdDrawIndexed is intended to use real offset values into the index buffer..

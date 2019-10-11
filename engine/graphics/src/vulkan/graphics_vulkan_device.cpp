@@ -213,14 +213,14 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    VkResult UploadToGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-        VkDeviceSize size, VkDeviceSize offset, const void* data, GeometryBuffer* buffer)
+    VkResult UploadToDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
+        VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
     {
         assert(vk_command_buffer != VK_NULL_HANDLE);
         assert(buffer);
 
         void* mapped_data_ptr;
-        VkResult res = vkMapMemory(vk_device, buffer->m_DeviceMemory.m_Memory, offset, size, 0, &mapped_data_ptr);
+        VkResult res = vkMapMemory(vk_device, buffer->m_MemoryHandle, offset, size, 0, &mapped_data_ptr);
 
         if (res != VK_SUCCESS)
         {
@@ -229,14 +229,14 @@ namespace dmGraphics
 
         if (data == 0)
         {
-            memset(mapped_data_ptr, 0, size);
+            memset(mapped_data_ptr, 0, (size_t) size);
         }
         else
         {
-            memcpy(mapped_data_ptr, data, size);
+            memcpy(mapped_data_ptr, data, (size_t) size);
         }
 
-        vkUnmapMemory(vk_device, buffer->m_DeviceMemory.m_Memory);
+        vkUnmapMemory(vk_device, buffer->m_MemoryHandle);
 
         return res;
     }
@@ -303,11 +303,11 @@ namespace dmGraphics
         return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);;
     }
 
-    VkResult CreateGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, GeometryBuffer* bufferOut)
+    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
         assert(bufferOut);
-        assert(bufferOut->m_Buffer == VK_NULL_HANDLE);
+        assert(bufferOut->m_BufferHandle == VK_NULL_HANDLE);
 
         VkBufferCreateInfo vk_buffer_create_info;
         memset(&vk_buffer_create_info, 0, sizeof(vk_buffer_create_info));
@@ -317,7 +317,7 @@ namespace dmGraphics
         vk_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         vk_buffer_create_info.usage       = bufferOut->m_Usage;
 
-        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_Buffer);
+        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_BufferHandle);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -325,7 +325,7 @@ namespace dmGraphics
 
         // Allocate GPU memory to hold buffer
         VkMemoryRequirements vk_buffer_memory_req;
-        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_Buffer, &vk_buffer_memory_req);
+        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_BufferHandle, &vk_buffer_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -343,23 +343,23 @@ namespace dmGraphics
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_DeviceMemory.m_Memory);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_MemoryHandle);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindBufferMemory(vk_device, bufferOut->m_Buffer, bufferOut->m_DeviceMemory.m_Memory, 0);
+        res = vkBindBufferMemory(vk_device, bufferOut->m_BufferHandle, bufferOut->m_MemoryHandle, 0);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
-        bufferOut->m_DeviceMemory.m_MemorySize = vk_buffer_memory_req.size;
+        bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
 
         return VK_SUCCESS;
 bail:
-        ResetGeometryBuffer(vk_device, bufferOut);
+        ResetDeviceBuffer(vk_device, bufferOut);
         return res;
     }
 
@@ -370,7 +370,7 @@ bail:
     {
         assert(textureOut);
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
-        assert(textureOut->m_DeviceMemory.m_Memory == VK_NULL_HANDLE && textureOut->m_DeviceMemory.m_MemorySize == 0);
+        assert(textureOut->m_MemoryHandle == VK_NULL_HANDLE && textureOut->m_MemorySize == 0);
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -416,19 +416,19 @@ bail:
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_DeviceMemory.m_Memory);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_MemoryHandle);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_DeviceMemory.m_Memory, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_MemoryHandle, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        textureOut->m_DeviceMemory.m_MemorySize = vk_memory_req.size;
+        textureOut->m_MemorySize = vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -592,7 +592,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -813,29 +813,29 @@ bail:
             texture->m_Image = VK_NULL_HANDLE;
         }
 
-        if (texture->m_DeviceMemory.m_Memory != VK_NULL_HANDLE)
+        if (texture->m_MemoryHandle != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, texture->m_DeviceMemory.m_Memory, 0);
-            texture->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-            texture->m_DeviceMemory.m_MemorySize = 0;
+            vkFreeMemory(vk_device, texture->m_MemoryHandle, 0);
+            texture->m_MemoryHandle = VK_NULL_HANDLE;
+            texture->m_MemorySize   = 0;
         }
     }
 
-    void ResetGeometryBuffer(VkDevice vk_device, GeometryBuffer* buffer)
+    void ResetDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer)
     {
         assert(buffer);
 
-        if (buffer->m_Buffer != VK_NULL_HANDLE)
+        if (buffer->m_BufferHandle != VK_NULL_HANDLE)
         {
-            vkDestroyBuffer(vk_device, buffer->m_Buffer, 0);
-            buffer->m_Buffer = VK_NULL_HANDLE;
+            vkDestroyBuffer(vk_device, buffer->m_BufferHandle, 0);
+            buffer->m_BufferHandle = VK_NULL_HANDLE;
         }
 
-        if (buffer->m_DeviceMemory.m_Memory != VK_NULL_HANDLE)
+        if (buffer->m_MemoryHandle != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, buffer->m_DeviceMemory.m_Memory, 0);
-            buffer->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-            buffer->m_DeviceMemory.m_MemorySize = 0;
+            vkFreeMemory(vk_device, buffer->m_MemoryHandle, 0);
+            buffer->m_MemoryHandle = VK_NULL_HANDLE;
+            buffer->m_MemorySize   = 0;
         }
     }
 

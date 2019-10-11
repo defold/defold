@@ -6,28 +6,18 @@ namespace dmGraphics
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
 
-    struct DeviceMemory
-    {
-        DeviceMemory()
-        : m_Memory(VK_NULL_HANDLE)
-        , m_MemorySize(0)
-        {}
-
-        VkDeviceMemory m_Memory;
-        size_t         m_MemorySize;
-    };
-
     struct Texture
     {
-        VkImage      m_Image;
-        VkImageView  m_ImageView;
-        VkFormat     m_Format;
-        DeviceMemory m_DeviceMemory;
-        TextureType  m_Type;
-        uint16_t     m_Width;
-        uint16_t     m_Height;
-        uint16_t     m_OriginalWidth;
-        uint16_t     m_OriginalHeight;
+        TextureType    m_Type;
+        VkImage        m_Image;
+        VkImageView    m_ImageView;
+        VkFormat       m_Format;
+        VkDeviceMemory m_MemoryHandle;
+        size_t         m_MemorySize;
+        uint16_t       m_Width;
+        uint16_t       m_Height;
+        uint16_t       m_OriginalWidth;
+        uint16_t       m_OriginalHeight;
     };
 
     struct VertexDeclaration
@@ -50,17 +40,20 @@ namespace dmGraphics
         uint16_t    m_Stride;
     };
 
-    struct GeometryBuffer
+    struct DeviceBuffer
     {
-        GeometryBuffer(const VkBufferUsageFlags usage)
-        : m_Buffer(VK_NULL_HANDLE)
-        , m_Usage(usage)
+        DeviceBuffer(const VkBufferUsageFlags usage)
+        : m_Usage(usage)
+        , m_BufferHandle(VK_NULL_HANDLE)
+        , m_MemoryHandle(VK_NULL_HANDLE)
+        , m_MemorySize(0)
         , m_Frame(0)
         {}
 
-        DeviceMemory       m_DeviceMemory;
-        VkBuffer           m_Buffer;
         VkBufferUsageFlags m_Usage;
+        VkBuffer           m_BufferHandle;
+        VkDeviceMemory     m_MemoryHandle;
+        size_t             m_MemorySize;
         uint8_t            m_Frame : 1;
         uint8_t                    : 7; // unused
     };
@@ -68,15 +61,33 @@ namespace dmGraphics
     struct ScratchBuffer
     {
         ScratchBuffer()
-        : m_Buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+        : m_DeviceBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+        , m_MemoryMapped(0)
+        , m_MappedDataPtr(0)
         {}
 
-        GeometryBuffer   m_Buffer;
+        inline VkResult MapMemory(VkDevice vk_device)
+        {
+            assert(m_MemoryMapped == 0);
+            m_MemoryMapped = 1;
+            return vkMapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle, 0, m_DeviceBuffer.m_MemorySize, 0, &m_MappedDataPtr);
+        }
+
+        inline void UnmapMemory(VkDevice vk_device)
+        {
+            assert(m_MemoryMapped == 1);
+            m_MemoryMapped = 0;
+            vkUnmapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle);
+        }
+
+        DeviceBuffer     m_DeviceBuffer;
         VkDescriptorSet* m_DescriptorSets;
-        void*            m_Data;
-        uint32_t         m_DataCursor;
+        void*            m_MappedDataPtr;
+        size_t           m_MappedDataCursor;
         uint16_t         m_DescriptorSetsCount;
         uint16_t         m_DescriptorIndex;
+        uint8_t          m_MemoryMapped : 1;
+        uint8_t                         : 7; // unused
     };
 
     struct RenderTarget
@@ -279,18 +290,18 @@ namespace dmGraphics
     VkResult CreateRenderPass(VkDevice vk_device,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
-    VkResult CreateGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, GeometryBuffer* bufferOut);
+    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,
         const void* source, size_t sourceSize, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor,
-        const PipelineState pipelineState, Program* program, GeometryBuffer* vertexBuffer,
+        const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
         HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
     void           ResetPhysicalDevice(PhysicalDevice* device);
     void           ResetLogicalDevice(LogicalDevice* device);
     void           ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
     void           ResetTexture(VkDevice vk_device, Texture* texture);
-    void           ResetGeometryBuffer(VkDevice vk_device, GeometryBuffer* buffer);
+    void           ResetDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer);
     void           ResetShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void           ResetPipeline(VkDevice vk_device, Pipeline* pipeline);
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
@@ -301,8 +312,8 @@ namespace dmGraphics
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout);
-    VkResult UploadToGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-        VkDeviceSize size, VkDeviceSize offset, const void* data, GeometryBuffer* buffer);
+    VkResult UploadToDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
+        VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
