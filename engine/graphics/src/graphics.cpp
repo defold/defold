@@ -28,7 +28,6 @@ namespace dmGraphics
 
     }
 
-
     TextureFormatToBPP::TextureFormatToBPP()
     {
         memset(m_FormatToBPP, 0x0, sizeof(m_FormatToBPP));

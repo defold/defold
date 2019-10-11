@@ -73,8 +73,8 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sysroot/usr/lib/i686-linux-android)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sysroot/usr/lib/x86_64-linux-android)
 
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/x86-4.9)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/x86_64-4.9)
+	# (cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/x86-4.9)
+	# (cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/x86_64-4.9)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/i686-linux-android)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/x86_64-linux-android)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/i686-linux-android)
@@ -82,4 +82,6 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 
 	echo "Creating NDK archive" ${TMP}/${ANDROID_NDK_BASENAME}.tar.gz
 	(cd ${TMP} && tar -czf ${ANDROID_NDK_BASENAME}.tar.gz ${ANDROID_NDK})
+else
+	echo "Found ${TMP}/${ANDROID_NDK_BASENAME}.tar.gz"
 fi
