@@ -1527,34 +1527,26 @@ bail:
         context->m_CurrentVertexDeclaration = 0;
     }
 
-    struct UpdateDescriptorSetParams
+    static uint32_t UpdateDescriptorSets(
+        VkDevice        vk_device,
+        VkDescriptorSet vk_descriptor_set,
+        ShaderModule*   shaderModule,
+        ScratchBuffer*  scratchBuffer,
+        uint8_t*        uniform_data,
+        const uint32_t* uniform_offsets,
+        uint32_t        dynamicAlignment,
+        uint32_t*       dynamicOffsets)
     {
-        VkDevice        m_Device;
-        VkDescriptorSet m_DescriptorSet;
-        ShaderModule*   m_ShaderModule;
-        ScratchBuffer*  m_ScratchBuffer;
-        uint8_t*        m_UniformDataPtr;
-        uint32_t*       m_UniformOffsets;
-        uint32_t        m_DynamicAlignment;
-        uint32_t        m_DynamicOffsetBase;
-        uint32_t*       m_DynamicOffsets;
-    };
-
-    static uint32_t UpdateDescriptorSets(VkDevice vk_device, VkDescriptorSet vk_descriptor_set,
-        ShaderModule* module, ScratchBuffer* scratchBuffer,
-        uint8_t* uniform_data, const uint32_t* uniform_offsets,
-        uint32_t alignment, uint32_t* offsets)
-    {
-        //uint32_t dynamic_uniform_offset = base_offset;
-
-        for (int i = 0; i < module->m_UniformCount; ++i)
+        for (int i = 0; i < shaderModule->m_UniformCount; ++i)
         {
-            offsets[i]                           = scratchBuffer->m_DataCursor;
-            const uint32_t uniform_size_nonalign = GetShaderTypeSize(module->m_Uniforms[i].m_Type);
-            const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, alignment);
+            dynamicOffsets[i]                    = scratchBuffer->m_DataCursor;
+            const uint32_t uniform_size_nonalign = GetShaderTypeSize(shaderModule->m_Uniforms[i].m_Type);
+            const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
 
             // Copy client data to aligned host memory
-            uint32_t data_offset = uniform_offsets[i];
+            // The data_offset here is the offset into the programs uniform data,
+            // i.e the source buffer.
+            const uint32_t data_offset = uniform_offsets[i];
             memcpy(&((uint8_t*)scratchBuffer->m_Data)[scratchBuffer->m_DataCursor], &uniform_data[data_offset], uniform_size_nonalign);
 
             // Note in the spec about the offset being zero:
@@ -1571,7 +1563,7 @@ bail:
 
             vk_write_desc_info.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.dstSet          = vk_descriptor_set;
-            vk_write_desc_info.dstBinding      = module->m_Uniforms[i].m_Binding;
+            vk_write_desc_info.dstBinding      = shaderModule->m_Uniforms[i].m_Binding;
             vk_write_desc_info.dstArrayElement = 0;
             vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
             vk_write_desc_info.descriptorCount = 1;
@@ -1689,7 +1681,11 @@ bail:
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (GeometryBuffer*) index_buffer, type);
-        vkCmdDrawIndexed(vk_command_buffer, count, 1, first, 0, 0);
+
+        // The 'first' value that comes in is intended to be a byte offset, but
+        // vkCmdDrawIndexed is intended to use real offset values into the index buffer..
+        uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
+        vkCmdDrawIndexed(vk_command_buffer, count, 1, index_offset, 0, 0);
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)

@@ -3,6 +3,9 @@
 
 namespace dmGraphics
 {
+    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
+    const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
+
     struct DeviceMemory
     {
         DeviceMemory()
@@ -26,9 +29,6 @@ namespace dmGraphics
         uint16_t     m_OriginalWidth;
         uint16_t     m_OriginalHeight;
     };
-
-    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
-    const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
 
     struct VertexDeclaration
     {
