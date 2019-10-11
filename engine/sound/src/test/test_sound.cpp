@@ -1324,6 +1324,8 @@ DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLo
 
 int main(int argc, char **argv)
 {
+    dmLogError("test_sound main");
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
