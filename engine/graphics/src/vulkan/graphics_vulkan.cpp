@@ -520,7 +520,7 @@ namespace dmGraphics
 
     static void FlushBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
     {
-        for (int i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_BuffersToDelete.Size(); ++i)
         {
             GeometryBuffer& buffer = context->m_BuffersToDelete[i];
 
@@ -536,10 +536,10 @@ namespace dmGraphics
     static inline void SetViewportHelper(VkCommandBuffer vk_command_buffer, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         VkViewport vk_viewport;
-        vk_viewport.x        = x;
-        vk_viewport.y        = y;
-        vk_viewport.width    = width;
-        vk_viewport.height   = height;
+        vk_viewport.x        = (float) x;
+        vk_viewport.y        = (float) y;
+        vk_viewport.width    = (float) width;
+        vk_viewport.height   = (float) height;
         vk_viewport.minDepth = 0.0f;
         vk_viewport.maxDepth = 1.0f;
         vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
@@ -730,7 +730,7 @@ bail:
 
     bool Initialize()
     {
-        return glfwInit();
+        return (bool) glfwInit();
     }
 
     void Finalize()
@@ -1158,7 +1158,7 @@ bail:
     {
         assert(buffer->m_Buffer != VK_NULL_HANDLE);
 
-        for (int i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_BuffersToDelete.Size(); ++i)
         {
             const GeometryBuffer buffer_to_delete = context->m_BuffersToDelete[i];
             if (buffer_to_delete.m_Buffer == buffer->m_Buffer)
@@ -1527,7 +1527,7 @@ bail:
         context->m_CurrentVertexDeclaration = 0;
     }
 
-    static uint32_t UpdateDescriptorSets(
+    static void UpdateDescriptorSets(
         VkDevice        vk_device,
         VkDescriptorSet vk_descriptor_set,
         ShaderModule*   shaderModule,
@@ -1633,7 +1633,7 @@ bail:
         }
 
         VkResult res = CommitUniforms(vk_command_buffer, vk_device, context->m_DescriptorPool,
-            program_ptr, scratchBuffer, context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+            program_ptr, scratchBuffer, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         CHECK_VK_ERROR(res);
 
         Pipeline* pipeline = GetPipeline(vk_device,

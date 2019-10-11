@@ -538,7 +538,7 @@ namespace dmGraphics
         }
         else if (type == dmGraphics::TYPE_FLOAT)
         {
-            return ((float*)index_buffer)[index];
+            return (uint32_t)((float*)index_buffer)[index];
         }
 
         assert(0);
