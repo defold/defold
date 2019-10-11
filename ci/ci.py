@@ -52,7 +52,7 @@ def install():
         aptget("tree")
         aptget("silversearcher-ag")
         aptget("valgrind")
-
+        aptget("zlib1g:i386") # aapt: error while loading shared libraries: libz.so.1: cannot open shared object file: No such file or directory
 
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
     args = 'python scripts/build.py distclean install_ext'.split()
