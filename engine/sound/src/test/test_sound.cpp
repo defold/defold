@@ -699,7 +699,7 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     dmSound::HSoundData sd = 0;
     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
-    printf("tone: %d, rate: %d, frames: %d, speed: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Speed);
+    // printf("tone: %d, rate: %d, frames: %d, speed: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Speed);
 
     dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
@@ -724,9 +724,12 @@ TEST_P(dmSoundTestSpeedTest, Speed)
 
     uint64_t ts = dmTime::GetTime();
     do {
+        dmLogError("dmSoundTestSpeedTest while playing");
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
-        if ((dmTime::GetTime() - ts) > 5000*1000) {
+        uint64_t delta = (dmTime::GetTime() - ts);
+        dmLogError("dmSoundTestSpeedTest delta %d", delta);
+        if (delta > 5000*1000) {
             dmLogError("dmSoundTestSpeedTest while playing infinite loop");
             break;
         }
@@ -926,6 +929,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    uint64_t ts = dmTime::GetTime();
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -935,6 +939,12 @@ TEST_P(dmSoundTestPlayTest, Play)
         }
         r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, Vectormath::Aos::Vector4(cosf(a),0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
+        uint64_t delta = (dmTime::GetTime() - ts);
+        dmLogError("dmSoundTestPlayTest Play delta %d", delta);
+        if (delta > 5000*1000) {
+            dmLogError("dmSoundTestPlayTest Play infinite loop");
+            break;
+        }
 
     } while (dmSound::IsPlaying(instance));
 
