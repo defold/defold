@@ -109,7 +109,7 @@ def build_editor(channel = None, release = False, engine_artifacts = None):
     # From build.py:
     #     'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)'
     if engine_artifacts:
-        args.append('--engine_artifacts=' + engine_artifacts)
+        args.append('--engine-artifacts=' + engine_artifacts)
 
     if channel:
         args.append('--channel=' + channel)
