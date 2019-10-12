@@ -236,7 +236,11 @@ namespace dmGameSystem
         }
         memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
-        BuildVertices(resource);
+        // Buffer resources can be created with zero elements, in such case
+        // the buffer will be null and we cannot create vertices.
+        if (resource->m_BufferResource->m_Buffer) {
+            BuildVertices(resource);
+        }
 
         resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
         resource->m_NormalStreamId = dmHashString64(resource->m_MeshDDF->m_NormalStream);

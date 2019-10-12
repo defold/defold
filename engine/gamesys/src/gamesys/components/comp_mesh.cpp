@@ -158,10 +158,17 @@ namespace dmGameSystem
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
-        if (HasCustomVerticesBuffer(component, resource)) {
-            dmGraphics::HashVertexDeclaration(&state, component->m_VertexDeclaration);
-        } else {
-            dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
+
+        // Make sure there is a vertex declaration
+        // If the mesh uses a buffer that has zero elements we couldn't
+        // create a vert declaration, so just skip hashing it here.
+        if (component->m_VertexDeclaration || resource->m_VertexDeclaration)
+        {
+            if (HasCustomVerticesBuffer(component, resource)) {
+                dmGraphics::HashVertexDeclaration(&state, component->m_VertexDeclaration);
+            } else {
+                dmGraphics::HashVertexDeclaration(&state, resource->m_VertexDeclaration);
+            }
         }
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
@@ -431,7 +438,15 @@ namespace dmGameSystem
             const MeshComponent* c = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = c->m_Resource;
             const BufferResource* br = GetVerticesBuffer(c, mr);
-            if (HasCustomVerticesBuffer(c, mr))
+            bool has_custom_vert_buffer = HasCustomVerticesBuffer(c, mr);
+
+            // No idea of rendering with zero element count.
+            if ((has_custom_vert_buffer && c->m_ElementCount == 0) ||
+                br->m_ElementCount == 0) {
+                continue;
+            }
+
+            if (has_custom_vert_buffer)
             {
                 element_count += c->m_ElementCount;
                 custom += 1;
@@ -458,6 +473,11 @@ namespace dmGameSystem
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
             const BufferResource* br = GetVerticesBuffer(component, mr);
+
+            // No idea of rendering with zero element count.
+            if (br->m_ElementCount == 0) {
+                continue;
+            }
 
             void* raw_data = 0x0;
             uint32_t size = 0;
@@ -520,7 +540,12 @@ namespace dmGameSystem
                 elem_count = component->m_ElementCount;
                 vert_buf = GetFreeVertexBuffer(world, render_context);
             }
-            assert(vert_buf);
+
+            // Cannot render with null vertex buffer.
+            // Possibly due to buffer resource having zero elements.
+            if (vert_buf == 0x0) {
+                continue;
+            }
 
             uint8_t* bytes = 0x0;
             uint32_t size = 0;

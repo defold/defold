@@ -115,11 +115,20 @@ namespace dmGameSystem
             }
         }
 
+        // Special case if buffer doesn't have any elements
+        if (max_elem == 0)
+        {
+            free(streams_decl);
+            buffer_resource->m_Buffer = 0x0;
+            return true;
+        }
+
         buffer_resource->m_ElementCount = max_elem;
 
         dmBuffer::Result r = dmBuffer::Create(max_elem, streams_decl, stream_count, &buffer_resource->m_Buffer);
 
         if (r != dmBuffer::RESULT_OK) {
+            dmLogError("Unable to create buffer (%d)", r);
             free(streams_decl);
             return false;
         }
