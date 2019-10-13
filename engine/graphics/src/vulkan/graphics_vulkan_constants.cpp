@@ -1,7 +1,5 @@
 #include "../graphics.h"
 #include "graphics_vulkan_defines.h"
-#include <vulkan/vulkan.h>
-
 
 namespace dmGraphics
 {

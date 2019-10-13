@@ -1,10 +1,8 @@
-#include "graphics_vulkan_defines.h"
-#include <vulkan/vulkan.h>
-
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/math.h>
+#include <dlib/hashtable.h>
 #include <dlib/array.h>
 #include <dlib/profile.h>
 #include <dlib/log.h>
@@ -13,6 +11,7 @@
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "../graphics.h"
+#include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
@@ -35,6 +34,8 @@ namespace dmGraphics
     // In flight frames - number of concurrent frames being processed
     static const uint8_t g_max_frames_in_flight       = 2;
 
+    typedef dmHashTable64<Pipeline> PipelineCache;
+
     static struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
@@ -44,6 +45,7 @@ namespace dmGraphics
         , m_MainRenderTarget(0)
         , m_DefaultTextureMinFilter(params.m_DefaultTextureMinFilter)
         , m_DefaultTextureMagFilter(params.m_DefaultTextureMagFilter)
+        , m_FrameBegun(0)
         , m_VerifyGraphicsCalls(params.m_VerifyGraphicsCalls)
         {}
 
@@ -56,6 +58,8 @@ namespace dmGraphics
             }
         }
 
+        PipelineCache            m_PipelineCache;
+        PipelineState            m_PipelineState;
         SwapChain*               m_SwapChain;
         SwapChainCapabilities    m_SwapChainCapabilities;
         PhysicalDevice           m_PhysicalDevice;
@@ -63,6 +67,15 @@ namespace dmGraphics
         FrameResource            m_FrameResources[g_max_frames_in_flight];
         VkInstance               m_Instance;
         VkSurfaceKHR             m_WindowSurface;
+        dmArray<GeometryBuffer>  m_BuffersToDelete;
+
+        // Window callbacks
+        WindowResizeCallback     m_WindowResizeCallback;
+        void*                    m_WindowResizeCallbackUserData;
+        WindowCloseCallback      m_WindowCloseCallback;
+        void*                    m_WindowCloseCallbackUserData;
+        WindowFocusCallback      m_WindowFocusCallback;
+        void*                    m_WindowFocusCallbackUserData;
 
         // Main device rendering constructs
         dmArray<VkFramebuffer>   m_MainFrameBuffers;
@@ -70,9 +83,13 @@ namespace dmGraphics
         VkRenderPass             m_MainRenderPass;
         Texture                  m_MainTextureDepthStencil;
         RenderTarget             m_MainRenderTarget;
+        Viewport                 m_MainViewport;
 
         // Rendering state
         RenderTarget*            m_CurrentRenderTarget;
+        GeometryBuffer*          m_CurrentVertexBuffer;
+        VertexDeclaration*       m_CurrentVertexDeclaration;
+        Program*                 m_CurrentProgram;
 
         TextureFilter            m_DefaultTextureMinFilter;
         TextureFilter            m_DefaultTextureMagFilter;
@@ -80,10 +97,11 @@ namespace dmGraphics
         uint32_t                 m_Height;
         uint32_t                 m_WindowWidth;
         uint32_t                 m_WindowHeight;
+        uint32_t                 m_FrameBegun           : 1;
         uint32_t                 m_CurrentFrameInFlight : 1;
         uint32_t                 m_WindowOpened         : 1;
         uint32_t                 m_VerifyGraphicsCalls  : 1;
-        uint32_t                 : 29;
+        uint32_t                 : 28;
     } *g_Context = 0;
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -140,10 +158,10 @@ namespace dmGraphics
     {
         static uint32_t next_id = 1;
 
-        // Id 0 is taken for the main framebuffer
-        if (next_id == 0)
+        // DM_RENDERTARGET_BACKBUFFER_ID is taken for the main framebuffer
+        if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            next_id = 1;
+            next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
         }
 
         return next_id++;
@@ -171,6 +189,11 @@ namespace dmGraphics
         }
 
         return VK_SUCCESS;
+    }
+
+    static void ResetPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
+    {
+        ResetPipeline(context->m_LogicalDevice.m_Device, value);
     }
 
     static bool EndRenderPass(HContext context)
@@ -360,6 +383,27 @@ namespace dmGraphics
         res = CreateMainFrameSyncObjects(vk_device, g_max_frames_in_flight, context->m_FrameResources);
         CHECK_VK_ERROR(res);
 
+        PipelineState vk_default_pipeline;
+        vk_default_pipeline.m_WriteColorMask     = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
+        vk_default_pipeline.m_WriteDepth         = 1;
+        vk_default_pipeline.m_PrimtiveType       = PRIMITIVE_TRIANGLES;
+        vk_default_pipeline.m_DepthTestEnabled   = 1;
+        vk_default_pipeline.m_DepthTestFunc      = COMPARE_FUNC_LEQUAL;
+        vk_default_pipeline.m_BlendEnabled       = 0;
+        vk_default_pipeline.m_BlendSrcFactor     = BLEND_FACTOR_ZERO;
+        vk_default_pipeline.m_BlendDstFactor     = BLEND_FACTOR_ZERO;
+        vk_default_pipeline.m_StencilEnabled     = 0;
+        vk_default_pipeline.m_StencilOpFail      = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilOpDepthFail = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilOpPass      = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilTestFunc    = COMPARE_FUNC_ALWAYS;
+        vk_default_pipeline.m_StencilWriteMask   = 0xff;
+        vk_default_pipeline.m_StencilCompareMask = 0xff;
+        vk_default_pipeline.m_StencilReference   = 0x0;
+        vk_default_pipeline.m_CullFaceEnabled    = 0;
+        vk_default_pipeline.m_CullFaceType       = FACE_TYPE_BACK;
+        context->m_PipelineState = vk_default_pipeline;
+
         return res;
     }
 
@@ -368,6 +412,12 @@ namespace dmGraphics
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         // Flush all current commands
         SynchronizeDevice(vk_device);
+
+        // Update swap chain capabilities
+        SwapChainCapabilities swap_chain_capabilities;
+        GetSwapChainCapabilities(&context->m_PhysicalDevice, context->m_WindowSurface, swap_chain_capabilities);
+        context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
+
         VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
         CHECK_VK_ERROR(res);
 
@@ -398,6 +448,33 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
+    static void FlushBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
+    {
+        for (int i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        {
+            GeometryBuffer& buffer = context->m_BuffersToDelete[i];
+
+            if (flushAll || buffer.m_Frame == frame)
+            {
+                ResetGeometryBuffer(context->m_LogicalDevice.m_Device, &buffer);
+                context->m_BuffersToDelete.EraseSwap(i);
+                --i;
+            }
+        }
+    }
+
+    static inline void SetViewportHelper(VkCommandBuffer vk_command_buffer, int32_t x, int32_t y, int32_t width, int32_t height)
+    {
+        VkViewport vk_viewport;
+        vk_viewport.x        = x;
+        vk_viewport.y        = y;
+        vk_viewport.width    = width;
+        vk_viewport.height   = height;
+        vk_viewport.minDepth = 0.0f;
+        vk_viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
+    }
+
     static bool InitializeVulkan(HContext context, const WindowParams* params)
     {
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
@@ -419,7 +496,6 @@ namespace dmGraphics
         PhysicalDevice* selected_device = NULL;
         GetPhysicalDevices(context->m_Instance, &device_list, device_count);
 
-        const uint8_t required_device_extension_count = 2;
         const char* required_device_extensions[] = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             // From spec:
@@ -429,6 +505,7 @@ namespace dmGraphics
             // in shaders also targeting other APIs."
             "VK_KHR_maintenance1"
         };
+        const uint8_t required_device_extension_count = sizeof(required_device_extensions)/sizeof(required_device_extensions[0]);
 
         QueueFamily selected_queue_family;
         SwapChainCapabilities selected_swap_chain_capabilities;
@@ -507,6 +584,8 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
         context->m_LogicalDevice  = logical_device;
+        context->m_PipelineCache.SetCapacity(32,64);
+        context->m_BuffersToDelete.SetCapacity(8);
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
@@ -589,6 +668,39 @@ bail:
         glfwTerminate();
     }
 
+    static void OnWindowResize(int width, int height)
+    {
+        assert(g_Context);
+        g_Context->m_WindowWidth  = (uint32_t)width;
+        g_Context->m_WindowHeight = (uint32_t)height;
+
+        SwapChainChanged(g_Context, &g_Context->m_WindowWidth, &g_Context->m_WindowHeight);
+
+        if (g_Context->m_WindowResizeCallback != 0x0)
+        {
+            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+        }
+    }
+
+    static int OnWindowClose()
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowCloseCallback != 0x0)
+        {
+            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
+        }
+        return 1;
+    }
+
+    static void OnWindowFocus(int focus)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowFocusCallback != 0x0)
+        {
+            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
+        }
+    }
+
     uint32_t GetWindowRefreshRate(HContext context)
     {
         return 0;
@@ -618,11 +730,21 @@ bail:
         glfwSetWindowTitle(params->m_Title);
     #endif
 
-        context->m_WindowOpened   = 1;
-        context->m_Width          = params->m_Width;
-        context->m_Height         = params->m_Height;
-        context->m_WindowWidth    = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight   = context->m_SwapChain->m_ImageExtent.height;
+        glfwSetWindowSizeCallback(OnWindowResize);
+        glfwSetWindowCloseCallback(OnWindowClose);
+        glfwSetWindowFocusCallback(OnWindowFocus);
+
+        context->m_WindowOpened                 = 1;
+        context->m_Width                        = params->m_Width;
+        context->m_Height                       = params->m_Height;
+        context->m_WindowWidth                  = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight                 = context->m_SwapChain->m_ImageExtent.height;
+        context->m_WindowResizeCallback         = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback          = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback          = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
 
         return WINDOW_RESULT_OK;
     }
@@ -636,7 +758,11 @@ bail:
 
             SynchronizeDevice(vk_device);
 
+            FlushBuffersToDelete(context, 0, true);
+
             glfwCloseWindow();
+
+            context->m_PipelineCache.Iterate(ResetPipelineCacheCb, context);
 
             ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
 
@@ -721,12 +847,21 @@ bail:
         assert(context);
         if (context->m_WindowOpened)
         {
-            context->m_Width        = width;
-            context->m_Height       = height;
-            context->m_WindowWidth  = width;
-            context->m_WindowHeight = height;
+            context->m_Width  = width;
+            context->m_Height = height;
             glfwSetWindowSize((int)width, (int)height);
+            int window_width, window_height;
+            glfwGetWindowSize(&window_width, &window_height);
+            context->m_WindowWidth  = window_width;
+            context->m_WindowHeight = window_height;
+
             SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+
+            // The callback is not called from glfw when the size is set manually
+            if (context->m_WindowResizeCallback)
+            {
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
+            }
         }
     }
 
@@ -735,12 +870,7 @@ bail:
         assert(context);
         if (context->m_WindowOpened)
         {
-            context->m_Width        = width;
-            context->m_Height       = height;
-            context->m_WindowWidth  = width;
-            context->m_WindowHeight = height;
             glfwSetWindowSize((int)width, (int)height);
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
         }
     }
 
@@ -759,14 +889,18 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
+        FlushBuffersToDelete(context, context->m_CurrentFrameInFlight);
+
         VkResult res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
 
         if (res != VK_SUCCESS)
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                context->m_WindowWidth  = context->m_Width;
-                context->m_WindowHeight = context->m_Height;
+                int width, height;
+                glfwGetWindowSize(&width, &height);
+                context->m_WindowWidth  = width;
+                context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
                 res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
                 assert(res == VK_SUCCESS);
@@ -792,7 +926,7 @@ bail:
         vk_command_buffer_begin_info.pNext            = 0;
 
         vkBeginCommandBuffer(context->m_MainCommandBuffers[frame_ix], &vk_command_buffer_begin_info);
-
+        context->m_FrameBegun                     = 1;
         context->m_MainRenderTarget.m_Framebuffer = context->m_MainFrameBuffers[frame_ix];
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
@@ -843,6 +977,7 @@ bail:
 
         // Advance frame index
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
+        context->m_FrameBegun           = 0;
 
     #if (defined(__arm__) || defined(__arm64__))
         glfwSwapBuffers();
@@ -890,121 +1025,571 @@ bail:
             2, vk_clear_attachments, 1, &vk_clear_rect);
     }
 
+    static void GeometryBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, GeometryBuffer* bufferOut)
+    {
+        VkResult res;
+
+        if (bufferOut->m_Buffer == VK_NULL_HANDLE)
+        {
+            res = CreateGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
+            CHECK_VK_ERROR(res);
+        }
+
+        VkCommandBuffer vk_command_buffer;
+        if (context->m_FrameBegun)
+        {
+            vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        }
+        else
+        {
+            CreateCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
+
+            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+            CHECK_VK_ERROR(res);
+        }
+
+        res = UploadToGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            vk_command_buffer, size, offset, data, bufferOut);
+        CHECK_VK_ERROR(res);
+
+        if (!context->m_FrameBegun)
+        {
+            vkEndCommandBuffer(vk_command_buffer);
+        }
+    }
+
+    static void ResetGeometryBufferHelper(HContext context, GeometryBuffer* buffer)
+    {
+        assert(buffer->m_Buffer != VK_NULL_HANDLE);
+
+        for (int i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        {
+            const GeometryBuffer buffer_to_delete = context->m_BuffersToDelete[i];
+            if (buffer_to_delete.m_Buffer == buffer->m_Buffer)
+            {
+                assert(buffer_to_delete.m_DeviceMemory.m_Memory == buffer->m_DeviceMemory.m_Memory);
+                return;
+            }
+        }
+
+        if (context->m_BuffersToDelete.Size() == context->m_BuffersToDelete.Capacity())
+        {
+            context->m_BuffersToDelete.OffsetCapacity(4);
+        }
+
+        GeometryBuffer buffer_copy = *buffer;
+        buffer_copy.m_Frame = context->m_CurrentFrameInFlight;
+        context->m_BuffersToDelete.Push(buffer_copy);
+
+        // Since the buffer will be deleted later, we just clear the
+        // buffer and memory handles here so they won't be used
+        // when rendering.
+        buffer->m_Buffer                    = VK_NULL_HANDLE;
+        buffer->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
+        buffer->m_DeviceMemory.m_MemorySize = 0;
+    }
+
+    static Pipeline* GetPipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
+        Program* program, RenderTarget* rt, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+    {
+        HashState64 pipeline_hash_state;
+        dmHashInit64(&pipeline_hash_state, false);
+        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
+        uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+
+        Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
+
+        if (!cached_pipeline)
+        {
+            Pipeline new_pipeline;
+            memset(&new_pipeline, 0, sizeof(new_pipeline));
+
+            VkRect2D vk_scissor;
+            memset(&vk_scissor, 0, sizeof(vk_scissor));
+            vk_scissor.extent = g_Context->m_SwapChain->m_ImageExtent;
+
+            VkResult res = CreatePipeline(vk_device, vk_scissor, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
+            CHECK_VK_ERROR(res);
+
+            if (pipelineCache.Full())
+            {
+                pipelineCache.SetCapacity(32, pipelineCache.Capacity() + 4);
+            }
+
+            pipelineCache.Put(pipeline_hash, new_pipeline);
+            cached_pipeline = pipelineCache.Get(pipeline_hash);
+
+            // TODO: Remove this at some point!
+            dmLogInfo("Created new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+        }
+
+        return cached_pipeline;
+    }
+
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return (HVertexBuffer) new uint32_t;
+        assert(context);
+        GeometryBuffer* buffer = new GeometryBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+
+        if (size > 0)
+        {
+            GeometryBufferUploadHelper(context, data, size, 0, buffer);
+        }
+
+        return (HVertexBuffer) buffer;
     }
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        delete (uint32_t*) buffer;
+        assert(buffer);
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+
+        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE)
+        {
+            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+        }
+        delete buffer_ptr;
     }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
-    {}
+    {
+        assert(buffer);
+        if (size == 0)
+        {
+            return;
+        }
+
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+
+        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        {
+            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+        }
+
+        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+    }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
-    {}
+    {
+        assert(buffer);
+        assert(size > 0);
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        assert(offset + size <= buffer_ptr->m_DeviceMemory.m_MemorySize);
+        GeometryBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
+    }
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
+        assert(0 && "Not supported for Vulkan");
         return 0;
     }
 
     bool UnmapVertexBuffer(HVertexBuffer buffer)
     {
+        assert(0 && "Not supported for Vulkan");
         return true;
     }
 
     uint32_t GetMaxElementsVertices(HContext context)
     {
-        return 65536;
+        return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return (HIndexBuffer) new uint32_t;
+        assert(size > 0);
+        GeometryBuffer* buffer = new GeometryBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        GeometryBufferUploadHelper(g_Context, data, size, 0, (GeometryBuffer*) buffer);
+        return (HIndexBuffer) buffer;
     }
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        delete (uint32_t*) buffer;
+        assert(buffer);
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE)
+        {
+            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+        }
+        delete buffer_ptr;
     }
 
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
-    {}
+    {
+        assert(size > 0);
+        assert(buffer);
+
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+
+        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        {
+            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+        }
+
+        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+    }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
-    {}
+    {
+        assert(buffer);
+        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        assert(offset + size < buffer_ptr->m_DeviceMemory.m_MemorySize);
+        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+    }
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
+        assert(0 && "Not supported for Vulkan");
         return 0;
     }
 
     bool UnmapIndexBuffer(HIndexBuffer buffer)
     {
+        assert(0 && "Not supported for Vulkan");
         return true;
     }
 
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
+        // From VkPhysicalDeviceFeatures spec:
+        //   "fullDrawIndexUint32 - If this feature is supported, maxDrawIndexedIndexValue must be 2^32-1;
+        //   otherwise it must be no smaller than 2^24-1."
         return true;
     }
 
-    uint32_t GetMaxElementsIndices(HContext context)
+    static inline uint32_t GetTypeSize(Type type)
     {
-        return 65536;
+        if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
+        {
+            return 1;
+        }
+        else if (type == TYPE_SHORT || type == TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == TYPE_INT || type == TYPE_UNSIGNED_INT || type == TYPE_FLOAT)
+        {
+            return 4;
+        }
+        assert(0 && "Unsupported data type");
+        return 0;
     }
 
+    static inline VkFormat GetVulkanFormatFromTypeAndSize(Type type, uint16_t size)
+    {
+        if (type == TYPE_FLOAT)
+        {
+            if (size == 1)     return VK_FORMAT_R32_SFLOAT;
+            else if(size == 2) return VK_FORMAT_R32G32_SFLOAT;
+            else if(size == 3) return VK_FORMAT_R32G32B32_SFLOAT;
+            else if(size == 4) return VK_FORMAT_R32G32B32A32_SFLOAT;
+        }
+        else if (type == TYPE_UNSIGNED_BYTE)
+        {
+            if (size == 1)     return VK_FORMAT_R8_UINT;
+            else if(size == 2) return VK_FORMAT_R8G8_UINT;
+            else if(size == 3) return VK_FORMAT_R8G8B8_UINT;
+            else if(size == 4) return VK_FORMAT_R8G8B8A8_UINT;
+        }
+        else if (type == TYPE_UNSIGNED_SHORT)
+        {
+            if (size == 1)     return VK_FORMAT_R16_UINT;
+            else if(size == 2) return VK_FORMAT_R16G16_UINT;
+            else if(size == 3) return VK_FORMAT_R16G16B16_UINT;
+            else if(size == 4) return VK_FORMAT_R16G16B16A16_UINT;
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return VK_FORMAT_R32_SFLOAT;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
+        }
+
+        assert(0 && "Unable to deduce type from dmGraphics::Type");
+        return VK_FORMAT_UNDEFINED;
+    }
+
+    static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, VertexElement* element, uint32_t count)
+    {
+        assert(element);
+        assert(count <= DM_MAX_VERTEX_STREAM_COUNT);
+
+        VertexDeclaration* vd = new VertexDeclaration();
+        memset(vd, 0, sizeof(VertexDeclaration));
+
+        vd->m_StreamCount = count;
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            VertexElement& el           = element[i];
+            vd->m_Streams[i].m_NameHash = dmHashString64(el.m_Name);
+            vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(el.m_Type, el.m_Size);
+            vd->m_Streams[i].m_Offset   = vd->m_Stride;
+            vd->m_Streams[i].m_Location = 0;
+            vd->m_Stride               += el.m_Size * GetTypeSize(el.m_Type);
+
+            dmHashUpdateBuffer64(hash, &el.m_Size, sizeof(el.m_Size));
+            dmHashUpdateBuffer64(hash, &el.m_Type, sizeof(el.m_Type));
+            dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Format, sizeof(vd->m_Streams[i].m_Format));
+        }
+
+        return vd;
+    }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
-        return new VertexDeclaration;
+        HashState64 decl_hash_state;
+        dmHashInit64(&decl_hash_state, false);
+        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, element, count);
+        dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
+        vd->m_Hash = dmHashFinal64(&decl_hash_state);
+        return vd;
     }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
-        return new VertexDeclaration;
+        HashState64 decl_hash_state;
+        dmHashInit64(&decl_hash_state, false);
+        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, element, count);
+        dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
+        vd->m_Stride          = stride;
+        vd->m_Hash            = dmHashFinal64(&decl_hash_state);
+        return vd;
     }
 
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {}
+    {
+        delete (VertexDeclaration*) vertex_declaration;
+    }
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
-    {}
+    {
+        context->m_CurrentVertexBuffer      = (GeometryBuffer*) vertex_buffer;
+        context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
+    }
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
-    {}
+    {
+        Program* program_ptr = (Program*) program;
+        EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+
+        for (uint32_t i=0; i < vertex_declaration->m_StreamCount; i++)
+        {
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+
+            stream.m_Location = 0xffff;
+
+            ShaderModule* vertex_shader = program_ptr->m_VertexModule;
+
+            for (uint32_t j=0; j < vertex_shader->m_AttributeCount; j++)
+            {
+                if (vertex_shader->m_Attributes[i].m_NameHash == stream.m_NameHash)
+                {
+                    stream.m_Location = vertex_shader->m_Attributes[i].m_Binding;
+                    break;
+                }
+            }
+        }
+    }
 
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
-    {}
+    {
+        context->m_CurrentVertexDeclaration = 0;
+    }
 
+    static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, GeometryBuffer* indexBuffer, Type indexBufferType)
+    {
+        assert(context);
+        assert(context->m_CurrentVertexBuffer);
+
+        Pipeline* pipeline = GetPipeline(context->m_LogicalDevice.m_Device,
+            context->m_PipelineState, context->m_PipelineCache,
+            context->m_CurrentProgram, context->m_CurrentRenderTarget,
+            context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
+
+        if (indexBuffer)
+        {
+            assert(indexBufferType == TYPE_UNSIGNED_SHORT || indexBufferType == TYPE_UNSIGNED_INT);
+            VkIndexType vk_index_type = VK_INDEX_TYPE_UINT16;
+
+            if (indexBufferType == TYPE_UNSIGNED_INT)
+            {
+                vk_index_type = VK_INDEX_TYPE_UINT32;
+            }
+
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Buffer, 0, vk_index_type);
+        }
+
+        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->m_Pipeline);
+
+        VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_Buffer;
+        VkDeviceSize vk_vertex_buffer_offsets = 0;
+
+        vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
+
+        if (context->m_MainViewport.m_HasChanged)
+        {
+            Viewport& vp = context->m_MainViewport;
+
+            // Update scissor
+            VkRect2D vk_scissor;
+            memset(&vk_scissor, 0, sizeof(vk_scissor));
+            vk_scissor.extent = context->m_SwapChain->m_ImageExtent;
+            vkCmdSetScissor(vk_command_buffer, 0, 1, &vk_scissor);
+
+            // If we are rendering to the backbuffer, we must invert the viewport on
+            // the y axis. Otherwise we just use the values as-is.
+            // (otherwise all FBO rendering is upside down)
+            if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+                    vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
+            }
+            else
+            {
+                SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+                    vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
+            }
+
+            vp.m_HasChanged = 0;
+        }
+    }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
-    {}
+    {
+        assert(context->m_FrameBegun);
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        DrawSetup(context, vk_command_buffer, (GeometryBuffer*) index_buffer, type);
+        vkCmdDrawIndexed(vk_command_buffer, count, 1, first, 0, 0);
+    }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
-    {}
+    {
+        assert(context->m_FrameBegun);
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+        DrawSetup(context, vk_command_buffer, 0, TYPE_BYTE);
+        vkCmdDraw(vk_command_buffer, count, 1, first, 0);
+    }
+
+    static void TransferResourceBindingsFromDDF(ShaderModule* shader, ShaderDesc::Shader* ddf)
+    {
+        if (ddf->m_Uniforms.m_Count > 0)
+        {
+            shader->m_Uniforms     = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
+            shader->m_UniformCount = ddf->m_Uniforms.m_Count;
+
+            for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
+            {
+                ShaderResourceBinding& res = shader->m_Uniforms[i];
+                res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
+                res.m_Set                  = ddf->m_Uniforms[i].m_Set;
+                res.m_NameHash             = ddf->m_Uniforms[i].m_Name;
+            }
+        }
+
+        if (ddf->m_Attributes.m_Count > 0)
+        {
+            shader->m_Attributes     = new ShaderResourceBinding[ddf->m_Attributes.m_Count];
+            shader->m_AttributeCount = ddf->m_Attributes.m_Count;
+
+            for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
+            {
+                ShaderResourceBinding& res = shader->m_Attributes[i];
+                res.m_Binding              = ddf->m_Attributes[i].m_Binding;
+                res.m_Set                  = ddf->m_Attributes[i].m_Set;
+                res.m_NameHash             = ddf->m_Attributes[i].m_Name;
+            }
+        }
+    }
 
     HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        return (HVertexProgram) new uint32_t;
+        ShaderModule* shader = new ShaderModule;
+        memset(shader, 0, sizeof(*shader));
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        CHECK_VK_ERROR(res);
+
+        TransferResourceBindingsFromDDF(shader, ddf);
+
+        return (HVertexProgram) shader;
     }
 
     HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        return (HFragmentProgram) new uint32_t;
+        ShaderModule* shader = new ShaderModule;
+        memset(shader, 0, sizeof(*shader));
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        CHECK_VK_ERROR(res);
+
+        TransferResourceBindingsFromDDF(shader, ddf);
+
+        return (HFragmentProgram) shader;
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        return (HProgram) new uint32_t;
+        Program* program              = new Program;
+        ShaderModule* vertex_module   = (ShaderModule*) vertex_program;
+        ShaderModule* fragment_module = (ShaderModule*) fragment_program;
+
+        // Set pipeline creation info
+        VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
+        memset(&vk_vertex_shader_create_info, 0, sizeof(vk_vertex_shader_create_info));
+
+        vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+        vk_vertex_shader_create_info.module = ((ShaderModule*) vertex_program)->m_Module;
+        vk_vertex_shader_create_info.pName  = "main";
+
+        VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
+        memset(&vk_fragment_shader_create_info, 0, sizeof(VkPipelineShaderStageCreateInfo));
+
+        vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+        vk_fragment_shader_create_info.module = ((ShaderModule*) fragment_program)->m_Module;
+        vk_fragment_shader_create_info.pName  = "main";
+
+        program->m_PipelineStageInfo[0] = vk_vertex_shader_create_info;
+        program->m_PipelineStageInfo[1] = vk_fragment_shader_create_info;
+        program->m_Hash                 = 0;
+        program->m_VertexModule         = vertex_module;
+        program->m_FragmentModule       = fragment_module;
+
+        HashState64 program_hash;
+        dmHashInit64(&program_hash, false);
+
+        if (vertex_module->m_AttributeCount > 0)
+        {
+            for (uint32_t i=0; i < vertex_module->m_AttributeCount; i++)
+            {
+                dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Attributes[i].m_Binding, sizeof(vertex_module->m_Attributes[i].m_Binding));
+            }
+        }
+
+        dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
+        dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
+
+        program->m_Hash = dmHashFinal64(&program_hash);
+
+        return (HProgram) program;
     }
 
     void DeleteProgram(HContext context, HProgram program)
     {
-        delete (uint32_t*) program;
+        assert(program);
+        delete (Program*) program;
     }
 
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
@@ -1019,12 +1604,36 @@ bail:
 
     void DeleteVertexProgram(HVertexProgram prog)
     {
-        delete (uint32_t*) prog;
+        ShaderModule* shader = (ShaderModule*) prog;
+
+        ResetShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+
+        if (shader->m_Attributes)
+        {
+            delete[] shader->m_Attributes;
+        }
+
+        if (shader->m_Uniforms)
+        {
+            delete[] shader->m_Uniforms;
+        }
+
+        delete shader;
     }
 
     void DeleteFragmentProgram(HFragmentProgram prog)
     {
-        delete (uint32_t*) prog;
+        ShaderModule* shader = (ShaderModule*) prog;
+        assert(shader->m_Attributes == 0);
+
+        ResetShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+
+        if (shader->m_Uniforms)
+        {
+            delete[] shader->m_Uniforms;
+        }
+
+        delete shader;
     }
 
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
@@ -1032,18 +1641,22 @@ bail:
         return ShaderDesc::LANGUAGE_SPIRV;
     }
 
-
     void EnableProgram(HContext context, HProgram program)
-    {}
+    {
+        assert(context);
+        context->m_CurrentProgram = (Program*) program;
+    }
 
     void DisableProgram(HContext context)
-    {}
+    {
+        assert(context);
+        context->m_CurrentProgram = 0;
+    }
 
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         return true;
     }
-
 
     uint32_t GetUniformCount(HProgram prog)
     {
@@ -1069,7 +1682,17 @@ bail:
 
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
-    {}
+    {
+        // Defer the update to when we actually draw, since we *might* need to invert the viewport
+        // depending on wether or not we have set a different rendertarget from when
+        // this call was made.
+        Viewport& viewport    = context->m_MainViewport;
+        viewport.m_HasChanged = 1;
+        viewport.m_X          = (uint16_t) x;
+        viewport.m_Y          = (uint16_t) y;
+        viewport.m_W          = (uint16_t) width;
+        viewport.m_H          = (uint16_t) height;
+    }
 
     void EnableState(HContext context, State state)
     {}
@@ -1090,7 +1713,12 @@ bail:
     {}
 
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
-    {}
+    {
+        // While scissors are obviously supported in vulkan, we don't expose it
+        // to the users via render scripts so it's a bit hard to test.
+        // Leaving it unsupported for now.
+        assert(0 && "Not supported");
+    }
 
     void SetStencilMask(HContext context, uint32_t mask)
     {}

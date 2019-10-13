@@ -852,12 +852,7 @@ class Configuration(object):
             host = self.host
         if host == 'darwin':
             host = 'x86_64-darwin'
-        # There is a dependency between 32-bit python and the ctypes lib produced in dlib (something goes wrong when compiling .proto files)
-        if host == 'x86_64-darwin' and self.target_platform != 'darwin':
-            self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
-        if host == 'x86_64-win32' and self.target_platform != 'win32':
-            self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
-        # Make sure we build these for the host platform
+        # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in ['dlib', 'texc']:
             skip_tests = host != self.target_platform
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
@@ -1187,6 +1182,16 @@ instructions.configure=\
         key_v3.content_type = 'application/json'
         self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
         key_v3.set_contents_from_string(json.dumps({'sha1': sha1}))
+
+        # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
+        # For example;
+        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
+        for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
+            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
+            redirect = '/archive/%s/%s/editor2/%s' % (sha1, self.channel, name)
+            self._log('Creating link from %s -> %s' % (key_name, redirect))
+            key = bucket.new_key(key_name)
+            key.set_redirect(redirect)
 
     def bump(self):
         sha1 = self._git_sha1()
