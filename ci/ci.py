@@ -186,13 +186,14 @@ def main(argv):
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
         elif command == "editor":
-            if branch == "master" or branch == "beta" or branch == "dev":
-                build_editor(channel = channel, release = True, engine_artifacts = "archived")
-            elif branch == "editor-dev":
-                build_editor(channel = "editor-alpha", release = True)
-            else:
-                build_editor(release = False, engine_artifacts = "archived")
-                build_editor(release = False)
+            build_editor(channel = channel, release = False, engine_artifacts = "archived-stable")
+            # if branch == "master" or branch == "beta" or branch == "dev":
+            #     build_editor(channel = channel, release = True, engine_artifacts = "archived")
+            # elif branch == "editor-dev":
+            #     build_editor(channel = "editor-alpha", release = True)
+            # else:
+            #     build_editor(release = False, engine_artifacts = "archived")
+            #     build_editor(release = False)
         elif command == "bob":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)
