@@ -79,14 +79,14 @@ jobs:
 #
 # # ---- BUILD BOB AND SDK ------------------
 #
-#   build-bob:
-#     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
-#     runs-on: ubuntu-18.04
-#     steps: [
-#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
-#       { name: 'Build bob', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF bob' }]
+  # build-bob:
+  #   needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
+  #   runs-on: ubuntu-18.04
+  #   steps: [
+  #     { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+  #     { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+  #     { name: 'Install dependencies', run: 'ci/ci.sh install' },
+  #     { name: 'Build bob', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF bob' }]
 #
 #   build-sdk:
 #     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
@@ -109,9 +109,21 @@ jobs:
 #       { name: 'Build editor', run: 'ci/ci.sh --branch=$GITHUB_REF editor' },
 #       { name: 'Smoke-test', run: 'ci/ci.sh --branch=$GITHUB_REF smoke' }]
 
-# ---- BUILD EDITOR AND SMOKE TEST ------------------
+
+
+
+
+
+  build-bob:
+    runs-on: ubuntu-18.04
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build bob', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF bob' }]
 
   build-editor-and-smoke-test:
+    needs: [build-bob]
     runs-on: macOS-10.14
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
