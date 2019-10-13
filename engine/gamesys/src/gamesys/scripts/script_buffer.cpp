@@ -693,7 +693,6 @@ namespace dmGameSystem
             {
                 dmBuffer::Destroy(buffer->m_Buffer);
             } else if (buffer->m_Owner == dmScript::OWNER_RES) {
-                dmLogError("released a buffer resource");
                 dmResource::Release(g_Factory, buffer->m_BufferRes);
             }
 

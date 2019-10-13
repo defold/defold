@@ -1,5 +1,5 @@
 [project]
-title = SpinePrebuiltTest
+title = MeshPrebuiltTest
 write_log = 0
 
 [bootstrap]
@@ -14,3 +14,4 @@ game_binding = /main/game.input_bindingc
 
 [graphics]
 texture_profiles = /main/dummy.texture_profiles
+

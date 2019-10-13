@@ -321,10 +321,8 @@ namespace dmBuffer
             return RESULT_ALLOCATION_ERROR;
         }
 
-        // Verify element count and streams count
-        if (count == 0) {
-            return RESULT_BUFFER_SIZE_ERROR;
-        } else if (streams_decl_count == 0) {
+        // Verify streams count
+        if (streams_decl_count == 0) {
             return RESULT_STREAM_SIZE_ERROR;
         }
 

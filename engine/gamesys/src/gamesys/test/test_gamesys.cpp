@@ -1320,10 +1320,20 @@ ResourceFailParams invalid_material_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
+/* Buffer */
+
+const char* valid_buffer_resources[] = {"/mesh/no_data.bufferc", "/mesh/triangle.bufferc"};
+INSTANTIATE_TEST_CASE_P(Buffer, ResourceTest, jc_test_values_in(valid_buffer_resources));
+
 /* Mesh */
 
-const char* valid_mesh_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc"};
+const char* valid_mesh_resources[] = {"/mesh/no_data.meshc", "/mesh/triangle.meshc"};
 INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resources));
+
+/* MeshSet */
+
+const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc"};
+INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
 {
@@ -1331,7 +1341,7 @@ ResourceFailParams invalid_mesh_resources[] =
     {"/meshset/valid.skeletonc", "/meshset/missing.skeletonc"},
     {"/meshset/valid.animationsetc", "/meshset/missing.animationsetc"},
 };
-INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
+INSTANTIATE_TEST_CASE_P(MeshSet, ResourceFailTest, jc_test_values_in(invalid_mesh_resources));
 
 /* Model */
 

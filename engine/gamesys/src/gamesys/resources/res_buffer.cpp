@@ -85,11 +85,11 @@ namespace dmGameSystem
     MAKE_STREAM_BUILDER(UINT8, uint8_t, 0, m_Ui)
     MAKE_STREAM_BUILDER(UINT16, uint16_t, 0, m_Ui)
     MAKE_STREAM_BUILDER(UINT32, uint32_t, 0, m_Ui)
-    MAKE_STREAM_BUILDER(UINT64, uint64_t, 0, m_Ui)
+    MAKE_STREAM_BUILDER(UINT64, uint64_t, 0, m_Ui64)
     MAKE_STREAM_BUILDER(INT8, int8_t, 0, m_I)
     MAKE_STREAM_BUILDER(INT16, int16_t, 0, m_I)
     MAKE_STREAM_BUILDER(INT32, int32_t, 0, m_I)
-    MAKE_STREAM_BUILDER(INT64, int64_t, 0, m_I)
+    MAKE_STREAM_BUILDER(INT64, int64_t, 0, m_I64)
     MAKE_STREAM_BUILDER(FLOAT32, float, 0.0f, m_F)
 
 #undef MAKE_STREAM_BUILDER
@@ -113,14 +113,6 @@ namespace dmGameSystem
             if (elem_count > max_elem) {
                 max_elem = elem_count;
             }
-        }
-
-        // Special case if buffer doesn't have any elements
-        if (max_elem == 0)
-        {
-            free(streams_decl);
-            buffer_resource->m_Buffer = 0x0;
-            return true;
         }
 
         buffer_resource->m_ElementCount = max_elem;

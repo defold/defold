@@ -286,6 +286,8 @@ void GamesysTest<T>::SetUp()
     m_MeshContext.m_Factory       = m_Factory;
     m_MeshContext.m_MaxMeshCount  = 128;
 
+    dmBuffer::NewContext();
+
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
     assert(dmResource::RESULT_OK == r);
 
@@ -318,6 +320,7 @@ void GamesysTest<T>::TearDown()
     dmHID::Final(m_HidContext);
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
+    dmBuffer::DeleteContext();
 }
 
 // Specific test class for testing dmBuffers in scripts

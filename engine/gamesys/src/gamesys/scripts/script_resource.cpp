@@ -512,7 +512,6 @@ static int SetBuffer(lua_State* L)
     bool new_buffer_needed = dst_count != src_count;
     if (new_buffer_needed) {
         // Need to create a new buffer to copy data to.
-        dmLogError("new buffer created");
 
         // Copy stream declaration
         uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
