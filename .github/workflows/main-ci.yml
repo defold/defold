@@ -117,5 +117,5 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build editor', run: 'ci/ci.sh --branch=editor-dev editor' },
-      { name: 'Smoke-test', run: 'ci/ci.sh --branch=editor-dev smoke' }]
+      { name: 'Build editor', run: 'ci/ci.sh --branch=dev editor' },
+      { name: 'Smoke-test', run: 'ci/ci.sh --branch=dev smoke' }]
