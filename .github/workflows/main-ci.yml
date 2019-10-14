@@ -40,7 +40,7 @@ jobs:
 #     runs-on: windows-2016
 #     steps: [
 #       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
 #       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
 #       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, shell: bash, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
 #
@@ -118,5 +118,5 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11', architecture: x64 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build editor', run: 'ci/ci.sh --branch=dev editor' },
+      { name: 'Build editor', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=dev editor' },
       { name: 'Smoke-test', run: 'ci/ci.sh --branch=dev smoke' }]
