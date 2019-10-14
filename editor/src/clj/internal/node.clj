@@ -2,7 +2,6 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
-            [clojure.pprint :as pprint]
             [internal.util :as util]
             [internal.cache :as c]
             [internal.graph.types :as gt]
@@ -150,9 +149,7 @@
   [reg-ref k]
   (swap! reg-ref dissoc k))
 
-(def ^:private node-type-registry-ref (atom {}))
-
-(prn "LOADING internal.node")
+(defonce ^:private node-type-registry-ref (atom {}))
 
 (defn- node-type-registry [] @node-type-registry-ref)
 
@@ -892,13 +889,7 @@
        (assert-symbol "inherits" form)
        (let [typeref (util/vgr form)]
          (assert (node-type-resolve typeref)
-                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ".)\n"
-                      (with-out-str (pprint/pprint
-                                      {:form form
-                                       :typeref typeref
-                                       :resolve (node-type-resolve typeref)
-                                       :registry (for [[k v] (node-type-registry)]
-                                                   [k :class (class v) :type? (boolean (type? v))])}))))
+                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ")."))
          typeref)))})
 
 (defmethod process-as 'display-order [[_ decl]]
