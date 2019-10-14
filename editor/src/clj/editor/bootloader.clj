@@ -18,7 +18,7 @@
         loader (future
                  (try
                    (doseq [batch batches]
-                     (dorun (pmap require batch))
+                     (dorun (map require batch))
                      (when (contains? batch 'editor.boot)
                        (deliver boot-loaded? true)))
                    (catch Throwable t
