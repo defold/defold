@@ -450,25 +450,6 @@
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))
 
-(defn- transform-array-data! [^floats data-array ^Matrix4d transform]
-  (let [^Vector4d temp-vector (Vector4d.)
-        array-length (alength data-array)]
-    (loop [i 0]
-      (if (= i array-length)
-        data-array
-        (do
-          (.set temp-vector
-                (aget data-array i)
-                (aget data-array (inc i))
-                (aget data-array (+ i 2))
-                1.0)
-          (.transform transform temp-vector)
-          (.normalize temp-vector)
-          (aset data-array i (unchecked-float (.x temp-vector)))
-          (aset data-array (inc i) (unchecked-float (.y temp-vector)))
-          (aset data-array (+ i 2) (unchecked-float (.z temp-vector)))
-          (recur (+ i 3)))))))
-
 (defn- transform-array-fn-form [^long component-count data-array-tag-sym data-array-cast-fn-sym vector-type]
   (let [data-array-sym (gensym "data-array")
         transform-sym (gensym "transform")
@@ -541,7 +522,7 @@
       (.setIdentity)
       (.setRotationScale normal-transform))))
 
-(defn- populate-vb! [^VertexBuffer vb {:keys [array-streams position-stream-name normal-stream-name put-vertices-fn scratch-arrays vertex-space world-transform]}]
+(defn- populate-vb! [^VertexBuffer vb {:keys [array-streams normal-stream-name position-stream-name put-vertices-fn scratch-arrays vertex-space world-transform]}]
   (assert (= (count array-streams) (count scratch-arrays)))
   (let [array-streams'
         (if (not= vertex-space :vertex-space-world)

@@ -8,7 +8,6 @@
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesystem.proto GameSystem$LightDesc]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.buffer.proto BufferProto$BufferDesc]
            [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]
            [com.dynamo.physics.proto Physics$ConvexShape]))
 

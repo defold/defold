@@ -4,8 +4,7 @@
             [editor.protobuf :as protobuf]
             [editor.util :as util])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]
-           [com.dynamo.buffer.proto BufferProto$BufferDesc BufferProto$StreamDesc BufferProto$ValueType]))
+           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]))
 
 (set! *warn-on-reflection* true)
 

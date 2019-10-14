@@ -32,7 +32,6 @@
     (:value-type-uint32 :value-type-int32) (int-array length stream-data)
     (:value-type-uint64 :value-type-int64) (long-array length stream-data)))
 
-
 (defn stream->array-stream [vertex-count stream]
   (update stream :data stream-data->array
           (:type stream)

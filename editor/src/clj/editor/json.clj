@@ -36,7 +36,8 @@
   (with-open [pushback-reader (PushbackReader. reader)]
     (apply json/read pushback-reader options)))
 
-(def ^:private resource->json (comp read-then-close io/reader))
+(defn- resource->json [resource]
+  (read-then-close (io/reader resource) nil))
 
 (defn lines->json [lines & options]
   (read-then-close (data/lines-reader lines) options))
@@ -75,7 +76,7 @@
     (if (nil? load-fn)
       (make-code-editable project self resource (util/split-lines (slurp resource)))
       (let [content (try
-                      (read-then-close (InputStreamReader. (io/input-stream resource)))
+                      (read-then-close (InputStreamReader. (io/input-stream resource)) nil)
                       (catch Exception error
                         error))]
         (if (instance? Exception content)
