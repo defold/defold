@@ -58,6 +58,7 @@
         [boot-open-project-batches _] (make-load-batches-for-ns graph 'editor.boot-open-project available)
         batches (into [] (concat boot-batches boot-open-project-batches))]
     (spit to (with-out-str (pprint/pprint batches)))
+    (pprint/pprint batches)
     (when (not= batches (edn/read-string (slurp to)))
       (throw (Exception. (format "Batch file %s was not correctly generated." to))))))
 
