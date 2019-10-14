@@ -106,5 +106,6 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build editor', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF editor' },
-      { name: 'Smoke-test', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF smoke' }]
+      { name: 'Build editor', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF editor' }
+      # ,{ name: 'Smoke-test', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF smoke' }
+      ]
