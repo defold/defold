@@ -3,6 +3,7 @@
 
 namespace dmGraphics
 {
+    const static uint8_t DM_MAX_SET_COUNT              = 2;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
 
@@ -58,36 +59,45 @@ namespace dmGraphics
         uint8_t                    : 7; // unused
     };
 
+    struct DescriptorAllocator
+    {
+        VkDescriptorPool m_PoolHandle;
+        VkDescriptorSet* m_DescriptorSets;
+        uint32_t         m_DescriptorMax;
+        uint32_t         m_DescriptorIndex;
+        uint8_t          m_SwapChainIndex : 2;
+        uint8_t                           : 6; // unused
+
+        struct Range
+        {
+            Range()
+            : m_Begin(0)
+            , m_End(0){}
+            VkDescriptorSet* m_Begin;
+            VkDescriptorSet* m_End;
+        };
+
+        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, Range* descriptorRangeOut);
+        void     Release(VkDevice vk_device);
+    };
+
     struct ScratchBuffer
     {
         ScratchBuffer()
         : m_DeviceBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
-        , m_MemoryMapped(0)
         , m_MappedDataPtr(0)
+        , m_MemoryMapped(0)
         {}
 
-        inline VkResult MapMemory(VkDevice vk_device)
-        {
-            assert(m_MemoryMapped == 0);
-            m_MemoryMapped = 1;
-            return vkMapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle, 0, m_DeviceBuffer.m_MemorySize, 0, &m_MappedDataPtr);
-        }
+        void     UnmapMemory(VkDevice vk_device);
+        VkResult MapMemory(VkDevice vk_device);
 
-        inline void UnmapMemory(VkDevice vk_device)
-        {
-            assert(m_MemoryMapped == 1);
-            m_MemoryMapped = 0;
-            vkUnmapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle);
-        }
-
-        DeviceBuffer     m_DeviceBuffer;
-        VkDescriptorSet* m_DescriptorSets;
-        void*            m_MappedDataPtr;
-        size_t           m_MappedDataCursor;
-        uint16_t         m_DescriptorSetsCount;
-        uint16_t         m_DescriptorIndex;
-        uint8_t          m_MemoryMapped : 1;
-        uint8_t                         : 7; // unused
+        DescriptorAllocator* m_DescriptorAllocator;
+        DeviceBuffer         m_DeviceBuffer;
+        void*                m_MappedDataPtr;
+        size_t               m_MappedDataCursor;
+        uint8_t              m_MemoryMapped : 1;
+        uint8_t                             : 7; // unused
     };
 
     struct RenderTarget
@@ -283,6 +293,10 @@ namespace dmGraphics
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
+    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count,
+        uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator);
+    VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
         VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
@@ -299,11 +313,13 @@ namespace dmGraphics
         HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
     void           ResetPhysicalDevice(PhysicalDevice* device);
     void           ResetLogicalDevice(LogicalDevice* device);
+    void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     void           ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
     void           ResetTexture(VkDevice vk_device, Texture* texture);
     void           ResetDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer);
     void           ResetShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void           ResetPipeline(VkDevice vk_device, Pipeline* pipeline);
+    void           ResetDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator);
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);

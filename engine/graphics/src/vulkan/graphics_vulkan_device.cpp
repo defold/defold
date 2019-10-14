@@ -28,6 +28,46 @@ namespace dmGraphics
         return num_attributes;
     }
 
+    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, Range *descriptorRangeOut)
+    {
+        descriptorRangeOut->m_Begin = &m_DescriptorSets[m_DescriptorIndex];
+        descriptorRangeOut->m_End   = &m_DescriptorSets[m_DescriptorIndex + setCount];
+
+        assert(m_DescriptorMax      >= (m_DescriptorIndex + setCount));
+        m_DescriptorIndex           += setCount;
+
+        VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
+        vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
+        vk_descriptor_set_alloc.descriptorPool     = m_PoolHandle;
+        vk_descriptor_set_alloc.pNext              = 0;
+
+        return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, descriptorRangeOut->m_Begin);
+    }
+
+    void DescriptorAllocator::Release(VkDevice vk_device)
+    {
+        if (m_DescriptorIndex > 0)
+        {
+            vkFreeDescriptorSets(vk_device, m_PoolHandle, m_DescriptorIndex, m_DescriptorSets);
+            m_DescriptorIndex = 0;
+        }
+    }
+
+    VkResult ScratchBuffer::MapMemory(VkDevice vk_device)
+    {
+        m_MemoryMapped = 1;
+        return vkMapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle, 0, m_DeviceBuffer.m_MemorySize, 0, &m_MappedDataPtr);
+    }
+
+    void ScratchBuffer::UnmapMemory(VkDevice vk_device)
+    {
+        assert(m_MemoryMapped == 1);
+        m_MemoryMapped = 0;
+        vkUnmapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle);
+    }
+
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
     {
         uint32_t vk_device_count = 0;
@@ -243,6 +283,7 @@ namespace dmGraphics
 
     VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out)
     {
+        assert(vk_descriptor_pool_out && *vk_descriptor_pool_out == VK_NULL_HANDLE);
         VkDescriptorPoolCreateInfo vk_pool_create_info;
         memset(&vk_pool_create_info, 0, sizeof(vk_pool_create_info));
 
@@ -361,6 +402,62 @@ namespace dmGraphics
 bail:
         ResetDeviceBuffer(vk_device, bufferOut);
         return res;
+    }
+
+    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator)
+    {
+        assert(descriptorAllocator && descriptorAllocator->m_DescriptorSets == 0x0);
+        VkDescriptorPoolSize vk_pool_size[3];
+        memset(vk_pool_size, 0, sizeof(vk_pool_size));
+        vk_pool_size[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        vk_pool_size[0].descriptorCount = descriptor_count;
+        vk_pool_size[1].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        vk_pool_size[1].descriptorCount = descriptor_count;
+        vk_pool_size[2].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        vk_pool_size[2].descriptorCount = descriptor_count;
+
+        descriptorAllocator->m_DescriptorSets  = new VkDescriptorSet[descriptor_count];
+        descriptorAllocator->m_DescriptorMax   = descriptor_count;
+        descriptorAllocator->m_DescriptorIndex = 0;
+        descriptorAllocator->m_SwapChainIndex  = swapChainIndex;
+
+        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_PoolHandle);
+    }
+
+    VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut)
+    {
+        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
+        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
+        scratchBufferOut->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        // Note: While scratch buffer creates and initializes the device buffer for
+        //       backing, it does not reset it or tear it down.
+        VkResult res = CreateDeviceBuffer(vk_physical_device, vk_device, bufferSize,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &scratchBufferOut->m_DeviceBuffer);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        if (clearData)
+        {
+            res = scratchBufferOut->MapMemory(vk_device);
+
+            if (res != VK_SUCCESS)
+            {
+                ResetDeviceBuffer(vk_device, &scratchBufferOut->m_DeviceBuffer);
+                return res;
+            }
+
+            // Clear buffer data
+            memset(scratchBufferOut->m_MappedDataPtr, 0, bufferSize);
+            scratchBufferOut->UnmapMemory(vk_device);
+        }
+
+        scratchBufferOut->m_DescriptorAllocator = descriptorAllocator;
+
+        return VK_SUCCESS;
     }
 
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -779,6 +876,29 @@ bail:
         }
 
         memset((void*)device, 0, sizeof(*device));
+    }
+
+    void ResetDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator)
+    {
+        assert(descriptorAllocator);
+        if (descriptorAllocator->m_DescriptorSets)
+        {
+            delete[] descriptorAllocator->m_DescriptorSets;
+            descriptorAllocator->m_DescriptorSets = 0x0;
+        }
+
+        if (descriptorAllocator->m_PoolHandle != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(vk_device, descriptorAllocator->m_PoolHandle, 0);
+            descriptorAllocator->m_PoolHandle = VK_NULL_HANDLE;
+        }
+    }
+
+    void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
+    {
+        assert(scratchBuffer && !scratchBuffer->m_MemoryMapped);
+        scratchBuffer->m_DescriptorAllocator->Release(vk_device);
+        scratchBuffer->m_MappedDataCursor = 0;
     }
 
     void ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)

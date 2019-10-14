@@ -58,17 +58,17 @@ namespace dmGraphics
             }
         }
 
-        PipelineCache            m_PipelineCache;
-        PipelineState            m_PipelineState;
-        SwapChain*               m_SwapChain;
-        SwapChainCapabilities    m_SwapChainCapabilities;
-        PhysicalDevice           m_PhysicalDevice;
-        LogicalDevice            m_LogicalDevice;
-        FrameResource            m_FrameResources[g_max_frames_in_flight];
-        VkInstance               m_Instance;
-        VkSurfaceKHR             m_WindowSurface;
-        VkDescriptorPool         m_DescriptorPool;
-        dmArray<DeviceBuffer>    m_DeviceBuffersToDelete;
+        PipelineCache                m_PipelineCache;
+        PipelineState                m_PipelineState;
+        SwapChain*                   m_SwapChain;
+        SwapChainCapabilities        m_SwapChainCapabilities;
+        PhysicalDevice               m_PhysicalDevice;
+        LogicalDevice                m_LogicalDevice;
+        FrameResource                m_FrameResources[g_max_frames_in_flight];
+        VkInstance                   m_Instance;
+        VkSurfaceKHR                 m_WindowSurface;
+        dmArray<DescriptorAllocator> m_DescriptorAllocatorsToDelete;
+        dmArray<DeviceBuffer>        m_DeviceBuffersToDelete;
 
         // Window callbacks
         WindowResizeCallback     m_WindowResizeCallback;
@@ -79,13 +79,14 @@ namespace dmGraphics
         void*                    m_WindowFocusCallbackUserData;
 
         // Main device rendering constructs
-        dmArray<VkFramebuffer>   m_MainFrameBuffers;
-        dmArray<VkCommandBuffer> m_MainCommandBuffers;
-        dmArray<ScratchBuffer>   m_MainScratchBuffers;
-        VkRenderPass             m_MainRenderPass;
-        Texture                  m_MainTextureDepthStencil;
-        RenderTarget             m_MainRenderTarget;
-        Viewport                 m_MainViewport;
+        dmArray<VkFramebuffer>       m_MainFrameBuffers;
+        dmArray<VkCommandBuffer>     m_MainCommandBuffers;
+        dmArray<ScratchBuffer>       m_MainScratchBuffers;
+        dmArray<DescriptorAllocator> m_MainDescriptorAllocators;
+        VkRenderPass                 m_MainRenderPass;
+        Texture                      m_MainTextureDepthStencil;
+        RenderTarget                 m_MainRenderTarget;
+        Viewport                     m_MainViewport;
 
         // Rendering state
         RenderTarget*            m_CurrentRenderTarget;
@@ -194,49 +195,27 @@ namespace dmGraphics
     }
 
     static VkResult CreateMainScratchBuffers(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint8_t numBuffers, uint32_t bufferSize, uint16_t numDescriptors, ScratchBuffer* scratchBuffersOut)
+        uint8_t numSwapChainImages, uint32_t bufferSize, uint16_t numDescriptors,
+        DescriptorAllocator* descriptorAllocatorsOut, ScratchBuffer* scratchBuffersOut)
     {
-        for(uint8_t i=0; i < numBuffers; i++)
+        memset(scratchBuffersOut, 0, sizeof(ScratchBuffer) * numSwapChainImages);
+        memset(descriptorAllocatorsOut, 0, sizeof(DescriptorAllocator) * numSwapChainImages);
+        for(uint8_t i=0; i < numSwapChainImages; i++)
         {
-            ScratchBuffer& scratchBuffer = scratchBuffersOut[i];
-            memset(&scratchBuffer, 0, sizeof(scratchBuffer));
-            scratchBuffer.m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-            VkResult res = CreateDeviceBuffer(vk_physical_device, vk_device, bufferSize,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &scratchBuffer.m_DeviceBuffer);
+            VkResult res = CreateDescriptorAllocator(vk_device, numDescriptors, i, &descriptorAllocatorsOut[i]);
             if (res != VK_SUCCESS)
             {
                 return res;
             }
 
-            res = scratchBuffer.MapMemory(vk_device);
-
+            res = CreateScratchBuffer(vk_physical_device, vk_device, bufferSize, true, &descriptorAllocatorsOut[i], &scratchBuffersOut[i]);
             if (res != VK_SUCCESS)
             {
-                ResetDeviceBuffer(vk_device, &scratchBuffer.m_DeviceBuffer);
                 return res;
             }
-
-            // Clear buffer data
-            memset(scratchBuffer.m_MappedDataPtr, 0, bufferSize);
-            scratchBuffer.UnmapMemory(vk_device);
-
-            scratchBuffer.m_DescriptorSets  = new VkDescriptorSet[numDescriptors];
-            scratchBuffer.m_DescriptorIndex = 0;
         }
 
         return VK_SUCCESS;
-    }
-
-    static void ResetScratchBuffer(VkDevice vk_device, VkDescriptorPool vk_descriptor_pool, ScratchBuffer* scratchBuffer)
-    {
-        assert(scratchBuffer);
-        if (scratchBuffer->m_DescriptorIndex > 0)
-        {
-            vkFreeDescriptorSets(vk_device, vk_descriptor_pool, scratchBuffer->m_DescriptorIndex, scratchBuffer->m_DescriptorSets);
-        }
-        scratchBuffer->m_DescriptorIndex  = 0;
-        scratchBuffer->m_MappedDataCursor = 0;
     }
 
     static void ResetPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
@@ -431,27 +410,18 @@ namespace dmGraphics
         res = CreateMainFrameSyncObjects(vk_device, g_max_frames_in_flight, context->m_FrameResources);
         CHECK_VK_ERROR(res);
 
-        // Note: These values aren't based on anything special, we need to handle the case when
-        //       we run out of scratch space.
-        const uint16_t descriptor_count = 512;
-        const uint32_t buffer_size      = 256 * descriptor_count;
-
-        VkDescriptorPoolSize vk_pool_size[3];
-        memset(vk_pool_size, 0, sizeof(vk_pool_size));
-        vk_pool_size[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        vk_pool_size[0].descriptorCount = descriptor_count;
-        vk_pool_size[1].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        vk_pool_size[1].descriptorCount = descriptor_count;
-        vk_pool_size[2].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        vk_pool_size[2].descriptorCount = descriptor_count;
-
-        res = CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &context->m_DescriptorPool);
-        CHECK_VK_ERROR(res);
+        // Note: These values are guesstimated, I guess.
+        const uint16_t descriptor_count_per_pool = 2;
+        const uint32_t buffer_size               = 1024 * descriptor_count_per_pool;
 
         context->m_MainScratchBuffers.SetCapacity(num_swap_chain_images);
         context->m_MainScratchBuffers.SetSize(num_swap_chain_images);
+        context->m_MainDescriptorAllocators.SetCapacity(num_swap_chain_images);
+        context->m_MainDescriptorAllocators.SetSize(num_swap_chain_images);
+
         res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device,
-            num_swap_chain_images, buffer_size, descriptor_count, context->m_MainScratchBuffers.Begin());
+            num_swap_chain_images, buffer_size, descriptor_count_per_pool,
+            context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
         CHECK_VK_ERROR(res);
 
         PipelineState vk_default_pipeline;
@@ -529,6 +499,21 @@ namespace dmGraphics
             {
                 ResetDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer);
                 context->m_DeviceBuffersToDelete.EraseSwap(i);
+                --i;
+            }
+        }
+    }
+
+    static void FlushDescriptorAllocatorsToDelete(HContext context, uint8_t swap_chain_index, bool flushAll = false)
+    {
+        for (uint32_t i = 0; i < context->m_DescriptorAllocatorsToDelete.Size(); ++i)
+        {
+            DescriptorAllocator& allocator = context->m_DescriptorAllocatorsToDelete[i];
+
+            if (flushAll || allocator.m_SwapChainIndex == swap_chain_index)
+            {
+                ResetDescriptorAllocator(context->m_LogicalDevice.m_Device, &allocator);
+                context->m_DescriptorAllocatorsToDelete.EraseSwap(i);
                 --i;
             }
         }
@@ -655,8 +640,6 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
         context->m_LogicalDevice  = logical_device;
-        context->m_PipelineCache.SetCapacity(32,64);
-        context->m_DeviceBuffersToDelete.SetCapacity(8);
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
@@ -670,6 +653,10 @@ namespace dmGraphics
         }
 
         delete[] device_list;
+
+        context->m_PipelineCache.SetCapacity(32,64);
+        context->m_DeviceBuffersToDelete.SetCapacity(8);
+        context->m_DescriptorAllocatorsToDelete.SetCapacity(context->m_SwapChain->m_ImageViews.Size());
 
         // Create framebuffers, default renderpass etc.
         res = CreateMainRenderingResources(context);
@@ -830,6 +817,7 @@ bail:
             SynchronizeDevice(vk_device);
 
             FlushDeviceBuffersToDelete(context, 0, true);
+            FlushDescriptorAllocatorsToDelete(context, 0, true);
 
             glfwCloseWindow();
 
@@ -848,9 +836,10 @@ bail:
 
             for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
             {
-                ResetScratchBuffer(vk_device, context->m_DescriptorPool, &context->m_MainScratchBuffers[i]);
-                ResetDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer);
-                delete context->m_MainScratchBuffers[i].m_DescriptorSets;
+                ScratchBuffer& scratch = context->m_MainScratchBuffers[i];
+                ResetScratchBuffer(vk_device, &scratch);
+                ResetDeviceBuffer(vk_device, &scratch.m_DeviceBuffer);
+                ResetDescriptorAllocator(vk_device, scratch.m_DescriptorAllocator);
             }
 
             for (size_t i = 0; i < g_max_frames_in_flight; i++) {
@@ -859,8 +848,6 @@ bail:
                 vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
                 vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
-
-            vkDestroyDescriptorPool(vk_device, context->m_DescriptorPool, 0);
 
             ResetSwapChain(context->m_SwapChain);
             ResetLogicalDevice(&context->m_LogicalDevice);
@@ -968,7 +955,10 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
-        FlushDeviceBuffersToDelete(context, context->m_CurrentFrameInFlight);
+        if (context->m_DeviceBuffersToDelete.Size() > 0)
+        {
+            FlushDeviceBuffersToDelete(context, context->m_CurrentFrameInFlight);
+        }
 
         VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
@@ -997,11 +987,19 @@ bail:
             }
         }
 
+        // TODO: Test allocating a scratch buffer per frame-in-flight instead of
+        //       one per swap chain image.
+        if (context->m_DescriptorAllocatorsToDelete.Size() > 0)
+        {
+            FlushDescriptorAllocatorsToDelete(context, frame_ix);
+        }
+
         // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
         // for the uniform resource bindings.
         ScratchBuffer* scratchBuffer = &context->m_MainScratchBuffers[frame_ix];
-        ResetScratchBuffer(context->m_LogicalDevice.m_Device, context->m_DescriptorPool, scratchBuffer);
+        ResetScratchBuffer(context->m_LogicalDevice.m_Device, scratchBuffer);
 
+        // Note: See if we don't have to map the memory every frame
         res = scratchBuffer->MapMemory(vk_device);
         CHECK_VK_ERROR(res);
 
@@ -1168,7 +1166,7 @@ bail:
             }
         }
 
-        if (context->m_DeviceBuffersToDelete.Size() == context->m_DeviceBuffersToDelete.Capacity())
+        if (context->m_DeviceBuffersToDelete.Full())
         {
             context->m_DeviceBuffersToDelete.OffsetCapacity(4);
         }
@@ -1185,7 +1183,7 @@ bail:
         buffer->m_MemorySize   = 0;
     }
 
-    static Pipeline* GetPipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
+    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
         Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
@@ -1574,26 +1572,18 @@ bail:
         }
     }
 
-    static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device, VkDescriptorPool vk_descriptor_pool,
+    static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
         Program* program_ptr, ScratchBuffer* scratchBuffer, const uint32_t alignment)
     {
-        const uint8_t set_count = 2;
-        VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
-        memset(&vk_descriptor_set_alloc, 0, sizeof(vk_descriptor_set_alloc));
-        vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorPool     = vk_descriptor_pool;
-        vk_descriptor_set_alloc.descriptorSetCount = set_count;
-        vk_descriptor_set_alloc.pSetLayouts        = program_ptr->m_DescriptorSetLayout;
-
-        VkDescriptorSet* vk_descriptor_sets = &scratchBuffer->m_DescriptorSets[scratchBuffer->m_DescriptorIndex];
-        vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, vk_descriptor_sets);
-        scratchBuffer->m_DescriptorIndex += set_count;
+        DescriptorAllocator::Range desc_range;
+        VkResult res = scratchBuffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &desc_range);
+        CHECK_VK_ERROR(res);
 
         const uint32_t num_uniforms       = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
         uint32_t* dynamic_uniform_offsets = new uint32_t[num_uniforms];
 
-        VkDescriptorSet vs_set = vk_descriptor_sets[0];
-        VkDescriptorSet fs_set = vk_descriptor_sets[1];
+        VkDescriptorSet vs_set = desc_range.m_Begin[0];
+        VkDescriptorSet fs_set = desc_range.m_Begin[1];
 
         UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
             program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
@@ -1604,11 +1594,23 @@ bail:
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
-            0, 2, vk_descriptor_sets,
+            0, 2, desc_range.m_Begin,
             num_uniforms, dynamic_uniform_offsets);
 
         delete[] dynamic_uniform_offsets;
         return VK_SUCCESS;
+    }
+
+    static uint32_t GetUniformSizeAligned(ShaderModule* module, uint32_t dynamicAlignment)
+    {
+        uint32_t size = 0;
+        for (int i = 0; i < module->m_UniformCount; ++i)
+        {
+            const uint32_t uniform_size_nonalign = GetShaderTypeSize(module->m_Uniforms[i].m_Type);
+            const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
+            size += uniform_size;
+        }
+        return size;
     }
 
     static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
@@ -1616,8 +1618,52 @@ bail:
         assert(context);
         assert(context->m_CurrentVertexBuffer);
 
-        Program* program_ptr = context->m_CurrentProgram;
-        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
+        Program* program_ptr           = context->m_CurrentProgram;
+        VkDevice vk_device             = context->m_LogicalDevice.m_Device;
+
+        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) > scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
+        bool resize_scratch_buffer = (GetUniformSizeAligned(program_ptr->m_VertexModule, dynamic_alignment) + GetUniformSizeAligned(program_ptr->m_FragmentModule, dynamic_alignment)) > scratchBuffer->m_DeviceBuffer.m_MemorySize;
+
+        if (resize_scratch_buffer || resize_desc_allocator)
+        {
+            const uint8_t descriptor_increase = 32;
+            DescriptorAllocator* allocator    = scratchBuffer->m_DescriptorAllocator;
+
+            if (resize_desc_allocator)
+            {
+                if (context->m_DescriptorAllocatorsToDelete.Full())
+                {
+                    context->m_DescriptorAllocatorsToDelete.OffsetCapacity(1);
+                }
+
+                // No need to check for duplicates here
+                const DescriptorAllocator allocator_copy = *allocator;
+                context->m_DescriptorAllocatorsToDelete.Push(allocator_copy);
+
+                // Since we have handed over ownership of the allocator to the allocators-to-delete list,
+                // we need to clear out the allocator state.
+                allocator->m_PoolHandle     = VK_NULL_HANDLE;
+                allocator->m_DescriptorSets = 0x0;
+
+                const uint32_t new_descriptor_count = scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase;
+
+                VkResult res = CreateDescriptorAllocator(vk_device, new_descriptor_count, allocator->m_SwapChainIndex, allocator);
+                CHECK_VK_ERROR(res);
+            }
+
+            if (resize_scratch_buffer)
+            {
+                const uint32_t new_data_size = scratchBuffer->m_DeviceBuffer.m_MemorySize + 256 * descriptor_increase;
+                // Put old buffer on the delete queue so we don't mess the descriptors already in-use
+                ResetDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
+                VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, vk_device,
+                    new_data_size, false, allocator, scratchBuffer);
+                CHECK_VK_ERROR(res);
+
+                scratchBuffer->MapMemory(vk_device);
+            }
+        }
 
         if (indexBuffer)
         {
@@ -1632,11 +1678,10 @@ bail:
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
         }
 
-        VkResult res = CommitUniforms(vk_command_buffer, vk_device, context->m_DescriptorPool,
-            program_ptr, scratchBuffer, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+        VkResult res = CommitUniforms(vk_command_buffer, vk_device, program_ptr, scratchBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
-        Pipeline* pipeline = GetPipeline(vk_device,
+        Pipeline* pipeline = GetOrCreatePipeline(vk_device,
             context->m_PipelineState, context->m_PipelineCache,
             program_ptr, context->m_CurrentRenderTarget,
             context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
