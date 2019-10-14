@@ -29,7 +29,7 @@
                          (println "Compiling namespace" ns#))
                        (try
                          (binding [*warn-on-reflection* true]
-                           (load ns-file#))
+                           (require ns#))
                          (catch ExceptionInInitializerError e#
                            (swap! failures# inc)
                            (.printStackTrace e#)))))
