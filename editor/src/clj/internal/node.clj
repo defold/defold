@@ -150,7 +150,9 @@
   [reg-ref k]
   (swap! reg-ref dissoc k))
 
-(defonce ^:private node-type-registry-ref (atom {}))
+(def ^:private node-type-registry-ref (atom {}))
+
+(prn "LOADING internal.node")
 
 (defn- node-type-registry [] @node-type-registry-ref)
 
@@ -896,7 +898,7 @@
                                        :typeref typeref
                                        :resolve (node-type-resolve typeref)
                                        :registry (for [[k v] (node-type-registry)]
-                                                   [k :class (class v) :type? (type? v)])}))))
+                                                   [k :class (class v) :type? (boolean (type? v))])}))))
          typeref)))})
 
 (defmethod process-as 'display-order [[_ decl]]
