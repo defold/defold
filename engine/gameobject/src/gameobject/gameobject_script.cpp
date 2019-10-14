@@ -735,7 +735,7 @@ namespace dmGameObject
     }
 
     /*# gets the rotation of the game object instance
-     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
+     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world rotation.
      *
      * @name go.get_rotation
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
