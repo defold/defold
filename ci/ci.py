@@ -178,10 +178,6 @@ def main(argv):
         channel = None
         release = False
 
-    call("set")
-    call("java --version")
-    exit(1)
-
     # execute commands
     for command in args.commands:
         if command == "engine":
