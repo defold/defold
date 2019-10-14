@@ -895,7 +895,8 @@
                                       {:form form
                                        :typeref typeref
                                        :resolve (node-type-resolve typeref)
-                                       :registry (keys (node-type-registry))}))))
+                                       :registry (for [[k v] (node-type-registry)]
+                                                   [k :class (class v) :type? (type? v)])}))))
          typeref)))})
 
 (defmethod process-as 'display-order [[_ decl]]
