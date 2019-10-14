@@ -4,9 +4,13 @@
   (:import (java.io IOException)))
 
 (defn- try-shell-command! [command & args]
-  (let [{:keys [out err]} (apply shell/sh command args)]
-    (when (empty? err)
-      (doto (string/trim-newline out) prn))))
+  (try
+    (let [{:keys [out err]} (apply shell/sh command args)]
+      (when (empty? err)
+        (string/trim-newline out)))
+    (catch IOException _
+      ;; The specified command does not exist.
+      nil)))
 
 (def detect-engine-sha1
   (memoize
