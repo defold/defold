@@ -2,6 +2,7 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
+            [clojure.pprint :as pprint]
             [internal.util :as util]
             [internal.cache :as c]
             [internal.graph.types :as gt]
@@ -889,7 +890,12 @@
        (assert-symbol "inherits" form)
        (let [typeref (util/vgr form)]
          (assert (node-type-resolve typeref)
-                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ".)"))
+                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ".)\n"
+                      (with-out-str (pprint/pprint
+                                      {:form form
+                                       :typeref typeref
+                                       :resolve (node-type-resolve typeref)
+                                       :registry (keys (node-type-registry))}))))
          typeref)))})
 
 (defmethod process-as 'display-order [[_ decl]]
