@@ -10,113 +10,113 @@ on:
 
 
 jobs:
-# ---- BUILD ENGINE VERSIONS ------------------
-  build-engine-macos:
-    strategy:
-      matrix:
-        platform: [x86_64-darwin]
+# # ---- BUILD ENGINE VERSIONS ------------------
+#   build-engine-macos:
+#     strategy:
+#       matrix:
+#         platform: [x86_64-darwin]
+#     runs-on: macOS-10.14
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
+#
+#   build-engine-ios:
+#     strategy:
+#       matrix:
+#         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
+#     runs-on: macOS-10.14
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
+#
+#   build-engine-windows:
+#     strategy:
+#       matrix:
+#         platform: [win32, x86_64-win32]
+#     runs-on: windows-2016
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
+#       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
+#       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, shell: bash, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
+#
+#   build-engine-web:
+#     strategy:
+#       matrix:
+#         platform: [js-web, wasm-web]
+#     runs-on: ubuntu-18.04
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
+#
+#   build-engine-android:
+#     strategy:
+#       matrix:
+#         platform: [armv7-android, arm64-android]
+#     runs-on: ubuntu-18.04
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
+#
+#   build-engine-linux:
+#     strategy:
+#       matrix:
+#         platform: [x86_64-linux]
+#     runs-on: ubuntu-18.04
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine' }]
+#
+# # ---- BUILD BOB AND SDK ------------------
+#
+#   build-bob:
+#     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
+#     runs-on: ubuntu-18.04
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build bob', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF bob' }]
+#
+#   build-sdk:
+#     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
+#     runs-on: ubuntu-18.04
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build SDK', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF sdk' }]
+#
+# # ---- BUILD EDITOR AND SMOKE TEST ------------------
+#
+#   build-editor-and-smoke-test:
+#     needs: [build-bob]
+#     runs-on: macOS-10.14
+#     steps: [
+#       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+#       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+#       { name: 'Install dependencies', run: 'ci/ci.sh install' },
+#       { name: 'Build editor', run: 'ci/ci.sh --branch=$GITHUB_REF editor' },
+#       { name: 'Smoke-test', run: 'ci/ci.sh --branch=$GITHUB_REF smoke' }]
+
+
+
+   build-editor-and-smoke-test:
     runs-on: macOS-10.14
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11', architecture: x64 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
-
-  build-engine-ios:
-    strategy:
-      matrix:
-        platform: [armv7-darwin, arm64-darwin, x86_64-ios]
-    runs-on: macOS-10.14
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
-
-  build-engine-windows:
-    strategy:
-      matrix:
-        platform: [win32, x86_64-win32]
-    runs-on: windows-2016
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x86 } },
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, shell: bash, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine' }]
-
-  build-engine-web:
-    strategy:
-      matrix:
-        platform: [js-web, wasm-web]
-    runs-on: ubuntu-18.04
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
-
-  build-engine-android:
-    strategy:
-      matrix:
-        platform: [armv7-android, arm64-android]
-    runs-on: ubuntu-18.04
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine' }]
-
-  build-engine-linux:
-    strategy:
-      matrix:
-        platform: [x86_64-linux]
-    runs-on: ubuntu-18.04
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine' }]
-
-# ---- BUILD BOB AND SDK ------------------
-
-  build-bob:
-    needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
-    runs-on: ubuntu-18.04
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build bob', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF bob' }]
-
-  build-sdk:
-    needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
-    runs-on: ubuntu-18.04
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build SDK', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF sdk' }]
-
-# ---- BUILD EDITOR AND SMOKE TEST ------------------
-
-  build-editor-and-smoke-test:
-    needs: [build-bob]
-    runs-on: macOS-10.14
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      { name: 'Build editor', run: 'ci/ci.sh --branch=$GITHUB_REF editor' },
-      { name: 'Smoke-test', run: 'ci/ci.sh --branch=$GITHUB_REF smoke' }]
-
-
-
-   # build-editor-and-smoke-test:
-   #  runs-on: macOS-10.14
-   #  steps: [
-   #    { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
-   #    { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-   #    { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11', architecture: x64 } },
-   #    { name: 'Install dependencies', run: 'ci/ci.sh install' },
-   #    { name: 'Build editor', run: 'ci/ci.sh --branch=dev editor' },
-   #    { name: 'Smoke-test', run: 'ci/ci.sh --branch=dev smoke' }]
+      { name: 'Build editor', run: 'ci/ci.sh --branch=dev editor' },
+      { name: 'Smoke-test', run: 'ci/ci.sh --branch=dev smoke' }]
