@@ -186,7 +186,6 @@ def main(argv):
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
         elif command == "editor":
-            # build_editor(channel = channel, release = False, engine_artifacts = "d47762f1e92f5a95689b3f445adffb9a4534fec6")
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
             elif branch == "editor-dev":

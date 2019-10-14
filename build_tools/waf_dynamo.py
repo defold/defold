@@ -1188,7 +1188,6 @@ def run_tests(valgrind = False, configfile = None):
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-            print("STARTING TEST", cmd, t.name)
             proc = subprocess.Popen(cmd, shell = True)
             ret = proc.wait()
             if ret != 0:
