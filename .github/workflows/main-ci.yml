@@ -5,10 +5,10 @@ on:
      branches:
        - '*'
        - '!DEFEDIT-*'
-  pull_request:
-     branches:
-       - '*'
-       - '!DEFEDIT-*'
+  # pull_request:
+  #    branches:
+  #      - '*'
+  #      - '!DEFEDIT-*'
 
 
 jobs:

@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - 'DEFEDIT-*'
-  pull_request:
-    branches:
-      - 'DEFEDIT-*'
+  # pull_request:
+  #   branches:
+  #     - 'DEFEDIT-*'
 
 jobs:
   build-and-test-editor:
