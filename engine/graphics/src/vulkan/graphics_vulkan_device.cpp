@@ -28,13 +28,11 @@ namespace dmGraphics
         return num_attributes;
     }
 
-    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, Range *descriptorRangeOut)
+    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
     {
-        descriptorRangeOut->m_Begin = &m_DescriptorSets[m_DescriptorIndex];
-        descriptorRangeOut->m_End   = &m_DescriptorSets[m_DescriptorIndex + setCount];
-
-        assert(m_DescriptorMax      >= (m_DescriptorIndex + setCount));
-        m_DescriptorIndex           += setCount;
+        assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
+        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorIndex];
+        m_DescriptorIndex      += setCount;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -43,7 +41,7 @@ namespace dmGraphics
         vk_descriptor_set_alloc.descriptorPool     = m_PoolHandle;
         vk_descriptor_set_alloc.pNext              = 0;
 
-        return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, descriptorRangeOut->m_Begin);
+        return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
     }
 
     void DescriptorAllocator::Release(VkDevice vk_device)

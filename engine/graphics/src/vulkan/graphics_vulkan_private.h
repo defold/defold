@@ -68,16 +68,7 @@ namespace dmGraphics
         uint8_t          m_SwapChainIndex : 2;
         uint8_t                           : 6; // unused
 
-        struct Range
-        {
-            Range()
-            : m_Begin(0)
-            , m_End(0){}
-            VkDescriptorSet* m_Begin;
-            VkDescriptorSet* m_End;
-        };
-
-        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, Range* descriptorRangeOut);
+        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
         void     Release(VkDevice vk_device);
     };
 
@@ -222,6 +213,7 @@ namespace dmGraphics
         ShaderResourceBinding* m_Uniforms;
         ShaderResourceBinding* m_Attributes;
         uint32_t               m_UniformDataSize;
+        uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformCount;
         uint16_t               m_AttributeCount;
     };

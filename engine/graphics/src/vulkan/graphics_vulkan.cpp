@@ -412,7 +412,7 @@ namespace dmGraphics
 
         // Note: These values are guesstimated, I guess.
         const uint16_t descriptor_count_per_pool = 2;
-        const uint32_t buffer_size               = 1024 * descriptor_count_per_pool;
+        const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
 
         context->m_MainScratchBuffers.SetCapacity(num_swap_chain_images);
         context->m_MainScratchBuffers.SetSize(num_swap_chain_images);
@@ -1530,8 +1530,8 @@ bail:
         VkDescriptorSet vk_descriptor_set,
         ShaderModule*   shaderModule,
         ScratchBuffer*  scratchBuffer,
-        uint8_t*        uniform_data,
-        const uint32_t* uniform_offsets,
+        uint8_t*        uniformData,
+        uint32_t*       uniformOffsets,
         uint32_t        dynamicAlignment,
         uint32_t*       dynamicOffsets)
     {
@@ -1544,8 +1544,8 @@ bail:
             // Copy client data to aligned host memory
             // The data_offset here is the offset into the programs uniform data,
             // i.e the source buffer.
-            const uint32_t data_offset = uniform_offsets[i];
-            memcpy(&((uint8_t*)scratchBuffer->m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor], &uniform_data[data_offset], uniform_size_nonalign);
+            const uint32_t data_offset = uniformOffsets[i];
+            memcpy(&((uint8_t*)scratchBuffer->m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor], &uniformData[data_offset], uniform_size_nonalign);
 
             // Note in the spec about the offset being zero:
             //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
@@ -1575,15 +1575,15 @@ bail:
     static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
         Program* program_ptr, ScratchBuffer* scratchBuffer, const uint32_t alignment)
     {
-        DescriptorAllocator::Range desc_range;
-        VkResult res = scratchBuffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &desc_range);
+        VkDescriptorSet* vk_descriptor_set_list = 0x0;
+        VkResult res = scratchBuffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
         CHECK_VK_ERROR(res);
 
         const uint32_t num_uniforms       = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
         uint32_t* dynamic_uniform_offsets = new uint32_t[num_uniforms];
 
-        VkDescriptorSet vs_set = desc_range.m_Begin[0];
-        VkDescriptorSet fs_set = desc_range.m_Begin[1];
+        VkDescriptorSet vs_set = vk_descriptor_set_list[0];
+        VkDescriptorSet fs_set = vk_descriptor_set_list[1];
 
         UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
             program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
@@ -1594,23 +1594,11 @@ bail:
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
-            0, 2, desc_range.m_Begin,
+            0, 2, vk_descriptor_set_list,
             num_uniforms, dynamic_uniform_offsets);
 
         delete[] dynamic_uniform_offsets;
         return VK_SUCCESS;
-    }
-
-    static uint32_t GetUniformSizeAligned(ShaderModule* module, uint32_t dynamicAlignment)
-    {
-        uint32_t size = 0;
-        for (int i = 0; i < module->m_UniformCount; ++i)
-        {
-            const uint32_t uniform_size_nonalign = GetShaderTypeSize(module->m_Uniforms[i].m_Type);
-            const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
-            size += uniform_size;
-        }
-        return size;
     }
 
     static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
@@ -1621,9 +1609,10 @@ bail:
         Program* program_ptr           = context->m_CurrentProgram;
         VkDevice vk_device             = context->m_LogicalDevice.m_Device;
 
-        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) > scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
-        bool resize_scratch_buffer = (GetUniformSizeAligned(program_ptr->m_VertexModule, dynamic_alignment) + GetUniformSizeAligned(program_ptr->m_FragmentModule, dynamic_alignment)) > scratchBuffer->m_DeviceBuffer.m_MemorySize;
+        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) >
+            scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
+        bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned +
+            program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > scratchBuffer->m_DeviceBuffer.m_MemorySize;
 
         if (resize_scratch_buffer || resize_desc_allocator)
         {
@@ -1678,6 +1667,7 @@ bail:
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
         }
 
+        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
         VkResult res = CommitUniforms(vk_command_buffer, vk_device, program_ptr, scratchBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
@@ -1742,12 +1732,13 @@ bail:
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
 
-    static void TransferResourceBindingsFromDDF(ShaderModule* shader, ShaderDesc::Shader* ddf)
+    static void ProcessShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
     {
         if (ddf->m_Uniforms.m_Count > 0)
         {
-            shader->m_Uniforms     = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
-            shader->m_UniformCount = ddf->m_Uniforms.m_Count;
+            shader->m_Uniforms               = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
+            shader->m_UniformCount           = ddf->m_Uniforms.m_Count;
+            shader->m_UniformDataSizeAligned = 0;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -1757,6 +1748,9 @@ bail:
                 res.m_NameHash             = ddf->m_Uniforms[i].m_Name;
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
                 assert(res.m_Set <= 1);
+
+                // Calculate aligned data size on the fly
+                shader->m_UniformDataSizeAligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
             }
         }
 
@@ -1782,7 +1776,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        TransferResourceBindingsFromDDF(shader, ddf);
+        ProcessShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         return (HVertexProgram) shader;
     }
 
@@ -1792,7 +1786,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        TransferResourceBindingsFromDDF(shader, ddf);
+        ProcessShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         return (HFragmentProgram) shader;
     }
 
@@ -1885,7 +1879,6 @@ bail:
             FillDescriptorSetBindings(vertex_module, VK_SHADER_STAGE_VERTEX_BIT, vk_descriptor_set_bindings);
             FillDescriptorSetBindings(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
 
-            // TODO: better set management!
             VkDescriptorSetLayoutCreateInfo vk_descriptor_set_create_info[2];
             memset(&vk_descriptor_set_create_info, 0, sizeof(vk_descriptor_set_create_info));
             vk_descriptor_set_create_info[0].sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -2096,7 +2089,6 @@ bail:
         Program* program_ptr = (Program*) prog;
         assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
 
-        // Initialize location to 'not found'
         uint32_t location_vs = UNIFORM_LOCATION_MAX;
         uint32_t location_fs = UNIFORM_LOCATION_MAX;
 
@@ -2129,8 +2121,7 @@ bail:
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
-            // Fragment uniforms are packed behind vertex uniforms (if applicable),
-            // hence the offset here
+            // Fragment uniforms are packed behind vertex uniforms hence the offset here
             index_fs       += program_ptr->m_VertexModule->m_UniformCount;
             uint32_t offset = program_ptr->m_UniformOffsets[index_fs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
@@ -2155,8 +2146,7 @@ bail:
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
-            // Fragment uniforms are packed behind vertex uniforms (if applicable),
-            // hence the offset here
+            // Fragment uniforms are packed behind vertex uniforms hence the offset here
             index_fs       += program_ptr->m_VertexModule->m_UniformCount;
             uint32_t offset = program_ptr->m_UniformOffsets[index_fs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
