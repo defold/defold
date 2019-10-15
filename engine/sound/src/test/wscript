@@ -57,7 +57,6 @@ def gen_dc(task):
     return 0
 
 def build(bld):
-    print("FOOBAR sound test build")
     platform = bld.env['PLATFORM']
 
     if 'web' in platform:

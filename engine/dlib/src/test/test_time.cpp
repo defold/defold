@@ -14,7 +14,7 @@ TEST(dmTime, GetTime)
     uint64_t start = dmTime::GetTime();
     dmTime::Sleep(200000);
     uint64_t end = dmTime::GetTime();
-    ASSERT_NEAR((double) 200000, (double) (end-start), (double) 90000);
+    ASSERT_NEAR((double) 200000, (double) (end-start), (double) 40000);
 }
 #endif
 
