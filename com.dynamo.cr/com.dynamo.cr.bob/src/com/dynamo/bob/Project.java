@@ -670,17 +670,9 @@ public class Project {
 
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
-            //File classesDexFile = null;
-            //File proguardMappingFile = null;
             File tmpDir = null;
 
             if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-                // If we are building for Android, We output a mapping file per architechture
-                // so that the user can select which of the mapping files are more suitable,
-                // since they can diff between architechtures
-                String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
-                //proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
-
                 // NOTE:
                 // We previously only generated and sent Android resources for at most one arch,
                 // to avoid sending and building these twice.
@@ -691,9 +683,6 @@ public class Project {
                     androidResourcesGenerated = true;
 
                     Bob.initAndroid(); // extract resources
-
-                    // If we are building for Android, we expect a classes.dex file to be returned as well.
-                    //classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
 
                     List<String> resDirs = new ArrayList<>();
                     List<String> extraPackages = new ArrayList<>();

@@ -23,7 +23,7 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 
 public class OSXBundler implements IBundler {
-    private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
+    private static Logger logger = Logger.getLogger(OSXBundler.class.getName());
     public static final String ICON_NAME = "icon.icns";
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
