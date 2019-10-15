@@ -1452,8 +1452,7 @@ instructions.configure=\
   </children>
 </repository>
 """
-
-        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1:
+        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
