@@ -3,9 +3,11 @@ name: CI - Main
 on:
   push:
      branches:
+       - '*'
        - '!DEFEDIT-*'
   pull_request:
      branches:
+       - '*'
        - '!DEFEDIT-*'
 
 
