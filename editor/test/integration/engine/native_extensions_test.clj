@@ -11,11 +11,10 @@
    [editor.fs :as fs]
    [editor.resource :as resource]
    [util.repo :as repo])
-  (:import
-   [java.io File]))
+  (:import [com.dynamo.bob.archive EngineVersion]))
 
 (defn fix-engine-sha1 [f]
-  (let [engine-sha1 (repo/detect-engine-sha1)]
+  (let [engine-sha1 (or (repo/detect-engine-sha1) EngineVersion/sha1)]
     (with-redefs [editor.system/defold-engine-sha1 (constantly engine-sha1)]
       (f))))
 
