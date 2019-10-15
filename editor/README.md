@@ -193,6 +193,12 @@ Doing all this evaluation can take time, so the editor makes extensive use of ca
 
 The inputs and outputs are generally constrained to a particular data type, but any output can also produce a special type of value called an `ErrorValue`. Error values will be propagated and in a sense "infect" anything downstream of them in the graph. As the error propagates, its path in the graph is recorded until it eventually reaches an input that is able to handle it by specifying a `:substitute` function. Typically the error value reaches a some sort of view where the error can be presented in a meaningful way and allow the user to navigate to the source of the error. Beware that evaluating an output programmatically may return an unexpected `ErrorValue` as a result of a upstream connection in the graph.
 
+## Transactions
+
+The graph is modified by executing transactions using the `g/transact` function. It takes a (possibly nested) sequence of transaction steps and ensures all of them or none of them are applied. Each transaction step only performs a small operation like "Create Node", "Set Property" or "Add Connection". Larger operations like adding a component to a game object are composed of many small steps. It is possible to evaluate the graph on a background thread by obtaining an `evaluation-context`, which contains a snapshot of the graph state, and supplying it with all graph queries. However, running `g/transact` from a background thread is not allowed, so a background thread must post `g/transact` calls to the main thread using something like `ui/run-later`.
+
+## Multiple graphs
+
 There might be several graphs in play at any one time. Typically all the project data (i.e. "model" data) resides in one graph, whereas any number of views (as in user-interface elements) can have their own graphs whose node inputs are connected to the project graph. Closing a view discards the view graph but leaves the project graph intact.
 
 The project graph has history enabled, which means that it keeps an ever-growing list of graph states that we append to every time an undoable action is performed. Undoing and redoing becomes a simple matter of pointing to one of the previous graph states. However, care must be taken when introducing state as any programmatic change to the project graph creates an undo step.
