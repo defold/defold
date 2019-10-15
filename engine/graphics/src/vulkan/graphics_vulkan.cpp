@@ -39,15 +39,14 @@ namespace dmGraphics
     static struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
-        : m_Instance(vk_instance)
-        , m_WindowSurface(VK_NULL_HANDLE)
-        , m_MainRenderPass(VK_NULL_HANDLE)
-        , m_MainRenderTarget(0)
-        , m_DefaultTextureMinFilter(params.m_DefaultTextureMinFilter)
-        , m_DefaultTextureMagFilter(params.m_DefaultTextureMagFilter)
-        , m_FrameBegun(0)
-        , m_VerifyGraphicsCalls(params.m_VerifyGraphicsCalls)
-        {}
+        : m_MainRenderTarget(0)
+        {
+            memset(this, 0, sizeof(*this));
+            m_Instance                = vk_instance;
+            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        }
 
         ~Context()
         {
