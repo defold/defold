@@ -392,6 +392,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 }
 #endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -411,6 +412,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
+#endif
 
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {
