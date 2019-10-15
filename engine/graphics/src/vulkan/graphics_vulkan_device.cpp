@@ -405,14 +405,10 @@ bail:
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator)
     {
         assert(descriptorAllocator && descriptorAllocator->m_DescriptorSets == 0x0);
-        VkDescriptorPoolSize vk_pool_size[3];
-        memset(vk_pool_size, 0, sizeof(vk_pool_size));
-        vk_pool_size[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        vk_pool_size[0].descriptorCount = descriptor_count;
-        vk_pool_size[1].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        vk_pool_size[1].descriptorCount = descriptor_count;
-        vk_pool_size[2].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        vk_pool_size[2].descriptorCount = descriptor_count;
+        VkDescriptorPoolSize vk_pool_size[] = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
+        };
 
         descriptorAllocator->m_DescriptorSets  = new VkDescriptorSet[descriptor_count];
         descriptorAllocator->m_DescriptorMax   = descriptor_count;

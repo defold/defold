@@ -4,8 +4,8 @@
 namespace dmGraphics
 {
     const static uint8_t DM_MAX_SET_COUNT              = 2;
-    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
+    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
 
     struct Texture
     {
@@ -221,7 +221,7 @@ namespace dmGraphics
     struct Program
     {
         uint64_t                        m_Hash;
-        uint32_t*                       m_UniformOffsets;
+        uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;

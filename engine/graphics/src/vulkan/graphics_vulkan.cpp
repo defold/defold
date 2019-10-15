@@ -410,8 +410,9 @@ namespace dmGraphics
         res = CreateMainFrameSyncObjects(vk_device, g_max_frames_in_flight, context->m_FrameResources);
         CHECK_VK_ERROR(res);
 
-        // Note: These values are guesstimated, I guess.
-        const uint16_t descriptor_count_per_pool = 2;
+        // Note: These values are guessed and equals roughly 256 draw calls and 64kb
+        //       of uniform memory per scratch buffer.
+        const uint16_t descriptor_count_per_pool = 512;
         const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
 
         context->m_MainScratchBuffers.SetCapacity(num_swap_chain_images);
@@ -999,7 +1000,7 @@ bail:
         ScratchBuffer* scratchBuffer = &context->m_MainScratchBuffers[frame_ix];
         ResetScratchBuffer(context->m_LogicalDevice.m_Device, scratchBuffer);
 
-        // Note: See if we don't have to map the memory every frame
+        // TODO: Investigate if we don't have to map the memory every frame
         res = scratchBuffer->MapMemory(vk_device);
         CHECK_VK_ERROR(res);
 
@@ -1531,20 +1532,20 @@ bail:
         ShaderModule*   shaderModule,
         ScratchBuffer*  scratchBuffer,
         uint8_t*        uniformData,
-        uint32_t*       uniformOffsets,
+        uint32_t*       uniformDataOffsets,
         uint32_t        dynamicAlignment,
         uint32_t*       dynamicOffsets)
     {
         for (int i = 0; i < shaderModule->m_UniformCount; ++i)
         {
-            dynamicOffsets[i]                    = scratchBuffer->m_MappedDataCursor;
+            dynamicOffsets[i]                    = (uint32_t) scratchBuffer->m_MappedDataCursor;
             const uint32_t uniform_size_nonalign = GetShaderTypeSize(shaderModule->m_Uniforms[i].m_Type);
             const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
 
             // Copy client data to aligned host memory
             // The data_offset here is the offset into the programs uniform data,
             // i.e the source buffer.
-            const uint32_t data_offset = uniformOffsets[i];
+            const uint32_t data_offset = uniformDataOffsets[i];
             memcpy(&((uint8_t*)scratchBuffer->m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor], &uniformData[data_offset], uniform_size_nonalign);
 
             // Note in the spec about the offset being zero:
@@ -1586,10 +1587,10 @@ bail:
         VkDescriptorSet fs_set = vk_descriptor_set_list[1];
 
         UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
-            program_ptr->m_UniformData, program_ptr->m_UniformOffsets,
+            program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets,
             alignment, dynamic_uniform_offsets);
         UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
-            program_ptr->m_UniformData, &program_ptr->m_UniformOffsets[program_ptr->m_VertexModule->m_UniformCount],
+            program_ptr->m_UniformData, &program_ptr->m_UniformDataOffsets[program_ptr->m_VertexModule->m_UniformCount],
             alignment, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
@@ -1643,7 +1644,7 @@ bail:
 
             if (resize_scratch_buffer)
             {
-                const uint32_t new_data_size = scratchBuffer->m_DeviceBuffer.m_MemorySize + 256 * descriptor_increase;
+                const uint32_t new_data_size = (uint32_t) scratchBuffer->m_DeviceBuffer.m_MemorySize + 256 * descriptor_increase;
                 // Put old buffer on the delete queue so we don't mess the descriptors already in-use
                 ResetDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
                 VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, vk_device,
@@ -1717,8 +1718,8 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
 
-        // The 'first' value that comes in is intended to be a byte offset, but
-        // vkCmdDrawIndexed is intended to use real offset values into the index buffer..
+        // The 'first' value that comes in is intended to be a byte offset,
+        // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, 1, index_offset, 0, 0);
     }
@@ -1844,7 +1845,7 @@ bail:
         program->m_PipelineStageInfo[0] = vk_vertex_shader_create_info;
         program->m_PipelineStageInfo[1] = vk_fragment_shader_create_info;
         program->m_Hash                 = 0;
-        program->m_UniformOffsets       = 0;
+        program->m_UniformDataOffsets   = 0;
         program->m_UniformData          = 0;
         program->m_VertexModule         = vertex_module;
         program->m_FragmentModule       = fragment_module;
@@ -1867,10 +1868,9 @@ bail:
         const uint32_t num_uniforms = vertex_module->m_UniformCount + fragment_module->m_UniformCount;
         if (num_uniforms > 0)
         {
-            // TODO: Move to shadermodule?
-            program->m_UniformOffsets = new uint32_t[num_uniforms];
-            uint32_t vx_last_offset   = FillUniformOffsets(vertex_module, 0, program->m_UniformOffsets);
-            uint32_t fs_last_offset   = FillUniformOffsets(fragment_module, vx_last_offset, &program->m_UniformOffsets[vertex_module->m_UniformCount]);
+            program->m_UniformDataOffsets = new uint32_t[num_uniforms];
+            uint32_t vx_last_offset   = FillUniformOffsets(vertex_module, 0, program->m_UniformDataOffsets);
+            uint32_t fs_last_offset   = FillUniformOffsets(fragment_module, vx_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformCount]);
             program->m_UniformData    = new uint8_t[vx_last_offset + fs_last_offset];
             memset(program->m_UniformData, 0, vx_last_offset + fs_last_offset);
 
@@ -1912,13 +1912,12 @@ bail:
         if (program_ptr->m_UniformData)
         {
             delete[] program_ptr->m_UniformData;
-            delete[] program_ptr->m_UniformOffsets;
+            delete[] program_ptr->m_UniformDataOffsets;
         }
 
         if (program_ptr->m_PipelineLayout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program_ptr->m_PipelineLayout, 0);
-            program_ptr->m_PipelineLayout = VK_NULL_HANDLE;
         }
 
         for (int i = 0; i < 2; ++i)
@@ -1981,10 +1980,10 @@ bail:
         return ShaderDesc::LANGUAGE_SPIRV;
     }
 
-    void EnableProgram(HContext context, HProgram program_ptr)
+    void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
-        context->m_CurrentProgram = (Program*) program_ptr;
+        context->m_CurrentProgram = (Program*) program;
     }
 
     void DisableProgram(HContext context)
@@ -2060,13 +2059,14 @@ bail:
 
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,
-    // we have to keep track of this ourselves, so we pack resource
-    // locations for uniforms in a single base register with 15 bits
-    // per location. If uniform is not found, we return -1 as usual.
-    #define UNIFORM_LOCATION_MAX                   0x00007FFF
-    #define UNIFORM_LOCATION_BITS                  15
-    #define UNIFORM_LOCATION_GET_VS(location_mask) (location_mask  & UNIFORM_LOCATION_MAX)
-    #define UNIFORM_LOCATION_GET_FS(location_mask) ((location_mask & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BITS)) >> UNIFORM_LOCATION_BITS)
+    // a uniform can be present in both shaders so we have to keep track
+    // of this ourselves. Because of this we pack resource locations
+    // for uniforms in a single base register with 15 bits
+    // per shader location. If uniform is not found, we return -1 as usual.
+    #define UNIFORM_LOCATION_MAX         0x00007FFF
+    #define UNIFORM_LOCATION_BIT_COUNT   15
+    #define UNIFORM_LOCATION_GET_VS(loc) (loc  & UNIFORM_LOCATION_MAX)
+    #define UNIFORM_LOCATION_GET_FS(loc) ((loc & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BIT_COUNT)) >> UNIFORM_LOCATION_BIT_COUNT)
 
     static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
     {
@@ -2087,15 +2087,15 @@ bail:
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
-        assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
-
+        ShaderModule* vs     = program_ptr->m_VertexModule;
+        ShaderModule* fs     = program_ptr->m_FragmentModule;
         uint32_t location_vs = UNIFORM_LOCATION_MAX;
         uint32_t location_fs = UNIFORM_LOCATION_MAX;
 
-        if (GetUniformIndex(program_ptr->m_VertexModule->m_Uniforms, program_ptr->m_VertexModule->m_UniformCount, name, &location_vs) ||
-            GetUniformIndex(program_ptr->m_FragmentModule->m_Uniforms, program_ptr->m_FragmentModule->m_UniformCount, name, &location_fs))
+        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, name, &location_vs) ||
+            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, name, &location_fs))
         {
-            return location_vs | (location_fs << UNIFORM_LOCATION_BITS);
+            return location_vs | (location_fs << UNIFORM_LOCATION_BIT_COUNT);
         }
 
         return -1;
@@ -2107,23 +2107,23 @@ bail:
         assert(base_register >= 0);
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
-        uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_register);
-        uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_register);
+        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(base_register);
+        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(base_register);
         assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
-            uint32_t offset = program_ptr->m_UniformOffsets[index_vs];
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_vs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
-            // Fragment uniforms are packed behind vertex uniforms hence the offset here
+            // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             index_fs       += program_ptr->m_VertexModule->m_UniformCount;
-            uint32_t offset = program_ptr->m_UniformOffsets[index_fs];
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_fs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
     }
@@ -2132,23 +2132,23 @@ bail:
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
-        uint32_t index_vs = UNIFORM_LOCATION_GET_VS(base_register);
-        uint32_t index_fs = UNIFORM_LOCATION_GET_FS(base_register);
-        assert(!(index_vs  == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
+        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(base_register);
+        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(base_register);
+        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
-            uint32_t offset = program_ptr->m_UniformOffsets[index_vs];
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_vs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
-            // Fragment uniforms are packed behind vertex uniforms hence the offset here
+            // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             index_fs       += program_ptr->m_VertexModule->m_UniformCount;
-            uint32_t offset = program_ptr->m_UniformOffsets[index_fs];
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_fs];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
         }
     }
@@ -2157,7 +2157,7 @@ bail:
     {}
 
     #undef UNIFORM_LOCATION_MAX
-    #undef UNIFORM_LOCATION_BITS
+    #undef UNIFORM_LOCATION_BIT_COUNT
     #undef UNIFORM_LOCATION_GET_VS
     #undef UNIFORM_LOCATION_GET_FS
 
