@@ -445,13 +445,13 @@
   ([property values]
    (set-values! property values (gensym)))
   ([property values op-seq]
-    (when (not (read-only? property))
-      (let [evaluation-context (g/make-evaluation-context)]
-        (g/transact
-          (concat
-            (g/operation-label (str "Set " (label property)))
-            (g/operation-sequence op-seq)
-            (set-values evaluation-context property values)))))))
+   (when (not (read-only? property))
+     (let [evaluation-context (g/make-evaluation-context)]
+       (g/transact
+         (concat
+           (g/operation-label (str "Set " (label property)))
+           (g/operation-sequence op-seq)
+           (set-values evaluation-context property values)))))))
 
 (defn unify-values [values]
   (loop [v0 (first values)
@@ -507,10 +507,16 @@
    :from-type (fn [[x y _]] [x y])
    :to-type (fn [[x y]] [x y default-z])})
 
+(defn convert-euler->quat [v]
+  (-> v math/euler->quat math/vecmath->clj))
+
+(defn convert-quat->euler [v]
+  (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))
+
 (defn quat->euler []
   {:type t/Vec3
-   :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
-   :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+   :from-type convert-euler->quat
+   :to-type convert-quat->euler})
 
 (defn property-entry->go-prop [[key {:keys [go-prop-type value error]}]]
   (when (some? go-prop-type)

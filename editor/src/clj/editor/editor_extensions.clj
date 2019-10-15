@@ -12,7 +12,10 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.luart :as luart]
+            [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.scene :as scene]
+            [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace])
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
@@ -58,6 +61,8 @@
   (s/or :internal-id node-id?
         :resource-path resource-path?))
 
+(s/def ::vec3 (s/coll-of number? :count 3 :kind vector?))
+
 (s/def :ext-module/get-commands lua-fn?)
 (s/def :ext-module/on-build-started lua-fn?)
 (s/def :ext-module/on-build-successful lua-fn?)
@@ -76,7 +81,7 @@
 
 (s/def :ext-action/action #{"set" "shell"})
 (s/def :ext-action/node-id ::node-id)
-(s/def :ext-action/property #{"text"})
+(s/def :ext-action/property #{"text" "position" "rotation" "scale"})
 (s/def :ext-action/value any?)
 (s/def :ext-action/command (s/coll-of string?))
 (defmulti action-spec :action)
@@ -94,7 +99,7 @@
 (s/def :ext-command/label string?)
 (s/def :ext-command/locations (s/coll-of #{"Edit" "View" "Assets" "Outline"}
                                          :distinct true :min-count 1))
-(s/def :ext-command/type #{"resource"})
+(s/def :ext-command/type #{"resource" "scene"})
 (s/def :ext-command/cardinality #{"one" "many"})
 (s/def :ext-command/selection (s/keys :req-un [:ext-command/type :ext-command/cardinality]))
 (s/def :ext-command/query (s/keys :opt-un [:ext-command/selection]))
@@ -178,6 +183,7 @@
           (case unqualified
             (coll? vector?) "is not an array"
             int? "is not an integer"
+            number? "is not a number"
             string? "is not a string"
             lua-fn? "is not a function"
             action-spec (str "needs \"action\" key to be "
@@ -207,14 +213,17 @@
           (str "needs at least " (second pred) " element" (when (< 1 (second pred)) "s"))))
       (pr-str pred)))
 
+(defn- explain-lua-str [problems]
+  (->> problems
+       (map #(str (->lua-string (:val %)) " " (spec-pred->reason (s/abbrev (:pred %)))))
+       (string/join "\n")))
+
 (defn- error-message [label path ^Throwable ex]
   (str label
        (when path (str " in " path))
        " failed:\n"
        (if-let [problems (::s/problems (ex-data ex))]
-         (->> problems
-              (map #(str (->lua-string (:val %)) " " (spec-pred->reason (s/abbrev (:pred %)))))
-              (string/join "\n"))
+         (explain-lua-str problems)
          (.getMessage ex))))
 
 (defn- handle-extension-error [options ^Exception ex]
@@ -246,6 +255,13 @@
   (if (s/valid? spec x)
     x
     (throw (ex-info "Spec assertion failed" (s/explain-data spec x)))))
+
+(defn- ensure-spec-in-api-call [fn-name spec x]
+  (if (s/valid? spec x)
+    x
+    (throw (LuaError. (str fn-name
+                           " failed:\n"
+                           (explain-lua-str (::s/problems (s/explain-data spec x))))))))
 
 (defn- execute-all-top-level-functions!
   "Executes all top-level editor script function defined by `fn-keyword`
@@ -320,14 +336,16 @@
   (let [{:keys [basis]} ec]
     (:k (g/node-type basis (g/node-by-id basis node-id)))))
 
-(defmulti ext-get (fn [node-id property ec]
-                    [(node-id->type-keyword node-id ec) property]))
+(defn- node-type+property [node-id property ec]
+  [(node-id->type-keyword node-id ec) property])
 
-(defmethod ext-get :default [node-id property ec]
-  (throw (LuaError. (str (name (node-id->type-keyword node-id ec))
-                         " has no \""
-                         property
-                         "\" property"))))
+(defmulti ext-get node-type+property)
+
+(defmulti ext-has? node-type+property)
+
+(defmethod ext-has? :default [node-id property ec]
+  (let [dispatch-val (node-type+property node-id property ec)]
+    (some? (.getMethod ^MultiFn ext-get dispatch-val))))
 
 (defmethod ext-get [:editor.code.resource/CodeEditorResourceNode "text"] [node-id _ ec]
   (clojure.string/join \newline (g/node-value node-id :lines ec)))
@@ -335,20 +353,52 @@
 (defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
   (resource/resource->proj-path (g/node-value node-id :resource ec)))
 
+(defmethod ext-has? [::scene/SceneNode "position"] [node-id _ ec]
+  (contains? (g/node-value node-id :transform-properties ec) :position))
+
+(defmethod ext-get [::scene/SceneNode "position"] [node-id _ ec]
+  (g/node-value node-id :position ec))
+
+(defmethod ext-has? [::scene/SceneNode "rotation"] [node-id _ ec]
+  (contains? (g/node-value node-id :transform-properties ec) :rotation))
+
+(defmethod ext-get [::scene/SceneNode "rotation"] [node-id _ ec]
+  (properties/convert-quat->euler (g/node-value node-id :rotation ec)))
+
+(defmethod ext-has? [::scene/SceneNode "scale"] [node-id _ ec]
+  (contains? (g/node-value node-id :transform-properties ec) :scale))
+
+(defmethod ext-get [::scene/SceneNode "scale"] [node-id _ ec]
+  (g/node-value node-id :scale ec))
+
 (defn- node-id-or-path->node-id [node-id-or-path project evaluation-context]
   (if (string? node-id-or-path)
-    (project/get-resource-node project node-id-or-path evaluation-context)
+    (let [node-id (project/get-resource-node project node-id-or-path evaluation-context)]
+      (when (nil? node-id)
+        (throw (LuaError. (str node-id-or-path " not found"))))
+      node-id)
     node-id-or-path))
 
 (defn- do-ext-get [node-id-or-path property]
-  (ensure-spec ::node-id node-id-or-path)
-  (let [{:keys [evaluation-context project]} *execution-context*]
-    (ext-get (node-id-or-path->node-id node-id-or-path project evaluation-context)
-             property
-             evaluation-context)))
+  (ensure-spec-in-api-call "editor.get()" ::node-id node-id-or-path)
+  (let [{:keys [evaluation-context project]} *execution-context*
+        node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)]
+    (when-not (ext-has? node-id property evaluation-context)
+      (throw (LuaError. (str (name (node-id->type-keyword node-id evaluation-context))
+                             " has no \""
+                             property
+                             "\" property"))))
+    (ext-get node-id property evaluation-context)))
+
+(defn- do-ext-has? [node-id-or-path property]
+  (ensure-spec-in-api-call "editor.has()" ::node-id node-id-or-path)
+  (let [{:keys [evaluation-context project]} *execution-context*
+        node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)]
+    (ext-has? node-id property evaluation-context)))
 
 (defn- transact! [txs _execution-context]
-  (g/transact txs))
+  (ui/run-now
+    (g/transact txs)))
 
 (defn- shell! [commands execution-context]
   (let [{:keys [evaluation-context project ui]} execution-context
@@ -361,17 +411,20 @@
         (throw (ex-info (str "Command \"" (string/join " " cmd+args) "\" aborted") {:cmd cmd+args}))))
     (reload-resources! ui)))
 
+(defn- fail-on-unavailable-tx-action [action evaluation-context]
+  (throw (LuaError.
+           (format "Can't %s \"%s\" property of %s"
+                   (:action action)
+                   (:property action)
+                   (name (node-id->type-keyword (:node-id action) evaluation-context))))))
+
 (defmulti transaction-action->txs (fn [action evaluation-context]
                                     [(:action action)
                                      (node-id->type-keyword (:node-id action) evaluation-context)
                                      (:property action)]))
 
 (defmethod transaction-action->txs :default [action evaluation-context]
-  (throw (LuaError.
-           (format "Can't %s \"%s\" property of %s"
-                   (:action action)
-                   (:property action)
-                   (name (node-id->type-keyword (:node-id action) evaluation-context))))))
+  (fail-on-unavailable-tx-action action evaluation-context))
 
 (defmethod transaction-action->txs ["set" :editor.code.resource/CodeEditorResourceNode "text"]
   [action _]
@@ -381,6 +434,24 @@
      (g/update-property node-id :invalidated-rows conj 0)
      (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
      (g/set-property node-id :regions [])]))
+
+(defmethod transaction-action->txs ["set" ::scene/SceneNode "position"] [action ec]
+  (let [{:keys [node-id value]} action]
+    (if-not (ext-has? node-id "position" ec)
+      (fail-on-unavailable-tx-action action ec)
+      [(g/set-property node-id :position (ensure-spec ::vec3 value))])))
+
+(defmethod transaction-action->txs ["set" ::scene/SceneNode "rotation"] [action ec]
+  (let [{:keys [node-id value]} action]
+    (if-not (ext-has? node-id "rotation" ec)
+      (fail-on-unavailable-tx-action action ec)
+      [(g/set-property node-id :rotation (properties/convert-euler->quat (ensure-spec ::vec3 value)))])))
+
+(defmethod transaction-action->txs ["set" ::scene/SceneNode "scale"] [action ec]
+  (let [{:keys [node-id value]} action]
+    (if-not (ext-has? node-id "scale" ec)
+      (fail-on-unavailable-tx-action action ec)
+      [(g/set-property node-id :scale (ensure-spec ::vec3 value))])))
 
 (defmulti action->batched-executor+input (fn [action _execution-context]
                                            (:action action)))
@@ -481,13 +552,27 @@
                                  (g/make-evaluation-context))
           selection (:selection env)]
       (when-let [res (or (some-> selection
-                                 (handler/adapt-every resource/ResourceNode)
+                                 (handler/adapt-every
+                                   resource/ResourceNode
+                                   #(and (some? %)
+                                         (-> %
+                                             (g/node-value :resource evaluation-context)
+                                             resource/proj-path
+                                             some?)))
                                  (node-ids->lua-selection q))
                          (some-> selection
                                  (handler/adapt-every resource/Resource)
                                  (->> (keep #(project/get-resource-node project % evaluation-context)))
                                  (node-ids->lua-selection q)))]
         (cont assoc :selection res)))))
+
+(defmethod gen-selection-query "scene" [q acc _]
+  (gen-query acc [env cont]
+    (when-let [res (some-> env
+                           :selection
+                           (handler/adapt-every scene/SceneNode)
+                           (node-ids->lua-selection q))]
+      (cont assoc :selection res))))
 
 (defn- compile-query [q project]
   (reduce-kv
@@ -533,6 +618,8 @@
                                                                      :ui (:ui state)}
                                        (luart/lua->clj (luart/invoke active (luart/clj->lua opts))))))
                                  (deref 100 false)))))
+                  (and (not active) query)
+                  (assoc :active? (lua-fn->env-fn (constantly true)))
                   run
                   (assoc :run
                          (lua-fn->env-fn
@@ -614,6 +701,7 @@
                     :open-file #(open-file project-path %1 %2)
                     :out #(display-output! ui %1 %2)
                     :globals {"editor" {"get" do-ext-get
+                                        "has" do-ext-has?
                                         "platform" (.getPair (Platform/getHostPlatform))}
                               "package" {"config" (string/join "\n" [File/pathSeparatorChar \; \? \! \-])}
                               "io" {"tmpfile" nil}
