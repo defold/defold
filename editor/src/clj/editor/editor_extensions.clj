@@ -1,5 +1,5 @@
 (ns editor.editor-extensions
-  (:require [clojure.java.shell :as shell]
+  (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.stacktrace :as stacktrace]
             [clojure.string :as string]
@@ -12,6 +12,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.luart :as luart]
+            [editor.process :as process]
             [editor.resource :as resource]
             [editor.util :as util]
             [editor.workspace :as workspace])
@@ -368,14 +369,31 @@
 (defn- transact! [txs execution-context]
   (on-transact-thread (:ui execution-context) #(g/transact txs)))
 
+(defn- input-stream->console [input-stream ui type]
+  (future
+    (error-reporting/catch-all!
+      (with-open [reader (io/reader input-stream)]
+        (doseq [line (line-seq reader)]
+          (display-output! ui type line))))))
+
 (defn- shell! [commands execution-context]
   (let [{:keys [evaluation-context project ui]} execution-context
         root (-> project
                  (g/node-value :workspace evaluation-context)
-                 (g/node-value :root evaluation-context))]
-    (doseq [cmd+args commands]
+                 (workspace/project-path evaluation-context))]
+    (doseq [[cmd & args :as cmd+args] commands]
       (if (can-execute? ui cmd+args)
-        (apply shell/sh (concat cmd+args [:dir root]))
+        (let [process (doto (process/start! cmd args {:directory root})
+                        (-> .getInputStream (input-stream->console ui :out))
+                        (-> .getErrorStream (input-stream->console ui :err)))
+              exit-code (.waitFor process)]
+          (when-not (zero? exit-code)
+            (throw (ex-info (str "Command \""
+                                 (string/join " " cmd+args)
+                                 "\" exited with code "
+                                 exit-code)
+                            {:cmd cmd+args
+                             :exit-code exit-code}))))
         (throw (ex-info (str "Command \"" (string/join " " cmd+args) "\" aborted") {:cmd cmd+args}))))
     (reload-resources! ui)))
 
