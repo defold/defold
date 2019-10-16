@@ -1,5 +1,6 @@
 package com.dynamo.bob.bundle;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -21,6 +22,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -831,7 +834,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex, File proguardMapping) throws CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -900,62 +903,39 @@ public class BundleHelper {
             throw new CompileExceptionError(buildError, e.getCause());
         }
 
-        FileSystem zip = null;
-        try {
-            zip = FileSystems.newFileSystem(zipFile.toPath(), null);
-        } catch (IOException e) {
-            throw new CompileExceptionError(String.format("Failed to mount temp zip file %s", zipFile.getAbsolutePath()), e.getCause());
-        }
+        return zipFile;
+    }
 
-        // If we expect a classes.dex file, try to extract it from the zip
-        if (outputClassesDex != null) {
-            int nameindex = 1;
-            while(true)
-            {
-                String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
-                ++nameindex;
+    // From extender's ZipUtils
+    public static void unzip(InputStream inputStream, Path targetDirectory) throws IOException {
+        try (ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
+            ZipEntry zipEntry = zipInputStream.getNextEntry();
 
-                File dex = new File(outputClassesDex.getParent(), name);
-                try {
-                    Path source = zip.getPath(name);
-                    if (!Files.isReadable(source))
-                        break;
-                    try (FileOutputStream out = new FileOutputStream(dex)) {
-                        Files.copy(source, out);
+            while (zipEntry != null) {
+                File entryTargetFile = new File(targetDirectory.toFile(), zipEntry.getName());
+
+                if (zipEntry.isDirectory()) {
+                    Files.createDirectories(entryTargetFile.toPath());
+                } else {
+                    File parentDir = entryTargetFile.getParentFile();
+                    if (!parentDir.exists()) {
+                        Files.createDirectories(parentDir.toPath());
                     }
-                } catch (IOException e) {
-                    throw new CompileExceptionError(String.format("Failed to copy %s to %s", name, dex.getAbsolutePath()), e.getCause());
+                    extractFile(zipInputStream, entryTargetFile);
                 }
-            }
-        }
 
-        if (proguardMapping != null)
-        {
-            String name = "mapping.txt";
-            try {
-                Path source = zip.getPath(name);
-                if (Files.isReadable(source)) {
-                    try (FileOutputStream out = new FileOutputStream(proguardMapping)) {
-                        Files.copy(source, out);
-                    }
-                }
-            } catch (IOException e) {
-                throw new CompileExceptionError(String.format("Failed to copy %s to %s", name, proguardMapping.getAbsolutePath()), e.getCause());
+                zipInputStream.closeEntry();
+                zipEntry = zipInputStream.getNextEntry();
             }
         }
-
-        for (int i = 0; i < srcNames.size(); i++) {
-            String srcName = srcNames.get(i);
-            File outputEngine = outputEngines.get(i);
-            try {
-                Path source = zip.getPath(srcName);
-                try (FileOutputStream out = new FileOutputStream(outputEngine)) {
-                    Files.copy(source, out);
-                }
-                outputEngine.setExecutable(true);
-            } catch (IOException e) {
-                throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
-            }
+    }
+    private static void extractFile(ZipInputStream zipIn, File file) throws IOException {
+        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(file));
+        byte[] bytesIn = new byte[128 * 1024];
+        int read = 0;
+        while ((read = zipIn.read(bytesIn)) != -1) {
+            bos.write(bytesIn, 0, read);
         }
+        bos.close();
     }
 }

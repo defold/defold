@@ -356,11 +356,26 @@ public class IOSBundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
+
         // Copy Executable
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
+
+        // Copy debug symbols
+        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.Armv7Darwin.getExtenderPair());
+        File buildSymbols = new File(zipDir, "dmengine.dSYM");
+        if (buildSymbols.exists()) {
+            String symbolsDir = String.format("%s.dSYM", title);
+
+            File bundleSymbols = new File(bundleDir, symbolsDir);
+            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
+            // Also rename the executable
+            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
+            File symbolExe = new File(bundleExeOld.getParent(), destExecutable.getName());
+            bundleExeOld.renameTo(symbolExe);
+        }
 
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
