@@ -164,7 +164,8 @@
   (future
     (try
       (let [hook-opts {:output-directory (get bob-args "bundle-output")
-                       :platform (get bob-args "platform")}]
+                       :platform (get bob-args "platform")
+                       :variant (get bob-args "variant")}]
         (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
         (if-let [extension-error (extensions/execute-hook! project :on-bundle-started
                                                            {:exception-policy :as-error

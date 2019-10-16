@@ -18,6 +18,7 @@
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
            [clojure.lang MultiFn]
            [com.defold.editor Platform]
+           [com.defold.editor.luart SearchPath]
            [java.io File]
            [java.nio.file Path]))
 
@@ -43,7 +44,9 @@
     strings)")
   (display-output! [this type string]
     "Display extension output, `type` is either `:out` or `:err`, string may be
-    multiline"))
+    multiline")
+  (on-transact-thread [this f]
+    "Invoke `f` on transact thread and block until executed"))
 
 (defn- lua-fn? [x]
   (instance? LuaFunction x))
@@ -188,6 +191,7 @@
             distinct? "should not have repeated elements"
             node-id? "is not a node id"
             resource-path? "is not a resource path"
+            map? "is not a table"
             nil))
 
         (set? pred)
@@ -205,14 +209,17 @@
           (str "needs at least " (second pred) " element" (when (< 1 (second pred)) "s"))))
       (pr-str pred)))
 
+(defn- explain-lua-str [problems]
+  (->> problems
+       (map #(str (->lua-string (:val %)) " " (spec-pred->reason (s/abbrev (:pred %)))))
+       (string/join "\n")))
+
 (defn- error-message [label path ^Throwable ex]
   (str label
        (when path (str " in " path))
        " failed:\n"
        (if-let [problems (::s/problems (ex-data ex))]
-         (->> problems
-              (map #(str (->lua-string (:val %)) " " (spec-pred->reason (s/abbrev (:pred %)))))
-              (string/join "\n"))
+         (explain-lua-str problems)
          (.getMessage ex))))
 
 (defn- handle-extension-error [options ^Exception ex]
@@ -244,6 +251,13 @@
   (if (s/valid? spec x)
     x
     (throw (ex-info "Spec assertion failed" (s/explain-data spec x)))))
+
+(defn- ensure-spec-in-api-call [fn-name spec x]
+  (if (s/valid? spec x)
+    x
+    (throw (LuaError. (str fn-name
+                           " failed:\n"
+                           (explain-lua-str (::s/problems (s/explain-data spec x))))))))
 
 (defn- execute-all-top-level-functions!
   "Executes all top-level editor script function defined by `fn-keyword`
@@ -307,6 +321,9 @@
                                    (assoc :hooks module)))
                        acc))
 
+                   (nil? x)
+                   acc
+
                    :else
                    (throw (ex-info (str "Unexpected prototype value: " x) {:prototype x})))))
              {}
@@ -335,18 +352,21 @@
 
 (defn- node-id-or-path->node-id [node-id-or-path project evaluation-context]
   (if (string? node-id-or-path)
-    (project/get-resource-node project node-id-or-path evaluation-context)
+    (let [node-id (project/get-resource-node project node-id-or-path evaluation-context)]
+      (when (nil? node-id)
+        (throw (LuaError. (str node-id-or-path " not found"))))
+      node-id)
     node-id-or-path))
 
 (defn- do-ext-get [node-id-or-path property]
-  (ensure-spec ::node-id node-id-or-path)
+  (ensure-spec-in-api-call "editor.get()" ::node-id node-id-or-path)
   (let [{:keys [evaluation-context project]} *execution-context*]
     (ext-get (node-id-or-path->node-id node-id-or-path project evaluation-context)
              property
              evaluation-context)))
 
-(defn- transact! [txs _execution-context]
-  (g/transact txs))
+(defn- transact! [txs execution-context]
+  (on-transact-thread (:ui execution-context) #(g/transact txs)))
 
 (defn- shell! [commands execution-context]
   (let [{:keys [evaluation-context project ui]} execution-context
@@ -479,7 +499,13 @@
                                  (g/make-evaluation-context))
           selection (:selection env)]
       (when-let [res (or (some-> selection
-                                 (handler/adapt-every resource/ResourceNode)
+                                 (handler/adapt-every
+                                   resource/ResourceNode
+                                   #(and (some? %)
+                                         (-> %
+                                             (g/node-value :resource evaluation-context)
+                                             resource/proj-path
+                                             some?)))
                                  (node-ids->lua-selection q))
                          (some-> selection
                                  (handler/adapt-every resource/Resource)
@@ -531,6 +557,10 @@
                                                                      :ui (:ui state)}
                                        (luart/lua->clj (luart/invoke active (luart/clj->lua opts))))))
                                  (deref 100 false)))))
+
+                  (and (not active) query)
+                  (assoc :active? (lua-fn->env-fn (constantly true)))
+
                   run
                   (assoc :run
                          (lua-fn->env-fn
@@ -621,6 +651,7 @@
                                     "rename" nil
                                     "setlocale" nil
                                     "tmpname" nil}})]
+          (-> env (.get "package") (.set "searchpath" (SearchPath. env)))
           (-> state
               (assoc :ui ui)
               (cond-> (#{:library :all} kind)
