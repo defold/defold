@@ -356,11 +356,16 @@ platforms:
     env:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
-        PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
+        MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
+        SDK8_DIR:           "{{env.WINDOWS_SDK_8_DIR}}"
+        SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
+        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
+        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
+        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx","libcares"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/lib/amd64", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Lib/winv6.3/um/x64"]
-        platformIncludes:   ["{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/include", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/winrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/um", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/shared"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK8_DIR}}/Lib/winv6.3/um/x64"]
+        platformIncludes:   ["{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK8_DIR}}/Include/winrt", "{{env.SDK8_DIR}}/Include/um", "{{env.SDK8_DIR}}/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
@@ -387,11 +392,16 @@ platforms:
     env:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
-        PLATFORMSDK_DIR:    "{{env.PLATFORMSDK_DIR}}"
+        MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
+        SDK8_DIR:           "{{env.WINDOWS_SDK_8_DIR}}"
+        SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
+        SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
+        VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
+        VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx","libcares"]
-        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/lib/", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/lib", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Lib/winv6.3/um/x86"]
-        platformIncludes:   ["{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/include", "{{env.PLATFORMSDK_DIR}}/Win32/MicrosoftVisualStudio14.0/VC/atlmfc/include", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/10/Include/10.0.10240.0/ucrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/winrt", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/um", "{{env.PLATFORMSDK_DIR}}/Win32/WindowsKits/8.1/Include/shared"]
+        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK8_DIR}}/Lib/winv6.3/um/x86"]
+        platformIncludes:   ["{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK8_DIR}}/Include/winrt", "{{env.SDK8_DIR}}/Include/um", "{{env.SDK8_DIR}}/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
