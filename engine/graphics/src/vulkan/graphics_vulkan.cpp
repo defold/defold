@@ -68,6 +68,8 @@ namespace dmGraphics
         VkSurfaceKHR                 m_WindowSurface;
         dmArray<DescriptorAllocator> m_DescriptorAllocatorsToDelete;
         dmArray<DeviceBuffer>        m_DeviceBuffersToDelete;
+        uint32_t*                    m_DynamicOffsetBuffer;
+        uint16_t                     m_DynamicOffsetBufferSize;
 
         // Window callbacks
         WindowResizeCallback     m_WindowResizeCallback;
@@ -217,9 +219,9 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static void ResetPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
+    static void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
     {
-        ResetPipeline(context->m_LogicalDevice.m_Device, value);
+        DestroyPipeline(context->m_LogicalDevice.m_Device, value);
     }
 
     static bool EndRenderPass(HContext context)
@@ -463,7 +465,7 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
 
         // Reset & create main Depth/Stencil buffer
-        ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
+        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
         res = AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
@@ -479,7 +481,7 @@ namespace dmGraphics
         for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
         {
             mainRenderTarget->m_Framebuffer = context->m_MainFrameBuffers[i];
-            ResetRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
+            DestroyRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
         }
 
         res = CreateMainRenderTarget(context);
@@ -497,7 +499,7 @@ namespace dmGraphics
 
             if (flushAll || buffer.m_Frame == frame)
             {
-                ResetDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer);
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer);
                 context->m_DeviceBuffersToDelete.EraseSwap(i);
                 --i;
             }
@@ -512,7 +514,7 @@ namespace dmGraphics
 
             if (flushAll || allocator.m_SwapChainIndex == swap_chain_index)
             {
-                ResetDescriptorAllocator(context->m_LogicalDevice.m_Device, &allocator);
+                DestroyDescriptorAllocator(context->m_LogicalDevice.m_Device, &allocator);
                 context->m_DescriptorAllocatorsToDelete.EraseSwap(i);
                 --i;
             }
@@ -567,8 +569,8 @@ namespace dmGraphics
         SwapChainCapabilities selected_swap_chain_capabilities;
         for (uint32_t i = 0; i < device_count; ++i)
         {
-            #define RESET_AND_CONTINUE(d) \
-                ResetPhysicalDevice(d); \
+            #define DESTROY_AND_CONTINUE(d) \
+                DestroyPhysicalDevice(d); \
                 continue;
 
             PhysicalDevice* device = &device_list[i];
@@ -577,7 +579,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
-                RESET_AND_CONTINUE(device)
+                DESTROY_AND_CONTINUE(device)
             }
 
             // Make sure all device extensions are supported
@@ -599,7 +601,7 @@ namespace dmGraphics
 
             if (!all_extensions_found)
             {
-                RESET_AND_CONTINUE(device)
+                DESTROY_AND_CONTINUE(device)
             }
 
             // Make sure device has swap chain support
@@ -608,14 +610,14 @@ namespace dmGraphics
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
             {
-                RESET_AND_CONTINUE(device)
+                DESTROY_AND_CONTINUE(device)
             }
 
             selected_device = device;
             selected_queue_family = queue_family;
             break;
 
-            #undef RESET_AND_CONTINUE
+            #undef DESTROY_AND_CONTINUE
         }
 
         LogicalDevice logical_device;
@@ -821,9 +823,9 @@ bail:
 
             glfwCloseWindow();
 
-            context->m_PipelineCache.Iterate(ResetPipelineCacheCb, context);
+            context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
 
-            ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
+            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -836,10 +838,12 @@ bail:
 
             for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
             {
-                ScratchBuffer& scratch = context->m_MainScratchBuffers[i];
-                ResetScratchBuffer(vk_device, &scratch);
-                ResetDeviceBuffer(vk_device, &scratch.m_DeviceBuffer);
-                ResetDescriptorAllocator(vk_device, scratch.m_DescriptorAllocator);
+                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer);
+            }
+
+            for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
+            {
+                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i]);
             }
 
             for (size_t i = 0; i < g_max_frames_in_flight; i++) {
@@ -849,15 +853,20 @@ bail:
                 vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
 
-            ResetSwapChain(context->m_SwapChain);
-            ResetLogicalDevice(&context->m_LogicalDevice);
-            ResetPhysicalDevice(&context->m_PhysicalDevice);
+            DestroySwapChain(context->m_SwapChain);
+            DestroyLogicalDevice(&context->m_LogicalDevice);
+            DestroyPhysicalDevice(&context->m_PhysicalDevice);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
             DestroyInstance(&context->m_Instance);
 
             context->m_WindowOpened = 0;
+
+            if (context->m_DynamicOffsetBuffer)
+            {
+                free(context->m_DynamicOffsetBuffer);
+            }
 
             delete context->m_SwapChain;
         }
@@ -1152,7 +1161,7 @@ bail:
         }
     }
 
-    static void ResetDeviceBufferHelper(HContext context, DeviceBuffer* buffer)
+    static void DestroyDeviceBufferHelper(HContext context, DeviceBuffer* buffer)
     {
         assert(buffer->m_BufferHandle != VK_NULL_HANDLE);
 
@@ -1243,7 +1252,7 @@ bail:
 
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            ResetDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1260,7 +1269,7 @@ bail:
 
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            ResetDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1306,7 +1315,7 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            ResetDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1320,7 +1329,7 @@ bail:
 
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            ResetDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1356,7 +1365,7 @@ bail:
 
     static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
     {
-        static const uint8_t conversion_table[] = {
+        const uint8_t conversion_table[] = {
             0,  // SHADER_TYPE_UNKNOWN
             4,  // SHADER_TYPE_INT
             4,  // SHADER_TYPE_UINT
@@ -1573,31 +1582,31 @@ bail:
     }
 
     static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
-        Program* program_ptr, ScratchBuffer* scratchBuffer, const uint32_t alignment)
+        Program* program_ptr, ScratchBuffer* scratchBuffer,
+        uint32_t* dynamicOffsets, uint16_t dynamicOffsetCount, const uint32_t alignment)
     {
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
         VkResult res = scratchBuffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
-        CHECK_VK_ERROR(res);
-
-        const uint32_t num_uniforms       = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
-        uint32_t* dynamic_uniform_offsets = new uint32_t[num_uniforms];
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         VkDescriptorSet vs_set = vk_descriptor_set_list[0];
         VkDescriptorSet fs_set = vk_descriptor_set_list[1];
 
         UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
             program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets,
-            alignment, dynamic_uniform_offsets);
+            alignment, dynamicOffsets);
         UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
             program_ptr->m_UniformData, &program_ptr->m_UniformDataOffsets[program_ptr->m_VertexModule->m_UniformCount],
-            alignment, &dynamic_uniform_offsets[program_ptr->m_VertexModule->m_UniformCount]);
+            alignment, &dynamicOffsets[program_ptr->m_VertexModule->m_UniformCount]);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
             0, 2, vk_descriptor_set_list,
-            num_uniforms, dynamic_uniform_offsets);
+            (uint32_t)dynamicOffsetCount, dynamicOffsets);
 
-        delete[] dynamic_uniform_offsets;
         return VK_SUCCESS;
     }
 
@@ -1645,7 +1654,7 @@ bail:
             {
                 const uint32_t new_data_size = (uint32_t) scratchBuffer->m_DeviceBuffer.m_MemorySize + 256 * descriptor_increase;
                 // Put old buffer on the delete queue so we don't mess the descriptors already in-use
-                ResetDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
+                DestroyDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
                 VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, vk_device,
                     new_data_size, false, allocator, scratchBuffer);
                 CHECK_VK_ERROR(res);
@@ -1667,8 +1676,25 @@ bail:
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
         }
 
+        const uint32_t num_uniforms = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+
+        if (context->m_DynamicOffsetBufferSize < num_uniforms)
+        {
+            if (context->m_DynamicOffsetBuffer == 0x0)
+            {
+                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(sizeof(uint32_t) * num_uniforms);
+            }
+            else
+            {
+                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, sizeof(uint32_t) * num_uniforms);
+            }
+
+            context->m_DynamicOffsetBufferSize = num_uniforms;
+        }
+
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        VkResult res = CommitUniforms(vk_command_buffer, vk_device, program_ptr, scratchBuffer, dynamic_alignment);
+        VkResult res = CommitUniforms(vk_command_buffer, vk_device,
+            program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, context->m_DynamicOffsetBufferSize, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device,
@@ -1732,7 +1758,7 @@ bail:
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
 
-    static void ProcessShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
+    static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
     {
         if (ddf->m_Uniforms.m_Count > 0)
         {
@@ -1776,7 +1802,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        ProcessShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         return (HVertexProgram) shader;
     }
 
@@ -1786,7 +1812,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        ProcessShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         return (HFragmentProgram) shader;
     }
 
@@ -1944,7 +1970,7 @@ bail:
     {
         ShaderModule* shader = (ShaderModule*) prog;
 
-        ResetShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+        DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
         if (shader->m_Attributes)
         {
@@ -1964,7 +1990,7 @@ bail:
         ShaderModule* shader = (ShaderModule*) prog;
         assert(shader->m_Attributes == 0);
 
-        ResetShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+        DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
         if (shader->m_Uniforms)
         {
@@ -2022,7 +2048,7 @@ bail:
         return (Type) 0xffffffff;
     }
 
-    bool GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2034,20 +2060,24 @@ bail:
             index -= program_ptr->m_VertexModule->m_UniformCount;
         }
 
-        assert(index < module->m_UniformCount);
+        if (index >= module->m_UniformCount)
+        {
+            return 0;
+        }
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
 
         *hash = res->m_NameHash;
         *type = shaderDataTypeToGraphicsType(res->m_Type);
 
-        return true;
+        // Don't know the name length here
+        return 1;
     }
 
-    bool GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         // Not supported
-        return false;
+        return 0;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)

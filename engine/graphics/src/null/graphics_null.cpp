@@ -755,10 +755,10 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    bool GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
     {
         // Not supported
-        return false;
+        return 0;
     }
 
     int32_t GetUniformLocation(HProgram prog, dmhash_t name)
@@ -767,7 +767,7 @@ namespace dmGraphics
         return -1;
     }
 
-    bool GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -775,7 +775,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
-        return true;
+        return (uint32_t)strlen(buffer);
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)

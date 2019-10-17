@@ -87,11 +87,12 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmhash_t name_hash = 0;
-            int32_t location   = -1;
+            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
+            dmhash_t name_hash       = 0;
+            int32_t location         = -1;
 
             // Same as when counting constants, try string first and then hashes
-            if(dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type))
+            if(name_str_length)
             {
                 location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
             }
@@ -112,9 +113,10 @@ namespace dmRender
                 continue;
             }
 
-            if (name_hash == 0)
+            if (name_str_length > 0)
             {
-                name_hash = dmHashString64(buffer);
+                assert(name_hash == 0);
+                name_hash = dmHashBuffer64(buffer, name_str_length);
             }
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)

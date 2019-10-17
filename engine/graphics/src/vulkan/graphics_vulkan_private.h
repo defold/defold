@@ -14,7 +14,7 @@ namespace dmGraphics
         VkImageView    m_ImageView;
         VkFormat       m_Format;
         VkDeviceMemory m_MemoryHandle;
-        size_t         m_MemorySize;
+        uint32_t       m_MemorySize;
         uint16_t       m_Width;
         uint16_t       m_Height;
         uint16_t       m_OriginalWidth;
@@ -54,19 +54,17 @@ namespace dmGraphics
         VkBufferUsageFlags m_Usage;
         VkBuffer           m_BufferHandle;
         VkDeviceMemory     m_MemoryHandle;
-        size_t             m_MemorySize;
-        uint8_t            m_Frame : 1;
-        uint8_t                    : 7; // unused
+        uint32_t           m_MemorySize : 31; // ~2gb max
+        uint32_t           m_Frame      : 1;
     };
 
     struct DescriptorAllocator
     {
         VkDescriptorPool m_PoolHandle;
         VkDescriptorSet* m_DescriptorSets;
-        uint32_t         m_DescriptorMax;
-        uint32_t         m_DescriptorIndex;
-        uint8_t          m_SwapChainIndex : 2;
-        uint8_t                           : 6; // unused
+        uint32_t         m_DescriptorMax   : 15; // 16384 max draw calls
+        uint32_t         m_DescriptorIndex : 15;
+        uint32_t         m_SwapChainIndex  : 2;
 
         VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
         void     Release(VkDevice vk_device);
@@ -77,7 +75,6 @@ namespace dmGraphics
         ScratchBuffer()
         : m_DeviceBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
         , m_MappedDataPtr(0)
-        , m_MemoryMapped(0)
         {}
 
         void     UnmapMemory(VkDevice vk_device);
@@ -86,9 +83,7 @@ namespace dmGraphics
         DescriptorAllocator* m_DescriptorAllocator;
         DeviceBuffer         m_DeviceBuffer;
         void*                m_MappedDataPtr;
-        size_t               m_MappedDataCursor;
-        uint8_t              m_MemoryMapped : 1;
-        uint8_t                             : 7; // unused
+        uint32_t             m_MappedDataCursor;
     };
 
     struct RenderTarget
@@ -299,19 +294,20 @@ namespace dmGraphics
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,
-        const void* source, size_t sourceSize, ShaderModule* shaderModuleOut);
+        const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor,
         const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
         HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
-    void           ResetPhysicalDevice(PhysicalDevice* device);
-    void           ResetLogicalDevice(LogicalDevice* device);
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    void           ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
-    void           ResetTexture(VkDevice vk_device, Texture* texture);
-    void           ResetDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer);
-    void           ResetShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
-    void           ResetPipeline(VkDevice vk_device, Pipeline* pipeline);
-    void           ResetDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator);
+    void           DestroyPhysicalDevice(PhysicalDevice* device);
+    void           DestroyLogicalDevice(LogicalDevice* device);
+    void           DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
+    void           DestroyTexture(VkDevice vk_device, Texture* texture);
+    void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer);
+    void           DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
+    void           DestroyPipeline(VkDevice vk_device, Pipeline* pipeline);
+    void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator);
+    void           DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
@@ -328,7 +324,7 @@ namespace dmGraphics
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
         const bool wantVSync, SwapChainCapabilities& capabilities);
-    void     ResetSwapChain(SwapChain* swapChain);
+    void     DestroySwapChain(SwapChain* swapChain);
     void     GetSwapChainCapabilities(PhysicalDevice* device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
     // Implemented per supported platform
