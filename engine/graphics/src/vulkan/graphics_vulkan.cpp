@@ -39,15 +39,14 @@ namespace dmGraphics
     static struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance)
-        : m_Instance(vk_instance)
-        , m_WindowSurface(VK_NULL_HANDLE)
-        , m_MainRenderPass(VK_NULL_HANDLE)
-        , m_MainRenderTarget(0)
-        , m_DefaultTextureMinFilter(params.m_DefaultTextureMinFilter)
-        , m_DefaultTextureMagFilter(params.m_DefaultTextureMagFilter)
-        , m_FrameBegun(0)
-        , m_VerifyGraphicsCalls(params.m_VerifyGraphicsCalls)
-        {}
+        : m_MainRenderTarget(0)
+        {
+            memset(this, 0, sizeof(*this));
+            m_Instance                = vk_instance;
+            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        }
 
         ~Context()
         {
@@ -58,16 +57,19 @@ namespace dmGraphics
             }
         }
 
-        PipelineCache            m_PipelineCache;
-        PipelineState            m_PipelineState;
-        SwapChain*               m_SwapChain;
-        SwapChainCapabilities    m_SwapChainCapabilities;
-        PhysicalDevice           m_PhysicalDevice;
-        LogicalDevice            m_LogicalDevice;
-        FrameResource            m_FrameResources[g_max_frames_in_flight];
-        VkInstance               m_Instance;
-        VkSurfaceKHR             m_WindowSurface;
-        dmArray<GeometryBuffer>  m_BuffersToDelete;
+        PipelineCache                m_PipelineCache;
+        PipelineState                m_PipelineState;
+        SwapChain*                   m_SwapChain;
+        SwapChainCapabilities        m_SwapChainCapabilities;
+        PhysicalDevice               m_PhysicalDevice;
+        LogicalDevice                m_LogicalDevice;
+        FrameResource                m_FrameResources[g_max_frames_in_flight];
+        VkInstance                   m_Instance;
+        VkSurfaceKHR                 m_WindowSurface;
+        dmArray<DescriptorAllocator> m_DescriptorAllocatorsToDelete;
+        dmArray<DeviceBuffer>        m_DeviceBuffersToDelete;
+        uint32_t*                    m_DynamicOffsetBuffer;
+        uint16_t                     m_DynamicOffsetBufferSize;
 
         // Window callbacks
         WindowResizeCallback     m_WindowResizeCallback;
@@ -78,16 +80,18 @@ namespace dmGraphics
         void*                    m_WindowFocusCallbackUserData;
 
         // Main device rendering constructs
-        dmArray<VkFramebuffer>   m_MainFrameBuffers;
-        dmArray<VkCommandBuffer> m_MainCommandBuffers;
-        VkRenderPass             m_MainRenderPass;
-        Texture                  m_MainTextureDepthStencil;
-        RenderTarget             m_MainRenderTarget;
-        Viewport                 m_MainViewport;
+        dmArray<VkFramebuffer>       m_MainFrameBuffers;
+        dmArray<VkCommandBuffer>     m_MainCommandBuffers;
+        dmArray<ScratchBuffer>       m_MainScratchBuffers;
+        dmArray<DescriptorAllocator> m_MainDescriptorAllocators;
+        VkRenderPass                 m_MainRenderPass;
+        Texture                      m_MainTextureDepthStencil;
+        RenderTarget                 m_MainRenderTarget;
+        Viewport                     m_MainViewport;
 
         // Rendering state
         RenderTarget*            m_CurrentRenderTarget;
-        GeometryBuffer*          m_CurrentVertexBuffer;
+        DeviceBuffer*            m_CurrentVertexBuffer;
         VertexDeclaration*       m_CurrentVertexDeclaration;
         Program*                 m_CurrentProgram;
 
@@ -191,9 +195,33 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static void ResetPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
+    static VkResult CreateMainScratchBuffers(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint8_t numSwapChainImages, uint32_t bufferSize, uint16_t numDescriptors,
+        DescriptorAllocator* descriptorAllocatorsOut, ScratchBuffer* scratchBuffersOut)
     {
-        ResetPipeline(context->m_LogicalDevice.m_Device, value);
+        memset(scratchBuffersOut, 0, sizeof(ScratchBuffer) * numSwapChainImages);
+        memset(descriptorAllocatorsOut, 0, sizeof(DescriptorAllocator) * numSwapChainImages);
+        for(uint8_t i=0; i < numSwapChainImages; i++)
+        {
+            VkResult res = CreateDescriptorAllocator(vk_device, numDescriptors, i, &descriptorAllocatorsOut[i]);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
+            res = CreateScratchBuffer(vk_physical_device, vk_device, bufferSize, true, &descriptorAllocatorsOut[i], &scratchBuffersOut[i]);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+        }
+
+        return VK_SUCCESS;
+    }
+
+    static void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
+    {
+        DestroyPipeline(context->m_LogicalDevice.m_Device, value);
     }
 
     static bool EndRenderPass(HContext context)
@@ -383,6 +411,21 @@ namespace dmGraphics
         res = CreateMainFrameSyncObjects(vk_device, g_max_frames_in_flight, context->m_FrameResources);
         CHECK_VK_ERROR(res);
 
+        // Note: These values are guessed and equals roughly 256 draw calls and 64kb
+        //       of uniform memory per scratch buffer.
+        const uint16_t descriptor_count_per_pool = 512;
+        const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
+
+        context->m_MainScratchBuffers.SetCapacity(num_swap_chain_images);
+        context->m_MainScratchBuffers.SetSize(num_swap_chain_images);
+        context->m_MainDescriptorAllocators.SetCapacity(num_swap_chain_images);
+        context->m_MainDescriptorAllocators.SetSize(num_swap_chain_images);
+
+        res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device,
+            num_swap_chain_images, buffer_size, descriptor_count_per_pool,
+            context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
+        CHECK_VK_ERROR(res);
+
         PipelineState vk_default_pipeline;
         vk_default_pipeline.m_WriteColorMask     = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
         vk_default_pipeline.m_WriteDepth         = 1;
@@ -422,7 +465,7 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
 
         // Reset & create main Depth/Stencil buffer
-        ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
+        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
         res = AllocateDepthStencilTexture(context,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
@@ -438,7 +481,7 @@ namespace dmGraphics
         for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
         {
             mainRenderTarget->m_Framebuffer = context->m_MainFrameBuffers[i];
-            ResetRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
+            DestroyRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
         }
 
         res = CreateMainRenderTarget(context);
@@ -448,16 +491,31 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    static void FlushBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
+    static void FlushDeviceBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
     {
-        for (int i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_DeviceBuffersToDelete.Size(); ++i)
         {
-            GeometryBuffer& buffer = context->m_BuffersToDelete[i];
+            DeviceBuffer& buffer = context->m_DeviceBuffersToDelete[i];
 
             if (flushAll || buffer.m_Frame == frame)
             {
-                ResetGeometryBuffer(context->m_LogicalDevice.m_Device, &buffer);
-                context->m_BuffersToDelete.EraseSwap(i);
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer);
+                context->m_DeviceBuffersToDelete.EraseSwap(i);
+                --i;
+            }
+        }
+    }
+
+    static void FlushDescriptorAllocatorsToDelete(HContext context, uint8_t swap_chain_index, bool flushAll = false)
+    {
+        for (uint32_t i = 0; i < context->m_DescriptorAllocatorsToDelete.Size(); ++i)
+        {
+            DescriptorAllocator& allocator = context->m_DescriptorAllocatorsToDelete[i];
+
+            if (flushAll || allocator.m_SwapChainIndex == swap_chain_index)
+            {
+                DestroyDescriptorAllocator(context->m_LogicalDevice.m_Device, &allocator);
+                context->m_DescriptorAllocatorsToDelete.EraseSwap(i);
                 --i;
             }
         }
@@ -466,10 +524,10 @@ namespace dmGraphics
     static inline void SetViewportHelper(VkCommandBuffer vk_command_buffer, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         VkViewport vk_viewport;
-        vk_viewport.x        = x;
-        vk_viewport.y        = y;
-        vk_viewport.width    = width;
-        vk_viewport.height   = height;
+        vk_viewport.x        = (float) x;
+        vk_viewport.y        = (float) y;
+        vk_viewport.width    = (float) width;
+        vk_viewport.height   = (float) height;
         vk_viewport.minDepth = 0.0f;
         vk_viewport.maxDepth = 1.0f;
         vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
@@ -511,8 +569,8 @@ namespace dmGraphics
         SwapChainCapabilities selected_swap_chain_capabilities;
         for (uint32_t i = 0; i < device_count; ++i)
         {
-            #define RESET_AND_CONTINUE(d) \
-                ResetPhysicalDevice(d); \
+            #define DESTROY_AND_CONTINUE(d) \
+                DestroyPhysicalDevice(d); \
                 continue;
 
             PhysicalDevice* device = &device_list[i];
@@ -521,7 +579,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
-                RESET_AND_CONTINUE(device)
+                DESTROY_AND_CONTINUE(device)
             }
 
             // Make sure all device extensions are supported
@@ -543,7 +601,7 @@ namespace dmGraphics
 
             if (!all_extensions_found)
             {
-                RESET_AND_CONTINUE(device)
+                DESTROY_AND_CONTINUE(device)
             }
 
             // Make sure device has swap chain support
@@ -552,14 +610,14 @@ namespace dmGraphics
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
             {
-                RESET_AND_CONTINUE(device)
+                DESTROY_AND_CONTINUE(device)
             }
 
             selected_device = device;
             selected_queue_family = queue_family;
             break;
 
-            #undef RESET_AND_CONTINUE
+            #undef DESTROY_AND_CONTINUE
         }
 
         LogicalDevice logical_device;
@@ -584,8 +642,6 @@ namespace dmGraphics
 
         context->m_PhysicalDevice = *selected_device;
         context->m_LogicalDevice  = logical_device;
-        context->m_PipelineCache.SetCapacity(32,64);
-        context->m_BuffersToDelete.SetCapacity(8);
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
@@ -599,6 +655,10 @@ namespace dmGraphics
         }
 
         delete[] device_list;
+
+        context->m_PipelineCache.SetCapacity(32,64);
+        context->m_DeviceBuffersToDelete.SetCapacity(8);
+        context->m_DescriptorAllocatorsToDelete.SetCapacity(context->m_SwapChain->m_ImageViews.Size());
 
         // Create framebuffers, default renderpass etc.
         res = CreateMainRenderingResources(context);
@@ -660,7 +720,7 @@ bail:
 
     bool Initialize()
     {
-        return glfwInit();
+        return glfwInit() ? true : false;
     }
 
     void Finalize()
@@ -758,13 +818,14 @@ bail:
 
             SynchronizeDevice(vk_device);
 
-            FlushBuffersToDelete(context, 0, true);
+            FlushDeviceBuffersToDelete(context, 0, true);
+            FlushDescriptorAllocatorsToDelete(context, 0, true);
 
             glfwCloseWindow();
 
-            context->m_PipelineCache.Iterate(ResetPipelineCacheCb, context);
+            context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
 
-            ResetTexture(vk_device, &context->m_MainTextureDepthStencil);
+            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -775,6 +836,16 @@ bail:
                 vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
             }
 
+            for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
+            {
+                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer);
+            }
+
+            for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
+            {
+                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i]);
+            }
+
             for (size_t i = 0; i < g_max_frames_in_flight; i++) {
                 FrameResource& frame_resource = context->m_FrameResources[i];
                 vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
@@ -782,16 +853,20 @@ bail:
                 vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
 
-            ResetSwapChain(context->m_SwapChain);
-
-            ResetLogicalDevice(&context->m_LogicalDevice);
-            ResetPhysicalDevice(&context->m_PhysicalDevice);
+            DestroySwapChain(context->m_SwapChain);
+            DestroyLogicalDevice(&context->m_LogicalDevice);
+            DestroyPhysicalDevice(&context->m_PhysicalDevice);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
             DestroyInstance(&context->m_Instance);
 
             context->m_WindowOpened = 0;
+
+            if (context->m_DynamicOffsetBuffer)
+            {
+                free(context->m_DynamicOffsetBuffer);
+            }
 
             delete context->m_SwapChain;
         }
@@ -889,9 +964,13 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
-        FlushBuffersToDelete(context, context->m_CurrentFrameInFlight);
+        if (context->m_DeviceBuffersToDelete.Size() > 0)
+        {
+            FlushDeviceBuffersToDelete(context, context->m_CurrentFrameInFlight);
+        }
 
-        VkResult res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+        VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+        uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
 
         if (res != VK_SUCCESS)
         {
@@ -917,7 +996,22 @@ bail:
             }
         }
 
-        uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
+        // TODO: Test allocating a scratch buffer per frame-in-flight instead of
+        //       one per swap chain image.
+        if (context->m_DescriptorAllocatorsToDelete.Size() > 0)
+        {
+            FlushDescriptorAllocatorsToDelete(context, frame_ix);
+        }
+
+        // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
+        // for the uniform resource bindings.
+        ScratchBuffer* scratchBuffer = &context->m_MainScratchBuffers[frame_ix];
+        ResetScratchBuffer(context->m_LogicalDevice.m_Device, scratchBuffer);
+
+        // TODO: Investigate if we don't have to map the memory every frame
+        res = scratchBuffer->MapMemory(vk_device);
+        CHECK_VK_ERROR(res);
+
         VkCommandBufferBeginInfo vk_command_buffer_begin_info;
 
         vk_command_buffer_begin_info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -942,6 +1036,8 @@ bail:
             assert(0);
             return;
         }
+
+        context->m_MainScratchBuffers[frame_ix].UnmapMemory(context->m_LogicalDevice.m_Device);
 
         VkResult res = vkEndCommandBuffer(context->m_MainCommandBuffers[frame_ix]);
         CHECK_VK_ERROR(res);
@@ -1025,13 +1121,13 @@ bail:
             2, vk_clear_attachments, 1, &vk_clear_rect);
     }
 
-    static void GeometryBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, GeometryBuffer* bufferOut)
+    static void DeviceBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut)
     {
         VkResult res;
 
-        if (bufferOut->m_Buffer == VK_NULL_HANDLE)
+        if (bufferOut->m_BufferHandle == VK_NULL_HANDLE)
         {
-            res = CreateGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
             CHECK_VK_ERROR(res);
         }
@@ -1055,7 +1151,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        res = UploadToGeometryBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+        res = UploadToDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             vk_command_buffer, size, offset, data, bufferOut);
         CHECK_VK_ERROR(res);
 
@@ -1065,39 +1161,39 @@ bail:
         }
     }
 
-    static void ResetGeometryBufferHelper(HContext context, GeometryBuffer* buffer)
+    static void DestroyDeviceBufferHelper(HContext context, DeviceBuffer* buffer)
     {
-        assert(buffer->m_Buffer != VK_NULL_HANDLE);
+        assert(buffer->m_BufferHandle != VK_NULL_HANDLE);
 
-        for (int i = 0; i < context->m_BuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_DeviceBuffersToDelete.Size(); ++i)
         {
-            const GeometryBuffer buffer_to_delete = context->m_BuffersToDelete[i];
-            if (buffer_to_delete.m_Buffer == buffer->m_Buffer)
+            const DeviceBuffer buffer_to_delete = context->m_DeviceBuffersToDelete[i];
+            if (buffer_to_delete.m_BufferHandle == buffer->m_BufferHandle)
             {
-                assert(buffer_to_delete.m_DeviceMemory.m_Memory == buffer->m_DeviceMemory.m_Memory);
+                assert(buffer_to_delete.m_MemoryHandle == buffer->m_MemoryHandle);
                 return;
             }
         }
 
-        if (context->m_BuffersToDelete.Size() == context->m_BuffersToDelete.Capacity())
+        if (context->m_DeviceBuffersToDelete.Full())
         {
-            context->m_BuffersToDelete.OffsetCapacity(4);
+            context->m_DeviceBuffersToDelete.OffsetCapacity(4);
         }
 
-        GeometryBuffer buffer_copy = *buffer;
+        DeviceBuffer buffer_copy = *buffer;
         buffer_copy.m_Frame = context->m_CurrentFrameInFlight;
-        context->m_BuffersToDelete.Push(buffer_copy);
+        context->m_DeviceBuffersToDelete.Push(buffer_copy);
 
         // Since the buffer will be deleted later, we just clear the
         // buffer and memory handles here so they won't be used
         // when rendering.
-        buffer->m_Buffer                    = VK_NULL_HANDLE;
-        buffer->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-        buffer->m_DeviceMemory.m_MemorySize = 0;
+        buffer->m_BufferHandle = VK_NULL_HANDLE;
+        buffer->m_MemoryHandle = VK_NULL_HANDLE;
+        buffer->m_MemorySize   = 0;
     }
 
-    static Pipeline* GetPipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
-        Program* program, RenderTarget* rt, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
+    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
+        Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
@@ -1139,11 +1235,11 @@ bail:
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(context);
-        GeometryBuffer* buffer = new GeometryBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
         if (size > 0)
         {
-            GeometryBufferUploadHelper(context, data, size, 0, buffer);
+            DeviceBufferUploadHelper(context, data, size, 0, buffer);
         }
 
         return (HVertexBuffer) buffer;
@@ -1152,11 +1248,11 @@ bail:
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
         assert(buffer);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE)
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1169,23 +1265,23 @@ bail:
             return;
         }
 
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
 
-        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(buffer);
         assert(size > 0);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        assert(offset + size <= buffer_ptr->m_DeviceMemory.m_MemorySize);
-        GeometryBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        assert(offset + size <= buffer_ptr->m_MemorySize);
+        DeviceBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
     }
 
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
@@ -1208,18 +1304,18 @@ bail:
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(size > 0);
-        GeometryBuffer* buffer = new GeometryBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-        GeometryBufferUploadHelper(g_Context, data, size, 0, (GeometryBuffer*) buffer);
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, (DeviceBuffer*) buffer);
         return (HIndexBuffer) buffer;
     }
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
         assert(buffer);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE)
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1229,22 +1325,22 @@ bail:
         assert(size > 0);
         assert(buffer);
 
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_DeviceMemory.m_MemorySize)
+        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            ResetGeometryBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
         }
 
-        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(buffer);
-        GeometryBuffer* buffer_ptr = (GeometryBuffer*) buffer;
-        assert(offset + size < buffer_ptr->m_DeviceMemory.m_MemorySize);
-        GeometryBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        assert(offset + size < buffer_ptr->m_MemorySize);
+        DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
@@ -1267,7 +1363,28 @@ bail:
         return true;
     }
 
-    static inline uint32_t GetTypeSize(Type type)
+    static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
+    {
+        const uint8_t conversion_table[] = {
+            0,  // SHADER_TYPE_UNKNOWN
+            4,  // SHADER_TYPE_INT
+            4,  // SHADER_TYPE_UINT
+            4,  // SHADER_TYPE_FLOAT
+            8,  // SHADER_TYPE_VEC2
+            12, // SHADER_TYPE_VEC3
+            16, // SHADER_TYPE_VEC4
+            16, // SHADER_TYPE_MAT2
+            36, // SHADER_TYPE_MAT3
+            64, // SHADER_TYPE_MAT4
+            4,  // SHADER_TYPE_SAMPLER2D
+            4,  // SHADER_TYPE_SAMPLER3D
+            4,  // SHADER_TYPE_SAMPLER_CUBE
+        };
+
+        return conversion_table[type];
+    }
+
+    static inline uint32_t GetGraphicsTypeSize(Type type)
     {
         if (type == TYPE_BYTE || type == TYPE_UNSIGNED_BYTE)
         {
@@ -1280,6 +1397,14 @@ bail:
         else if (type == TYPE_INT || type == TYPE_UNSIGNED_INT || type == TYPE_FLOAT)
         {
             return 4;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return 16;
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return 64;
         }
         assert(0 && "Unsupported data type");
         return 0;
@@ -1338,7 +1463,7 @@ bail:
             vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(el.m_Type, el.m_Size);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;
             vd->m_Streams[i].m_Location = 0;
-            vd->m_Stride               += el.m_Size * GetTypeSize(el.m_Type);
+            vd->m_Stride               += el.m_Size * GetGraphicsTypeSize(el.m_Type);
 
             dmHashUpdateBuffer64(hash, &el.m_Size, sizeof(el.m_Size));
             dmHashUpdateBuffer64(hash, &el.m_Type, sizeof(el.m_Type));
@@ -1376,7 +1501,7 @@ bail:
 
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
-        context->m_CurrentVertexBuffer      = (GeometryBuffer*) vertex_buffer;
+        context->m_CurrentVertexBuffer      = (DeviceBuffer*) vertex_buffer;
         context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
     }
 
@@ -1409,15 +1534,138 @@ bail:
         context->m_CurrentVertexDeclaration = 0;
     }
 
-    static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, GeometryBuffer* indexBuffer, Type indexBufferType)
+    static void UpdateDescriptorSets(
+        VkDevice        vk_device,
+        VkDescriptorSet vk_descriptor_set,
+        ShaderModule*   shaderModule,
+        ScratchBuffer*  scratchBuffer,
+        uint8_t*        uniformData,
+        uint32_t*       uniformDataOffsets,
+        uint32_t        dynamicAlignment,
+        uint32_t*       dynamicOffsets)
+    {
+        for (int i = 0; i < shaderModule->m_UniformCount; ++i)
+        {
+            dynamicOffsets[i]                    = (uint32_t) scratchBuffer->m_MappedDataCursor;
+            const uint32_t uniform_size_nonalign = GetShaderTypeSize(shaderModule->m_Uniforms[i].m_Type);
+            const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
+
+            // Copy client data to aligned host memory
+            // The data_offset here is the offset into the programs uniform data,
+            // i.e the source buffer.
+            const uint32_t data_offset = uniformDataOffsets[i];
+            memcpy(&((uint8_t*)scratchBuffer->m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor], &uniformData[data_offset], uniform_size_nonalign);
+
+            // Note in the spec about the offset being zero:
+            //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
+            //    offset is the base offset from which the dynamic offset is applied and range is the static size
+            //    used for all dynamic offsets."
+            VkDescriptorBufferInfo vk_buffer_info;
+            vk_buffer_info.buffer = scratchBuffer->m_DeviceBuffer.m_BufferHandle;
+            vk_buffer_info.offset = 0;
+            vk_buffer_info.range  = uniform_size;
+
+            VkWriteDescriptorSet vk_write_desc_info;
+            memset(&vk_write_desc_info, 0, sizeof(vk_write_desc_info));
+
+            vk_write_desc_info.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            vk_write_desc_info.dstSet          = vk_descriptor_set;
+            vk_write_desc_info.dstBinding      = shaderModule->m_Uniforms[i].m_Binding;
+            vk_write_desc_info.dstArrayElement = 0;
+            vk_write_desc_info.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            vk_write_desc_info.descriptorCount = 1;
+            vk_write_desc_info.pBufferInfo     = &vk_buffer_info;
+
+            vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
+            scratchBuffer->m_MappedDataCursor += uniform_size;
+        }
+    }
+
+    static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
+        Program* program_ptr, ScratchBuffer* scratchBuffer,
+        uint32_t* dynamicOffsets, uint16_t dynamicOffsetCount, const uint32_t alignment)
+    {
+        VkDescriptorSet* vk_descriptor_set_list = 0x0;
+        VkResult res = scratchBuffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkDescriptorSet vs_set = vk_descriptor_set_list[0];
+        VkDescriptorSet fs_set = vk_descriptor_set_list[1];
+
+        UpdateDescriptorSets(vk_device, vs_set, program_ptr->m_VertexModule, scratchBuffer,
+            program_ptr->m_UniformData, program_ptr->m_UniformDataOffsets,
+            alignment, dynamicOffsets);
+        UpdateDescriptorSets(vk_device, fs_set, program_ptr->m_FragmentModule, scratchBuffer,
+            program_ptr->m_UniformData, &program_ptr->m_UniformDataOffsets[program_ptr->m_VertexModule->m_UniformCount],
+            alignment, &dynamicOffsets[program_ptr->m_VertexModule->m_UniformCount]);
+
+        vkCmdBindDescriptorSets(vk_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
+            0, 2, vk_descriptor_set_list,
+            (uint32_t)dynamicOffsetCount, dynamicOffsets);
+
+        return VK_SUCCESS;
+    }
+
+    static VkResult ResizeDescriptorAllocator(HContext context, DescriptorAllocator* allocator, uint32_t newDescriptorCount)
+    {
+        if (context->m_DescriptorAllocatorsToDelete.Full())
+        {
+            context->m_DescriptorAllocatorsToDelete.OffsetCapacity(1);
+        }
+
+        // No need to check for duplicates here
+        const DescriptorAllocator allocator_copy = *allocator;
+        context->m_DescriptorAllocatorsToDelete.Push(allocator_copy);
+
+        // Since we have handed over ownership of the allocator to the allocators-to-delete list,
+        // we need to clear out the allocator state.
+        allocator->m_PoolHandle     = VK_NULL_HANDLE;
+        allocator->m_DescriptorSets = 0x0;
+
+        VkResult res = CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_SwapChainIndex, allocator);
+        CHECK_VK_ERROR(res);
+    }
+
+    static VkResult ResizeScratchBuffer(HContext context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
+    {
+        // Put old buffer on the delete queue so we don't mess the descriptors already in-use
+        DestroyDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
+        VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
+
+        scratchBuffer->MapMemory(context->m_LogicalDevice.m_Device);
+        return res;
+    }
+
+    static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         assert(context);
         assert(context->m_CurrentVertexBuffer);
 
-        Pipeline* pipeline = GetPipeline(context->m_LogicalDevice.m_Device,
-            context->m_PipelineState, context->m_PipelineCache,
-            context->m_CurrentProgram, context->m_CurrentRenderTarget,
-            context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
+        Program* program_ptr           = context->m_CurrentProgram;
+        VkDevice vk_device             = context->m_LogicalDevice.m_Device;
+
+        bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) >
+            scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
+        bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned +
+            program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > scratchBuffer->m_DeviceBuffer.m_MemorySize;
+
+        const uint8_t descriptor_increase = 32;
+        if (resize_desc_allocator)
+        {
+            VkResult res = ResizeDescriptorAllocator(context, scratchBuffer->m_DescriptorAllocator, scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase);
+            CHECK_VK_ERROR(res);
+        }
+
+        if (resize_scratch_buffer)
+        {
+            const uint32_t bytes_increase = 256 * descriptor_increase;
+            ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
+        }
 
         if (indexBuffer)
         {
@@ -1429,12 +1677,37 @@ bail:
                 vk_index_type = VK_INDEX_TYPE_UINT32;
             }
 
-            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Buffer, 0, vk_index_type);
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
         }
 
-        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->m_Pipeline);
+        const uint32_t num_uniforms = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
 
-        VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_Buffer;
+        if (context->m_DynamicOffsetBufferSize < num_uniforms)
+        {
+            if (context->m_DynamicOffsetBuffer == 0x0)
+            {
+                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(sizeof(uint32_t) * num_uniforms);
+            }
+            else
+            {
+                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, sizeof(uint32_t) * num_uniforms);
+            }
+
+            context->m_DynamicOffsetBufferSize = num_uniforms;
+        }
+
+        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+        VkResult res = CommitUniforms(vk_command_buffer, vk_device,
+            program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, context->m_DynamicOffsetBufferSize, dynamic_alignment);
+        CHECK_VK_ERROR(res);
+
+        Pipeline* pipeline = GetOrCreatePipeline(vk_device,
+            context->m_PipelineState, context->m_PipelineCache,
+            program_ptr, context->m_CurrentRenderTarget,
+            context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
+        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+
+        VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_BufferHandle;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
@@ -1451,7 +1724,7 @@ bail:
 
             // If we are rendering to the backbuffer, we must invert the viewport on
             // the y axis. Otherwise we just use the values as-is.
-            // (otherwise all FBO rendering is upside down)
+            // If we don't, all FBO rendering will be upside down.
             if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
             {
                 SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
@@ -1470,25 +1743,32 @@ bail:
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context->m_FrameBegun);
-        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
-        DrawSetup(context, vk_command_buffer, (GeometryBuffer*) index_buffer, type);
-        vkCmdDrawIndexed(vk_command_buffer, count, 1, first, 0, 0);
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
+
+        // The 'first' value that comes in is intended to be a byte offset,
+        // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
+        uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
+        vkCmdDrawIndexed(vk_command_buffer, count, 1, index_offset, 0, 0);
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context->m_FrameBegun);
-        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
-        DrawSetup(context, vk_command_buffer, 0, TYPE_BYTE);
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
 
-    static void TransferResourceBindingsFromDDF(ShaderModule* shader, ShaderDesc::Shader* ddf)
+    static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
     {
         if (ddf->m_Uniforms.m_Count > 0)
         {
-            shader->m_Uniforms     = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
-            shader->m_UniformCount = ddf->m_Uniforms.m_Count;
+            shader->m_Uniforms               = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
+            shader->m_UniformCount           = ddf->m_Uniforms.m_Count;
+            shader->m_UniformDataSizeAligned = 0;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -1496,6 +1776,11 @@ bail:
                 res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
                 res.m_Set                  = ddf->m_Uniforms[i].m_Set;
                 res.m_NameHash             = ddf->m_Uniforms[i].m_Name;
+                res.m_Type                 = ddf->m_Uniforms[i].m_Type;
+                assert(res.m_Set <= 1);
+
+                // Calculate aligned data size on the fly
+                shader->m_UniformDataSizeAligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
             }
         }
 
@@ -1510,6 +1795,7 @@ bail:
                 res.m_Binding              = ddf->m_Attributes[i].m_Binding;
                 res.m_Set                  = ddf->m_Attributes[i].m_Set;
                 res.m_NameHash             = ddf->m_Attributes[i].m_Name;
+                res.m_Type                 = ddf->m_Attributes[i].m_Type;
             }
         }
     }
@@ -1520,9 +1806,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-
-        TransferResourceBindingsFromDDF(shader, ddf);
-
+        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         return (HVertexProgram) shader;
     }
 
@@ -1532,10 +1816,36 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-
-        TransferResourceBindingsFromDDF(shader, ddf);
-
+        CreateShaderResourceBindings(shader, ddf, (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
         return (HFragmentProgram) shader;
+    }
+
+    static inline uint32_t FillUniformOffsets(ShaderModule* module, uint32_t base_offset, uint32_t* offsets)
+    {
+        uint32_t size = base_offset;
+
+        for (int i = 0; i < module->m_UniformCount; ++i)
+        {
+            ShaderResourceBinding& uniform = module->m_Uniforms[i];
+            assert(uniform.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
+            offsets[i]                     = size;
+            size                          += GetShaderTypeSize(uniform.m_Type);
+        }
+
+        return size;
+    }
+
+    static void FillDescriptorSetBindings(ShaderModule* shader, VkShaderStageFlags vk_stage_flag, VkDescriptorSetLayoutBinding* vk_bindings_out)
+    {
+        for(uint32_t i=0; i < shader->m_UniformCount; i++)
+        {
+            VkDescriptorSetLayoutBinding& vk_desc = vk_bindings_out[i];
+            vk_desc.binding                       = shader->m_Uniforms[i].m_Binding;
+            vk_desc.descriptorType                = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC; // TODO: textures
+            vk_desc.descriptorCount               = 1;
+            vk_desc.stageFlags                    = vk_stage_flag;
+            vk_desc.pImmutableSamplers            = 0;
+        }
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1564,6 +1874,8 @@ bail:
         program->m_PipelineStageInfo[0] = vk_vertex_shader_create_info;
         program->m_PipelineStageInfo[1] = vk_fragment_shader_create_info;
         program->m_Hash                 = 0;
+        program->m_UniformDataOffsets   = 0;
+        program->m_UniformData          = 0;
         program->m_VertexModule         = vertex_module;
         program->m_FragmentModule       = fragment_module;
 
@@ -1580,8 +1892,44 @@ bail:
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
         dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
-
         program->m_Hash = dmHashFinal64(&program_hash);
+
+        const uint32_t num_uniforms = vertex_module->m_UniformCount + fragment_module->m_UniformCount;
+        if (num_uniforms > 0)
+        {
+            program->m_UniformDataOffsets = new uint32_t[num_uniforms];
+            uint32_t vx_last_offset   = FillUniformOffsets(vertex_module, 0, program->m_UniformDataOffsets);
+            uint32_t fs_last_offset   = FillUniformOffsets(fragment_module, vx_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformCount]);
+            program->m_UniformData    = new uint8_t[vx_last_offset + fs_last_offset];
+            memset(program->m_UniformData, 0, vx_last_offset + fs_last_offset);
+
+            // Create descriptor set bindings
+            VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
+            FillDescriptorSetBindings(vertex_module, VK_SHADER_STAGE_VERTEX_BIT, vk_descriptor_set_bindings);
+            FillDescriptorSetBindings(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
+
+            VkDescriptorSetLayoutCreateInfo vk_descriptor_set_create_info[2];
+            memset(&vk_descriptor_set_create_info, 0, sizeof(vk_descriptor_set_create_info));
+            vk_descriptor_set_create_info[0].sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            vk_descriptor_set_create_info[0].pBindings    = vk_descriptor_set_bindings;
+            vk_descriptor_set_create_info[0].bindingCount = vertex_module->m_UniformCount;
+
+            vk_descriptor_set_create_info[1].sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            vk_descriptor_set_create_info[1].pBindings    = &vk_descriptor_set_bindings[vertex_module->m_UniformCount];
+            vk_descriptor_set_create_info[1].bindingCount = fragment_module->m_UniformCount;
+
+            vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device, &vk_descriptor_set_create_info[0], 0, &program->m_DescriptorSetLayout[0]);
+            vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device, &vk_descriptor_set_create_info[1], 0, &program->m_DescriptorSetLayout[1]);
+
+            VkPipelineLayoutCreateInfo vk_pipeline_layout_create_info;
+            memset(&vk_pipeline_layout_create_info, 0, sizeof(vk_pipeline_layout_create_info));
+            vk_pipeline_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+            vk_pipeline_layout_create_info.setLayoutCount = 2;
+            vk_pipeline_layout_create_info.pSetLayouts    = program->m_DescriptorSetLayout;
+
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_pipeline_layout_create_info, 0, &program->m_PipelineLayout);
+            delete[] vk_descriptor_set_bindings;
+        }
 
         return (HProgram) program;
     }
@@ -1589,7 +1937,27 @@ bail:
     void DeleteProgram(HContext context, HProgram program)
     {
         assert(program);
-        delete (Program*) program;
+        Program* program_ptr = (Program*) program;
+        if (program_ptr->m_UniformData)
+        {
+            delete[] program_ptr->m_UniformData;
+            delete[] program_ptr->m_UniformDataOffsets;
+        }
+
+        if (program_ptr->m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program_ptr->m_PipelineLayout, 0);
+        }
+
+        for (int i = 0; i < 2; ++i)
+        {
+            if (program_ptr->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program_ptr->m_DescriptorSetLayout[i], 0);
+            }
+        }
+
+        delete program_ptr;
     }
 
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
@@ -1606,7 +1974,7 @@ bail:
     {
         ShaderModule* shader = (ShaderModule*) prog;
 
-        ResetShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+        DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
         if (shader->m_Attributes)
         {
@@ -1626,7 +1994,7 @@ bail:
         ShaderModule* shader = (ShaderModule*) prog;
         assert(shader->m_Attributes == 0);
 
-        ResetShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+        DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
         if (shader->m_Uniforms)
         {
@@ -1660,26 +2028,171 @@ bail:
 
     uint32_t GetUniformCount(HProgram prog)
     {
-        return 0;
+        assert(prog);
+        Program* program_ptr = (Program*) prog;
+        assert(program_ptr->m_VertexModule && program_ptr->m_FragmentModule);
+        return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
-    {}
+    static Type shaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
+    {
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:          return TYPE_INT;
+            case ShaderDesc::SHADER_TYPE_UINT:         return TYPE_UNSIGNED_INT;
+            case ShaderDesc::SHADER_TYPE_FLOAT:        return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC4:         return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT4:         return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:    return TYPE_SAMPLER_2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE: return TYPE_SAMPLER_CUBE;
+            default: break;
+        }
+
+        // Not supported
+        return (Type) 0xffffffff;
+    }
+
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        assert(prog);
+        Program* program_ptr = (Program*) prog;
+        ShaderModule* module = program_ptr->m_VertexModule;
+
+        if (index >= program_ptr->m_VertexModule->m_UniformCount)
+        {
+            module = program_ptr->m_FragmentModule;
+            index -= program_ptr->m_VertexModule->m_UniformCount;
+        }
+
+        if (index >= module->m_UniformCount)
+        {
+            return 0;
+        }
+
+        ShaderResourceBinding* res = &module->m_Uniforms[index];
+
+        *hash = res->m_NameHash;
+        *type = shaderDataTypeToGraphicsType(res->m_Type);
+
+        // Don't know the name length here
+        return 1;
+    }
+
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    {
+        // Not supported
+        return 0;
+    }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
-        return 0;
+        // Not supported
+        return -1;
+    }
+
+    // In OpenGL, there is a single global resource identifier between
+    // fragment and vertex uniforms for a single program. In Vulkan,
+    // a uniform can be present in both shaders so we have to keep track
+    // of this ourselves. Because of this we pack resource locations
+    // for uniforms in a single base register with 15 bits
+    // per shader location. If uniform is not found, we return -1 as usual.
+    #define UNIFORM_LOCATION_MAX         0x00007FFF
+    #define UNIFORM_LOCATION_BIT_COUNT   15
+    #define UNIFORM_LOCATION_GET_VS(loc) (loc  & UNIFORM_LOCATION_MAX)
+    #define UNIFORM_LOCATION_GET_FS(loc) ((loc & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BIT_COUNT)) >> UNIFORM_LOCATION_BIT_COUNT)
+
+    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
+    {
+        assert(uniformCount < UNIFORM_LOCATION_MAX);
+        for (uint32_t i = 0; i < uniformCount; ++i)
+        {
+            if (uniforms[i].m_NameHash == name)
+            {
+                *index_out = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
+        assert(prog);
+        Program* program_ptr = (Program*) prog;
+        ShaderModule* vs     = program_ptr->m_VertexModule;
+        ShaderModule* fs     = program_ptr->m_FragmentModule;
+        uint32_t location_vs = UNIFORM_LOCATION_MAX;
+        uint32_t location_fs = UNIFORM_LOCATION_MAX;
+
+        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, name, &location_vs) ||
+            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, name, &location_fs))
+        {
+            return location_vs | (location_fs << UNIFORM_LOCATION_BIT_COUNT);
+        }
+
+        return -1;
     }
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
-    {}
+    {
+        assert(context->m_CurrentProgram);
+        assert(base_register >= 0);
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+
+        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(base_register);
+        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(base_register);
+        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
+
+        if (index_vs != UNIFORM_LOCATION_MAX)
+        {
+            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_vs];
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
+        }
+
+        if (index_fs != UNIFORM_LOCATION_MAX)
+        {
+            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
+            index_fs       += program_ptr->m_VertexModule->m_UniformCount;
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_fs];
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
+        }
+    }
 
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
-    {}
+    {
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+
+        uint32_t index_vs  = UNIFORM_LOCATION_GET_VS(base_register);
+        uint32_t index_fs  = UNIFORM_LOCATION_GET_FS(base_register);
+        assert(!(index_vs == UNIFORM_LOCATION_MAX && index_fs == UNIFORM_LOCATION_MAX));
+
+        if (index_vs != UNIFORM_LOCATION_MAX)
+        {
+            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_vs];
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
+        }
+
+        if (index_fs != UNIFORM_LOCATION_MAX)
+        {
+            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
+            index_fs       += program_ptr->m_VertexModule->m_UniformCount;
+            uint32_t offset = program_ptr->m_UniformDataOffsets[index_fs];
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
+        }
+    }
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {}
 
+    #undef UNIFORM_LOCATION_MAX
+    #undef UNIFORM_LOCATION_BIT_COUNT
+    #undef UNIFORM_LOCATION_GET_VS
+    #undef UNIFORM_LOCATION_GET_FS
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

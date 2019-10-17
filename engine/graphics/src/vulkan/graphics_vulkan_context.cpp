@@ -82,7 +82,7 @@ namespace dmGraphics
         return extensions_found == extensionCount;
     }
 
-    static bool GetValidationSupport(const char** validationLayers, const uint8_t validationLayersCount)
+    static bool GetValidationSupport(const char** validationLayers, const uint16_t validationLayersCount)
     {
         if (validationLayersCount == 0)
         {
@@ -100,7 +100,7 @@ namespace dmGraphics
 
         bool all_layers_found = true;
 
-        for(uint8_t ext=0; ext < validationLayersCount && validationLayers[ext] != NULL; ext++)
+        for(uint16_t ext=0; ext < validationLayersCount && validationLayers[ext] != NULL; ext++)
         {
             bool layer_found = false;
 
@@ -174,7 +174,7 @@ namespace dmGraphics
         vk_required_extensions.Push(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
     #endif
 
-        int enabled_layer_count = 0;
+        int32_t enabled_layer_count = 0;
 
         if (validationLayerCount > 0 && GetValidationSupport(validationLayers, validationLayerCount))
         {

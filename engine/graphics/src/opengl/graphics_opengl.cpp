@@ -673,7 +673,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 for (GLint i = 0; i < n; i++)
                 {
                     char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
-                    max_len += strlen((const char*)ext) + 1;
+                    max_len += (int) strlen((const char*)ext) + 1;
                 }
 
                 extensions_ptr = (char*) malloc(max_len);
@@ -681,7 +681,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 for (GLint i = 0; i < n; i++)
                 {
                     char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
-                    int str_len = strlen((const char*)ext);
+                    int str_len = (int) strlen((const char*)ext);
 
                     strcpy(extensions_ptr + cursor, ext);
 
@@ -1520,13 +1520,27 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        // Not supported
+        return 0;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
+        // Not supported
+        return -1;
+    }
+
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
         GLenum uniform_type;
-        glGetActiveUniform(prog, index, buffer_size, 0, &uniform_size, &uniform_type, buffer);
+        GLsizei uniform_name_length;
+        glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = (Type) uniform_type;
         CHECK_GL_ERROR
+        return (uint32_t)uniform_name_length;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)

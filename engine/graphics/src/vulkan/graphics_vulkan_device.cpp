@@ -28,6 +28,42 @@ namespace dmGraphics
         return num_attributes;
     }
 
+    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
+    {
+        assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
+        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorIndex];
+        m_DescriptorIndex      += setCount;
+
+        VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
+        vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
+        vk_descriptor_set_alloc.descriptorPool     = m_PoolHandle;
+        vk_descriptor_set_alloc.pNext              = 0;
+
+        return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
+    }
+
+    void DescriptorAllocator::Release(VkDevice vk_device)
+    {
+        if (m_DescriptorIndex > 0)
+        {
+            vkFreeDescriptorSets(vk_device, m_PoolHandle, m_DescriptorIndex, m_DescriptorSets);
+            m_DescriptorIndex = 0;
+        }
+    }
+
+    VkResult ScratchBuffer::MapMemory(VkDevice vk_device)
+    {
+        return vkMapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle, 0, m_DeviceBuffer.m_MemorySize, 0, &m_MappedDataPtr);
+    }
+
+    void ScratchBuffer::UnmapMemory(VkDevice vk_device)
+    {
+        assert(m_MappedDataPtr);
+        vkUnmapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle);
+    }
+
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
     {
         uint32_t vk_device_count = 0;
@@ -213,14 +249,14 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    VkResult UploadToGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-        VkDeviceSize size, VkDeviceSize offset, const void* data, GeometryBuffer* buffer)
+    VkResult UploadToDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
+        VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
     {
         assert(vk_command_buffer != VK_NULL_HANDLE);
         assert(buffer);
 
         void* mapped_data_ptr;
-        VkResult res = vkMapMemory(vk_device, buffer->m_DeviceMemory.m_Memory, offset, size, 0, &mapped_data_ptr);
+        VkResult res = vkMapMemory(vk_device, buffer->m_MemoryHandle, offset, size, 0, &mapped_data_ptr);
 
         if (res != VK_SUCCESS)
         {
@@ -229,16 +265,31 @@ namespace dmGraphics
 
         if (data == 0)
         {
-            memset(mapped_data_ptr, 0, size);
+            memset(mapped_data_ptr, 0, (size_t) size);
         }
         else
         {
-            memcpy(mapped_data_ptr, data, size);
+            memcpy(mapped_data_ptr, data, (size_t) size);
         }
 
-        vkUnmapMemory(vk_device, buffer->m_DeviceMemory.m_Memory);
+        vkUnmapMemory(vk_device, buffer->m_MemoryHandle);
 
         return res;
+    }
+
+    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    {
+        assert(vk_descriptor_pool_out && *vk_descriptor_pool_out == VK_NULL_HANDLE);
+        VkDescriptorPoolCreateInfo vk_pool_create_info;
+        memset(&vk_pool_create_info, 0, sizeof(vk_pool_create_info));
+
+        vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        vk_pool_create_info.poolSizeCount = numPoolSizes;
+        vk_pool_create_info.pPoolSizes    = vk_pool_sizes;
+        vk_pool_create_info.maxSets       = maxDescriptors;
+        vk_pool_create_info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+
+        return vkCreateDescriptorPool(vk_device, &vk_pool_create_info, 0, vk_descriptor_pool_out);
     }
 
     VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass, uint32_t width, uint32_t height, VkImageView* vk_attachments, uint8_t attachmentCount, VkFramebuffer* vk_framebuffer_out)
@@ -270,7 +321,7 @@ namespace dmGraphics
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
     }
 
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, size_t sourceSize, ShaderModule* shaderModuleOut)
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut)
     {
         assert(shaderModuleOut);
 
@@ -283,17 +334,18 @@ namespace dmGraphics
 
         HashState64 shader_hash_state;
         dmHashInit64(&shader_hash_state, false);
-        dmHashUpdateBuffer64(&shader_hash_state, source, sourceSize);
+        dmHashUpdateBuffer64(&shader_hash_state, source, (uint32_t) sourceSize);
         shaderModuleOut->m_Hash = dmHashFinal64(&shader_hash_state);
 
         return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);;
     }
 
-    VkResult CreateGeometryBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, GeometryBuffer* bufferOut)
+    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
         assert(bufferOut);
-        assert(bufferOut->m_Buffer == VK_NULL_HANDLE);
+        assert(bufferOut->m_BufferHandle == VK_NULL_HANDLE);
+        assert(vk_size < 0x80000000); // bit count is 31 in graphics_vulkan_private.h
 
         VkBufferCreateInfo vk_buffer_create_info;
         memset(&vk_buffer_create_info, 0, sizeof(vk_buffer_create_info));
@@ -303,7 +355,7 @@ namespace dmGraphics
         vk_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         vk_buffer_create_info.usage       = bufferOut->m_Usage;
 
-        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_Buffer);
+        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_BufferHandle);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -311,7 +363,7 @@ namespace dmGraphics
 
         // Allocate GPU memory to hold buffer
         VkMemoryRequirements vk_buffer_memory_req;
-        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_Buffer, &vk_buffer_memory_req);
+        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_BufferHandle, &vk_buffer_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -329,24 +381,78 @@ namespace dmGraphics
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_DeviceMemory.m_Memory);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_MemoryHandle);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindBufferMemory(vk_device, bufferOut->m_Buffer, bufferOut->m_DeviceMemory.m_Memory, 0);
+        res = vkBindBufferMemory(vk_device, bufferOut->m_BufferHandle, bufferOut->m_MemoryHandle, 0);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
-        bufferOut->m_DeviceMemory.m_MemorySize = vk_buffer_memory_req.size;
+        bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
 
         return VK_SUCCESS;
 bail:
-        ResetGeometryBuffer(vk_device, bufferOut);
+        DestroyDeviceBuffer(vk_device, bufferOut);
         return res;
+    }
+
+    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator)
+    {
+        assert(descriptorAllocator && descriptorAllocator->m_DescriptorSets == 0x0);
+        assert(descriptor_count < 0x8000); // bit count is 15 in graphics_vulkan_private.h
+
+        VkDescriptorPoolSize vk_pool_size[] = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
+        };
+
+        descriptorAllocator->m_DescriptorSets  = new VkDescriptorSet[descriptor_count];
+        descriptorAllocator->m_DescriptorMax   = descriptor_count;
+        descriptorAllocator->m_DescriptorIndex = 0;
+        descriptorAllocator->m_SwapChainIndex  = swapChainIndex;
+
+        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_PoolHandle);
+    }
+
+    VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+        uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut)
+    {
+        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
+        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
+        scratchBufferOut->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        // Note: While scratch buffer creates and initializes the device buffer for
+        //       backing, it does not reset it or tear it down.
+        VkResult res = CreateDeviceBuffer(vk_physical_device, vk_device, bufferSize,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &scratchBufferOut->m_DeviceBuffer);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        if (clearData)
+        {
+            res = scratchBufferOut->MapMemory(vk_device);
+
+            if (res != VK_SUCCESS)
+            {
+                DestroyDeviceBuffer(vk_device, &scratchBufferOut->m_DeviceBuffer);
+                return res;
+            }
+
+            // Clear buffer data
+            memset(scratchBufferOut->m_MappedDataPtr, 0, bufferSize);
+            scratchBufferOut->UnmapMemory(vk_device);
+        }
+
+        scratchBufferOut->m_DescriptorAllocator = descriptorAllocator;
+
+        return VK_SUCCESS;
     }
 
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -356,7 +462,7 @@ bail:
     {
         assert(textureOut);
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
-        assert(textureOut->m_DeviceMemory.m_Memory == VK_NULL_HANDLE && textureOut->m_DeviceMemory.m_MemorySize == 0);
+        assert(textureOut->m_MemoryHandle == VK_NULL_HANDLE && textureOut->m_MemorySize == 0);
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -402,19 +508,19 @@ bail:
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_DeviceMemory.m_Memory);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_MemoryHandle);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_DeviceMemory.m_Memory, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_MemoryHandle, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        textureOut->m_DeviceMemory.m_MemorySize = vk_memory_req.size;
+        textureOut->m_MemorySize = vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -433,7 +539,7 @@ bail:
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);
 bail:
-        ResetTexture(vk_device, textureOut);
+        DestroyTexture(vk_device, textureOut);
         return res;
     }
 
@@ -578,9 +684,9 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, GeometryBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
     {
-        assert(pipelineOut && pipelineOut->m_Pipeline == VK_NULL_HANDLE);
+        assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
         VkVertexInputAttributeDescription vk_vertex_input_descs[DM_MAX_VERTEX_STREAM_COUNT];
         uint16_t active_attributes = FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
@@ -688,21 +794,6 @@ bail:
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
 
-        VkPipelineLayoutCreateInfo vk_pipeline_create_info;
-        memset(&vk_pipeline_create_info, 0, sizeof(vk_pipeline_create_info));
-
-        vk_pipeline_create_info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        vk_pipeline_create_info.setLayoutCount         = 0; // TODO!
-        vk_pipeline_create_info.pSetLayouts            = 0; // TODO!
-        vk_pipeline_create_info.pushConstantRangeCount = 0;
-        vk_pipeline_create_info.pPushConstantRanges    = 0;
-
-        VkResult res = vkCreatePipelineLayout(vk_device, &vk_pipeline_create_info, 0, &pipelineOut->m_Layout);
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
-
         VkStencilOpState vk_stencil_op_state;
         memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
 
@@ -756,16 +847,23 @@ bail:
         vk_pipeline_info.pDepthStencilState  = &vk_depth_stencil_create_info;
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
-        vk_pipeline_info.layout              = pipelineOut->m_Layout;
+        vk_pipeline_info.layout              = program->m_PipelineLayout;
         vk_pipeline_info.renderPass          = vk_render_pass;
         vk_pipeline_info.subpass             = 0;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
-        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, &pipelineOut->m_Pipeline);
+        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
-    void ResetPhysicalDevice(PhysicalDevice* device)
+    void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
+    {
+        assert(scratchBuffer);
+        scratchBuffer->m_DescriptorAllocator->Release(vk_device);
+        scratchBuffer->m_MappedDataCursor = 0;
+    }
+
+    void DestroyPhysicalDevice(PhysicalDevice* device)
     {
         assert(device);
 
@@ -782,7 +880,23 @@ bail:
         memset((void*)device, 0, sizeof(*device));
     }
 
-    void ResetRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator)
+    {
+        assert(descriptorAllocator);
+        if (descriptorAllocator->m_DescriptorSets)
+        {
+            delete[] descriptorAllocator->m_DescriptorSets;
+            descriptorAllocator->m_DescriptorSets = 0x0;
+        }
+
+        if (descriptorAllocator->m_PoolHandle != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(vk_device, descriptorAllocator->m_PoolHandle, 0);
+            descriptorAllocator->m_PoolHandle = VK_NULL_HANDLE;
+        }
+    }
+
+    void DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
     {
         assert(logicalDevice);
         assert(renderTarget);
@@ -799,7 +913,7 @@ bail:
         }
     }
 
-    void ResetTexture(VkDevice vk_device, Texture* texture)
+    void DestroyTexture(VkDevice vk_device, Texture* texture)
     {
         assert(texture);
         if (texture->m_ImageView != VK_NULL_HANDLE)
@@ -814,33 +928,33 @@ bail:
             texture->m_Image = VK_NULL_HANDLE;
         }
 
-        if (texture->m_DeviceMemory.m_Memory != VK_NULL_HANDLE)
+        if (texture->m_MemoryHandle != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, texture->m_DeviceMemory.m_Memory, 0);
-            texture->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-            texture->m_DeviceMemory.m_MemorySize = 0;
+            vkFreeMemory(vk_device, texture->m_MemoryHandle, 0);
+            texture->m_MemoryHandle = VK_NULL_HANDLE;
+            texture->m_MemorySize   = 0;
         }
     }
 
-    void ResetGeometryBuffer(VkDevice vk_device, GeometryBuffer* buffer)
+    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer)
     {
         assert(buffer);
 
-        if (buffer->m_Buffer != VK_NULL_HANDLE)
+        if (buffer->m_BufferHandle != VK_NULL_HANDLE)
         {
-            vkDestroyBuffer(vk_device, buffer->m_Buffer, 0);
-            buffer->m_Buffer = VK_NULL_HANDLE;
+            vkDestroyBuffer(vk_device, buffer->m_BufferHandle, 0);
+            buffer->m_BufferHandle = VK_NULL_HANDLE;
         }
 
-        if (buffer->m_DeviceMemory.m_Memory != VK_NULL_HANDLE)
+        if (buffer->m_MemoryHandle != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, buffer->m_DeviceMemory.m_Memory, 0);
-            buffer->m_DeviceMemory.m_Memory     = VK_NULL_HANDLE;
-            buffer->m_DeviceMemory.m_MemorySize = 0;
+            vkFreeMemory(vk_device, buffer->m_MemoryHandle, 0);
+            buffer->m_MemoryHandle = VK_NULL_HANDLE;
+            buffer->m_MemorySize   = 0;
         }
     }
 
-    void ResetShaderModule(VkDevice vk_device, ShaderModule* shaderModule)
+    void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule)
     {
         assert(shaderModule);
 
@@ -851,27 +965,21 @@ bail:
         }
     }
 
-    void ResetLogicalDevice(LogicalDevice* device)
+    void DestroyLogicalDevice(LogicalDevice* device)
     {
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyDevice(device->m_Device, 0);
         memset(device, 0, sizeof(*device));
     }
 
-    void ResetPipeline(VkDevice vk_device, Pipeline* pipeline)
+    void DestroyPipeline(VkDevice vk_device, Pipeline* pipeline)
     {
         assert(pipeline);
 
-        if (pipeline->m_Layout != VK_NULL_HANDLE)
+        if (*pipeline != VK_NULL_HANDLE)
         {
-            vkDestroyPipelineLayout(vk_device, pipeline->m_Layout, 0);
-            pipeline->m_Layout = VK_NULL_HANDLE;
-        }
-
-        if (pipeline->m_Pipeline != VK_NULL_HANDLE)
-        {
-            vkDestroyPipeline(vk_device, pipeline->m_Pipeline, 0);
-            pipeline->m_Pipeline = VK_NULL_HANDLE;
+            vkDestroyPipeline(vk_device, *pipeline, 0);
+            *pipeline = VK_NULL_HANDLE;
         }
     }
 
