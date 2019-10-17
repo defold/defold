@@ -1610,6 +1610,37 @@ bail:
         return VK_SUCCESS;
     }
 
+    static VkResult ResizeDescriptorAllocator(HContext context, DescriptorAllocator* allocator, uint32_t newDescriptorCount)
+    {
+        if (context->m_DescriptorAllocatorsToDelete.Full())
+        {
+            context->m_DescriptorAllocatorsToDelete.OffsetCapacity(1);
+        }
+
+        // No need to check for duplicates here
+        const DescriptorAllocator allocator_copy = *allocator;
+        context->m_DescriptorAllocatorsToDelete.Push(allocator_copy);
+
+        // Since we have handed over ownership of the allocator to the allocators-to-delete list,
+        // we need to clear out the allocator state.
+        allocator->m_PoolHandle     = VK_NULL_HANDLE;
+        allocator->m_DescriptorSets = 0x0;
+
+        VkResult res = CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_SwapChainIndex, allocator);
+        CHECK_VK_ERROR(res);
+    }
+
+    static VkResult ResizeScratchBuffer(HContext context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
+    {
+        // Put old buffer on the delete queue so we don't mess the descriptors already in-use
+        DestroyDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
+        VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+            newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
+
+        scratchBuffer->MapMemory(context->m_LogicalDevice.m_Device);
+        return res;
+    }
+
     static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         assert(context);
@@ -1623,44 +1654,17 @@ bail:
         bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned +
             program_ptr->m_FragmentModule->m_UniformDataSizeAligned) > scratchBuffer->m_DeviceBuffer.m_MemorySize;
 
-        if (resize_scratch_buffer || resize_desc_allocator)
+        const uint8_t descriptor_increase = 32;
+        if (resize_desc_allocator)
         {
-            const uint8_t descriptor_increase = 32;
-            DescriptorAllocator* allocator    = scratchBuffer->m_DescriptorAllocator;
+            VkResult res = ResizeDescriptorAllocator(context, scratchBuffer->m_DescriptorAllocator, scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase);
+            CHECK_VK_ERROR(res);
+        }
 
-            if (resize_desc_allocator)
-            {
-                if (context->m_DescriptorAllocatorsToDelete.Full())
-                {
-                    context->m_DescriptorAllocatorsToDelete.OffsetCapacity(1);
-                }
-
-                // No need to check for duplicates here
-                const DescriptorAllocator allocator_copy = *allocator;
-                context->m_DescriptorAllocatorsToDelete.Push(allocator_copy);
-
-                // Since we have handed over ownership of the allocator to the allocators-to-delete list,
-                // we need to clear out the allocator state.
-                allocator->m_PoolHandle     = VK_NULL_HANDLE;
-                allocator->m_DescriptorSets = 0x0;
-
-                const uint32_t new_descriptor_count = scratchBuffer->m_DescriptorAllocator->m_DescriptorMax + descriptor_increase;
-
-                VkResult res = CreateDescriptorAllocator(vk_device, new_descriptor_count, allocator->m_SwapChainIndex, allocator);
-                CHECK_VK_ERROR(res);
-            }
-
-            if (resize_scratch_buffer)
-            {
-                const uint32_t new_data_size = (uint32_t) scratchBuffer->m_DeviceBuffer.m_MemorySize + 256 * descriptor_increase;
-                // Put old buffer on the delete queue so we don't mess the descriptors already in-use
-                DestroyDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
-                VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, vk_device,
-                    new_data_size, false, allocator, scratchBuffer);
-                CHECK_VK_ERROR(res);
-
-                scratchBuffer->MapMemory(vk_device);
-            }
+        if (resize_scratch_buffer)
+        {
+            const uint32_t bytes_increase = 256 * descriptor_increase;
+            ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
         }
 
         if (indexBuffer)
