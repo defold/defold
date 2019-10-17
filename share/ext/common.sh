@@ -2,11 +2,15 @@
 
 IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault10.1.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
+
 IOS_SDK_VERSION=12.1
 IOS_SIMULATOR_SDK_VERSION=12.1
 
 IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
+OSX_SDK_VERSION=10.13
+
+OSX_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/MacOSX${OSX_SDK_VERSION}.sdk
 
 ANDROID_NDK_VERSION=20
 ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
@@ -298,6 +302,8 @@ function cmi() {
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
+            export SDKROOT="${OSX_SDK_ROOT}"
+            export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             cmi_buildplatform $1
             ;;
