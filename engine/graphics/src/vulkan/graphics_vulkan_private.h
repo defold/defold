@@ -5,11 +5,13 @@ namespace dmGraphics
 {
     const static uint8_t DM_MAX_SET_COUNT              = 2;
     const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
+    const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
 
     struct Texture
     {
         TextureType    m_Type;
+        TextureParams  m_TextureParams;
         VkImage        m_Image;
         VkImageView    m_ImageView;
         VkFormat       m_Format;
@@ -19,6 +21,16 @@ namespace dmGraphics
         uint16_t       m_Height;
         uint16_t       m_OriginalWidth;
         uint16_t       m_OriginalHeight;
+        uint8_t        m_TextureSamplerIndex;
+    };
+
+    struct TextureSampler
+    {
+        VkSampler     m_Sampler;
+        TextureFilter m_MinFilter;
+        TextureFilter m_MagFilter;
+        TextureWrap   m_AddressModeU;
+        TextureWrap   m_AddressModeV;
     };
 
     struct VertexDeclaration
@@ -44,18 +56,23 @@ namespace dmGraphics
     struct DeviceBuffer
     {
         DeviceBuffer(const VkBufferUsageFlags usage)
-        : m_Usage(usage)
+        : m_MappedDataPtr(0)
+        , m_Usage(usage)
         , m_BufferHandle(VK_NULL_HANDLE)
         , m_MemoryHandle(VK_NULL_HANDLE)
         , m_MemorySize(0)
         , m_Frame(0)
         {}
 
+        void*              m_MappedDataPtr;
         VkBufferUsageFlags m_Usage;
         VkBuffer           m_BufferHandle;
         VkDeviceMemory     m_MemoryHandle;
         uint32_t           m_MemorySize : 31; // ~2gb max
         uint32_t           m_Frame      : 1;
+
+        VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
+        void     UnmapMemory(VkDevice vk_device);
     };
 
     struct DescriptorAllocator
@@ -74,15 +91,11 @@ namespace dmGraphics
     {
         ScratchBuffer()
         : m_DeviceBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
-        , m_MappedDataPtr(0)
+        , m_MappedDataCursor(0)
         {}
-
-        void     UnmapMemory(VkDevice vk_device);
-        VkResult MapMemory(VkDevice vk_device);
 
         DescriptorAllocator* m_DescriptorAllocator;
         DeviceBuffer         m_DeviceBuffer;
-        void*                m_MappedDataPtr;
         uint32_t             m_MappedDataCursor;
     };
 
@@ -193,6 +206,18 @@ namespace dmGraphics
 
     typedef VkPipeline Pipeline;
 
+    // TODO: Naming!
+    union ShaderSamplerBinding
+    {
+        struct
+        {
+            uint32_t m_UniformIndex : 16;
+            uint32_t m_Unit         : 16;
+        };
+
+        uint32_t m_SamplerBinding;
+    };
+
     struct ShaderResourceBinding
     {
         uint64_t                   m_NameHash;
@@ -215,13 +240,22 @@ namespace dmGraphics
 
     struct Program
     {
+        enum ModuleType
+        {
+            MODULE_TYPE_VERTEX   = 0,
+            MODULE_TYPE_FRAGMENT = 1,
+            MODULE_TYPE_COUNT    = 2
+        };
+
         uint64_t                        m_Hash;
         uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
-        VkDescriptorSetLayout           m_DescriptorSetLayout[2];
-        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[2];
+        ShaderSamplerBinding*           m_SamplerBindings;
+        uint16_t                        m_SamplerBindingsCount[MODULE_TYPE_COUNT];
+        VkDescriptorSetLayout           m_DescriptorSetLayout[MODULE_TYPE_COUNT];
+        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         VkPipelineLayout                m_PipelineLayout;
     };
 
@@ -268,6 +302,7 @@ namespace dmGraphics
     void     DestroyInstance(VkInstance* vkInstance);
 
     // Implemented in graphics_vulkan_device.cpp
+    // Create functions
     VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass,
         uint32_t width, uint32_t height,
         VkImageView* vk_attachments, uint8_t attachmentCount, // Color & depth/stencil attachments
@@ -288,6 +323,9 @@ namespace dmGraphics
         uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
         VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
         VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut);
+    VkResult CreateTextureSampler(VkDevice vk_device,
+        TextureFilter minFilter, TextureFilter magFilter,
+        TextureWrap wrapU, TextureWrap wrapV, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
@@ -298,7 +336,9 @@ namespace dmGraphics
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor,
         const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
         HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
+    // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    // Destroy funcions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
     void           DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
@@ -308,16 +348,18 @@ namespace dmGraphics
     void           DestroyPipeline(VkDevice vk_device, Pipeline* pipeline);
     void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator);
     void           DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    void           DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
+    // Get functions
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
     QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
+    // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout);
-    VkResult UploadToDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-        VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
+    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the

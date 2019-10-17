@@ -53,15 +53,15 @@ namespace dmGraphics
         }
     }
 
-    VkResult ScratchBuffer::MapMemory(VkDevice vk_device)
+    VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
-        return vkMapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle, 0, m_DeviceBuffer.m_MemorySize, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_MemoryHandle, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
     }
 
-    void ScratchBuffer::UnmapMemory(VkDevice vk_device)
+    void DeviceBuffer::UnmapMemory(VkDevice vk_device)
     {
         assert(m_MappedDataPtr);
-        vkUnmapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle);
+        vkUnmapMemory(vk_device, m_MemoryHandle);
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -249,14 +249,11 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    VkResult UploadToDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-        VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
+    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
     {
-        assert(vk_command_buffer != VK_NULL_HANDLE);
         assert(buffer);
 
-        void* mapped_data_ptr;
-        VkResult res = vkMapMemory(vk_device, buffer->m_MemoryHandle, offset, size, 0, &mapped_data_ptr);
+        VkResult res = buffer->MapMemory(vk_device, offset, size);
 
         if (res != VK_SUCCESS)
         {
@@ -265,11 +262,11 @@ namespace dmGraphics
 
         if (data == 0)
         {
-            memset(mapped_data_ptr, 0, (size_t) size);
+            memset(buffer->m_MappedDataPtr, 0, (size_t) size);
         }
         else
         {
-            memcpy(mapped_data_ptr, data, (size_t) size);
+            memcpy(buffer->m_MappedDataPtr, data, (size_t) size);
         }
 
         vkUnmapMemory(vk_device, buffer->m_MemoryHandle);
@@ -426,6 +423,8 @@ bail:
         assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
         scratchBufferOut->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
+        DeviceBuffer& device_buffer = scratchBufferOut->m_DeviceBuffer;
+
         // Note: While scratch buffer creates and initializes the device buffer for
         //       backing, it does not reset it or tear it down.
         VkResult res = CreateDeviceBuffer(vk_physical_device, vk_device, bufferSize,
@@ -437,17 +436,17 @@ bail:
 
         if (clearData)
         {
-            res = scratchBufferOut->MapMemory(vk_device);
+            res = device_buffer.MapMemory(vk_device);
 
             if (res != VK_SUCCESS)
             {
-                DestroyDeviceBuffer(vk_device, &scratchBufferOut->m_DeviceBuffer);
+                DestroyDeviceBuffer(vk_device, &device_buffer);
                 return res;
             }
 
             // Clear buffer data
-            memset(scratchBufferOut->m_MappedDataPtr, 0, bufferSize);
-            scratchBufferOut->UnmapMemory(vk_device);
+            memset(device_buffer.m_MappedDataPtr, 0, bufferSize);
+            device_buffer.UnmapMemory(vk_device);
         }
 
         scratchBufferOut->m_DescriptorAllocator = descriptorAllocator;
@@ -541,6 +540,30 @@ bail:
 bail:
         DestroyTexture(vk_device, textureOut);
         return res;
+    }
+
+    VkResult CreateTextureSampler(VkDevice vk_device, TextureFilter minFilter, TextureFilter magFilter, TextureWrap wrapU, TextureWrap wrapV, VkSampler* vk_sampler_out)
+    {
+        VkSamplerCreateInfo vk_sampler_create_info;
+        memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
+
+        vk_sampler_create_info.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        vk_sampler_create_info.magFilter               = (VkFilter) magFilter;
+        vk_sampler_create_info.minFilter               = (VkFilter) minFilter;
+        vk_sampler_create_info.addressModeU            = (VkSamplerAddressMode) wrapU;
+        vk_sampler_create_info.addressModeV            = (VkSamplerAddressMode) wrapV;
+        vk_sampler_create_info.addressModeW            = (VkSamplerAddressMode) wrapU;
+        vk_sampler_create_info.maxAnisotropy           = 0;
+        vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        vk_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+        vk_sampler_create_info.compareEnable           = VK_FALSE;
+        vk_sampler_create_info.compareOp               = VK_COMPARE_OP_ALWAYS;
+        vk_sampler_create_info.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR; // TODO: Mipmapping
+        vk_sampler_create_info.mipLodBias              = 0.0f;
+        vk_sampler_create_info.minLod                  = 0.0f;
+        vk_sampler_create_info.maxLod                  = 0.0f;
+
+        return vkCreateSampler(vk_device, &vk_sampler_create_info, 0, vk_sampler_out);
     }
 
     VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
@@ -933,6 +956,16 @@ bail:
             vkFreeMemory(vk_device, texture->m_MemoryHandle, 0);
             texture->m_MemoryHandle = VK_NULL_HANDLE;
             texture->m_MemorySize   = 0;
+        }
+    }
+
+    void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler)
+    {
+        assert(sampler);
+        if (sampler->m_Sampler != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(vk_device, sampler->m_Sampler, 0);
+            sampler->m_Sampler = VK_NULL_HANDLE;
         }
     }
 
