@@ -32,6 +32,8 @@ namespace dmDNS
 
     // These servers will be used if ares can't find any dns servers
     // in the system configuration, or if we get the default loopback address.
+    // Please note that ares won't accept server strings with spaces after the comma,
+    // i.e "server1, server2", instead it has to be "server1,server2".
     static const char* DEFAULT_DNS_SERVERS = "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844";
 
     static inline Result AresStatusToDNSResult(uint32_t ares_status)
