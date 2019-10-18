@@ -102,7 +102,7 @@ namespace dmDeviceOpenAL
         OpenALDevice* openal = (OpenALDevice*) device;
 
         alcMakeContextCurrent(openal->m_Context);
-        
+
         int iter = 0;
         while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
         {
@@ -219,4 +219,3 @@ namespace dmDeviceOpenAL
 
     DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
 }
-

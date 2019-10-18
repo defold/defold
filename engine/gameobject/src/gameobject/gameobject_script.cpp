@@ -368,7 +368,7 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
-        if (lua_gettop(L) == instance_arg) {
+        if (lua_gettop(L) == instance_arg && !lua_isnil(L, instance_arg)) {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
             if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
@@ -735,7 +735,7 @@ namespace dmGameObject
     }
 
     /*# gets the rotation of the game object instance
-     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
+     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world rotation.
      *
      * @name go.get_rotation
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script

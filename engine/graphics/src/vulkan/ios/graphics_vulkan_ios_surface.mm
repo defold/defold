@@ -1,10 +1,13 @@
 #import <Foundation/Foundation.h>
 
 #include <string.h>
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_ios.h>
+#include <dlib/math.h>
+#include <dlib/array.h>
 
 #include <graphics/glfw/glfw_native.h>
+
+#include "../graphics_vulkan_defines.h"
+#include "../../graphics.h"
 
 namespace dmGraphics
 {

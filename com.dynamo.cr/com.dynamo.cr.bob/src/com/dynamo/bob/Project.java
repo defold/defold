@@ -6,6 +6,7 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -669,17 +670,9 @@ public class Project {
 
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
-            File classesDexFile = null;
-            File proguardMappingFile = null;
             File tmpDir = null;
 
             if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-                // If we are building for Android, We output a mapping file per architechture
-                // so that the user can select which of the mapping files are more suitable,
-                // since they can diff between architechtures
-                String mappingsName = "mapping-" + (platform.equals(Platform.Armv7Android) ? "armv7" : "arm64") + ".txt";
-                proguardMappingFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), mappingsName));
-
                 // NOTE:
                 // We previously only generated and sent Android resources for at most one arch,
                 // to avoid sending and building these twice.
@@ -690,9 +683,6 @@ public class Project {
                     androidResourcesGenerated = true;
 
                     Bob.initAndroid(); // extract resources
-
-                    // If we are building for Android, we expect a classes.dex file to be returned as well.
-                    classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
 
                     List<String> resDirs = new ArrayList<>();
                     List<String> extraPackages = new ArrayList<>();
@@ -724,7 +714,11 @@ public class Project {
             }
 
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile, proguardMappingFile);
+            File zip = BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile);
+
+            cleanEngine(platform, buildDir);
+
+            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
 
             if (tmpDir != null) {
                 FileUtils.deleteDirectory(tmpDir);
@@ -736,45 +730,40 @@ public class Project {
         m.done();
     }
 
-    private void cleanEngine(IProgress monitor, String[] platformStrings) throws IOException, CompileExceptionError {
+    private static boolean deleteDirectory(File directoryToBeDeleted) {
+        File[] allContents = directoryToBeDeleted.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                deleteDirectory(file);
+            }
+        }
+        return directoryToBeDeleted.delete();
+    }
+
+    private void cleanEngine(Platform platform, File dir) throws IOException, CompileExceptionError {
+        if (!dir.exists()) {
+            return;
+        }
+
+        // Check for at least a previous built engine before triggering a recursive delete
+        List<String> defaultNames = platform.formatBinaryName("dmengine");
+        for (String defaultName : defaultNames) {
+            File exe = new File(FilenameUtils.concat(dir.getAbsolutePath(), defaultName));
+            if (exe.exists()) {
+                Project.deleteDirectory(dir);
+                break;
+            }
+        }
+    }
+
+    private void cleanEngines(IProgress monitor, String[] platformStrings) throws IOException, CompileExceptionError {
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Cleaning engine...", 0);
 
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
         for (int i = 0; i < platformStrings.length; ++i) {
             Platform platform = Platform.get(platformStrings[i]);
-
-            String buildPlatform = platform.getExtenderPair();
-            File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
-            if (!buildDir.exists()) {
-                continue;
-            }
-
-            List<String> defaultNames = platform.formatBinaryName("dmengine");
-            for (String defaultName : defaultNames) {
-                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
-                if (exe.exists()) {
-                    exe.delete();
-                }
-            }
-
-            // If we are building for Android, we expect a classes.dex file to be returned as well.
-            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-                int nameindex = 1;
-                while(true)
-                {
-                    String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
-                    ++nameindex;
-
-                    File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
-                    if (classesDexFile.exists()) {
-                        classesDexFile.delete();
-                    } else {
-                        break;
-                    }
-                }
-            }
-
+            cleanEngine(platform, new File(outputDir, platform.getExtenderPair()));
             m.worked(1);
         }
 
@@ -851,7 +840,7 @@ public class Project {
                         buildEngine(monitor, architectures, appmanifestOptions);
                     } else {
                         // Remove the remote built executables in the build folder, they're still in the cache
-                        cleanEngine(monitor, platforms);
+                        cleanEngines(monitor, platforms);
                     }
 
                     BundleHelper.throwIfCanceled(monitor);

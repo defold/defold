@@ -436,7 +436,7 @@ TEST_F(ComponentTest, TestManyComponents)
     const uint32_t num_components = 300;
     for( uint32_t i = 0; i < num_components; ++i)
     {
-        DM_SNPRINTF(name, sizeof(name), "script%d", i);
+        dmSnPrintf(name, sizeof(name), "script%d", i);
         dmhash_t id = dmHashString64(name);
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
         ASSERT_EQ(i, component_index);
@@ -444,7 +444,7 @@ TEST_F(ComponentTest, TestManyComponents)
         ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
         ASSERT_EQ(id, component_id);
     }
-    DM_SNPRINTF(name, sizeof(name), "script%d", num_components);
+    dmSnPrintf(name, sizeof(name), "script%d", num_components);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
 
@@ -495,7 +495,7 @@ TEST_F(ComponentTest, FinalCallsFinal)
     char buf[5];
     for (uint32_t i = 0; i < 10; ++i) {
         dmGameObject::HInstance go_b = dmGameObject::New(collection, "/test_final_final.goc");
-        DM_SNPRINTF(buf, 5, "id%d", i);
+        dmSnPrintf(buf, 5, "id%d", i);
         dmGameObject::SetIdentifier(collection, go_b, buf);
     }
 

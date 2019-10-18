@@ -60,10 +60,6 @@
    :help "use single Lua state shared between all script types",
    :default false,
    :path ["script" "shared_state"]}
-  {:type :string,
-   :help "unique project identifier",
-   :default "",
-   :path ["tracking" "app_id"]}
   {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
@@ -799,7 +795,6 @@
   "project" {:help "General project settings"},
   "collectionfactory" {:title "Collection Factory"}
   "collection_proxy" {:help "Collection proxy related settings"}
-  "tracking" {:help "Application tracking settings"},
   "physics" {:help "Physics settings"},
   "osx" {:help "Mac OSX related settings"
          :title "OSX"},

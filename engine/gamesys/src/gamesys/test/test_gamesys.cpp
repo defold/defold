@@ -29,12 +29,12 @@ const char* ROOT = "build/default/src/gamesys/test";
 bool CopyResource(const char* src, const char* dst)
 {
     char src_path[128];
-    DM_SNPRINTF(src_path, sizeof(src_path), "%s/%s", ROOT, src);
+    dmSnPrintf(src_path, sizeof(src_path), "%s/%s", ROOT, src);
     FILE* src_f = fopen(src_path, "rb");
     if (src_f == 0x0)
         return false;
     char dst_path[128];
-    DM_SNPRINTF(dst_path, sizeof(dst_path), "%s/%s", ROOT, dst);
+    dmSnPrintf(dst_path, sizeof(dst_path), "%s/%s", ROOT, dst);
     FILE* dst_f = fopen(dst_path, "wb");
     if (dst_f == 0x0)
     {
@@ -58,7 +58,7 @@ bool CopyResource(const char* src, const char* dst)
 bool UnlinkResource(const char* name)
 {
     char path[128];
-    DM_SNPRINTF(path, sizeof(path), "%s/%s", ROOT, name);
+    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, name);
     return unlink(path) == 0;
 }
 
@@ -169,7 +169,7 @@ TEST_P(ComponentTest, Test)
     const char* go_name = GetParam();
     dmGameObjectDDF::PrototypeDesc* go_ddf;
     char path[128];
-    DM_SNPRINTF(path, sizeof(path), "%s/%s", ROOT, go_name);
+    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
     const char* component_name = go_ddf->m_Components[0].m_Component;
@@ -214,7 +214,7 @@ TEST_P(ComponentTest, TestReloadFail)
     const char* go_name = GetParam();
     dmGameObjectDDF::PrototypeDesc* go_ddf;
     char path[128];
-    DM_SNPRINTF(path, sizeof(path), "%s/%s", ROOT, go_name);
+    dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, go_name);
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile(path, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, (void**)&go_ddf));
     ASSERT_LT(0u, go_ddf->m_Components.m_Count);
     const char* component_name = go_ddf->m_Components[0].m_Component;

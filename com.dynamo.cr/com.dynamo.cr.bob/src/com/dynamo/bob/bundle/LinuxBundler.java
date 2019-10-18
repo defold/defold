@@ -30,12 +30,16 @@ public class LinuxBundler implements IBundler {
         if (bundleExes.size() > 1) {
             throw new IOException("Invalid number of binaries for Linux when bundling: " + bundleExes.size());
         }
+
+        // Copy executable
         File bundleExe = bundleExes.get(0);
-
         File exeOut = new File(appDir, exeName + ".x86_64");
-
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
+
+        // Currently the stripping is left out from here
+        // This is because the user can easily make a copy of the executable,
+        // and then call "strip" to produce a slim executable
     }
 
     @Override

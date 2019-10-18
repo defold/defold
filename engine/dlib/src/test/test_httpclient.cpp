@@ -17,11 +17,11 @@
 #include <jc_test/jc_test.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
 }
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
 int g_HttpPort = -1;
@@ -75,7 +75,7 @@ public:
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         char scale[128];
-        DM_SNPRINTF(scale, sizeof(scale), "%d", self->m_XScale);
+        dmSnPrintf(scale, sizeof(scale), "%d", self->m_XScale);
         return dmHttpClient::WriteHeader(response, "X-Scale", scale);
     }
 
@@ -405,6 +405,7 @@ static void HttpStressThread(void* param)
     char buf[128];
     int c = rand() % 3359;
     HttpStressHelper* h = (HttpStressHelper*) param;
+    dmHttpClient::SetOptionInt(h->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
     for (int i = 0; i < 100; ++i) {
         h->m_Content = "";
         sprintf(buf, "/add/%d/1000", i * c);
@@ -413,6 +414,7 @@ static void HttpStressThread(void* param)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
     }
+    dmHttpClient::SetOptionInt(h->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0); // microseconds
 }
 
 TEST_P(dmHttpClientTest, ThreadStress)
@@ -422,7 +424,11 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
+#if defined(GITHUB_CI)
+    const int thread_count = 2;    // 32 is the maximum number of items in the connection pool, stay below that
+#else
     const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
+#endif
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
@@ -494,7 +500,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // The TCP + SSL connection handshake take up a considerable amount of time on linux (peaks of 60+ ms), and
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 175 * 1000); // microseconds
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)
@@ -1033,11 +1039,15 @@ TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
     dmDNS::NewChannel(&params.m_DNSChannel);
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "0.0.0.0", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
+    #ifndef _WIN32
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
+    #else
+    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
+    #endif
     dmHttpClient::Delete(client);
     dmDNS::DeleteChannel(params.m_DNSChannel);
 }

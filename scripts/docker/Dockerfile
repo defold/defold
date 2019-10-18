@@ -7,7 +7,8 @@ RUN \
   apt-get install -y software-properties-common && \
   add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
-  apt-get install -y openjdk-11-jdk
+  apt-get install -y openjdk-11-jdk && \
+  apt install -y openjdk-8-jdk
 
 # We still use GCC-5: https://askubuntu.com/a/1087368
 
@@ -51,6 +52,9 @@ RUN \
     tofrodos \
     cmake \
     curl \
+    wget \
+    zip \
+    unzip \
     tree \
     silversearcher-ag \
     valgrind \
@@ -65,7 +69,6 @@ RUN \
 
 RUN apt-get autoremove
 
-
 # Add builder user
 RUN  useradd -r -u 2222 builder && \
   mkdir -p /var/builder && \
@@ -76,4 +79,3 @@ RUN  useradd -r -u 2222 builder && \
 USER builder
 WORKDIR /home/builder
 RUN mkdir -p /home/builder
-

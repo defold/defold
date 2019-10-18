@@ -30,8 +30,6 @@
 #include <profiler/profiler.h>
 #include <particle/particle.h>
 #include <script/sys_ddf.h>
-#include <tracking/tracking.h>
-#include <tracking/tracking_ddf.h>
 #include <liveupdate/liveupdate.h>
 
 #include "engine_service.h"
@@ -191,7 +189,6 @@ namespace dmEngine
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
     , m_DisplayProfiles(0x0)
-    , m_TrackingContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
     , m_WasIconified(true)
@@ -270,12 +267,6 @@ namespace dmEngine
 
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
-
-        if (engine->m_TrackingContext)
-        {
-            dmTracking::Finalize(engine->m_TrackingContext);
-            dmTracking::Delete(engine->m_TrackingContext);
-        }
 
         if (engine->m_SharedScriptContext) {
             dmScript::Finalize(engine->m_SharedScriptContext);
@@ -999,16 +990,6 @@ namespace dmEngine
 
         dmLiveUpdate::Initialize(engine->m_Factory);
 
-        engine->m_TrackingContext = dmTracking::New(engine->m_Config);
-        if (engine->m_TrackingContext)
-        {
-            dmTracking::Start(engine->m_TrackingContext, "Defold", dmEngineVersion::VERSION);
-        }
-        else
-        {
-            dmLogWarning("Failed to create tracking context");
-        }
-
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -1192,11 +1173,6 @@ bail:
 
         if (engine->m_Alive)
         {
-            if (engine->m_TrackingContext)
-            {
-                DM_PROFILE(Engine, "Tracking")
-                dmTracking::Update(engine->m_TrackingContext, dt);
-            }
 
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
@@ -1222,10 +1198,6 @@ bail:
             {
                 if (engine->m_WasIconified)
                 {
-                    if (engine->m_TrackingContext)
-                    {
-                        dmTracking::PostSimpleEvent(engine->m_TrackingContext, "@Invoke");
-                    }
                     engine->m_WasIconified = false;
                 }
             }
@@ -1300,6 +1272,18 @@ bail:
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
+                    // Call pre render functions for extensions, if available.
+                    // We do it here before we render rest of the frame
+                    // if any extension wants to render on under of the game.
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                    }
+                    dmExtension::PreRender(&ext_params);
+
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);
@@ -1312,6 +1296,8 @@ bail:
                     }
 
                     dmRender::RenderListEnd(engine->m_RenderContext);
+
+                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
                     if (engine->m_RenderScriptPrototype)
                     {
@@ -1350,6 +1336,18 @@ bail:
                 }
 
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+
+                // Call post render functions for extensions, if available.
+                // We do it here at the end of the frame (before swap buffers/flip)
+                // if any extension wants to render on top of the game.
+                dmExtension::Params ext_params;
+                ext_params.m_ConfigFile = engine->m_Config;
+                if (engine->m_SharedScriptContext) {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                } else {
+                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                }
+                dmExtension::PostRender(&ext_params);
 
                 if (engine->m_UseSwVsync)
                 {
@@ -1428,26 +1426,24 @@ bail:
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
-            strdup(reboot->m_Arg1),
-            strdup(reboot->m_Arg2),
-            strdup(reboot->m_Arg3),
-            strdup(reboot->m_Arg4),
-            strdup(reboot->m_Arg5),
-            strdup(reboot->m_Arg6),
+            reboot->m_Arg1 ? strdup(reboot->m_Arg1) : 0,
+            reboot->m_Arg2 ? strdup(reboot->m_Arg2) : 0,
+            reboot->m_Arg3 ? strdup(reboot->m_Arg3) : 0,
+            reboot->m_Arg4 ? strdup(reboot->m_Arg4) : 0,
+            reboot->m_Arg5 ? strdup(reboot->m_Arg5) : 0,
+            reboot->m_Arg6 ? strdup(reboot->m_Arg6) : 0,
         };
 
-        bool empty_found = false;
         for (int i = 0; i < ARG_COUNT; ++i)
         {
             // NOTE: +1 here, see above
             engine->m_RunResult.m_Argv[i + 1] = args[i];
-            if (args[i][0] == '\0')
+            if (args[i] == 0 || args[i][0] == '\0')
             {
-                empty_found = true;
+                break;
             }
 
-            if (!empty_found)
-                argc++;
+            argc++;
         }
 
         engine->m_RunResult.m_Argc = argc;

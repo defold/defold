@@ -79,6 +79,7 @@
          :left-bearing (- ^double (:left-bearing glyph) ^int padding)
          :ascent (+ ^int (:ascent glyph) ^int padding)
          :descent (+ ^int (:descent glyph) ^int padding)
+         :glyph-cell-wh (:glyph-cell-wh glyph-extents)
          :glyph-data-offset (:glyph-data-offset glyph-extents)
          :glyph-data-size (:glyph-data-size glyph-extents)}))
     semi-glyphs glyph-extents))
@@ -142,7 +143,6 @@
                           (doto (BMFont.)
                             (.parse font-stream)))
         semi-glyphs (fnt-semi-glyphs bm-font)
-        ^int shadow-blur (:shadow-blur font-desc)
         padding 0
         glyph-cell-padding 1
         bm-image (let [path (.. (Paths/get (FilenameUtils/normalize (.. bm-font page (get 0))) (into-array String [])) getFileName toString)]
@@ -155,7 +155,10 @@
                        (throw (ex-info (str "Error while reading BMFont image resource:" path) {:path path} e)))))
         channel-count 4
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
-        line-height (.lineHeight bm-font)
+        ;; Note: see comment in compile-ttf-bitmap regarding the cache ascent/descent
+        ^long cache-cell-max-ascent (reduce max 0 (map :ascent semi-glyphs))
+        ^long cache-cell-max-descent (reduce max 0 (map :descent semi-glyphs))
+        line-height (+ cache-cell-max-ascent cache-cell-max-descent)
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)]
@@ -202,6 +205,7 @@
        :max-ascent max-ascent
        :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
        :image-format (:output-format font-desc)
+       :layer-mask 0x1 ; Face layer only - we don't generate shadow or outline.
        :cache-width (:width cache-wh)
        :cache-height (:height cache-wh)
        :glyph-padding glyph-cell-padding

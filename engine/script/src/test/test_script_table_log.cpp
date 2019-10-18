@@ -99,7 +99,7 @@ TEST_F(PushTableLoggerTest, FormatAndPrint)
     char t_fmt1[] = "B%dC";
     int t_data1 = 1234567890;
     char t_str1[128];
-    DM_SNPRINTF(t_str1, sizeof(t_str1), t_fmt1, t_data1);
+    dmSnPrintf(t_str1, sizeof(t_str1), t_fmt1, t_data1);
 
     PushTableLogFormat(m_Logger, t_fmt1, t_data1);
     PushTableLogPrint(m_Logger, m_Result);

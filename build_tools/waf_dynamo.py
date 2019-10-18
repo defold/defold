@@ -12,10 +12,8 @@ if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
 
-HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
-#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
-ANDROID_ROOT=os.path.join(HOME, 'android')
+SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
@@ -247,6 +245,10 @@ def default_flags(self):
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
+    if os.environ.get('GITHUB_WORKFLOW', None) is not None:
+       for f in ['CCFLAGS', 'CXXFLAGS']:
+           self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
+
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
@@ -410,7 +412,7 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -813,23 +815,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.defold.iap.IapGooglePlayActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="IAP">
-        </activity>
-
-        <!-- For Amazon IAP -->
-        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
-            <intent-filter>
-                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
-            </intent-filter>
-        </receiver>
 
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
@@ -916,13 +904,13 @@ def android_package(task):
             return 1
     else:
         dex_input = dx_jars
-    
+
     if dex_input:
         ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
         if ret != 0:
             error('Error running dx')
             return 1
-    
+
     if os.path.exists(task.classes_dex.abspath(task.env)):
         with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
             zip.write(task.classes_dex.abspath(task.env), 'classes.dex')

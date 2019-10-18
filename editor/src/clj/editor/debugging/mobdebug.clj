@@ -211,9 +211,33 @@
     :else
     (lua-value->identity-string x)))
 
+(defn- tuple->map-entry
+  ^MapEntry [[k v]]
+  (MapEntry. k v))
+
+(defn- sequence->map-entries [coll]
+  (sequence (comp (partition-all 2)
+                  (map tuple->map-entry))
+            coll))
+
+(defn- classify-type [x]
+  (cond (number? x) :number
+        (string? x) :string
+        :else :other))
+
+(defn- sort-entries [map-entries]
+  (let [{:keys [number string other]} (group-by (comp classify-type key) map-entries)]
+    (concat (sort-by key number)
+            (sort-by key string)
+            other)))
+
 (def ^:private lua-readers
   {'lua/table (fn [{:keys [content string]}]
-                (with-meta (apply array-map content) {:string string}))
+                (with-meta (into (array-map)
+                                 (->> content
+                                      sequence->map-entries
+                                      sort-entries))
+                           {:string string}))
    'lua/ref (fn [address]
               (LuaRef. address))
    'lua/structure (fn [{:keys [value refs]}]

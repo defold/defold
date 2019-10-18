@@ -87,7 +87,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -727,7 +727,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
     ASSERT_EQ(2u, user_data.m_TestValue);
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
-    
+
     ASSERT_FALSE(RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 1})\n"
@@ -742,7 +742,7 @@ TEST_F(ScriptMsgTest, TestPerf)
     uint64_t time = dmTime::GetTime();
     uint32_t count = 10000;
     char program[256];
-    DM_SNPRINTF(program, 256,
+    dmSnPrintf(program, 256,
         "local count = %u\n"
         "for i = 1,count do\n"
         "    msg.post(\"test_path\", \"table\", {uint_value = 1})\n"

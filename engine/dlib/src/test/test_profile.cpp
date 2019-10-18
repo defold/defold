@@ -128,6 +128,7 @@ TEST(dmProfile, Profile)
     dmProfile::Finalize();
 }
 
+#if !defined(GITHUB_CI)
 TEST(dmProfile, ProfileSorted)
 {
     dmProfile::Initialize(128, 1024, 0);
@@ -237,6 +238,7 @@ TEST(dmProfile, Nested)
     }
     dmProfile::Finalize();
 }
+#endif
 
 TEST(dmProfile, ProfileOverflow1)
 {
@@ -393,9 +395,9 @@ TEST(dmProfile, DynamicScope)
     dmProfile::Release(profile);
 
     char names[3][128];
-    DM_SNPRINTF(names[0], sizeof(names[0]), "%s@%s", "test.script", FUNCTION_NAMES[0]);
-    DM_SNPRINTF(names[1], sizeof(names[1]), "%s@%s", "test.script", FUNCTION_NAMES[1]);
-    DM_SNPRINTF(names[2], sizeof(names[2]), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+    dmSnPrintf(names[0], sizeof(names[0]), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    dmSnPrintf(names[1], sizeof(names[1]), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+    dmSnPrintf(names[2], sizeof(names[2]), "%s@%s", "test.script", FUNCTION_NAMES[2]);
     uint32_t names_hash[3] = {
         dmProfile::GetNameHash(names[0], strlen(names[0])),
         dmProfile::GetNameHash(names[1], strlen(names[1])),
@@ -426,13 +428,13 @@ TEST(dmProfile, DynamicScope)
     ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
 
     char name0[128];
-    DM_SNPRINTF(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    dmSnPrintf(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
 
     char name1[128];
-    DM_SNPRINTF(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+    dmSnPrintf(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
 
     char name2[128];
-    DM_SNPRINTF(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+    dmSnPrintf(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
 
     for (size_t i = 0; i < samples.size(); i++)
     {

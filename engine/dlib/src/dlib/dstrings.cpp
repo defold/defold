@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #endif
 
-int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...)
+int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
     // MS-compliance
     if (buffer == 0x0 || count == 0 || format == 0x0)
@@ -149,9 +149,9 @@ cont:
 
 size_t dmStrlCpy(char *dst, const char *src, size_t siz)
 {
-    register char *d = dst;
-    register const char *s = src;
-    register size_t n = siz;
+    char *d = dst;
+    const char *s = src;
+    size_t n = siz;
 
     /* Copy as many bytes as will fit */
     if (n != 0 && --n != 0) {
@@ -183,9 +183,9 @@ size_t dmStrlCpy(char *dst, const char *src, size_t siz)
 size_t
 dmStrlCat(char *dst, const char *src, size_t siz)
 {
-        register char *d = dst;
-        register const char *s = src;
-        register size_t n = siz;
+        char *d = dst;
+        const char *s = src;
+        size_t n = siz;
         size_t dlen;
 
         /* Find the end of dst and adjust bytes left but don't go past end */

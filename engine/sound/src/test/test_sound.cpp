@@ -382,6 +382,7 @@ void DeviceLoopbackStop(dmSound::HDevice device)
 
 }
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundVerifyTest, Mix)
 {
     TestParams params = GetParam();
@@ -447,6 +448,7 @@ TEST_P(dmSoundVerifyTest, Mix)
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
+#endif
 
 TEST_P(dmSoundVerifyTest, EarlyBailOnNoSoundInstances)
 {
@@ -606,6 +608,7 @@ TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundTestGroupRampTest, GroupRamp)
 {
     TestParams params = GetParam();
@@ -671,8 +674,9 @@ const TestParams params_group_ramp_test[] = {
         2048)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest, dmSoundTestGroupRampTest, jc_test_values_in(params_group_ramp_test));
+#endif
 
-
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundTestSpeedTest, Speed)
 {
     TestParams params = GetParam();
@@ -680,7 +684,7 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     dmSound::HSoundData sd = 0;
     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
-    printf("tone: %d, rate: %d, frames: %d, speed: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Speed);
+    // printf("tone: %d, rate: %d, frames: %d, speed: %f\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount, params.m_Speed);
 
     dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
@@ -774,8 +778,9 @@ const TestParams params_speed_test[] = {
             0.5f),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
+#endif
 
-
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundVerifyOggTest, Mix)
 {
     TestParams params = GetParam();
@@ -860,6 +865,18 @@ TEST_P(dmSoundVerifyOggTest, Kill)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+const TestParams params_verify_ogg_test[] = {TestParams("loopback",
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
+                                            2000,
+                                            44100,
+                                            35200,
+                                            2048)};
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
+#endif
+
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundTestPlayTest, Play)
 {
     TestParams params = GetParam();
@@ -947,16 +964,6 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-const TestParams params_verify_ogg_test[] = {TestParams("loopback",
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
-                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
-                                            dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
-                                            2000,
-                                            44100,
-                                            35200,
-                                            2048)};
-INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
-
 const TestParams params_test_play_test[] = {
     TestParams("default",
                 MONO_TONE_440_32000_64000_WAV,
@@ -1000,7 +1007,6 @@ const TestParams params_test_play_test[] = {
                 2048),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
-
 
 const TestParams params_test_play_speed_test[] = {
     TestParams("default",
@@ -1055,7 +1061,9 @@ const TestParams params_test_play_speed_test[] = {
             0.5f),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundVerifyWavTest, Mix)
 {
     TestParams params = GetParam();
@@ -1097,8 +1105,9 @@ const TestParams params_verify_wav_test[] = {TestParams("loopback",
                                             35200,
                                             2048)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
+#endif
 
-
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__MACH__))
 TEST_P(dmSoundMixerTest, Mixer)
 {
     TestParams2 params = GetParam();
@@ -1304,7 +1313,7 @@ const TestParams2 params_mixer_test[] = {
                 2048)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
-
+#endif
 
 DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
 

@@ -357,7 +357,7 @@ namespace dmHttpService
         {
             Worker* worker = new Worker();
             char tmp[128];
-            DM_SNPRINTF(tmp, sizeof(tmp), "@__http_worker_%d", i);
+            dmSnPrintf(tmp, sizeof(tmp), "@__http_worker_%d", i);
             dmMessage::NewSocket(tmp, &worker->m_Socket);
             worker->m_Client = 0;
             memset(&worker->m_CurrentURL, 0, sizeof(worker->m_CurrentURL));

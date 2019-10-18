@@ -742,7 +742,7 @@ namespace dmScript
         }
 
         *s = 0;
-        DM_SNPRINTF(buf, sizeof(buf), "buffer.%s(count = %d, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
+        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count);
         dmStrlCat(s, buf, maxlen);
 
         for( uint32_t i = 0; i < num_streams; ++i )
@@ -756,7 +756,7 @@ namespace dmScript
 
             const char* comma = i<(num_streams-1)?", ":"";
             const char* typestring = dmBuffer::GetValueTypeString(type);
-            DM_SNPRINTF(buf, sizeof(buf), "{ hash(\"%s\"), buffer.%s, %d }%s", dmHashReverseSafe64(stream_name), typestring, type_count, comma );
+            dmSnPrintf(buf, sizeof(buf), "{ hash(\"%s\"), buffer.%s, %d }%s", dmHashReverseSafe64(stream_name), typestring, type_count, comma );
             dmStrlCat(s, buf, maxlen);
         }
         dmStrlCat(s, ")", maxlen);
@@ -913,7 +913,7 @@ namespace dmScript
             {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta, &SCRIPT_BUFFER_TYPE_HASH},
             {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta, &SCRIPT_BUFFERSTREAM_TYPE_HASH},
         };
- 
+
         for (uint32_t i = 0; i < type_count; ++i)
         {
             *types[i].m_TypeHash = dmScript::RegisterUserType(L, types[i].m_Name, types[i].m_Methods, types[i].m_Metatable);

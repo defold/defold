@@ -7,7 +7,6 @@
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
     [editor.error-reporting :as error-reporting]
-    [editor.login :as login]
     [editor.progress :as progress]
     [editor.resource :as resource]
     [editor.system :as system]
@@ -137,13 +136,12 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
-  (let [[email auth] (login/credentials prefs)
-        build-server-url (native-extensions/get-build-server-url prefs)
+  (let [build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
@@ -163,12 +161,13 @@
              ;; Bob uses these to set X-Email/X-Auth HTTP headers,
              ;; which fails if they are nil, so use empty string
              ;; instead.
-             "email" (or email "")
-             "auth"  (or auth "")}
+             "email" ""
+             "auth" ""}
 
             strip-executable? (assoc "strip-executable" "true")
 
             ;; From BundleGenericHandler
+            generate-debug-symbols? (assoc "with-symbols" "")
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "true"))))
 
@@ -236,8 +235,7 @@
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
-        compress-archive? (get proj-settings ["project" "compress_archive"])
-        [email auth] (login/credentials prefs)]
+        compress-archive? (get proj-settings ["project" "compress_archive"])]
     (cond-> {"platform" "js-web"
              "variant" "debug"
              "archive" "true"
@@ -245,8 +243,8 @@
              "build-server" build-server-url
              "defoldsdk" defold-sdk-sha1
              "local-launch" "true"
-             "email" (or email "")
-             "auth" (or auth "")}
+             "email" ""
+             "auth" ""}
             compress-archive? (assoc "compress" "true"))))
 
 (defn- try-resolve-html5-file

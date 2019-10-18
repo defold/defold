@@ -8,6 +8,7 @@ TEST(dmTime, Sleep)
     dmTime::Sleep(1);
 }
 
+#if !defined(GITHUB_CI)
 TEST(dmTime, GetTime)
 {
     uint64_t start = dmTime::GetTime();
@@ -15,10 +16,10 @@ TEST(dmTime, GetTime)
     uint64_t end = dmTime::GetTime();
     ASSERT_NEAR((double) 200000, (double) (end-start), (double) 40000);
 }
+#endif
 
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

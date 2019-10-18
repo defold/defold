@@ -1306,7 +1306,7 @@ namespace dmProfileRender
             max_frame_time -= frame->m_WaitTime;
         }
 
-        int l = DM_SNPRINTF(buffer, sizeof(buffer), "Frame: %6.3f Max: %6.3f", frame_time, max_frame_time);
+        int l = dmSnPrintf(buffer, sizeof(buffer), "Frame: %6.3f Max: %6.3f", frame_time, max_frame_time);
 
         switch (render_profile->m_Mode)
         {
@@ -1315,18 +1315,18 @@ namespace dmProfileRender
             case PROFILER_MODE_PAUSE:
                 if (render_profile->m_PlaybackFrame < 0 || render_profile->m_PlaybackFrame == (int32_t)render_profile->m_RecordBuffer.Size())
                 {
-                    DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Paused)");
+                    dmSnPrintf(&buffer[l], sizeof(buffer) - l, " (Paused)");
                 }
                 else
                 {
-                    DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Show: %d)", render_profile->m_PlaybackFrame);
+                    dmSnPrintf(&buffer[l], sizeof(buffer) - l, " (Show: %d)", render_profile->m_PlaybackFrame);
                 }
                 break;
             case PROFILER_MODE_SHOW_PEAK_FRAME:
-                DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Peak)");
+                dmSnPrintf(&buffer[l], sizeof(buffer) - l, " (Peak)");
                 break;
             case PROFILER_MODE_RECORD:
-                DM_SNPRINTF(&buffer[l], sizeof(buffer) - l, " (Rec: %d)", render_profile->m_PlaybackFrame);
+                dmSnPrintf(&buffer[l], sizeof(buffer) - l, " (Rec: %d)", render_profile->m_PlaybackFrame);
                 break;
         }
 
@@ -1396,12 +1396,12 @@ namespace dmProfileRender
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 params.m_Text = buffer;
-                DM_SNPRINTF(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
+                dmSnPrintf(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
                 params.m_WorldTransform.setElem(3, 0, time_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 params.m_Text = buffer;
-                DM_SNPRINTF(buffer, sizeof(buffer), "%3u", scope->m_Count);
+                dmSnPrintf(buffer, sizeof(buffer), "%3u", scope->m_Count);
                 params.m_WorldTransform.setElem(3, 0, count_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
@@ -1438,7 +1438,7 @@ namespace dmProfileRender
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 params.m_Text = buffer;
-                DM_SNPRINTF(buffer, sizeof(buffer), "%12u", counter->m_Count);
+                dmSnPrintf(buffer, sizeof(buffer), "%12u", counter->m_Count);
                 params.m_WorldTransform.setElem(3, 0, count_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
@@ -1511,7 +1511,7 @@ namespace dmProfileRender
                 const char* scope_name           = *render_profile->m_NameLookupTable.Get(scope->m_NameHash);
                 const char* sample_name          = *render_profile->m_NameLookupTable.Get(sample_aggregate->m_SampleNameHash);
 
-                int buffer_offset = DM_SNPRINTF(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.", scope_name);
+                int buffer_offset = dmSnPrintf(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.", scope_name);
 
                 // Do truncation of sample name if needed, we add some knowledge on the sample name format for names that
                 // we know tend to be long. The script call scopes tend to be long and we try to truncate the file path of
@@ -1544,11 +1544,11 @@ namespace dmProfileRender
                 params.m_WorldTransform.setElem(3, 0, name_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
-                DM_SNPRINTF(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
+                dmSnPrintf(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
                 params.m_WorldTransform.setElem(3, 0, time_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
-                DM_SNPRINTF(buffer, sizeof(buffer), "%3u", sample_aggregate->m_Count);
+                dmSnPrintf(buffer, sizeof(buffer), "%3u", sample_aggregate->m_Count);
                 params.m_WorldTransform.setElem(3, 0, count_x);
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 

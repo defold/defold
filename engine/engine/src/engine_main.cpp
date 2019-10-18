@@ -4,6 +4,7 @@
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <dlib/thread.h>
 #include <graphics/graphics.h>
 #include <crash/crash.h>
 
@@ -12,6 +13,8 @@
 
 int engine_main(int argc, char *argv[])
 {
+    dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
+
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif

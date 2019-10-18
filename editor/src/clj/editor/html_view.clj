@@ -292,5 +292,5 @@
   (run [^WebEngine web-engine]
     (.reload web-engine)))
 
-(ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:command :reload :label "Reload"}])
+(handler/register-menu! ::menubar :editor.app-view/edit-end
+  [{:command :reload :label "Reload"}])

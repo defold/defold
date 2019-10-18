@@ -443,7 +443,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     char* str_buf = &tmp_buf[sizeof(dmLogMessage)];
 
     int n = 0;
-    n += DM_SNPRINTF(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
+    n += dmSnPrintf(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
     if (n < DM_LOG_MAX_STRING_SIZE)
     {
         n += vsnprintf(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, format, lst);
@@ -451,7 +451,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
     if (n < DM_LOG_MAX_STRING_SIZE)
     {
-        n += DM_SNPRINTF(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "\n");
+        n += dmSnPrintf(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "\n");
     }
 
     if (n >= DM_LOG_MAX_STRING_SIZE)

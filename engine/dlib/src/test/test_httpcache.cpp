@@ -417,7 +417,7 @@ TEST_F(dmHttpCacheTest, Stress1)
     for (int i = 0; i < 100; ++i)
     {
         char etag[16];
-        DM_SNPRINTF(etag, sizeof(etag), "%i", i);
+        dmSnPrintf(etag, sizeof(etag), "%i", i);
         r = Put(cache, "uri", etag, "data", strlen("data"));
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -453,7 +453,7 @@ TEST_F(dmHttpCacheTest, Stress2)
     for (int i = 0; i < 100; ++i)
     {
         char uri[16];
-        DM_SNPRINTF(uri, sizeof(uri), "%i", i);
+        dmSnPrintf(uri, sizeof(uri), "%i", i);
         r = Put(cache, uri, "etag", "data", strlen("data"));
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -491,7 +491,7 @@ TEST_F(dmHttpCacheTest, StressOpenClose)
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
         char etag[16];
-        DM_SNPRINTF(etag, sizeof(etag), "%i", i);
+        dmSnPrintf(etag, sizeof(etag), "%i", i);
         r = Put(cache, "uri", etag, "data", strlen("data"));
         ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 

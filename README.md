@@ -33,11 +33,12 @@ Verify with:
 
 #### Python
 
-* macOS: On macOS you must run the python version shipped with macOS, eg no homebrew installed python versions)
+You need a 64 bit Python 2 to build the engine and tools.
+Latest tested on all platforms is Python 2.7.16.
 
-Make sure you have python2 installed by running `which python2`.
-If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
-`ln -s /usr/bin/python2.7 /usr/local/bin/python2`
+For macOS, you can install using:
+
+        $ brew install python2
 
 ### General Setup
 
@@ -458,11 +459,10 @@ To debug memory and alignment issues the following parameters should be added bo
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
 
-### Extensions / modules
-
-* For debugging our IAP (in app purchase) extension: [DefoldIAPTester]((***REMOVED***)/1j-2m-YMcAryNO8il1P7m4cjNhrCTzS0QOsQODwvnTww/edit?usp=sharing)
-
 ## Porting to another compiler
 
-You will likely need to recompile external libraries. Source code for most is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).
+You will likely need to recompile external libraries.
+Check the `share/ext` folder for building the external packages for each platform
+(Source code for some old packages is available [here](https://drive.google.com/open?id=0BxFxQdv6jzseeXh2TzBnYnpwdUU).)
+
 

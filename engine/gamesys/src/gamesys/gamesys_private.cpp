@@ -31,7 +31,7 @@ namespace dmGameSystem
             const char* path_name_receiver = dmHashReverseSafe64(receiver->m_Path);
             const char* fragment_name_receiver = dmHashReverseSafe64(receiver->m_Fragment);
 
-            n+= DM_SNPRINTF(buf + n, sizeof(buf) - n, " Message '%s' sent from %s:%s#%s to %s:%s#%s.",
+            n+= dmSnPrintf(buf + n, sizeof(buf) - n, " Message '%s' sent from %s:%s#%s to %s:%s#%s.",
                             id_str,
                             socket_name_sender, path_name_sender, fragment_name_sender,
                             socket_name_receiver, path_name_receiver, fragment_name_receiver);

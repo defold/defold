@@ -1,10 +1,10 @@
 (ns integration.build-test
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [editor.build :as build]
             [editor.math :as math]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
@@ -12,11 +12,12 @@
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
+            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [util.murmur :as murmur]
             [integration.test-util :refer [with-loaded-project] :as test-util]
-            [editor.settings-core :as settings-core])
+            [support.test-support :refer [with-clean-system]]
+            [util.murmur :as murmur])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -260,7 +261,7 @@
            ~'resource-node     (test-util/resource-node ~'project ~path)
            evaluation-context# (g/make-evaluation-context)
            old-artifact-map#   (workspace/artifact-map ~'workspace)
-           ~'build-results     (project/build! ~'project ~'resource-node evaluation-context# nil old-artifact-map# progress/null-render-progress!)
+           ~'build-results     (build/build-project! ~'project ~'resource-node evaluation-context# nil old-artifact-map# progress/null-render-progress!)
            ~'build-artifacts   (:artifacts ~'build-results)
            ~'_                 (when-not (contains? ~'build-results :error)
                                  (workspace/artifact-map! ~'workspace (:artifact-map ~'build-results))
@@ -308,7 +309,7 @@
 (defn- project-build [project resource-node evaluation-context]
   (let [workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)
-        build-results (project/build! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-results (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
@@ -724,7 +725,7 @@
                                (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")
 
                                ;; Check so that empty defaults are not included
-                               (check-project-setting built-properties ["tracking" "app_id"] nil)
+                               (check-project-setting built-properties ["resource" "uri"] nil)
 
                                ;; Check so empty custom properties are included as empty strings
                                (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))

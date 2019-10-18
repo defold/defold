@@ -96,6 +96,11 @@ namespace dmTexc
     typedef void* HTexture;
 
     /**
+     * Texture handle
+     */
+    typedef void* HBuffer;
+
+    /**
      * Invalid texture handle
      */
     const HTexture INVALID_TEXTURE = 0;
@@ -167,6 +172,17 @@ namespace dmTexc
      */
     DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, DitherType dither_type);
 
+    // Compresses an image buffer
+    DM_TEXC_PROTO(HBuffer, CompressWebPBuffer, uint32_t width, uint32_t height, uint32_t bpp, void* data, uint32_t size, PixelFormat pixelFormat, CompressionLevel compressionLevel, CompressionType compression_type);
+
+    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
+    DM_TEXC_PROTO(uint32_t, GetTotalBufferDataSize, HBuffer buffer);
+
+    // Gets the data from a buffer
+    DM_TEXC_PROTO(uint32_t, GetBufferData, HBuffer buffer, void* out_data, uint32_t out_data_size);
+
+    // Destroys a buffer created by CompressWebP
+    DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
 #undef DM_TEXC_PROTO
 
 }
