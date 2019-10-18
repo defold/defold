@@ -33,6 +33,16 @@ enum Playback
     PLAYBACK_LOOP_PINGPONG = 5 [(displayName) = "Loop Ping Pong"];
 }
 
+enum SpriteTrimmingMode
+{
+    SPRITE_TRIM_MODE_OFF    = 0 [(displayName) = "Off"];
+    SPRITE_TRIM_MODE_4      = 4 [(displayName) = "4 Vertices"];
+    SPRITE_TRIM_MODE_5      = 5 [(displayName) = "5 Vertices"];
+    SPRITE_TRIM_MODE_6      = 6 [(displayName) = "6 Vertices"];
+    SPRITE_TRIM_MODE_7      = 7 [(displayName) = "7 Vertices"];
+    SPRITE_TRIM_MODE_8      = 8 [(displayName) = "8 Vertices"];
+}
+
 message Animation
 {
     required string id              = 1;
@@ -47,19 +57,20 @@ message Animation
 
 message TileSet
 {
-    required string image               = 1 [(resource)=true];
-    required uint32 tile_width          = 2 [default = 0];
-    required uint32 tile_height         = 3 [default = 0];
-    required uint32 tile_margin         = 4 [default = 0];
-    required uint32 tile_spacing        = 5 [default = 0];
-    optional string collision           = 6 [(resource)=true];
-    required string material_tag        = 7 [default = "tile"];
-    repeated ConvexHull convex_hulls    = 8;
-    repeated float convex_hull_points   = 9;
-    repeated string collision_groups    = 10;
-    repeated Animation animations       = 11;
-    optional uint32 extrude_borders     = 12 [default = 0];
-    optional uint32 inner_padding       = 13 [default = 0];
+    required string image                           = 1 [(resource)=true];
+    required uint32 tile_width                      = 2 [default = 0];
+    required uint32 tile_height                     = 3 [default = 0];
+    required uint32 tile_margin                     = 4 [default = 0];
+    required uint32 tile_spacing                    = 5 [default = 0];
+    optional string collision                       = 6 [(resource)=true];
+    required string material_tag                    = 7 [default = "tile"];
+    repeated ConvexHull convex_hulls                = 8;
+    repeated float convex_hull_points               = 9;
+    repeated string collision_groups                = 10;
+    repeated Animation animations                   = 11;
+    optional uint32 extrude_borders                 = 12 [default = 0];
+    optional uint32 inner_padding                   = 13 [default = 0];
+    optional SpriteTrimmingMode sprite_trim_mode    = 14 [default = SPRITE_TRIM_MODE_6];
 }
 
 message TileCell

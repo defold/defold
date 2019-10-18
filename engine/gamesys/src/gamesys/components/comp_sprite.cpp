@@ -339,7 +339,7 @@ namespace dmGameSystem
         PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
 
         TextureSetResource* texture_set = GetTextureSet(component, resource);
-        sprite_world->m_UsesPolygons |= texture_set->m_TextureSet->m_Polygons.m_Count != 0 ? 1 : 0;
+        sprite_world->m_UsesPolygons |= texture_set->m_TextureSet->m_Geometries.m_Count != 0 ? 1 : 0;
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -385,7 +385,7 @@ namespace dmGameSystem
 
         if (sprite_world->m_UsesPolygons)
         {
-            const dmGameSystemDDF::SpritePolygon* polygons = texture_set_ddf->m_Polygons.m_Data;
+            const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
 
             for (uint32_t* i = begin;i != end; ++i)
             {
@@ -393,7 +393,7 @@ namespace dmGameSystem
 
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
-                const dmGameSystemDDF::SpritePolygon* polygon = &polygons[component->m_AnimationID];
+                const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[component->m_AnimationID];
 
                 uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
                 const float* tc = &tex_coords[frame_index * 4 * 2];
@@ -422,16 +422,10 @@ namespace dmGameSystem
                 // The offset for the indices
                 uint32_t vertex_offset = vertices - *vb_where;
 
-                printf("Sprite: %u\n", *i);
-
-                // const float* points = polygon->m_Points.m_Data;
-                // uint32_t num_points = polygon->m_Points.m_Count / 2;
-                // for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points += 2)
-
                 // TODO: reverse the points in the build step
-                const float* points = polygon->m_Points.m_Data + polygon->m_Points.m_Count - 2;
-                const float* uvs = polygon->m_Uvs.m_Data + polygon->m_Uvs.m_Count - 2;
-                uint32_t num_points = polygon->m_Points.m_Count / 2;
+                const float* points = geometry->m_Vertices.m_Data + geometry->m_Vertices.m_Count - 2;
+                const float* uvs = geometry->m_Uvs.m_Data + geometry->m_Uvs.m_Count - 2;
+                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
                 for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points -= 2, uvs -= 2)
                 {
                     float x = points[0]; // range -0.5,+0.5
@@ -450,22 +444,22 @@ namespace dmGameSystem
 
                 }
 
-                uint32_t index_count = polygon->m_Indices.m_Count;
+                uint32_t index_count = geometry->m_Indices.m_Count;
                 if (sprite_world->m_Is16BitIndex)
                 {
                     for (uint32_t index = 0; index < index_count; ++index)
                     {
-                        ((uint16_t*)indices)[index] = vertex_offset + polygon->m_Indices.m_Data[index];
+                        ((uint16_t*)indices)[index] = vertex_offset + geometry->m_Indices.m_Data[index];
                     }
                 }
                 else
                 {
                     for (uint32_t index = 0; index < index_count; ++index)
                     {
-                        ((uint32_t*)indices)[index] = vertex_offset + polygon->m_Indices.m_Data[index];
+                        ((uint32_t*)indices)[index] = vertex_offset + geometry->m_Indices.m_Data[index];
                     }
                 }
-                indices += index_type_size * polygon->m_Indices.m_Count;
+                indices += index_type_size * geometry->m_Indices.m_Count;
             }
         }
         else // original path using quads
@@ -1135,7 +1129,7 @@ static int test = 1;
                 PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
 
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
-                sprite_world->m_UsesPolygons |= texture_set->m_TextureSet->m_Polygons.m_Count != 0 ? 1 : 0;
+                sprite_world->m_UsesPolygons |= texture_set->m_TextureSet->m_Geometries.m_Count != 0 ? 1 : 0;
             }
             return res;
         }

@@ -22,6 +22,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.tile.proto.Tile.Playback;
+import com.dynamo.tile.proto.Tile.SpriteTrimmingMode;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
@@ -79,20 +80,23 @@ public class AtlasUtil {
         }
     }
 
-    public static List<String> collectImages(Atlas atlas) {
-        List<String> images = new ArrayList<String>();
+    public static List<AtlasImage> collectImages(Atlas atlas) {
+        List<String> paths = new ArrayList<String>();
+        List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
             String p = image.getImage();
-            if (!images.contains(p)) {
-                images.add(p);
+            if (!paths.contains(p)) {
+                images.add(image);
+                paths.add(p);
             }
         }
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             for (AtlasImage image : anim.getImagesList() ) {
                 String p = image.getImage();
-                if (!images.contains(p)) {
-                    images.add(p);
+                if (!paths.contains(p)) {
+                    images.add(image);
+                    paths.add(p);
                 }
             }
         }
@@ -152,7 +156,23 @@ public class AtlasUtil {
         ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
 
-        List<String> imagePaths = collectImages(atlas);
+        List<AtlasImage> atlasImages = collectImages(atlas);
+        List<String> imagePaths = new ArrayList<String>();
+        List<Integer> imageHullSize = new ArrayList<Integer>();
+        for (AtlasImage image : atlasImages) {
+            imagePaths.add(image.getImage());
+            SpriteTrimmingMode mode = image.getSpriteTrimMode();
+            switch (mode) {
+                case SPRITE_TRIM_MODE_OFF:   imageHullSize.add(0); break;
+                case SPRITE_TRIM_MODE_4:     imageHullSize.add(4); break;
+                case SPRITE_TRIM_MODE_5:     imageHullSize.add(5); break;
+                case SPRITE_TRIM_MODE_6:     imageHullSize.add(6); break;
+                case SPRITE_TRIM_MODE_7:     imageHullSize.add(7); break;
+                case SPRITE_TRIM_MODE_8:     imageHullSize.add(8); break;
+                default:
+                    throw new CompileExceptionError(atlasResource, -1, "Invalid sprite trim mode: " + mode.toString());
+            }
+        }
         List<IResource> imageResources = toResources(atlasResource, imagePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
         PathTransformer transformer = new PathTransformer() {
@@ -167,7 +187,7 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
-        return TextureSetGenerator.generate(images, iterator,
+        return TextureSetGenerator.generate(images, imageHullSize, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()), true, false, null);

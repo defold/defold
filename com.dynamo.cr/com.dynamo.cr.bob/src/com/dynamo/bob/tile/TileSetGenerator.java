@@ -12,10 +12,11 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.textureset.proto.TextureSetProto.SpritePolygon;
+import com.dynamo.textureset.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Animation;
+import com.dynamo.tile.proto.Tile.SpriteTrimmingMode;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetGenerator {
@@ -91,21 +92,36 @@ public class TileSetGenerator {
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
                 tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
 
-        System.out.println("");
-        System.out.println("TileSetGenerator generate");
+    System.out.println("");
+    System.out.println("TileSetGenerator generate");
 
         if (metrics == null) {
             return null;
         }
 
+        int hullVertexSize = 6;
+        SpriteTrimmingMode mode = tileSet.getSpriteTrimMode();
+        switch (mode) {
+            case SPRITE_TRIM_MODE_OFF:   hullVertexSize = 0; break;
+            case SPRITE_TRIM_MODE_4:     hullVertexSize = 4; break;
+            case SPRITE_TRIM_MODE_5:     hullVertexSize = 5; break;
+            case SPRITE_TRIM_MODE_6:     hullVertexSize = 6; break;
+            case SPRITE_TRIM_MODE_7:     hullVertexSize = 7; break;
+            case SPRITE_TRIM_MODE_8:     hullVertexSize = 8; break;
+        }
+
         List<BufferedImage> images = split(image, tileSet, metrics);
+        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        for (BufferedImage tmp : images) {
+            imageHullSizes.add(hullVertexSize);
+        }
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, iterator, 0,
                 tileSet.getInnerPadding(),
                 tileSet.getExtrudeBorders(), false, true, grid_size );
 
@@ -119,7 +135,7 @@ public class TileSetGenerator {
         // These hulls are for collision detection
         buildCollisionConvexHulls(tileSet, collisionImage, builder);
 
-        System.out.println("");
+System.out.println("");
 
         return result;
     }
@@ -205,7 +221,7 @@ public class TileSetGenerator {
 
         for (int i = 0; i < convexHulls.hulls.length; ++i) {
             ConvexHull convexHull = convexHulls.hulls[i];
-            SpritePolygon.Builder polygonBuilder = SpritePolygon.newBuilder();
+            SpriteGeometry.Builder geometryBuilder = SpriteGeometry.newBuilder();
 
             int offset = convexHull.getIndex();
             for (int v = 0; v < convexHull.count; ++v) {
@@ -215,17 +231,22 @@ public class TileSetGenerator {
                 x = (x * tileSizeXRecip) - 0.5f;
                 y = (y * tileSizeYRecip) - 0.5f;
 
-                polygonBuilder.addPoints(x);
-                polygonBuilder.addPoints(y);
+                geometryBuilder.addVertices(x);
+                geometryBuilder.addVertices(y);
+
+    System.out.println("MAWE: WARNING TODO: NEEDS TO IMPLEMENT UVs FOR TILESETS!");
+
+                geometryBuilder.addUvs(0); // need to calculate these later
+                geometryBuilder.addUvs(0);
             }
 
             for (int v = 1; v <= convexHull.count-2; ++v) {
-                polygonBuilder.addIndices(0);
-                polygonBuilder.addIndices(v);
-                polygonBuilder.addIndices(v+1);
+                geometryBuilder.addIndices(0);
+                geometryBuilder.addIndices(v);
+                geometryBuilder.addIndices(v+1);
             }
 
-            textureSet.addPolygons(polygonBuilder);
+            textureSet.addGeometries(geometryBuilder);
         }
 
 // System.out.print(String.format("recip: %.2f, %.2f", tileSizeXRecip, tileSizeYRecip));

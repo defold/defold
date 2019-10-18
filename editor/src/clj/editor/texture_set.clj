@@ -60,55 +60,60 @@
      :frames frames
      :uv-transforms (subvec uv-transforms start end)}))
 
-(defn- decode-vertices
-  [texture-set]
-  (let [vs-buf (-> ^ByteString (:vertices texture-set)
-                   (.asReadOnlyByteBuffer)
-                   (.order ByteOrder/LITTLE_ENDIAN))]
-    (loop [vs (transient [])]
-      (if (.hasRemaining vs-buf)
-        (recur (conj! vs [(.getFloat vs-buf)
-                          (.getFloat vs-buf)
-                          (.getFloat vs-buf)
-                          (.getShort vs-buf)
-                          (.getShort vs-buf)]))
-        (persistent! vs)))))
+; TODO: Make sure it uses the new SpriteGeometry
+; (defn- decode-vertices
+;   [texture-set]
+;   (let [vs-buf (-> ^ByteString (:vertices texture-set)
+;                    (.asReadOnlyByteBuffer)
+;                    (.order ByteOrder/LITTLE_ENDIAN))]
+;     (loop [vs (transient [])]
+;       (if (.hasRemaining vs-buf)
+;         (recur (conj! vs [(.getFloat vs-buf)
+;                           (.getFloat vs-buf)
+;                           (.getFloat vs-buf)
+;                           (.getShort vs-buf)
+;                           (.getShort vs-buf)]))
+;         (persistent! vs)))))
 
-(defn- frame-vertices
-  [texture-set]
-  (let [vs (decode-vertices texture-set)]
-    (mapv (fn [start n]
-            (mapv (fn [i] (nth vs i)) (range start (+ start n))))
-          (:vertex-start texture-set)
-          (:vertex-count texture-set))))
+; (defn- frame-vertices
+;   [texture-set]
+;   (let [vs (decode-vertices texture-set)]
+;     (mapv (fn [start n]
+;             (mapv (fn [i] (nth vs i)) (range start (+ start n))))
+;           (:vertex-start texture-set)
+;           (:vertex-count texture-set))))
 
-(defn- mind ^double [^double a ^double b] (Math/min a b))
-(defn- maxd ^double [^double a ^double b] (Math/max a b))
+; (defn- mind ^double [^double a ^double b] (Math/min a b))
+; (defn- maxd ^double [^double a ^double b] (Math/max a b))
 
-(defn- dimension
-  [vertices]
-  (loop [[[x y :as v] & more] vertices
-         x0 0.0, y0 0.0, x1 0.0, y1 0.0]
-    (if v
-      (recur more (mind x x0) (mind y y0) (maxd x x1) (maxd y y1))
-      {:width (long (- x1 x0))
-       :height (long (- y1 y0))})))
+; (defn- dimension
+;   [vertices]
+;   (loop [[[x y :as v] & more] vertices
+;          x0 0.0, y0 0.0, x1 0.0, y1 0.0]
+;     (if v
+;       (recur more (mind x x0) (mind y y0) (maxd x x1) (maxd y y1))
+;       {:width (long (- x1 x0))
+;        :height (long (- y1 y0))})))
 
-(defn- frame-dimensions
-  [texture-set]
-  (mapv dimension (frame-vertices texture-set)))
+; (defn- frame-dimensions
+;   [texture-set]
+;   (mapv dimension (frame-vertices texture-set)))
+
+; (defn make-anim-data
+;   [texture-set uv-transforms]
+;   (let [tex-coords (-> ^ByteString (:tex-coords texture-set)
+;                        (.asReadOnlyByteBuffer)
+;                        (.order ByteOrder/LITTLE_ENDIAN)
+;                        (.asFloatBuffer))
+;         animations (:animations texture-set)
+;         frame-dimensions (frame-dimensions texture-set)]
+;     (into {}
+;           (map #(vector (:id %) (->anim-data % tex-coords uv-transforms frame-dimensions)))
+;           animations)))
 
 (defn make-anim-data
   [texture-set uv-transforms]
-  (let [tex-coords (-> ^ByteString (:tex-coords texture-set)
-                       (.asReadOnlyByteBuffer)
-                       (.order ByteOrder/LITTLE_ENDIAN)
-                       (.asFloatBuffer))
-        animations (:animations texture-set)
-        frame-dimensions (frame-dimensions texture-set)]
-    (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords uv-transforms frame-dimensions)))
-          animations)))
+  {})
 
 
 ;; vertex data

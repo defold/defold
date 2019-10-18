@@ -137,7 +137,7 @@
   [image-size {:keys [width height margin spacing] :as tile-properties} collision-size]
   (Metrics->map (TileSetUtil/calculateMetrics (map->Rect image-size) width height margin spacing (when collision-size (map->Rect collision-size)) 1 0)))
 
-(defn- add-convex-hulls!
+(defn- add-collision-hulls!
   [^TextureSetProto$TextureSet$Builder builder convex-hulls collision-groups]
   (.addAllCollisionGroups builder collision-groups)
   (when convex-hulls
@@ -147,7 +147,7 @@
                                        (.setCount count)
                                        (.setCollisionGroup (or collision-group ""))))
 
-            (run! #(.addConvexHullPoints builder %) points))
+            (run! #(.addCollisionHullPoints builder %) points))
           convex-hulls)))
 
 (defn tile-source->texture-set-data [tile-source-attributes convex-hulls collision-groups animations]
@@ -180,7 +180,7 @@
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))
-      (add-convex-hulls! convex-hulls collision-groups)
+      (add-collision-hulls! convex-hulls collision-groups)
       ;; "This will be supplied later when producing the byte data for the pipeline"
       ;; TODO: check what that means and if it's true
       (.setTexture "unknown"))
