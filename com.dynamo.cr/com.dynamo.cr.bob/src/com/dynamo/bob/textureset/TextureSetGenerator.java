@@ -126,70 +126,61 @@ public class TextureSetGenerator {
     }
 
 
-    private static void buildConvexHulls(TextureSet.Builder textureSet, List<BufferedImage> images, int margin, int innerPadding, int hullVertexCount) {
+    private static void buildConvexHulls(TextureSet.Builder textureSet, List<BufferedImage> images, List<Integer> imageHullSizes, int margin, int innerPadding) {
+        for (int j = 0; j < images.size(); ++j) {
+            TextureSetProto.SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
 
-        if (hullVertexCount == 0) {
-            System.out.println("Hull generation is disabled. Skipping");
-            return;
-        }
-
-        int num_hulls = 0;
-        int counter = 0;
-        for (BufferedImage image : images) {
-            int width = image.getWidth();
-            int height = image.getHeight();
-
-
-
+            BufferedImage image = images.get(j);
             Raster raster = image.getAlphaRaster();
-            if (raster == null) {
 
-        System.out.println("alphaRaster: " + (raster == null ? "null" : "not null"));
 
-                continue;
+            int hullVertexCount = imageHullSizes.get(j);
+            if (raster != null && hullVertexCount != 0) {
+
+                int width = image.getWidth();
+                int height = image.getHeight();
+
+                float tileSizeXRecip = 1.0f / width;
+                float tileSizeYRecip = 1.0f / height;
+
+
+                ConvexHull2D.Point[] points = TileSetUtil.calculateConvexHulls(raster, hullVertexCount);
+
+                for (int i = 0; i < points.length; ++i) {
+                    float x = (points[i].getX() * tileSizeXRecip) - 0.5f;
+                    float y = (points[i].getY() * tileSizeYRecip) - 0.5f;
+
+
+                    geometryBuilder.addVertices(x);
+                    geometryBuilder.addVertices(y);
+
+                    geometryBuilder.addUvs(0); // need to calculate these later
+                    geometryBuilder.addUvs(0);
+                }
+
+                for (int v = 1; v <= points.length-2; ++v) {
+                    geometryBuilder.addIndices(0);
+                    geometryBuilder.addIndices(v);
+                    geometryBuilder.addIndices(v+1);
+                }
             }
 
-            float tileSizeXRecip = 1.0f / width;
-            float tileSizeYRecip = 1.0f / height;
-            ++num_hulls;
-
-            ConvexHull2D.Point[] points = TileSetUtil.calculateConvexHulls(raster, hullVertexCount);
-
-            TextureSetProto.SpritePolygon.Builder polygonBuilder = TextureSetProto.SpritePolygon.newBuilder();
-
-            for (int i = 0; i < points.length; ++i) {
-                float x = (points[i].getX() * tileSizeXRecip) - 0.5f;
-                float y = (points[i].getY() * tileSizeYRecip) - 0.5f;
-
-                polygonBuilder.addPoints(x);
-                polygonBuilder.addPoints(y);
-
-                polygonBuilder.addUvs(0); // need to calculate these later
-                polygonBuilder.addUvs(0);
-            }
-
-            for (int v = 1; v <= points.length-2; ++v) {
-                polygonBuilder.addIndices(0);
-                polygonBuilder.addIndices(v);
-                polygonBuilder.addIndices(v+1);
-            }
-
-            textureSet.addPolygons(polygonBuilder);
+            textureSet.addGeometries(geometryBuilder);
         }
     }
 
     // From the vertices and layout, generate UV coordinates
     private static void createPolygonUVs(TextureSet.Builder textureSet, List<Rect> rects, float width, float height) {
-        System.out.println(String.format("num polygons: %d", textureSet.getPolygonsCount()));
+        System.out.println(String.format("num geometries: %d", textureSet.getGeometriesCount()));
         System.out.println(String.format("num rects: %d", rects.size()));
 
         int index = 0;
-        for (TextureSetProto.SpritePolygon polygon : textureSet.getPolygonsList()) {
+        for (TextureSetProto.SpriteGeometry geometry : textureSet.getGeometriesList()) {
 
-            TextureSetProto.SpritePolygon.Builder polygonBuilder = TextureSetProto.SpritePolygon.newBuilder();
-            polygonBuilder.mergeFrom(polygon);
+            TextureSetProto.SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
+            geometryBuilder.mergeFrom(geometry);
 
-            int numPoints = polygon.getPointsCount() / 2;
+            int numPoints = geometry.getVerticesCount() / 2;
             for (int i = 0; i < numPoints; ++i) {
 
                 Rect rect = rects.get(index);
@@ -199,8 +190,8 @@ public class TextureSetGenerator {
 
                 // the points are in object space, where origin is at the center of the sprite image
                 // in units
-                float localX = polygon.getPoints(i * 2 + 0) * rect.width;
-                float localY = polygon.getPoints(i * 2 + 1) * rect.height;
+                float localX = geometry.getVertices(i * 2 + 0) * rect.width;
+                float localY = geometry.getVertices(i * 2 + 1) * rect.height;
 
                 // flip the y
                 localY = -localY;
@@ -222,11 +213,11 @@ public class TextureSetGenerator {
                 float u = worldX / width;
                 float v = 1.0f - worldY / height;
 
-                polygonBuilder.setUvs(i * 2 + 0, u);
-                polygonBuilder.setUvs(i * 2 + 1, v);
+                geometryBuilder.setUvs(i * 2 + 0, u);
+                geometryBuilder.setUvs(i * 2 + 1, v);
             }
 
-            textureSet.setPolygons(index, polygonBuilder);
+            textureSet.setGeometries(index, geometryBuilder);
             ++index;
         }
     }
@@ -246,13 +237,12 @@ public class TextureSetGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-    public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
+    public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
         TextureSet.Builder builder = TextureSet.newBuilder();
 
-        int targetHullVertexCount = 4;
-        buildConvexHulls(builder, images, margin, innerPadding, targetHullVertexCount);
+        buildConvexHulls(builder, images, imageHullSizes, margin, innerPadding);
 
         images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);

@@ -7,6 +7,20 @@ import "tile_ddf.proto";
 option java_package = "com.dynamo.textureset.proto";
 option java_outer_classname = "TextureSetProto";
 
+/*
+  Vertex format:
+
+  struct Vertex
+  {
+      // Offset 0
+      float x, y, z;
+      // Offset 12
+      uint16_t u, v;
+      // Offset 16
+  };
+ */
+
+// only used in a test. remove?
 enum Constants
 {
     VERTEX_SIZE = 16; // 3 * 4 + 4
@@ -26,27 +40,14 @@ message TextureSetAnimation
     optional uint32 is_animation    = 10 [default = 0]; // Deprecated
 }
 
-/*
-  Vertex format:
-
-  struct Vertex
-  {
-      // Offset 0
-      float x, y, z;
-      // Offset 12
-      uint16_t u, v;
-      // Offset 16
-  };
- */
-
 // * Vertices are relative to the center of the sprite
 // * Polygon may be concave
 // * Indices for a triangle list (i.e. 3 indices per triangle)
-message SpritePolygon
+message SpriteGeometry
 {
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
     // Each point is relative to the sprite center
-    repeated float  points  = 1;
+    repeated float  vertices= 1;
     // A list of 2-tuples, corresponding directly to the vertices
     repeated float  uvs     = 2;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
@@ -75,9 +76,9 @@ message TextureSet
     // (See TextureSetGenerator.java)
     required bytes tex_coords               = 18;
     // A series of two float pairs of dimensions representing quad texture width and height in texels.
-    // Unused for tilemap
+
     optional bytes tex_dims                 = 19;
 
-    // A list of vertices that encapsulates the sprites' non transparent texels
-    repeated SpritePolygon polygons         = 20;
+    // One geometry struct per image
+    repeated SpriteGeometry geometries      = 20;
 }

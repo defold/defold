@@ -33,7 +33,7 @@
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
   (:import [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-           [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
+           [com.dynamo.tile.proto Tile$TileSet Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
            [java.awt.image BufferedImage]
@@ -588,6 +588,9 @@
 
   (property material-tag g/Str (default "tile") (dynamic visible (g/constantly false)))
   (property original-convex-hulls g/Any (dynamic visible (g/constantly false)))
+  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-6)
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
+
   (property tile->collision-group-node g/Any (dynamic visible (g/constantly false)))
 
   (input build-settings g/Any)

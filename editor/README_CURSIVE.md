@@ -28,7 +28,7 @@ Time to open the Defold Editor project. The first time you open it, you'll need 
 
 2. You need to choose the target Java SDK for the project. Choose **File > Project Structure** from the menu bar and go to the **Project Settings > Project** page.
 
-3. Under the Project SDK section, choose Java version **1.8.0_102** from the dropdown. If that's not available from the dropdown, you'll need to tell IntelliJ where to find it. In that case you must browse for the JDK folder by clicking the **New...** button. Close the Project settings dialog when you're done.
+3. Under the Project SDK section, choose Java version **11.0.2** from the dropdown. If that's not available from the dropdown, you'll need to tell IntelliJ where to find it. In that case you must browse for the JDK folder by clicking the **New...** button. Close the Project settings dialog when you're done.
 
 4. Select **Edit Configurations...** from the dropdown in the toolbar of the main IntelliJ window to open the Run/Debug Configurations dialog.
 
