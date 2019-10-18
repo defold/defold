@@ -28,19 +28,6 @@ namespace dmGameSystem
                 return dmResource::RESULT_INVALID_DATA;
             }
 
-            // Convex hulls for rendering
-            {
-                dmLogWarning("MAWE: %s: ", texture_set_ddf->m_Texture);
-                dmLogWarning("MAWE:   convex_hull_size: %u", texture_set_ddf->m_ConvexHullSize);
-                if (texture_set_ddf->m_ConvexHullSize > 0)
-                {
-                    float* points = texture_set_ddf->m_ConvexHullPoints.m_Data;
-                    for (int j = 0; j < texture_set_ddf->m_ConvexHullPoints.m_Count; j += 2) {
-                        dmLogWarning("MAWE: %f, %f", points[j+0], points[j+1]);
-                    }
-                }
-            }
-
             // Physics convex hulls
             {
                 uint32_t n_hulls = texture_set_ddf->m_ConvexHulls.m_Count;

@@ -81,7 +81,7 @@
                           (reset! anim-imgs-atom [])))
         result (TextureSetGenerator/calculateLayout
                  (map map->Rect images) anim-iterator margin inner-padding extrude-borders
-                 false false true false nil)]
+                 true false nil)]
     (doto (.builder result)
       (.setTexture "unknown"))
     (TextureSetResult->result result)))
@@ -176,7 +176,7 @@
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)
                  (:extrude-borders tile-source-attributes)
-                 false false false true grid)]
+                 false true grid)]
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.lang.Float;
 
 import javax.vecmath.Point2d;
 import javax.vecmath.Vector2d;
@@ -138,11 +139,7 @@ public class TextureSetGenerator {
             int width = image.getWidth();
             int height = image.getHeight();
 
-            float tileSizeXRecip = 1.0f / width;
-            float tileSizeYRecip = 1.0f / height;
 
-    System.out.print(String.format("  %d:  recip: %.2f, %.2f", counter, tileSizeXRecip, tileSizeYRecip));
-    counter++;
 
             Raster raster = image.getAlphaRaster();
             if (raster == null) {
@@ -152,22 +149,86 @@ public class TextureSetGenerator {
                 continue;
             }
 
+            float tileSizeXRecip = 1.0f / width;
+            float tileSizeYRecip = 1.0f / height;
             ++num_hulls;
 
-            ConvexHull2D.Point[] points = TileSetUtil.calculateConvexHulls(raster, 16, hullVertexCount);
+            ConvexHull2D.Point[] points = TileSetUtil.calculateConvexHulls(raster, hullVertexCount);
+
+            TextureSetProto.SpritePolygon.Builder polygonBuilder = TextureSetProto.SpritePolygon.newBuilder();
 
             for (int i = 0; i < points.length; ++i) {
                 float x = (points[i].getX() * tileSizeXRecip) - 0.5f;
                 float y = (points[i].getY() * tileSizeYRecip) - 0.5f;
 
-    System.out.print(String.format("%.2f, %.2f ", x, y));
+                polygonBuilder.addPoints(x);
+                polygonBuilder.addPoints(y);
 
-                textureSet.addConvexHullPoints(x);
-                textureSet.addConvexHullPoints(y);
+                polygonBuilder.addUvs(0); // need to calculate these later
+                polygonBuilder.addUvs(0);
             }
-        }
 
-        textureSet.setConvexHullSize(num_hulls > 0 ? hullVertexCount : 0);
+            for (int v = 1; v <= points.length-2; ++v) {
+                polygonBuilder.addIndices(0);
+                polygonBuilder.addIndices(v);
+                polygonBuilder.addIndices(v+1);
+            }
+
+            textureSet.addPolygons(polygonBuilder);
+        }
+    }
+
+    // From the vertices and layout, generate UV coordinates
+    private static void createPolygonUVs(TextureSet.Builder textureSet, List<Rect> rects, float width, float height) {
+        System.out.println(String.format("num polygons: %d", textureSet.getPolygonsCount()));
+        System.out.println(String.format("num rects: %d", rects.size()));
+
+        int index = 0;
+        for (TextureSetProto.SpritePolygon polygon : textureSet.getPolygonsList()) {
+
+            TextureSetProto.SpritePolygon.Builder polygonBuilder = TextureSetProto.SpritePolygon.newBuilder();
+            polygonBuilder.mergeFrom(polygon);
+
+            int numPoints = polygon.getPointsCount() / 2;
+            for (int i = 0; i < numPoints; ++i) {
+
+                Rect rect = rects.get(index);
+
+                float centerX = (float)rect.x + rect.width/2.0f;
+                float centerY = (float)rect.y + rect.height/2.0f;
+
+                // the points are in object space, where origin is at the center of the sprite image
+                // in units
+                float localX = polygon.getPoints(i * 2 + 0) * rect.width;
+                float localY = polygon.getPoints(i * 2 + 1) * rect.height;
+
+                // flip the y
+                localY = -localY;
+
+                if (rect.rotated) {
+                    // rotate 90 degrees ccw
+                    // where cos(pi/2)==0 and sin(pi/2)==1
+                    // xp = x * cos(a) - y * sin(a) = -y
+                    // yp = y * cos(a) + x * sin(a) = x
+                    float tmp = localX;
+                    localX = -localY;
+                    localY = tmp;
+                }
+
+                // from local unit space to image space
+                float worldX = centerX + localX;
+                float worldY = centerY + localY;
+
+                float u = worldX / width;
+                float v = 1.0f - worldY / height;
+
+                polygonBuilder.setUvs(i * 2 + 0, u);
+                polygonBuilder.setUvs(i * 2 + 1, v);
+            }
+
+            textureSet.setPolygons(index, polygonBuilder);
+            ++index;
+        }
     }
 
     /**
@@ -186,11 +247,11 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean useTileGrid, Grid gridSize) {
+            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
         TextureSet.Builder builder = TextureSet.newBuilder();
 
-        int targetHullVertexCount = 6;
+        int targetHullVertexCount = 4;
         buildConvexHulls(builder, images, margin, innerPadding, targetHullVertexCount);
 
         images = createInnerPadding(images, innerPadding);
@@ -209,7 +270,9 @@ public class TextureSetGenerator {
 
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
-        Pair<TextureSet.Builder, List<UVTransform>> textureSet = genVertexData(builder, image, rects, iterator, genOutlines, genAtlasVertices);
+        createPolygonUVs(builder, rects, image.getWidth(), image.getHeight());
+
+        Pair<TextureSet.Builder, List<UVTransform>> textureSet = genVertexData(builder, image, rects, iterator);
 
         TextureSetResult result = new TextureSetResult();
         result.builder = textureSet.left;
@@ -315,8 +378,7 @@ public class TextureSetGenerator {
         return new UVTransform(new Point2d(r.x * xs, 1 - r.y * ys), new Vector2d(xs * r.width, -ys * r.height), r.rotated);
     }
 
-    private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(TextureSet.Builder textureSet, BufferedImage image, List<Rect> rects, AnimIterator iterator,
-            boolean genOutlines, boolean genAtlasVertices) {
+    private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(TextureSet.Builder textureSet, BufferedImage image, List<Rect> rects, AnimIterator iterator) {
         List<UVTransform> uvTransforms = new ArrayList<UVTransform>();
 
         int tileCount = rects.size();
@@ -332,19 +394,6 @@ public class TextureSetGenerator {
 
         int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
 
-        final int triangleVertexCount = 6;
-        final int outlineVertexCount = 4;
-
-        ByteBuffer vertexBuffer = newBuffer(vertexSize * triangleVertexCount * quadCount);
-        ByteBuffer outlineVertexBuffer = null;
-        ByteBuffer atlasVertexBuffer = null;
-        if (genOutlines) {
-            outlineVertexBuffer = newBuffer(vertexSize * outlineVertexCount * quadCount);
-        }
-        if (genAtlasVertices) {
-            atlasVertexBuffer = newBuffer(vertexSize * triangleVertexCount * quadCount);
-        }
-
         final int numTexCoordsPerQuad = 8;
         ByteBuffer texCoordsBuffer = newBuffer(numTexCoordsPerQuad * 4 * quadCount);
         final int numTexDimsPerQuad = 2;
@@ -356,15 +405,7 @@ public class TextureSetGenerator {
 
         // Populate all tiles i.e. rects
         for (Rect r : rects) {
-            putRect(r, oneOverWidth, oneOverHeight, vertexBuffer, outlineVertexBuffer, atlasVertexBuffer, texCoordsBuffer, texDimsBuffer);
-
-            textureSet.addVertexStart(quadIndex * triangleVertexCount);
-            textureSet.addVertexCount(triangleVertexCount);
-
-            if (genOutlines) {
-                textureSet.addOutlineVertexStart(quadIndex * outlineVertexCount);
-                textureSet.addOutlineVertexCount(outlineVertexCount);
-            }
+            putRect(r, oneOverWidth, oneOverHeight, texCoordsBuffer, texDimsBuffer);
 
             uvTransforms.add(genUVTransform(r, oneOverWidth, oneOverHeight));
 
@@ -381,20 +422,7 @@ public class TextureSetGenerator {
                 if (ref == null) {
                     ref = r;
                 }
-                putRect(r, oneOverWidth, oneOverHeight, vertexBuffer, outlineVertexBuffer, atlasVertexBuffer, texCoordsBuffer, texDimsBuffer);
-
-                textureSet.addVertexStart(quadIndex * triangleVertexCount);
-                textureSet.addVertexCount(triangleVertexCount);
-
-                if (genAtlasVertices) {
-                    textureSet.addAtlasVertexStart(quadIndex * triangleVertexCount);
-                    textureSet.addAtlasVertexCount(triangleVertexCount);
-                }
-
-                if (genOutlines) {
-                    textureSet.addOutlineVertexStart(quadIndex * outlineVertexCount);
-                    textureSet.addOutlineVertexCount(outlineVertexCount);
-                }
+                putRect(r, oneOverWidth, oneOverHeight, texCoordsBuffer, texDimsBuffer);
 
                 uvTransforms.add(genUVTransform(r, oneOverWidth, oneOverHeight));
 
@@ -425,42 +453,18 @@ public class TextureSetGenerator {
             textureSet.addAnimations(anim);
         }
 
-        vertexBuffer.rewind();
         texCoordsBuffer.rewind();
         texDimsBuffer.rewind();
 
-        textureSet.setVertices(ByteString.copyFrom(vertexBuffer));
         textureSet.setTexCoords(ByteString.copyFrom(texCoordsBuffer));
         textureSet.setTexDims(ByteString.copyFrom(texDimsBuffer));
 
-        if (atlasVertexBuffer != null) {
-            atlasVertexBuffer.rewind();
-            textureSet.setAtlasVertices(ByteString.copyFrom(atlasVertexBuffer));
-        } else {
-            textureSet.setAtlasVertices(ByteString.EMPTY);
-        }
-
-        if (outlineVertexBuffer != null) {
-            outlineVertexBuffer.rewind();
-            textureSet.setOutlineVertices(ByteString.copyFrom(outlineVertexBuffer));
-        } else {
-            textureSet.setOutlineVertices(ByteString.EMPTY);
-        }
         return new Pair<TextureSet.Builder, List<UVTransform>>(textureSet, uvTransforms);
     }
 
     private static short toShortUV(float fuv) {
         int uv = (int) (fuv * 65535.0f);
         return (short) (uv & 0xffff);
-    }
-
-    private static void putVertex(ByteBuffer b, ByteBuffer t, float x, float y, float z, float u, float v) {
-        b.putFloat(x);
-        b.putFloat(y);
-        b.putFloat(z);
-        b.putShort(toShortUV(u));
-        b.putShort(toShortUV(v));
-        putTexCoord(t, u, v);
     }
 
     private static void putTexCoord(ByteBuffer texCoordsBuffer, float u, float v) {
@@ -477,8 +481,7 @@ public class TextureSetGenerator {
         }
     }
 
-    private static void putRect(Rect r, float oneOverWidth, float oneOverHeight, ByteBuffer vertexBuffer, ByteBuffer outlineVertexBuffer,
-            ByteBuffer atlasVertexBuffer, ByteBuffer texCoordsBuffer, ByteBuffer texDimsBuffer) {
+    private static void putRect(Rect r, float oneOverWidth, float oneOverHeight, ByteBuffer texCoordsBuffer, ByteBuffer texDimsBuffer) {
         float x0 = r.x;
         float y0 = r.y;
 
@@ -488,34 +491,15 @@ public class TextureSetGenerator {
         float h2 = r.height * 0.5f;
 
         if (r.rotated) {
-            putRotatedQuad(vertexBuffer, texCoordsBuffer, r, oneOverWidth, oneOverHeight);
+            putRotatedQuad(texCoordsBuffer, r, oneOverWidth, oneOverHeight);
             putTexDim(texDimsBuffer, r.height, r.width);
         } else {
-            putUnrotatedQuad(vertexBuffer, texCoordsBuffer, r, oneOverWidth, oneOverHeight);
+            putUnrotatedQuad(texCoordsBuffer, r, oneOverWidth, oneOverHeight);
             putTexDim(texDimsBuffer, r.width, r.height);
         }
-
-        if (outlineVertexBuffer != null) {
-            if (r.rotated) {
-                putVertex(outlineVertexBuffer, null, h2, -w2, 0, x0 * oneOverWidth, 1.0f - y1 * oneOverHeight);
-                putVertex(outlineVertexBuffer, null, h2, w2, 0, x1 * oneOverWidth, 1.0f - y1 * oneOverHeight);
-                putVertex(outlineVertexBuffer, null, -h2, w2, 0, x1 * oneOverWidth, 1.0f - y0 * oneOverHeight);
-                putVertex(outlineVertexBuffer, null, -h2, -w2, 0, x0 * oneOverWidth, 1.0f - y0 * oneOverHeight);
-            } else {
-                putVertex(outlineVertexBuffer, null, w2, -h2, 0, x0 * oneOverWidth, 1.0f - y1 * oneOverHeight);
-                putVertex(outlineVertexBuffer, null, w2, h2, 0, x1 * oneOverWidth, 1.0f - y1 * oneOverHeight);
-                putVertex(outlineVertexBuffer, null, -w2, h2, 0, x1 * oneOverWidth, 1.0f - y0 * oneOverHeight);
-                putVertex(outlineVertexBuffer, null, -w2, -h2, 0, x0 * oneOverWidth, 1.0f - y0 * oneOverHeight);
-            }
-        }
-
-        if (atlasVertexBuffer != null) {
-            putUnrotatedQuad(atlasVertexBuffer, null, r, oneOverWidth, oneOverHeight);
-        }
-
     }
 
-    private static void putUnrotatedQuad(ByteBuffer vertexBuffer, ByteBuffer texCoordsBuffer, Rect r, float xs, float ys) {
+    private static void putUnrotatedQuad(ByteBuffer texCoordsBuffer, Rect r, float xs, float ys) {
         float x0 = r.x;
         float y0 = r.y;
 
@@ -524,16 +508,13 @@ public class TextureSetGenerator {
         float w2 = r.width * 0.5f;
         float h2 = r.height * 0.5f;
 
-        putVertex(vertexBuffer, texCoordsBuffer, -w2, -h2, 0, x0 * xs, 1.0f - y1 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, -w2, h2, 0, x0 * xs, 1.0f - y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, w2, h2, 0, x1 * xs, 1.0f - y0 * ys);
-
-        putVertex(vertexBuffer, null, w2, h2, 0, x1 * xs, 1.0f - y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, w2, -h2, 0, x1 * xs, 1.0f - y1 * ys);
-        putVertex(vertexBuffer, null, -w2, -h2, 0, x0 * xs, 1.0f - y1 * ys);
+        putTexCoord(texCoordsBuffer, x0 * xs, 1.0f - y1 * ys);
+        putTexCoord(texCoordsBuffer, x0 * xs, 1.0f - y0 * ys);
+        putTexCoord(texCoordsBuffer, x1 * xs, 1.0f - y0 * ys);
+        putTexCoord(texCoordsBuffer, x1 * xs, 1.0f - y1 * ys);
     }
 
-    private static void putRotatedQuad(ByteBuffer vertexBuffer, ByteBuffer texCoordsBuffer, Rect r,float xs, float ys) {
+    private static void putRotatedQuad(ByteBuffer texCoordsBuffer, Rect r,float xs, float ys) {
         float x0 = r.x;
         float y0 = r.y;
 
@@ -542,13 +523,10 @@ public class TextureSetGenerator {
         float w2 = r.width * 0.5f;
         float h2 = r.height * 0.5f;
 
-        putVertex(vertexBuffer, texCoordsBuffer, -h2, -w2, 0, x0 * xs, 1.0f - y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, -h2, w2, 0, x1 * xs, 1.0f - y0 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, h2, w2, 0, x1 * xs, 1.0f - y1 * ys);
-
-        putVertex(vertexBuffer, null, h2, w2, 0, x1 * xs, 1.0f - y1 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, h2, -w2, 0, x0 * xs, 1.0f - y1 * ys);
-        putVertex(vertexBuffer, null, -h2, -w2, 0, x0 * xs, 1.0f - y0 * ys);
+        putTexCoord(texCoordsBuffer, x0 * xs, 1.0f - y0 * ys);
+        putTexCoord(texCoordsBuffer, x1 * xs, 1.0f - y0 * ys);
+        putTexCoord(texCoordsBuffer, x1 * xs, 1.0f - y1 * ys);
+        putTexCoord(texCoordsBuffer, x0 * xs, 1.0f - y1 * ys);
     }
 
 }

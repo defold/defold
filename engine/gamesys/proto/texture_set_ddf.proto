@@ -39,6 +39,20 @@ message TextureSetAnimation
   };
  */
 
+// * Vertices are relative to the center of the sprite
+// * Polygon may be concave
+// * Indices for a triangle list (i.e. 3 indices per triangle)
+message SpritePolygon
+{
+    // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
+    // Each point is relative to the sprite center
+    repeated float  points  = 1;
+    // A list of 2-tuples, corresponding directly to the vertices
+    repeated float  uvs     = 2;
+    // list of 3-tuples, each defining a triangle in the vertex/uv list
+    repeated uint32 indices = 3;
+}
+
 message TextureSet
 {
     required string texture                 = 1 [(resource)=true];
@@ -50,19 +64,6 @@ message TextureSet
     optional uint32 tile_width              = 4;
     optional uint32 tile_height             = 5;
     optional uint32 tile_count              = 6;
-
-    required bytes vertices                 = 7;
-    repeated uint32 vertex_start            = 8;
-    repeated uint32 vertex_count            = 9;
-
-    // Used to preview atlases, allowing for rotation of image components.
-    required bytes atlas_vertices           = 10;
-    repeated uint32 atlas_vertex_start      = 11;
-    repeated uint32 atlas_vertex_count      = 12;
-
-    required bytes outline_vertices         = 13;
-    repeated uint32 outline_vertex_start    = 14;
-    repeated uint32 outline_vertex_count    = 15;
 
     repeated float collision_hull_points    = 16;
     repeated string collision_groups        = 17;
@@ -77,10 +78,6 @@ message TextureSet
     // Unused for tilemap
     optional bytes tex_dims                 = 19;
 
-
-    // The number of vertices in each hull. max 8
-    optional uint32 convex_hull_size        = 20 [default = 0]; // 0 == no hulls
-    // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
-    // Each point is relative to the sprite center
-    repeated float convex_hull_points       = 21;
+    // A list of vertices that encapsulates the sprites' non transparent texels
+    repeated SpritePolygon polygons         = 20;
 }
