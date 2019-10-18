@@ -21,7 +21,9 @@ namespace dmGraphics
         uint16_t       m_Height;
         uint16_t       m_OriginalWidth;
         uint16_t       m_OriginalHeight;
-        uint8_t        m_TextureSamplerIndex;
+        uint16_t       m_MipMapCount         : 8;
+        uint16_t       m_TextureSamplerIndex : 7;
+        uint16_t       m_FrameTag            : 1;
     };
 
     struct TextureSampler
@@ -31,6 +33,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        uint8_t       m_MaxLod;
     };
 
     struct VertexDeclaration
@@ -61,7 +64,7 @@ namespace dmGraphics
         , m_BufferHandle(VK_NULL_HANDLE)
         , m_MemoryHandle(VK_NULL_HANDLE)
         , m_MemorySize(0)
-        , m_Frame(0)
+        , m_FrameTag(0)
         {}
 
         void*              m_MappedDataPtr;
@@ -69,7 +72,7 @@ namespace dmGraphics
         VkBuffer           m_BufferHandle;
         VkDeviceMemory     m_MemoryHandle;
         uint32_t           m_MemorySize : 31; // ~2gb max
-        uint32_t           m_Frame      : 1;
+        uint32_t           m_FrameTag   : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
@@ -81,7 +84,7 @@ namespace dmGraphics
         VkDescriptorSet* m_DescriptorSets;
         uint32_t         m_DescriptorMax   : 15; // 16384 max draw calls
         uint32_t         m_DescriptorIndex : 15;
-        uint32_t         m_SwapChainIndex  : 2;
+        uint32_t         m_FrameTag        : 2;
 
         VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
         void     Release(VkDevice vk_device);
@@ -324,8 +327,9 @@ namespace dmGraphics
         VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
         VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device,
-        TextureFilter minFilter, TextureFilter magFilter,
-        TextureWrap wrapU, TextureWrap wrapV, VkSampler* vk_sampler_out);
+        VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v,
+        float minLod, float maxLod, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
@@ -358,7 +362,8 @@ namespace dmGraphics
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout);
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
+        uint32_t baseMipLevel = 0, uint32_t levelCount = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
     // Implemented in graphics_vulkan_swap_chain.cpp

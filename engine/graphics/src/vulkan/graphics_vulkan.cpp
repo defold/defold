@@ -68,6 +68,7 @@ namespace dmGraphics
         VkInstance                   m_Instance;
         VkSurfaceKHR                 m_WindowSurface;
         dmArray<TextureSampler>      m_TextureSamplers;
+        dmArray<Texture>             m_TexturesToDelete;
         dmArray<DescriptorAllocator> m_DescriptorAllocatorsToDelete;
         dmArray<DeviceBuffer>        m_DeviceBuffersToDelete;
         uint32_t*                    m_DynamicOffsetBuffer;
@@ -221,7 +222,7 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static uint8_t GetTextureSamplerIndex(HContext context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static uint8_t GetTextureSamplerIndex(HContext context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
     {
         for (uint32_t i=0; i < context->m_TextureSamplers.Size(); i++)
         {
@@ -233,6 +234,64 @@ namespace dmGraphics
             {
                 return (uint8_t) i;
             }
+        }
+
+        VkFilter             vk_mag_filter;
+        VkFilter             vk_min_filter;
+        VkSamplerMipmapMode  vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        // No conversions needed for wrap modes
+        float max_lod                  = (float) maxLod;
+        VkSamplerAddressMode vk_wrap_u = (VkSamplerAddressMode) uwrap;
+        VkSamplerAddressMode vk_wrap_v = (VkSamplerAddressMode) vwrap;
+
+        // Convert mag filter to Vulkan type
+        if (magfilter == TEXTURE_FILTER_NEAREST)
+        {
+            vk_mag_filter = VK_FILTER_NEAREST;
+        }
+        else if (magfilter == TEXTURE_FILTER_LINEAR)
+        {
+            vk_mag_filter = VK_FILTER_LINEAR;
+        }
+        else
+        {
+            assert(0 && "Unsupported type for mag filter");
+        }
+
+        // Convert minfilter to Vulkan type, the conversions are
+        // taken from https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkSamplerCreateInfo.html
+        // and should match the OpenGL functionality.
+        if (minfilter == TEXTURE_FILTER_NEAREST)
+        {
+            vk_min_filter = VK_FILTER_NEAREST;
+            max_lod       = 0.25;
+        }
+        else if (minfilter == TEXTURE_FILTER_LINEAR)
+        {
+            vk_min_filter = VK_FILTER_LINEAR;
+            max_lod       = 0.25;
+        }
+        else if (minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
+        {
+            vk_min_filter  = VK_FILTER_NEAREST;
+        }
+        else if (minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+        {
+            vk_min_filter  = VK_FILTER_LINEAR;
+        }
+        else if (minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR)
+        {
+            vk_min_filter  = VK_FILTER_NEAREST;
+            vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        }
+        else if (minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR)
+        {
+            vk_min_filter  = VK_FILTER_LINEAR;
+            vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        }
+        else
+        {
+            assert(0 && "Unsupported type for min filter");
         }
 
         TextureSampler new_sampler;
@@ -248,7 +307,9 @@ namespace dmGraphics
             context->m_TextureSamplers.OffsetCapacity(1);
         }
 
-        VkResult res = CreateTextureSampler(context->m_LogicalDevice.m_Device, minfilter, magfilter, uwrap, vwrap, &new_sampler.m_Sampler);
+        VkResult res = CreateTextureSampler(context->m_LogicalDevice.m_Device,
+            vk_min_filter, vk_mag_filter, vk_mipmap_mode, vk_wrap_u, vk_wrap_v,
+            0.0, max_lod, &new_sampler.m_Sampler);
         CHECK_VK_ERROR(res);
 
         context->m_TextureSamplers.Push(new_sampler);
@@ -490,7 +551,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        GetTextureSamplerIndex(context, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+        GetTextureSamplerIndex(context, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 0.0f);
 
         return res;
     }
@@ -536,31 +597,16 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    static void FlushDeviceBuffersToDelete(HContext context, uint8_t frame, bool flushAll = false)
+    template <typename T>
+    static void FlushResourceToDestroy(VkDevice vk_device, dmArray<T>& resourceList, void (*destroy_fn)(VkDevice vk_device, T* texture), uint8_t frame_tag, bool flushAll = false)
     {
-        for (uint32_t i = 0; i < context->m_DeviceBuffersToDelete.Size(); ++i)
+        for (uint32_t i = 0; i < resourceList.Size(); ++i)
         {
-            DeviceBuffer& buffer = context->m_DeviceBuffersToDelete[i];
-
-            if (flushAll || buffer.m_Frame == frame)
+            T& resource = resourceList[i];
+            if (resource.m_FrameTag == frame_tag || flushAll)
             {
-                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &buffer);
-                context->m_DeviceBuffersToDelete.EraseSwap(i);
-                --i;
-            }
-        }
-    }
-
-    static void FlushDescriptorAllocatorsToDelete(HContext context, uint8_t swap_chain_index, bool flushAll = false)
-    {
-        for (uint32_t i = 0; i < context->m_DescriptorAllocatorsToDelete.Size(); ++i)
-        {
-            DescriptorAllocator& allocator = context->m_DescriptorAllocatorsToDelete[i];
-
-            if (flushAll || allocator.m_SwapChainIndex == swap_chain_index)
-            {
-                DestroyDescriptorAllocator(context->m_LogicalDevice.m_Device, &allocator);
-                context->m_DescriptorAllocatorsToDelete.EraseSwap(i);
+                destroy_fn(vk_device, &resource);
+                resourceList.EraseSwap(i);
                 --i;
             }
         }
@@ -864,8 +910,9 @@ bail:
 
             SynchronizeDevice(vk_device);
 
-            FlushDeviceBuffersToDelete(context, 0, true);
-            FlushDescriptorAllocatorsToDelete(context, 0, true);
+            FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, 0, true);
+            FlushResourceToDestroy<DescriptorAllocator>(vk_device, context->m_DescriptorAllocatorsToDelete, DestroyDescriptorAllocator, 0, true);
+            FlushResourceToDestroy<Texture>(vk_device, context->m_TexturesToDelete, DestroyTexture, 0, true);
 
             glfwCloseWindow();
 
@@ -1017,7 +1064,7 @@ bail:
 
         if (context->m_DeviceBuffersToDelete.Size() > 0)
         {
-            FlushDeviceBuffersToDelete(context, context->m_CurrentFrameInFlight);
+            FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, context->m_CurrentFrameInFlight);
         }
 
         VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
@@ -1051,7 +1098,12 @@ bail:
         //       one per swap chain image.
         if (context->m_DescriptorAllocatorsToDelete.Size() > 0)
         {
-            FlushDescriptorAllocatorsToDelete(context, frame_ix);
+            FlushResourceToDestroy<DescriptorAllocator>(vk_device, context->m_MainDescriptorAllocators, DestroyDescriptorAllocator, frame_ix);
+        }
+
+        if (context->m_TexturesToDelete.Size() > 0)
+        {
+            FlushResourceToDestroy<Texture>(vk_device, context->m_TexturesToDelete, DestroyTexture, 0, true);
         }
 
         // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
@@ -1211,7 +1263,7 @@ bail:
         }
     }
 
-    static void DestroyDeviceBufferHelper(HContext context, DeviceBuffer* buffer)
+    static void DestroyDeviceBufferDeferred(HContext context, DeviceBuffer* buffer)
     {
         assert(buffer->m_BufferHandle != VK_NULL_HANDLE);
 
@@ -1231,7 +1283,7 @@ bail:
         }
 
         DeviceBuffer buffer_copy = *buffer;
-        buffer_copy.m_Frame = context->m_CurrentFrameInFlight;
+        buffer_copy.m_FrameTag = context->m_CurrentFrameInFlight;
         context->m_DeviceBuffersToDelete.Push(buffer_copy);
 
         // Since the buffer will be deleted later, we just clear the
@@ -1240,6 +1292,31 @@ bail:
         buffer->m_BufferHandle = VK_NULL_HANDLE;
         buffer->m_MemoryHandle = VK_NULL_HANDLE;
         buffer->m_MemorySize   = 0;
+    }
+
+    static void DestroyTextureDeferred(HContext context, Texture* texture)
+    {
+        for (uint32_t i = 0; i < context->m_TexturesToDelete.Size(); ++i)
+        {
+            const Texture texture_to_delete = context->m_TexturesToDelete[i];
+            if (texture_to_delete.m_Image == texture->m_Image)
+            {
+                return;
+            }
+        }
+
+        if (context->m_TexturesToDelete.Full())
+        {
+            context->m_TexturesToDelete.OffsetCapacity(2);
+        }
+
+        Texture texture_copy = *texture;
+        texture_copy.m_FrameTag = context->m_CurrentFrameInFlight;
+        context->m_TexturesToDelete.Push(texture_copy);
+
+        texture->m_Image        = VK_NULL_HANDLE;
+        texture->m_ImageView    = VK_NULL_HANDLE;
+        texture->m_MemoryHandle = VK_NULL_HANDLE;
     }
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
@@ -1302,7 +1379,7 @@ bail:
 
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1319,7 +1396,7 @@ bail:
 
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1365,7 +1442,7 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
         {
-            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -1379,7 +1456,7 @@ bail:
 
         if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            DestroyDeviceBufferHelper(g_Context, buffer_ptr);
+            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1743,13 +1820,13 @@ bail:
         allocator->m_PoolHandle     = VK_NULL_HANDLE;
         allocator->m_DescriptorSets = 0x0;
 
-        return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_SwapChainIndex, allocator);
+        return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_FrameTag, allocator);
     }
 
     static VkResult ResizeScratchBuffer(HContext context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
     {
         // Put old buffer on the delete queue so we don't mess the descriptors already in-use
-        DestroyDeviceBufferHelper(context, &scratchBuffer->m_DeviceBuffer);
+        DestroyDeviceBufferDeferred(context, &scratchBuffer->m_DeviceBuffer);
         VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
         scratchBuffer->m_DeviceBuffer.MapMemory(context->m_LogicalDevice.m_Device);
@@ -2034,8 +2111,8 @@ bail:
         vk_fragment_shader_create_info.module = ((ShaderModule*) fragment_program)->m_Module;
         vk_fragment_shader_create_info.pName  = "main";
 
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]     = vk_vertex_shader_create_info;
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT]   = vk_fragment_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
+        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT]    = vk_fragment_shader_create_info;
         program->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]   = 0;
         program->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT] = 0;
         program->m_Hash               = 0;
@@ -2528,6 +2605,7 @@ bail:
         tex->m_Type                = params.m_Type;
         tex->m_Width               = params.m_Width;
         tex->m_Height              = params.m_Height;
+        tex->m_MipMapCount         = params.m_MipMapCount;
         tex->m_ImageView           = VK_NULL_HANDLE;
 
         if (params.m_OriginalWidth == 0)
@@ -2546,7 +2624,7 @@ bail:
 
     void DeleteTexture(HTexture t)
     {
-        DestroyTexture(g_Context->m_LogicalDevice.m_Device, t);
+        DestroyTextureDeferred(g_Context, t);
         delete t;
     }
 
@@ -2604,10 +2682,9 @@ bail:
         assert(params.m_Width  <= g_Context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
         assert(params.m_Height <= g_Context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
 
-        // TODO: Add mipmap support
-        if (params.m_MipMap > 0)
+        if (texture->m_MipMapCount == 1 && params.m_MipMap > 0)
         {
-            dmLogOnceWarning("Unable to texture mipmap data, not supported for Vulkan yet.");
+            dmLogError("Unable to upload mipmap %d to texture, texture was created without mipmaps.", params.m_MipMap);
             return;
         }
 
@@ -2616,8 +2693,6 @@ bail:
         size_t tex_data_size      = params.m_DataSize;
         void*  tex_data_ptr       = (void*)params.m_Data;
         VkFormat vk_format        = GetVulkanFormatFromTextureFormat(params.m_Format);
-        uint16_t vk_width         = params.m_Width;
-        uint16_t vk_height        = params.m_Height;
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
@@ -2634,10 +2709,10 @@ bail:
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint8_t bpp_new   = 4;
-            uint8_t* data_new = new uint8_t(bpp_new * vk_width * vk_height);
+            uint8_t* data_new = new uint8_t(bpp_new * params.m_Width * params.m_Height);
             uint8_t* data_old = (uint8_t*) tex_data_ptr;
 
-            for(uint32_t px=0; px < vk_width * vk_height; px++)
+            for(uint32_t px=0; px < params.m_Width * params.m_Height; px++)
             {
                 uint32_t px_old    = px * tex_bpp;
                 uint32_t px_new    = px * bpp_new;
@@ -2649,50 +2724,55 @@ bail:
 
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
-            tex_data_size = bpp_new * vk_width * vk_height;
+            tex_data_size = bpp_new * params.m_Width * params.m_Height;
             tex_bpp       = bpp_new;
         }
 
         texture->m_TextureParams = params;
+        texture->m_MipMapCount   = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         if (params.m_SubUpdate)
         {
             // data size might be different if we have generated a new image
             tex_data_size = params.m_Width * params.m_Height * tex_bpp;
-            vk_width      = texture->m_Width;
-            vk_height     = texture->m_Height;
         }
-        else
+        else if (params.m_MipMap == 0)
         {
             SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
-        }
-
-        if (texture->m_Format != vk_format || texture->m_Width != vk_width || texture->m_Height != vk_height)
-        {
-            DestroyTexture(logical_device.m_Device, texture);
-            texture->m_Format = vk_format;
-            texture->m_Height = vk_height;
-            texture->m_Width  = vk_width;
+            if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
+            {
+                DestroyTexture(logical_device.m_Device, texture);
+                texture->m_Format = vk_format;
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+            }
         }
 
         // If texture hasn't been used yet or if it has been changed
         if (texture->m_Image == VK_NULL_HANDLE)
         {
             assert(!params.m_SubUpdate);
-            VkImageTiling vk_image_tiling       = VK_IMAGE_TILING_OPTIMAL;
-            VkImageUsageFlags vk_usage_flags    = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
+            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
 
             if (VK_FORMAT_UNDEFINED == GetSupportedTilingFormat(vk_physical_device, &vk_format,
-                1, vk_image_tiling, vk_usage_flags))
+                1, vk_image_tiling, vk_format_features))
             {
                 vk_image_tiling = VK_IMAGE_TILING_LINEAR;
             }
 
             VkResult res = CreateTexture2D(vk_physical_device, logical_device.m_Device,
-                vk_width, vk_height, 1, vk_format, vk_image_tiling, vk_usage_flags,
+                texture->m_Width, texture->m_Height, texture->m_MipMapCount, vk_format, vk_image_tiling, vk_usage_flags,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, texture);
             CHECK_VK_ERROR(res);
         }
+
+        // TODO There is a bunch of redundancy here.
+        //      * We should use a single command buffer for these updates,
+        //        and not create a new one in every transition.
+        //      * Should we batch upload all the mipmap levels instead?
+        //        There's a lot of extra work doing all these transitions and image copies
 
         // Use a staging buffer to copy the texture data to a device buffer
         DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -2731,7 +2811,7 @@ bail:
         vk_copy_region.imageExtent.height              = params.m_Height;
         vk_copy_region.imageExtent.depth               = 1;
         vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        vk_copy_region.imageSubresource.mipLevel       = 0;
+        vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
         vk_copy_region.imageSubresource.baseArrayLayer = 0;
         vk_copy_region.imageSubresource.layerCount     = 1;
 
@@ -2785,15 +2865,27 @@ bail:
         if (sampler.m_MinFilter    != minfilter ||
             sampler.m_MagFilter    != magfilter ||
             sampler.m_AddressModeU != uwrap     ||
-            sampler.m_AddressModeV != vwrap)
+            sampler.m_AddressModeV != vwrap     ||
+            sampler.m_MaxLod       != texture->m_MipMapCount)
         {
-            texture->m_TextureSamplerIndex = GetTextureSamplerIndex(g_Context, minfilter, magfilter, uwrap, vwrap);
+            texture->m_TextureSamplerIndex = GetTextureSamplerIndex(g_Context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
         }
     }
 
     uint32_t GetTextureResourceSize(HTexture texture)
     {
-        return 0;
+        uint32_t size_total = 0;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_TextureParams.m_Format)) >> 3;
+        for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        {
+            size_total += size;
+            size >>= 2;
+        }
+        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            size_total *= 6;
+        }
+        return size_total + sizeof(Texture);
     }
 
     uint16_t GetTextureWidth(HTexture texture)

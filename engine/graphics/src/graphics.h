@@ -279,7 +279,8 @@ namespace dmGraphics
             m_Width(0),
             m_Height(0),
             m_OriginalWidth(0),
-            m_OriginalHeight(0)
+            m_OriginalHeight(0),
+            m_MipMapCount(1)
         {}
 
         TextureType m_Type;
@@ -287,6 +288,7 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+        uint8_t     m_MipMapCount;
     };
 
     struct TextureParams
@@ -627,7 +629,6 @@ namespace dmGraphics
      */
     void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
 
-    uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint32_t GetTextureResourceSize(HTexture texture);
     uint16_t GetTextureWidth(HTexture texture);

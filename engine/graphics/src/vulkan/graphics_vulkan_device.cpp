@@ -161,7 +161,7 @@ namespace dmGraphics
     }
 
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout)
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel, uint32_t levelCount)
     {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
@@ -185,8 +185,8 @@ namespace dmGraphics
         vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         vk_memory_barrier.image                           = vk_image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = 0;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
+        vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
+        vk_memory_barrier.subresourceRange.levelCount     = levelCount;
         vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
         vk_memory_barrier.subresourceRange.layerCount     = 1;
 
@@ -411,7 +411,7 @@ bail:
         descriptorAllocator->m_DescriptorSets  = new VkDescriptorSet[descriptor_count];
         descriptorAllocator->m_DescriptorMax   = descriptor_count;
         descriptorAllocator->m_DescriptorIndex = 0;
-        descriptorAllocator->m_SwapChainIndex  = swapChainIndex;
+        descriptorAllocator->m_FrameTag        = swapChainIndex;
 
         return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_PoolHandle);
     }
@@ -530,7 +530,7 @@ bail:
         vk_view_create_info.format                          = vk_format;
         vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
-        vk_view_create_info.subresourceRange.levelCount     = 1;
+        vk_view_create_info.subresourceRange.levelCount     = imageMips;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
         vk_view_create_info.subresourceRange.layerCount     = 1;
 
@@ -542,26 +542,27 @@ bail:
         return res;
     }
 
-    VkResult CreateTextureSampler(VkDevice vk_device, TextureFilter minFilter, TextureFilter magFilter, TextureWrap wrapU, TextureWrap wrapV, VkSampler* vk_sampler_out)
+    VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, VkSampler* vk_sampler_out)
     {
         VkSamplerCreateInfo vk_sampler_create_info;
         memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
 
         vk_sampler_create_info.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        vk_sampler_create_info.magFilter               = (VkFilter) magFilter;
-        vk_sampler_create_info.minFilter               = (VkFilter) minFilter;
-        vk_sampler_create_info.addressModeU            = (VkSamplerAddressMode) wrapU;
-        vk_sampler_create_info.addressModeV            = (VkSamplerAddressMode) wrapV;
-        vk_sampler_create_info.addressModeW            = (VkSamplerAddressMode) wrapU;
-        vk_sampler_create_info.maxAnisotropy           = 0;
+        vk_sampler_create_info.magFilter               = vk_mag_filter;
+        vk_sampler_create_info.minFilter               = vk_min_filter;
+        vk_sampler_create_info.addressModeU            = vk_wrap_u;
+        vk_sampler_create_info.addressModeV            = vk_wrap_v;
+        vk_sampler_create_info.addressModeW            = vk_wrap_u;
+        vk_sampler_create_info.maxAnisotropy           = 0; // TODO
         vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         vk_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
         vk_sampler_create_info.compareEnable           = VK_FALSE;
         vk_sampler_create_info.compareOp               = VK_COMPARE_OP_ALWAYS;
-        vk_sampler_create_info.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR; // TODO: Mipmapping
+        vk_sampler_create_info.mipmapMode              = vk_mipmap_mode;
         vk_sampler_create_info.mipLodBias              = 0.0f;
-        vk_sampler_create_info.minLod                  = 0.0f;
-        vk_sampler_create_info.maxLod                  = 0.0f;
+        vk_sampler_create_info.minLod                  = minLod;
+        vk_sampler_create_info.maxLod                  = maxLod;
 
         return vkCreateSampler(vk_device, &vk_sampler_create_info, 0, vk_sampler_out);
     }

@@ -9,7 +9,7 @@
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
-#include "graphics_null.h"
+#include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
 using namespace Vectormath::Aos;

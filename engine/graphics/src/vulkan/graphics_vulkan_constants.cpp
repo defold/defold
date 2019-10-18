@@ -19,14 +19,6 @@ namespace dmGraphics
     const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE   = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 
-    const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
-    const TextureFilter TEXTURE_FILTER_NEAREST                = VK_FILTER_NEAREST;
-    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = VK_FILTER_NEAREST;
-    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = VK_FILTER_NEAREST;
-    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = VK_FILTER_LINEAR;
-    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = VK_FILTER_LINEAR;
-    const TextureFilter TEXTURE_FILTER_LINEAR                 = VK_FILTER_LINEAR;
-
 	// Missing VK equivalent (use increasing number)
     const BufferType BUFFER_TYPE_COLOR_BIT       = 1;
     const BufferType BUFFER_TYPE_DEPTH_BIT       = 2;
@@ -45,6 +37,14 @@ namespace dmGraphics
 
     const Type TYPE_SAMPLER_2D                   = 13;
     const Type TYPE_SAMPLER_CUBE                 = 14;
+
+    const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
+    const TextureFilter TEXTURE_FILTER_NEAREST                = 1;
+    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 2;
+    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 3;
+    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 4;
+    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 5;
+    const TextureFilter TEXTURE_FILTER_LINEAR                 = 6;
 
     // Lookup table types
     const BlendFactor BLEND_FACTOR_ZERO                     = 0;
