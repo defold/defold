@@ -12,6 +12,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.textureset.proto.TextureSetProto.SpritePolygon;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Animation;
@@ -86,7 +87,7 @@ public class TileSetGenerator {
     }
 
     public static TextureSetResult generate(TileSet tileSet, BufferedImage image,
-            BufferedImage collisionImage, boolean genOutlines, boolean genAtlasVertices) {
+            BufferedImage collisionImage) {
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
                 tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
 
@@ -106,14 +107,14 @@ public class TileSetGenerator {
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
                 tileSet.getInnerPadding(),
-                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices, false, true, grid_size );
+                tileSet.getExtrudeBorders(), false, true, grid_size );
 
         TextureSet.Builder builder = result.builder;
 
         builder.setTileWidth(tileSet.getTileWidth()).setTileHeight(tileSet.getTileHeight());
 
         // These hulls are for rendering and texture packing
-        buildConvexHulls(tileSet, image, builder, 6);
+        buildConvexHulls(tileSet, image, builder, 4);
 
         // These hulls are for collision detection
         buildCollisionConvexHulls(tileSet, collisionImage, builder);
@@ -163,7 +164,7 @@ public class TileSetGenerator {
         if (image != null) {
             ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(image.getAlphaRaster(), 16,
                     image.getWidth(), image.getHeight(), tileSet.getTileWidth(),
-                    tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), 0);
+                    tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing());
 
             for (int i = 0; i < convexHulls.hulls.length; ++i) {
                 ConvexHull convexHull = convexHulls.hulls[i];
@@ -186,8 +187,6 @@ public class TileSetGenerator {
     }
 
     private static void buildConvexHulls(TileSet tileSet, BufferedImage image, TextureSet.Builder textureSet, int hullVertexCount) {
-        textureSet.setConvexHullSize(hullVertexCount);
-
         if (hullVertexCount == 0) {
             System.out.println("Hull generation is disabled. Skipping");
             return;
@@ -197,27 +196,51 @@ public class TileSetGenerator {
             return;
         }
 
-        ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(image.getAlphaRaster(), 16,
+        ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(image.getAlphaRaster(), hullVertexCount,
                 image.getWidth(), image.getHeight(), tileSet.getTileWidth(),
-                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), hullVertexCount);
+                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing());
 
         float tileSizeXRecip = 1.0f / tileSet.getTileWidth();
         float tileSizeYRecip = 1.0f / tileSet.getTileHeight();
 
-System.out.print(String.format("recip: %.2f, %.2f", tileSizeXRecip, tileSizeYRecip));
+        for (int i = 0; i < convexHulls.hulls.length; ++i) {
+            ConvexHull convexHull = convexHulls.hulls[i];
+            SpritePolygon.Builder polygonBuilder = SpritePolygon.newBuilder();
 
+            int offset = convexHull.getIndex();
+            for (int v = 0; v < convexHull.count; ++v) {
+                int poffset = (offset + v) * 2;
+                float x = convexHulls.points[poffset + 0];
+                float y = convexHulls.points[poffset + 1];
+                x = (x * tileSizeXRecip) - 0.5f;
+                y = (y * tileSizeYRecip) - 0.5f;
 
-        for (int i = 0; i < convexHulls.points.length; i += 2) {
-            float x = convexHulls.points[i+0];
-            float y = convexHulls.points[i+1];
-            x = (x * tileSizeXRecip) - 0.5f;
-            y = (y * tileSizeYRecip) - 0.5f;
+                polygonBuilder.addPoints(x);
+                polygonBuilder.addPoints(y);
+            }
 
-//System.out.print(String.format("%.2f, %.2f", convexHulls.points[i+0], convexHulls.points[i+1], x, y));
+            for (int v = 1; v <= convexHull.count-2; ++v) {
+                polygonBuilder.addIndices(0);
+                polygonBuilder.addIndices(v);
+                polygonBuilder.addIndices(v+1);
+            }
 
-            textureSet.addConvexHullPoints(x);
-            textureSet.addConvexHullPoints(y);
+            textureSet.addPolygons(polygonBuilder);
         }
+
+// System.out.print(String.format("recip: %.2f, %.2f", tileSizeXRecip, tileSizeYRecip));
+
+//         for (int i = 0; i < convexHulls.points.length; i += 2) {
+//             float x = convexHulls.points[i+0];
+//             float y = convexHulls.points[i+1];
+//             x = (x * tileSizeXRecip) - 0.5f;
+//             y = (y * tileSizeYRecip) - 0.5f;
+
+// //System.out.print(String.format("%.2f, %.2f", convexHulls.points[i+0], convexHulls.points[i+1], x, y));
+
+//             textureSet.addConvexHullPoints(x);
+//             textureSet.addConvexHullPoints(y);
+//         }
 
     }
 }

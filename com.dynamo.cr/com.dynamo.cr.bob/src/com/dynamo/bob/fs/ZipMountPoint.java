@@ -10,6 +10,7 @@ import java.util.Enumeration;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipException;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -96,10 +97,12 @@ public class ZipMountPoint implements IMountPoint {
 
     @Override
     public void mount() throws IOException {
-        this.file = new ZipFile(this.archivePath);
         try {
+            this.file = new ZipFile(this.archivePath);
             this.includeBaseDir = LibraryUtil.findIncludeBaseDir(this.file);
             this.includeDirs = LibraryUtil.readIncludeDirsFromArchive(this.includeBaseDir, this.file);
+        } catch (ZipException e) {
+            throw new IOException(String.format("Failed to mount zip file '%s': %s", this.archivePath, e));
         } catch (ParseException e) {
             throw new IOException(e);
         }

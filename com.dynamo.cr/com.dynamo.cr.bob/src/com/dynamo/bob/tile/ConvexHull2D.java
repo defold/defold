@@ -1,3 +1,5 @@
+// $ java -cp $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.tile.ConvexHull2D in.png out.png 6
+
 package com.dynamo.bob.tile;
 
 import java.util.Arrays;
@@ -277,74 +279,6 @@ public class ConvexHull2D {
         return a * 0.5;
     }
 
-
-    // Tries to remove the least significant edges of a hull
-    // https://softwareengineering.stackexchange.com/a/395439
-    public static Point[] simplifyHull(Point[] points, int targetCount, int width, int height) {
-        while (points.length > targetCount) {
-
-            int indexOfLeastSignificance = -1;
-            double leastArea = width*height*2;
-            Point intersectionPoint = null;
-
-            for (int i = 0; i < points.length; ++i) {
-                Point p0 = points[(i-1+points.length)%points.length];
-                Point p1 = points[i];
-                Point p2 = points[(i+1)%points.length];
-                Point p3 = points[(i+2)%points.length];
-
-                Line l0 = new Line(p0, p1);
-                Line l1 = new Line(p2, p3);
-
-                // Project the line (p1-p0) onto the line (p2-p3)
-                PointF pf = new PointF(-1, -1);
-                if (!Line.intersect(l0, l1, pf)) {
-
-        System.out.println(String.format("No intersection"));
-                    continue;
-                }
-
-                // TODO: Fix so that we clamp the intersection point to integers, in the direction outwards from the center of the hull
-                // It should suffice to move the point along the general direction of line 1 which the point was projected to
-                Point p = new Point((int)Math.floor(pf.x + (l1.slope.x > 1 ? 1 : 0)),
-                                    (int)Math.floor(pf.y + (l1.slope.y > 1 ? 1 : 0)));
-
-        //System.out.println(String.format("Intersection: %f x %f  -> %d x %d", pf.x, pf.y, p.x, p.y));
-
-                // check that the intersection is inside the box
-                if (p.x < 0 || p.x >= width || p.y < 0 || p.y >= height) {
-        System.out.println(String.format("  candidate outside of box"));
-                    continue;
-                }
-
-                // calculate the area of triangle [p1, p2, I]
-                double area = ConvexHull2D.areaX2(p1, p, p2);
-                if (area < leastArea) {
-                    indexOfLeastSignificance = i;
-                    leastArea = area;
-                    intersectionPoint = p;
-                }
-            }
-
-            if (indexOfLeastSignificance == -1) {
-                break;
-            }
-
-            // We have chosen an edge to remove
-
-        System.out.println(String.format("  removing point %d: %d x %d", indexOfLeastSignificance, intersectionPoint.x, intersectionPoint.y));
-
-            points[(indexOfLeastSignificance+1)%points.length] = intersectionPoint;
-
-            Point[] refined = new Point[points.length-1];
-            System.arraycopy(points, 0, refined, 0, indexOfLeastSignificance);
-            System.arraycopy(points, indexOfLeastSignificance + 1, refined, indexOfLeastSignificance, points.length - indexOfLeastSignificance - 1);
-
-            points = refined;
-        }
-        return points;
-    }
-
     public static Point[] calcRect(Point[] points) {
         int maxX = -1000000;
         int maxY = -1000000;
@@ -377,10 +311,17 @@ public class ConvexHull2D {
             System.out.println("No image specified!");
             return;
         }
+
         if (args.length >= 2 && args[0].equals(args[1])) {
             System.out.println("Source and target images cannot be the same!");
             return;
         }
+
+        int numTargetVertices = 4;
+        if (args.length >= 3) {
+            numTargetVertices = Integer.valueOf(args[2]);
+        }
+
         for (String arg : args) {
             System.out.println("ARG: " + arg);
         }
@@ -426,9 +367,11 @@ public class ConvexHull2D {
             }
         }
 
-        System.out.println(String.format("any_zero_alpha: %d", any_zero_alpha));
+        System.out.println(String.format("any_zero_alpha!: %d", any_zero_alpha));
+        System.out.println(String.format("numTargetVertices: %d", numTargetVertices));
 
-        Point[] points = imageConvexHull(mask, width, height, 16);
+        Point[] points = imageConvexHull(mask, width, height, numTargetVertices);
+
 
         // check that it's valid
         System.out.println("Is it valid?");
@@ -459,17 +402,6 @@ public class ConvexHull2D {
             System.out.println(String.format("  %2d: %d x %d", i, point.getX(), point.getY()));
 
             g2d.drawLine(point.getX(), height-point.getY(), pointNext.getX(), height-pointNext.getY());
-        }
-
-        int numTargetVertices = 4;
-        points = simplifyHull(points, numTargetVertices, width, height);
-
-        // check that it's still valid
-        System.out.println("After simplification:");
-        if (validHull(points, mask, width, height)) {
-            System.out.println("Still valid");
-        } else {
-            System.out.println("NOT VALID");
         }
 
         g2d.setColor(Color.RED);

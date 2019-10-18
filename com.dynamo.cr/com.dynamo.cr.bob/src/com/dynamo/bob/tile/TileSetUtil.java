@@ -68,8 +68,6 @@ public class TileSetUtil {
 
     private static ConvexHull2D.Point[] simplifyHull(ConvexHull2D.Point[] points, int width, int height, int hullTargetVertexCount) {
         if (hullTargetVertexCount != 0) {
-            points = ConvexHull2D.simplifyHull(points, hullTargetVertexCount, width, height);
-
             if (points.length > hullTargetVertexCount) {
                 // Fallback to the tight rect
                 points = ConvexHull2D.calcRect(points);
@@ -89,20 +87,19 @@ public class TileSetUtil {
         return points;
     }
 
-    public static ConvexHull2D.Point[] calculateConvexHulls(Raster alphaRaster, int planeCount, int hullTargetVertexCount) {
+    public static ConvexHull2D.Point[] calculateConvexHulls(Raster alphaRaster, int hullTargetVertexCount) {
         int width = alphaRaster.getWidth();
         int height = alphaRaster.getHeight();
         int[] mask = new int[width * height];
         mask = alphaRaster.getPixels(0, 0, width, height, mask);
 
-        ConvexHull2D.Point[] points = ConvexHull2D.imageConvexHull(mask, width, height, planeCount);
-        return simplifyHull(points, width, height, hullTargetVertexCount);
+        return ConvexHull2D.imageConvexHull(mask, width, height, hullTargetVertexCount);
     }
 
     public static ConvexHulls calculateConvexHulls(
-            Raster alphaRaster, int planeCount,
+            Raster alphaRaster, int hullTargetVertexCount,
             int width, int height, int tileWidth, int tileHeight,
-            int tileMargin, int tileSpacing, int hullTargetVertexCount) {
+            int tileMargin, int tileSpacing) {
 
         int tilesPerRow = TileSetUtil.calculateTileCount(tileWidth, width, tileMargin, tileSpacing);
         int tilesPerColumn = TileSetUtil.calculateTileCount(tileHeight, height, tileMargin, tileSpacing);
@@ -118,11 +115,7 @@ public class TileSetUtil {
                 int y = tileMargin + row * (2 * tileMargin + tileSpacing + tileHeight);
                 mask = alphaRaster.getPixels(x, y, tileWidth, tileHeight, mask);
                 int index = col + row * tilesPerRow;
-                points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, planeCount);
-
-                if (hullTargetVertexCount != 0) {
-                    points[index] = simplifyHull(points[index], tileWidth, tileHeight, hullTargetVertexCount);
-                }
+                points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, hullTargetVertexCount);
 
                 ConvexHull convexHull = new ConvexHull(null, pointCount, points[index].length);
                 convexHulls[index] = convexHull;
