@@ -1689,12 +1689,16 @@ bail:
             uniform_data_offsets  = program->m_UniformDataOffsets;
             texture_samplers      = program->m_SamplerBindings;
         }
-        else
+        else if (moduleType == Program::MODULE_TYPE_FRAGMENT)
         {
             shader_module        = program->m_FragmentModule;
             uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_UniformCount];
             texture_samplers     = &program->m_SamplerBindings[program->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]];
             dynamic_offsets      = &dynamicOffsetsOut[program->m_VertexModule->m_UniformCount];
+        }
+        else
+        {
+            assert(0);
         }
 
         if (shader_module->m_UniformCount == 0 && texture_sampler_count == 0)
@@ -1708,7 +1712,7 @@ bail:
             ShaderResourceBinding uniform = shader_module->m_Uniforms[sampler.m_UniformIndex];
 
             // TODO: Pass in texture ptr instead of using global context?
-            Texture* texture = g_Context->m_TextureUnits[sampler.m_Unit];
+            Texture* texture = g_Context->m_TextureUnits[sampler.m_TextureUnit];
 
             VkDescriptorImageInfo vk_image_info;
             vk_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1798,7 +1802,7 @@ bail:
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
-            0, DM_MAX_SET_COUNT, vk_descriptor_set_list,
+            0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
             num_uniforms, dynamic_uniform_offsets);
 
         return VK_SUCCESS;
@@ -2227,7 +2231,7 @@ bail:
             vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program_ptr->m_PipelineLayout, 0);
         }
 
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
         {
             if (program_ptr->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
             {
@@ -2497,14 +2501,14 @@ bail:
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
             assert(index_vs < program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]);
-            program_ptr->m_SamplerBindings[index_vs].m_Unit = (uint16_t) unit;
+            program_ptr->m_SamplerBindings[index_vs].m_TextureUnit = (uint16_t) unit;
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
             index_fs += program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX];
             assert(index_fs < program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT]);
-            program_ptr->m_SamplerBindings[index_fs].m_Unit = (uint16_t) unit;
+            program_ptr->m_SamplerBindings[index_fs].m_TextureUnit = (uint16_t) unit;
         }
     }
 
@@ -2632,7 +2636,7 @@ bail:
     {
         // Reference: https://github.com/KhronosGroup/Vulkan-Samples-Deprecated/blob/master/external/include/vulkan/vk_format.h
         assert(format <= TEXTURE_FORMAT_COUNT);
-        static const VkFormat conversion_table[] = {
+        const VkFormat conversion_table[] = {
             VK_FORMAT_R8_UNORM,                // TEXTURE_FORMAT_LUMINANCE
             VK_FORMAT_R8G8_UNORM,              // TEXTURE_FORMAT_LUMINANCE_ALPHA
             VK_FORMAT_R8G8B8_UNORM,            // TEXTURE_FORMAT_RGB
@@ -2851,11 +2855,6 @@ bail:
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         SetTexture(texture, params);
-    }
-
-    uint8_t* GetTextureData(HTexture texture)
-    {
-        return 0;
     }
 
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)

@@ -114,7 +114,7 @@ namespace dmGraphics
         VkRenderPass   m_RenderPass;
         VkFramebuffer  m_Framebuffer;
         VkExtent2D     m_Extent;
-        const uint32_t m_Id;
+        const uint16_t m_Id;
         uint8_t        m_IsBound : 1;
         uint8_t                  : 7; // unused
     };
@@ -210,15 +210,10 @@ namespace dmGraphics
     typedef VkPipeline Pipeline;
 
     // TODO: Naming!
-    union ShaderSamplerBinding
+    struct ShaderSamplerBinding
     {
-        struct
-        {
-            uint32_t m_UniformIndex : 16;
-            uint32_t m_Unit         : 16;
-        };
-
-        uint32_t m_SamplerBinding;
+        uint16_t m_UniformIndex;
+        uint16_t m_TextureUnit;
     };
 
     struct ShaderResourceBinding
