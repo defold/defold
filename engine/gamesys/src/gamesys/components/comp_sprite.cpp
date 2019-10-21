@@ -83,8 +83,8 @@ namespace dmGameSystem
         SpriteVertex*                   m_VertexBufferData;
         SpriteVertex*                   m_VertexBufferWritePtr;
         dmGraphics::HIndexBuffer        m_IndexBuffer;
-        void*                           m_IndexBufferData;
-        void*                           m_IndexBufferWritePtr;
+        uint8_t*                        m_IndexBufferData;
+        uint8_t*                        m_IndexBufferWritePtr;
         uint8_t                         m_Is16BitIndex : 1;
         uint8_t                         m_UsesPolygons : 1;
     };
@@ -161,7 +161,7 @@ namespace dmGameSystem
             uint32_t tri_count = 2;
             uint32_t indices_count = (tri_count*3)*sprite_context->m_MaxSpriteCount;
             size_t indices_size = indices_count * size_type;
-            sprite_world->m_IndexBufferData = malloc(indices_count * size_type);;
+            sprite_world->m_IndexBufferData = (uint8_t*)malloc(indices_count * size_type);;
             if (sprite_world->m_Is16BitIndex) {
                 fillIndices<uint16_t>((uint16_t*)sprite_world->m_IndexBufferData, indices_count);
             } else {
@@ -169,7 +169,7 @@ namespace dmGameSystem
             }
 
 
-            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         }
 
         sprite_world->m_UsesPolygons = 0;
@@ -385,27 +385,25 @@ namespace dmGameSystem
                 float max_v = tc[tex_lookup[2] * 2 + 1] / texture_height;
 
                 // The offset for the indices
+                uint32_t world_vertex_offset = *vb_where - sprite_world->m_VertexBufferData;
                 uint32_t vertex_offset = vertices - *vb_where;
 
-                // TODO: reverse the points in the build step
-                const float* points = geometry->m_Vertices.m_Data + geometry->m_Vertices.m_Count - 2;
-                const float* uvs = geometry->m_Uvs.m_Data + geometry->m_Uvs.m_Count - 2;
+                const float* points = geometry->m_Vertices.m_Data;
+                const float* uvs = geometry->m_Uvs.m_Data;
                 uint32_t num_points = geometry->m_Vertices.m_Count / 2;
-                for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points -= 2, uvs -= 2)
+
+                //for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points -= 2, uvs -= 2)
+                for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points += 2, uvs += 2)
                 {
                     float x = points[0]; // range -0.5,+0.5
                     float y = points[1];
-                    // float u = min_u + (x + 0.5f) * (max_u - min_u);
-                    // float v = 1.0f - (max_v + (y + 0.5f) * (min_v - max_v));
-                    float u = uvs[0];
-                    float v = uvs[1];
 
                     Vector4 p0 = w * Point3(x, y, 0.0f);
                     vertices[0].x = p0.getX();
                     vertices[0].y = p0.getY();
                     vertices[0].z = p0.getZ();
-                    vertices[0].u = u;
-                    vertices[0].v = v;
+                    vertices[0].u = uvs[0];
+                    vertices[0].v = uvs[1];
 
                 }
 
@@ -414,7 +412,7 @@ namespace dmGameSystem
                 {
                     for (uint32_t index = 0; index < index_count; ++index)
                     {
-                        ((uint16_t*)indices)[index] = vertex_offset + geometry->m_Indices.m_Data[index];
+                        ((uint16_t*)indices)[index] = world_vertex_offset + vertex_offset + geometry->m_Indices.m_Data[index];
                     }
                 }
                 else
@@ -535,7 +533,7 @@ namespace dmGameSystem
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
 
         // offset in bytes into element buffer
-        uint32_t index_offset = (uint8_t*)ib_begin - (uint8_t*)sprite_world->m_IndexBufferData;
+        uint32_t index_offset = ib_begin - sprite_world->m_IndexBufferData;
 
         // num elements = Number of bytes / sizeof(index_type)
         uint32_t index_type_size = sprite_world->m_Is16BitIndex ? sizeof(uint16_t) : sizeof(uint32_t);
@@ -830,8 +828,6 @@ namespace dmGameSystem
     {
         SpriteWorld* world = (SpriteWorld*) params.m_UserData;
 
-static int test = 1;
-
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
@@ -843,21 +839,13 @@ static int test = 1;
                 dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData),
                                                 world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-
                 DM_COUNTER("SpriteVertexBuffer", (world->m_VertexBufferWritePtr - world->m_VertexBufferData) * sizeof(SpriteVertex));
 
-                if (test && world->m_UsesPolygons)
+                if (world->m_UsesPolygons)
                 {
-                    uint32_t index_size;
-                    if (world->m_Is16BitIndex)
-                        index_size = (uint16_t*)world->m_IndexBufferWritePtr - (uint16_t*)world->m_IndexBufferData;
-                    else
-                        index_size = (uint32_t*)world->m_IndexBufferWritePtr - (uint32_t*)world->m_IndexBufferData;
-
-                    dmhash_t h = dmHashBuffer64(world->m_IndexBufferData, index_size * sizeof(uint16_t));
+                    uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
                     dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-
-                    DM_COUNTER("SpriteIndexBuffer", ((uint8_t*)world->m_IndexBufferWritePtr - (uint8_t*)world->m_IndexBufferData) * index_size);
+                    DM_COUNTER("SpriteIndexBuffer", index_size);
                 }
                 break;
             default:
