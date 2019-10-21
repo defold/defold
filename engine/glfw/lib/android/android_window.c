@@ -158,6 +158,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
     if (_glfwWin.clientAPI == GLFW_NO_API)
     {
         final_gl(&_glfwWin);
+        _glfwWin.hasSurface = 1;
     }
     else
     {
