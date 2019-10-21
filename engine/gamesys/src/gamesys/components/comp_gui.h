@@ -28,7 +28,7 @@ namespace dmGameSystem
     struct BoxVertex
     {
         inline BoxVertex() {}
-        inline BoxVertex(const Vectormath::Aos::Vector4& p, float u, float v, uint32_t color)
+        inline BoxVertex(const Vectormath::Aos::Vector4& p, float u, float v, const Vectormath::Aos::Vector4& color)
         {
             SetPosition(p);
             SetUV(u, v);
@@ -48,14 +48,17 @@ namespace dmGameSystem
             m_UV[1] = v;
         }
 
-        inline void SetColor(uint32_t color)
+        inline void SetColor(const Vectormath::Aos::Vector4& c)
         {
-            m_Color = color;
+            m_Color[0] = c.getX();
+            m_Color[1] = c.getY();
+            m_Color[2] = c.getZ();
+            m_Color[3] = c.getW();
         }
 
-        float    m_Position[3];
-        float    m_UV[2];
-        uint32_t m_Color;
+        float m_Position[3];
+        float m_UV[2];
+        float m_Color[4];
     };
 
     struct GuiRenderObject
