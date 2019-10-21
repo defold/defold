@@ -124,7 +124,7 @@
 
 (g/defnk produce-pb
   [image tile-width tile-height tile-margin tile-spacing collision material-tag
-   cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding]
+   cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding sprite-trim-mode]
   {:image (resource/resource->proj-path image)
    :tile-width tile-width
    :tile-height tile-height
@@ -140,7 +140,8 @@
    :collision-groups (sort collision-groups)
    :animations (sort-by :id animation-ddfs)
    :extrude-borders extrude-borders
-   :inner-padding inner-padding})
+   :inner-padding inner-padding
+   :sprite-trim-mode sprite-trim-mode})
 
 (defn- build-texture-set [resource dep-resources user-data]
   (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
@@ -499,7 +500,7 @@
              tile->collision-group-node))
 
 (g/defnk produce-tile-source-attributes
-  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size]
+  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size sprite-trim-mode]
   (or (validation/prop-error :fatal _node-id :image validation/prop-nil? image-resource "Image")
       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image-resource "Image")
       (let [properties {:width tile-width
@@ -507,7 +508,8 @@
                         :margin tile-margin
                         :spacing tile-spacing
                         :extrude-borders extrude-borders
-                        :inner-padding inner-padding}
+                        :inner-padding inner-padding
+                        :sprite-trim-mode sprite-trim-mode}
             metrics (texture-set-gen/calculate-tile-metrics image-size properties collision-size)]
         (when metrics
           (merge properties metrics)))
@@ -917,7 +919,7 @@
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
-      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
+      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding :sprite-trim-mode]]
         (g/set-property self field (field tile-source)))
       (g/set-property self :original-convex-hulls (load-convex-hulls tile-source))
       (g/set-property self :tile->collision-group-node (make-tile->collision-group-node tile-source collision-group-nodes))
