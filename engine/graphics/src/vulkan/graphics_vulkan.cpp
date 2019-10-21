@@ -553,7 +553,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        GetTextureSamplerIndex(context, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 0.0f);
+        GetTextureSamplerIndex(context, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1);
 
         return res;
     }
@@ -1649,9 +1649,9 @@ bail:
 
             for (uint32_t j=0; j < vertex_shader->m_AttributeCount; j++)
             {
-                if (vertex_shader->m_Attributes[i].m_NameHash == stream.m_NameHash)
+                if (vertex_shader->m_Attributes[j].m_NameHash == stream.m_NameHash)
                 {
-                    stream.m_Location = vertex_shader->m_Attributes[i].m_Binding;
+                    stream.m_Location = vertex_shader->m_Attributes[j].m_Binding;
                     break;
                 }
             }
@@ -2681,7 +2681,7 @@ bail:
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint8_t bpp_new   = 4;
-            uint8_t* data_new = new uint8_t(bpp_new * params.m_Width * params.m_Height);
+            uint8_t* data_new = new uint8_t[bpp_new * params.m_Width * params.m_Height];
             uint8_t* data_old = (uint8_t*) tex_data_ptr;
 
             for(uint32_t px=0; px < params.m_Width * params.m_Height; px++)
