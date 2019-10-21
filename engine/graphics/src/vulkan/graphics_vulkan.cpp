@@ -2755,8 +2755,9 @@ bail:
         res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
         CHECK_VK_ERROR(res);
 
+        // Transition image to transfer dst for the mipmap level we are uploading
         res = TransitionImageLayout(vk_device, logical_device.m_CommandPool, logical_device.m_GraphicsQueue,
-            texture->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            texture->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, params.m_MipMap);
         CHECK_VK_ERROR(res);
 
         // Copy contents of staging buffer to texture
@@ -2808,7 +2809,7 @@ bail:
         vkFreeCommandBuffers(vk_device, logical_device.m_CommandPool, 1, &vk_command_buffer);
 
         res = TransitionImageLayout(vk_device, logical_device.m_CommandPool, logical_device.m_GraphicsQueue,
-            texture->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            texture->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
         CHECK_VK_ERROR(res);
 
         DestroyDeviceBuffer(vk_device, &stage_buffer);
