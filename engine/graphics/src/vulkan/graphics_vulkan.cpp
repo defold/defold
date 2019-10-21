@@ -229,8 +229,9 @@ namespace dmGraphics
             TextureSampler& sampler = context->m_TextureSamplers[i];
             if (sampler.m_MagFilter     == magfilter &&
                 sampler.m_MinFilter     == minfilter &&
-                sampler.m_AddressModeU  == uwrap &&
-                sampler.m_AddressModeV  == vwrap)
+                sampler.m_AddressModeU  == uwrap     &&
+                sampler.m_AddressModeV  == vwrap     &&
+                sampler.m_MaxLod        == maxLod)
             {
                 return (uint8_t) i;
             }
@@ -264,12 +265,12 @@ namespace dmGraphics
         if (minfilter == TEXTURE_FILTER_NEAREST)
         {
             vk_min_filter = VK_FILTER_NEAREST;
-            max_lod       = 0.25;
+            max_lod       = 0.25f;
         }
         else if (minfilter == TEXTURE_FILTER_LINEAR)
         {
             vk_min_filter = VK_FILTER_LINEAR;
-            max_lod       = 0.25;
+            max_lod       = 0.25f;
         }
         else if (minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
         {
@@ -299,6 +300,7 @@ namespace dmGraphics
         new_sampler.m_MagFilter    = magfilter;
         new_sampler.m_AddressModeU = uwrap;
         new_sampler.m_AddressModeV = vwrap;
+        new_sampler.m_MaxLod       = maxLod;
 
         uint32_t sampler_index = context->m_TextureSamplers.Size();
 
