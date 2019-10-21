@@ -432,9 +432,8 @@
     (vector? key) (g/update-property node-id prop-kw assoc-in (rest key) new-value)
     :else (g/set-property node-id prop-kw new-value)))
 
-(defn set-value [evaluation-context properties prop-kw new-value]
-  (let [property (get properties prop-kw)
-        {:keys [key value node-id edit-type]} property
+(defn set-value [evaluation-context property prop-kw new-value]
+  (let [{:keys [key value node-id edit-type]} property
         set-fn (:set-fn edit-type)
         from-fn (:from-type edit-type identity)
         new-value (from-fn new-value)]

@@ -65,7 +65,7 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [cljfx "1.4.3"]
+                     [cljfx "1.5.0"]
 
                      [org.openjfx/javafx-base "14-ea+1"]
                      [org.openjfx/javafx-base "14-ea+1" :classifier "linux"]
