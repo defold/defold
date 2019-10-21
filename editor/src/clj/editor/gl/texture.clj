@@ -81,11 +81,7 @@
       (.disable tex gl))))                      ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
 
 (defn set-params [^TextureLifecycle tlc params]
-  ;; NOTE: This used to be a merge. All tests pass when changing to assoc and it
-  ;; also makes more sense when looking at the name of the function. But the
-  ;; change makes me a little uneasy. If there is some strange stuff going on
-  ;; with texture material properties, this change might be the cause of it.
-  (assoc tlc :params params))
+  (update tlc :params merge params))
 
 (def
   ^{:doc "If you do not supply parameters to `image-texture`, these will be used as defaults."}
