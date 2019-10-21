@@ -2036,45 +2036,13 @@ bail:
         return (HFragmentProgram) shader;
     }
 
-    static void FillTextureSamplers(ShaderModule* module, ShaderSamplerBinding* textureSamplersOut)
-    {
-        uint32_t sampler_index = 0;
-        for (uint32_t i=0; i < module->m_UniformCount; ++i)
-        {
-            if (IsUniformTextureSampler(module->m_Uniforms[i]))
-            {
-                textureSamplersOut[sampler_index++].m_UniformIndex = i;
-            }
-        }
-    }
-
-    static uint8_t GetTextureSamplerCount(Program* program)
-    {
-        uint8_t num_samplers = 0;
-        for (uint32_t i = 0; i < program->m_VertexModule->m_UniformCount; ++i)
-        {
-            if (IsUniformTextureSampler(program->m_VertexModule->m_Uniforms[i]))
-            {
-                num_samplers++;
-            }
-        }
-        for (uint32_t i = 0; i < program->m_FragmentModule->m_UniformCount; ++i)
-        {
-            if (IsUniformTextureSampler(program->m_FragmentModule->m_Uniforms[i]))
-            {
-                num_samplers++;
-            }
-        }
-
-        return num_samplers;
-    }
-
-    static void ProcessProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
+    static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list, uint32_t* byte_offset_end_out,
         VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
-        uint32_t byte_offset  = byte_offset_base;
-        uint32_t num_samplers = 0;
+        uint32_t byte_offset         = byte_offset_base;
+        uint32_t num_samplers        = 0;
+        uint32_t num_uniform_buffers = 0;
         for(uint32_t i=0; i < module->m_UniformCount; i++)
         {
             // Process uniform data size
@@ -2087,14 +2055,15 @@ bail:
             // Texture samplers don't need to allocate any memory
             if (IsUniformTextureSampler(uniform))
             {
-                num_samplers++;
                 vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                num_samplers++;
             }
             else
             {
-                byte_offset_list[i - num_samplers] = byte_offset;
-                byte_offset                       += GetShaderTypeSize(uniform.m_Type);
-                vk_descriptor_type                 = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                byte_offset_list[num_uniform_buffers] = byte_offset;
+                byte_offset                          += GetShaderTypeSize(uniform.m_Type);
+                vk_descriptor_type                    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                num_uniform_buffers++;
             }
 
             // Process descriptor layout
@@ -2171,27 +2140,15 @@ bail:
             uint32_t vs_last_offset   = 0;
             uint32_t fs_last_offset   = 0;
 
-            ProcessProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
+            CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
                 0, program->m_UniformDataOffsets,
                 &vs_last_offset, vk_descriptor_set_bindings);
-            ProcessProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
+            CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
                 vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformCount],
                 &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
 
             program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
             memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
-
-            if (num_samplers > 0)
-            {
-                /*
-                program->m_SamplerBindings = new ShaderSamplerBinding[num_samplers];
-                memset(program->m_SamplerBindings, 0, sizeof(ShaderSamplerBinding) * num_samplers);
-                FillTextureSamplers(vertex_module, program->m_SamplerBindings);
-                FillTextureSamplers(fragment_module, &program->m_SamplerBindings[vs_num_samplers]);
-                program->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]   = vs_num_samplers;
-                program->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT] = fs_num_samplers;
-                */
-            }
 
             VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
             memset(&vk_set_create_info, 0, sizeof(vk_set_create_info));
@@ -2233,13 +2190,6 @@ bail:
             delete[] program_ptr->m_UniformDataOffsets;
         }
 
-        /*
-        if (program_ptr->m_SamplerBindings)
-        {
-            delete[] program_ptr->m_SamplerBindings;
-        }
-        */
-
         if (program_ptr->m_PipelineLayout != VK_NULL_HANDLE)
         {
             vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program_ptr->m_PipelineLayout, 0);
@@ -2280,6 +2230,11 @@ bail:
         if (shader->m_Uniforms)
         {
             delete[] shader->m_Uniforms;
+        }
+
+        if (shader->m_TextureSamplers)
+        {
+            delete[] shader->m_TextureSamplers;
         }
 
         delete shader;
