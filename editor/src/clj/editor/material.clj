@@ -158,8 +158,7 @@
     :constant-type-projection :projection
     :constant-type-normal :normal
     :constant-type-worldview :world-view
-    :constant-type-worldviewproj :world-view-proj
-    :constant-sampler :sampler))
+    :constant-type-worldviewproj :world-view-proj))
 
 (def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
                               :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
@@ -182,13 +181,11 @@
 
 (defn sampler->tex-params [sampler]
   (let [s (or sampler default-sampler)]
-    {:type :sampler
-     :name (:name s)
-     :params
-     {:wrap-s (wrap-mode->gl (:wrap-u s))
-      :wrap-t (wrap-mode->gl (:wrap-v s))
-      :min-filter (filter-mode-min->gl (:filter-min s))
-      :mag-filter (filter-mode-mag->gl (:filter-mag s))}}))
+    {:wrap-s (wrap-mode->gl (:wrap-u s))
+     :wrap-t (wrap-mode->gl (:wrap-v s))
+     :min-filter (filter-mode-min->gl (:filter-min s))
+     :mag-filter (filter-mode-mag->gl (:filter-mag s))
+     :name (:name s)}))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
@@ -234,8 +231,11 @@
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants samplers]
                                                 (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
                                                     (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-                                                    (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]))
-                                                                         (concat vertex-constants fragment-constants (map #(assoc % :type :constant-sampler) samplers)))]
+                                                    (let [uniforms (-> {}
+                                                                       (into (map (fn [constant] [(:name constant) (constant->val constant)]))
+                                                                             (concat vertex-constants fragment-constants))
+                                                                       (into (map (fn [s] [(:name s) nil]))
+                                                                             samplers))]
                                                       (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
   (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
 

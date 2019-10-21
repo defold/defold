@@ -43,10 +43,7 @@
   (let [apply? (if-let [sampler-name (:name params)]
                  (when-let [program (gl/gl-current-program gl)]
                    (not= -1 (.glGetUniformLocation gl program sampler-name)))
-                 true)
-        params (if (= :sampler (:type params))
-                 (:params params)
-                 params)]
+                 true)]
     (when apply?
       (doseq [[p v] params]
         (if-let [pname (texture-params p)]
