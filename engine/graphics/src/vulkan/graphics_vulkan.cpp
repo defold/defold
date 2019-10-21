@@ -1678,22 +1678,18 @@ bail:
         uint32_t*           dynamicOffsetsOut)
     {
         ShaderModule*   shader_module;
-        ShaderSamplerBinding* texture_samplers;
         uint32_t*       uniform_data_offsets;
         uint32_t*       dynamic_offsets       = dynamicOffsetsOut;
-        const uint32_t  texture_sampler_count = program->m_SamplerBindingsCount[moduleType];
 
         if (moduleType == Program::MODULE_TYPE_VERTEX)
         {
             shader_module         = program->m_VertexModule;
             uniform_data_offsets  = program->m_UniformDataOffsets;
-            texture_samplers      = program->m_SamplerBindings;
         }
         else if (moduleType == Program::MODULE_TYPE_FRAGMENT)
         {
             shader_module        = program->m_FragmentModule;
             uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_UniformCount];
-            texture_samplers     = &program->m_SamplerBindings[program->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]];
             dynamic_offsets      = &dynamicOffsetsOut[program->m_VertexModule->m_UniformCount];
         }
         else
@@ -1701,6 +1697,7 @@ bail:
             assert(0);
         }
 
+        const uint32_t texture_sampler_count = shader_module->m_TextureSamplerCount;
         if (shader_module->m_UniformCount == 0 && texture_sampler_count == 0)
         {
             return;
@@ -1708,7 +1705,7 @@ bail:
 
         for (int i = 0; i < texture_sampler_count; ++i)
         {
-            ShaderSamplerBinding sampler  = texture_samplers[i];
+            ShaderSamplerBinding sampler  = shader_module->m_TextureSamplers[i];
             ShaderResourceBinding uniform = shader_module->m_Uniforms[sampler.m_UniformIndex];
 
             // TODO: Pass in texture ptr instead of using global context?
@@ -1786,7 +1783,7 @@ bail:
             return res;
         }
 
-        const uint32_t num_samplers       = program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX] + program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT];
+        const uint32_t num_samplers       = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
         const uint32_t num_uniforms       = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount - num_samplers;
         uint32_t* dynamic_uniform_offsets = new uint32_t[num_uniforms];
 
@@ -1967,6 +1964,7 @@ bail:
             shader->m_Uniforms               = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
             shader->m_UniformCount           = ddf->m_Uniforms.m_Count;
             shader->m_UniformDataSizeAligned = 0;
+            shader->m_TextureSamplerCount    = 0;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -1977,8 +1975,28 @@ bail:
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
                 assert(res.m_Set <= 1);
 
+                if (IsUniformTextureSampler(res))
+                {
+                    shader->m_TextureSamplerCount++;
+                }
+
                 // Calculate aligned data size on the fly
                 shader->m_UniformDataSizeAligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
+            }
+
+            if (shader->m_TextureSamplerCount > 0)
+            {
+                shader->m_TextureSamplers = new ShaderSamplerBinding[shader->m_TextureSamplerCount];
+                uint16_t next_uniform_index = 0;
+                for (uint32_t i=0; i < ddf->m_Uniforms.m_Count && next_uniform_index < shader->m_TextureSamplerCount; i++)
+                {
+                    ShaderResourceBinding& res = shader->m_Uniforms[i];
+                    if (IsUniformTextureSampler(res))
+                    {
+                        shader->m_TextureSamplers[next_uniform_index].m_UniformIndex = i;
+                        shader->m_TextureSamplers[next_uniform_index].m_TextureUnit  = 0;
+                    }
+                }
             }
         }
 
@@ -2053,7 +2071,7 @@ bail:
 
     static void ProcessProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
         uint32_t byte_offset_base, uint32_t* byte_offset_list, uint32_t* byte_offset_end_out,
-        uint32_t* num_samplers_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
+        VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
         uint32_t byte_offset  = byte_offset_base;
         uint32_t num_samplers = 0;
@@ -2089,7 +2107,6 @@ bail:
         }
 
         *byte_offset_end_out = byte_offset;
-        *num_samplers_out    = num_samplers;
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -2117,12 +2134,9 @@ bail:
 
         program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
         program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT]    = vk_fragment_shader_create_info;
-        program->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]   = 0;
-        program->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT] = 0;
         program->m_Hash               = 0;
         program->m_UniformDataOffsets = 0;
         program->m_UniformData        = 0;
-        program->m_SamplerBindings    = 0;
         program->m_VertexModule       = vertex_module;
         program->m_FragmentModule     = fragment_module;
 
@@ -2142,9 +2156,10 @@ bail:
         program->m_Hash = dmHashFinal64(&program_hash);
 
         const uint32_t num_uniforms = vertex_module->m_UniformCount + fragment_module->m_UniformCount;
+        const uint32_t num_samplers = vertex_module->m_TextureSamplerCount + fragment_module->m_TextureSamplerCount;
         if (num_uniforms > 0)
         {
-            const uint32_t num_buffers = num_uniforms - GetTextureSamplerCount(program);
+            const uint32_t num_buffers = num_uniforms - num_samplers;
 
             VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
 
@@ -2155,30 +2170,27 @@ bail:
 
             uint32_t vs_last_offset   = 0;
             uint32_t fs_last_offset   = 0;
-            uint32_t vs_num_samplers  = 0;
-            uint32_t fs_num_samplers  = 0;
 
             ProcessProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
                 0, program->m_UniformDataOffsets,
-                &vs_last_offset, &vs_num_samplers,
-                vk_descriptor_set_bindings);
+                &vs_last_offset, vk_descriptor_set_bindings);
             ProcessProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
                 vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformCount],
-                &fs_last_offset, &fs_num_samplers,
-                &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
+                &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
 
             program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
             memset(program->m_UniformData, 0, vs_last_offset + fs_last_offset);
 
-            const uint32_t num_samplers = vs_num_samplers + fs_num_samplers;
             if (num_samplers > 0)
             {
+                /*
                 program->m_SamplerBindings = new ShaderSamplerBinding[num_samplers];
                 memset(program->m_SamplerBindings, 0, sizeof(ShaderSamplerBinding) * num_samplers);
                 FillTextureSamplers(vertex_module, program->m_SamplerBindings);
                 FillTextureSamplers(fragment_module, &program->m_SamplerBindings[vs_num_samplers]);
                 program->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]   = vs_num_samplers;
                 program->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT] = fs_num_samplers;
+                */
             }
 
             VkDescriptorSetLayoutCreateInfo vk_set_create_info[Program::MODULE_TYPE_COUNT];
@@ -2221,10 +2233,12 @@ bail:
             delete[] program_ptr->m_UniformDataOffsets;
         }
 
+        /*
         if (program_ptr->m_SamplerBindings)
         {
             delete[] program_ptr->m_SamplerBindings;
         }
+        */
 
         if (program_ptr->m_PipelineLayout != VK_NULL_HANDLE)
         {
@@ -2425,11 +2439,8 @@ bail:
         uint32_t vs_location = UNIFORM_LOCATION_MAX;
         uint32_t fs_location = UNIFORM_LOCATION_MAX;
 
-        ShaderSamplerBinding* vs_samplers = program_ptr->m_SamplerBindings;
-        ShaderSamplerBinding* fs_samplers = &program_ptr->m_SamplerBindings[program_ptr->m_SamplerBindingsCount[0]];
-
-        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, vs_samplers, program_ptr->m_SamplerBindingsCount[0], name, &vs_location) ||
-            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, fs_samplers, program_ptr->m_SamplerBindingsCount[1], name, &fs_location))
+        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, vs->m_TextureSamplers, vs->m_TextureSamplerCount, name, &vs_location) ||
+            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, fs->m_TextureSamplers, fs->m_TextureSamplerCount, name, &fs_location))
         {
             return vs_location | (fs_location << UNIFORM_LOCATION_BIT_COUNT);
         }
@@ -2500,15 +2511,15 @@ bail:
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
-            assert(index_vs < program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX]);
-            program_ptr->m_SamplerBindings[index_vs].m_TextureUnit = (uint16_t) unit;
+            assert(index_vs < program_ptr->m_VertexModule->m_TextureSamplerCount);
+            program_ptr->m_VertexModule->m_TextureSamplers[index_vs].m_TextureUnit = (uint16_t) unit;
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
-            index_fs += program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_VERTEX];
-            assert(index_fs < program_ptr->m_SamplerBindingsCount[Program::MODULE_TYPE_FRAGMENT]);
-            program_ptr->m_SamplerBindings[index_fs].m_TextureUnit = (uint16_t) unit;
+            index_fs += program_ptr->m_VertexModule->m_TextureSamplerCount;
+            assert(index_fs < program_ptr->m_FragmentModule->m_TextureSamplerCount);
+            program_ptr->m_FragmentModule->m_TextureSamplers[index_fs].m_TextureUnit = (uint16_t) unit;
         }
     }
 

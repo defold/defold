@@ -230,10 +230,12 @@ namespace dmGraphics
         VkShaderModule         m_Module;
         ShaderResourceBinding* m_Uniforms;
         ShaderResourceBinding* m_Attributes;
+        ShaderSamplerBinding*  m_TextureSamplers;
         uint32_t               m_UniformDataSize;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformCount;
         uint16_t               m_AttributeCount;
+        uint16_t               m_TextureSamplerCount;
     };
 
     struct Program
@@ -250,8 +252,6 @@ namespace dmGraphics
         uint8_t*                        m_UniformData;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
-        ShaderSamplerBinding*           m_SamplerBindings;
-        uint16_t                        m_SamplerBindingsCount[MODULE_TYPE_COUNT];
         VkDescriptorSetLayout           m_DescriptorSetLayout[MODULE_TYPE_COUNT];
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         VkPipelineLayout                m_PipelineLayout;
