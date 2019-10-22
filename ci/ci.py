@@ -187,8 +187,8 @@ def main(argv):
             elif branch == "editor-dev":
                 build_editor(channel = "editor-alpha", release = True)
             else:
-                build_editor(release = False, engine_artifacts = "archived")
-                build_editor(release = False)
+                build_editor(release = False, engine_artifacts = "archived-stable")
+                # build_editor(release = False)
         elif command == "bob":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)
