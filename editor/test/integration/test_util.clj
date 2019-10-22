@@ -640,6 +640,6 @@
           ;; Additional uniforms might be introduced during rendering.
           (is (= (dissoc (get-in scene-data shader-path) :uniforms)
                  (dissoc (g/node-value material-node :shader) :uniforms)))
-          (is (= (get-in scene-data (conj gpu-texture-path :params))
-                 (material/sampler->tex-params (first (g/node-value material-node :samplers))))))))))
+          (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
+                 (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 

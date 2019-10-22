@@ -179,13 +179,20 @@
                                 :filter-min :filter-mode-min-linear
                                 :filter-mag :filter-mode-mag-linear})
 
-(defn sampler->tex-params [sampler]
-  (let [s (or sampler default-sampler)]
-    {:wrap-s (wrap-mode->gl (:wrap-u s))
-     :wrap-t (wrap-mode->gl (:wrap-v s))
-     :min-filter (filter-mode-min->gl (:filter-min s))
-     :mag-filter (filter-mode-mag->gl (:filter-mag s))
-     :name (:name s)}))
+(defn sampler->tex-params
+  ([sampler]
+   (sampler->tex-params sampler nil))
+  ([sampler default-tex-params]
+   (let [s (or sampler default-sampler)
+         params {:wrap-s (wrap-mode->gl (:wrap-u s))
+                 :wrap-t (wrap-mode->gl (:wrap-v s))
+                 :min-filter (filter-mode-min->gl (:filter-min s))
+                 :mag-filter (filter-mode-mag->gl (:filter-mag s))
+                 :name (:name s)
+                 :default-tex-params default-tex-params}]
+     (if (and (not sampler) default-tex-params)
+       (merge params default-tex-params)
+       params))))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
