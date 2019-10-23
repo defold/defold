@@ -46,6 +46,12 @@ namespace dmGraphics
             m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
             m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
             m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         }
 
         ~Context()
@@ -100,6 +106,7 @@ namespace dmGraphics
 
         TextureFilter            m_DefaultTextureMinFilter;
         TextureFilter            m_DefaultTextureMagFilter;
+        uint32_t                 m_TextureFormatSupport;
         uint32_t                 m_Width;
         uint32_t                 m_Height;
         uint32_t                 m_WindowWidth;
@@ -626,6 +633,19 @@ namespace dmGraphics
         vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
     }
 
+    static bool IsExtensionSupported(PhysicalDevice* device, const char* ext_name)
+    {
+        for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
+        {
+            if (dmStrCaseCmp(device->m_DeviceExtensions[j].extensionName, ext_name) == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     static bool InitializeVulkan(HContext context, const WindowParams* params)
     {
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
@@ -647,16 +667,16 @@ namespace dmGraphics
         PhysicalDevice* selected_device = NULL;
         GetPhysicalDevices(context->m_Instance, &device_list, device_count);
 
-        const char* required_device_extensions[] = {
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-            // From spec:
-            // "Allow negative height to be specified in the VkViewport::height field to
-            // perform y-inversion of the clip-space to framebuffer-space transform.
-            // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
-            // in shaders also targeting other APIs."
-            "VK_KHR_maintenance1"
-        };
-        const uint8_t required_device_extension_count = sizeof(required_device_extensions)/sizeof(required_device_extensions[0]);
+        // Required device extensions. These must be present for anything to work.
+        dmArray<const char*> device_extensions;
+        device_extensions.SetCapacity(2);
+        device_extensions.Push(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+        // From spec:
+        // "Allow negative height to be specified in the VkViewport::height field to
+        // perform y-inversion of the clip-space to framebuffer-space transform.
+        // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
+        // in shaders also targeting other APIs."
+        device_extensions.Push(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
         QueueFamily selected_queue_family;
         SwapChainCapabilities selected_swap_chain_capabilities;
@@ -677,19 +697,13 @@ namespace dmGraphics
 
             // Make sure all device extensions are supported
             bool all_extensions_found = true;
-            for (int32_t ext_i = 0; ext_i < required_device_extension_count; ++ext_i)
+            for (int32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
             {
-                bool found = false;
-                for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
+                if (!IsExtensionSupported(device, device_extensions[ext_i]))
                 {
-                    if (dmStrCaseCmp(device->m_DeviceExtensions[j].extensionName, required_device_extensions[ext_i]) == 0)
-                    {
-                        found = true;
-                        break;
-                    }
+                    all_extensions_found = false;
+                    break;
                 }
-
-                all_extensions_found &= found;
             }
 
             if (!all_extensions_found)
@@ -724,8 +738,19 @@ namespace dmGraphics
             goto bail;
         }
 
+        // Check for optional extensions so that we can enable them if they exist
+        if (IsExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
+        {
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        }
+
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
-            required_device_extensions, required_device_extension_count,
+            device_extensions.Begin(), device_extensions.Size(),
             g_validation_layers, g_validation_layer_count, &logical_device);
         if (res != VK_SUCCESS)
         {
@@ -2572,13 +2597,12 @@ bail:
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return true;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
         Texture* tex = new Texture;
-        memset(tex, 0, sizeof(Texture));
 
         tex->m_Type                = params.m_Type;
         tex->m_Width               = params.m_Width;
