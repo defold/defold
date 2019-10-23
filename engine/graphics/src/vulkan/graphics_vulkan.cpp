@@ -427,7 +427,7 @@ namespace dmGraphics
 
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
             vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, depthStencilTextureOut);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depthStencilTextureOut);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
@@ -1347,9 +1347,9 @@ bail:
         texture_copy.m_FrameTag = context->m_CurrentFrameInFlight;
         context->m_TexturesToDelete.Push(texture_copy);
 
-        texture->m_Image        = VK_NULL_HANDLE;
-        texture->m_ImageView    = VK_NULL_HANDLE;
-        texture->m_MemoryHandle = VK_NULL_HANDLE;
+        texture->m_Image                       = VK_NULL_HANDLE;
+        texture->m_ImageView                   = VK_NULL_HANDLE;
+        texture->m_DeviceBuffer.m_MemoryHandle = VK_NULL_HANDLE;
     }
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
@@ -2647,8 +2647,8 @@ bail:
             VK_FORMAT_BC2_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT5
             VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_DEPTH
             VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_STENCIL
-            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
             VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
             VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
             VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,     // TEXTURE_FORMAT_RGB_ETC1
@@ -2664,6 +2664,115 @@ bail:
         };
 
         return conversion_table[format];
+    }
+
+    static inline uint32_t GetOffsetFromMipmap(Texture* texture, uint8_t mipmap)
+    {
+        uint8_t bitspp  = GetTextureFormatBPP(texture->m_TextureParams.m_Format);
+        uint32_t width  = texture->m_Width;
+        uint32_t height = texture->m_Height;
+        uint32_t offset = 0;
+
+        for (uint32_t i = 0; i < mipmap; ++i)
+        {
+            offset += width * height * bitspp;
+            width  /= 2;
+            height /= 2;
+        }
+
+        offset /= 8;
+        return offset;
+    }
+
+    static void CopyToTexture(HContext context, const TextureParams& params,
+        bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut)
+    {
+        VkDevice vk_device = context->m_LogicalDevice.m_Device;
+
+        // TODO There is potentially a bunch of redundancy here.
+        //      * Can we use a single command buffer for these updates,
+        //        and not create a new one in every transition?
+        //      * Should we batch upload all the mipmap levels instead?
+        //        There's a lot of extra work doing all these transitions and image copies
+        //        per mipmap instead of batching in one cmd
+        if (useStageBuffer)
+        {
+            // Create one-time commandbuffer to carry the copy command
+            VkCommandBuffer vk_command_buffer;
+            CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
+            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
+
+            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+            CHECK_VK_ERROR(res);
+
+            VkSubmitInfo vk_submit_info;
+            memset(&vk_submit_info, 0, sizeof(vk_submit_info));
+            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            vk_submit_info.commandBufferCount = 1;
+            vk_submit_info.pCommandBuffers    = &vk_command_buffer;
+
+            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+            CHECK_VK_ERROR(res);
+
+            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
+            CHECK_VK_ERROR(res);
+
+            // Transition image to transfer dst for the mipmap level we are uploading
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, params.m_MipMap);
+            CHECK_VK_ERROR(res);
+
+            VkBufferImageCopy vk_copy_region;
+            vk_copy_region.bufferOffset                    = 0;
+            vk_copy_region.bufferRowLength                 = 0;
+            vk_copy_region.bufferImageHeight               = 0;
+            vk_copy_region.imageOffset.x                   = params.m_X;
+            vk_copy_region.imageOffset.y                   = params.m_Y;
+            vk_copy_region.imageOffset.z                   = 0;
+            vk_copy_region.imageExtent.width               = params.m_Width;
+            vk_copy_region.imageExtent.height              = params.m_Height;
+            vk_copy_region.imageExtent.depth               = 1;
+            vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
+            vk_copy_region.imageSubresource.baseArrayLayer = 0;
+            vk_copy_region.imageSubresource.layerCount     = 1;
+
+            vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_BufferHandle,
+                textureOut->m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &vk_copy_region);
+
+            res = vkEndCommandBuffer(vk_command_buffer);
+            CHECK_VK_ERROR(res);
+
+            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
+            CHECK_VK_ERROR(res);
+
+            vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
+
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
+            CHECK_VK_ERROR(res);
+
+            DestroyDeviceBuffer(vk_device, &stage_buffer);
+
+            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+        }
+        else
+        {
+            uint32_t write_offset = GetOffsetFromMipmap(textureOut, params.m_MipMap);
+
+            VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
+            CHECK_VK_ERROR(res);
+
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Image,
+                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
+            CHECK_VK_ERROR(res);
+        }
     }
 
     void SetTexture(HTexture texture, const TextureParams& params)
@@ -2686,15 +2795,14 @@ bail:
 
         if (texture->m_MipMapCount == 1 && params.m_MipMap > 0)
         {
-            dmLogError("Unable to upload mipmap %d to texture, texture was created without mipmaps.", params.m_MipMap);
             return;
         }
 
-        TextureFormat format_orig = params.m_Format;
-        uint8_t tex_bpp           = GetTextureFormatBPP(params.m_Format) >> 3;
-        size_t tex_data_size      = params.m_DataSize;
-        void*  tex_data_ptr       = (void*)params.m_Data;
-        VkFormat vk_format        = GetVulkanFormatFromTextureFormat(params.m_Format);
+        TextureFormat format_orig   = params.m_Format;
+        uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format) >> 3;
+        size_t tex_data_size        = params.m_DataSize;
+        void*  tex_data_ptr         = (void*)params.m_Data;
+        VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
@@ -2704,7 +2812,6 @@ bail:
 
         LogicalDevice& logical_device       = g_Context->m_LogicalDevice;
         VkPhysicalDevice vk_physical_device = g_Context->m_PhysicalDevice.m_Device;
-        VkDevice vk_device                  = logical_device.m_Device;
 
         // Note: There's no RGB support in Vulkan. We have to expand this to four channels
         // TODO: Can we use R11G11B10 somehow?
@@ -2750,6 +2857,17 @@ bail:
             }
         }
 
+        bool use_stage_buffer = true;
+#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+        // Can't use a staging buffer for MoltenVK when we upload
+        // PVRTC textures.
+        if (vk_format == VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ||
+            vk_format == VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG)
+        {
+            use_stage_buffer = false;
+        }
+#endif
+
         // If texture hasn't been used yet or if it has been changed
         if (texture->m_Image == VK_NULL_HANDLE)
         {
@@ -2757,92 +2875,31 @@ bail:
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
             VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+            VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
+            VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
+            if (!use_stage_buffer)
+            {
+                vk_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
+                vk_memory_type = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            }
+
+            // Check this format for optimal layout support
             if (VK_FORMAT_UNDEFINED == GetSupportedTilingFormat(vk_physical_device, &vk_format,
                 1, vk_image_tiling, vk_format_features))
             {
-                vk_image_tiling = VK_IMAGE_TILING_LINEAR;
+                // Linear doesn't support mipmapping (for MoltenVK only?)
+                vk_image_tiling        = VK_IMAGE_TILING_LINEAR;
+                texture->m_MipMapCount = 1;
             }
 
             VkResult res = CreateTexture2D(vk_physical_device, logical_device.m_Device,
                 texture->m_Width, texture->m_Height, texture->m_MipMapCount, vk_format, vk_image_tiling, vk_usage_flags,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, texture);
+                vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
             CHECK_VK_ERROR(res);
         }
 
-        // TODO There is a bunch of redundancy here.
-        //      * We should use a single command buffer for these updates,
-        //        and not create a new one in every transition.
-        //      * Should we batch upload all the mipmap levels instead?
-        //        There's a lot of extra work doing all these transitions and image copies
-
-        // Use a staging buffer to copy the texture data to a device buffer
-        DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        VkResult res = CreateDeviceBuffer(vk_physical_device, vk_device, tex_data_size,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        // Transition image to transfer dst for the mipmap level we are uploading
-        res = TransitionImageLayout(vk_device, logical_device.m_CommandPool, logical_device.m_GraphicsQueue,
-            texture->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, params.m_MipMap);
-        CHECK_VK_ERROR(res);
-
-        // Copy contents of staging buffer to texture
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, logical_device.m_CommandPool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-        CHECK_VK_ERROR(res);
-
-        VkBufferImageCopy vk_copy_region;
-        vk_copy_region.bufferOffset                    = 0;
-        vk_copy_region.bufferRowLength                 = 0;
-        vk_copy_region.bufferImageHeight               = 0;
-        vk_copy_region.imageOffset.x                   = params.m_X;
-        vk_copy_region.imageOffset.y                   = params.m_Y;
-        vk_copy_region.imageOffset.z                   = 0;
-        vk_copy_region.imageExtent.width               = params.m_Width;
-        vk_copy_region.imageExtent.height              = params.m_Height;
-        vk_copy_region.imageExtent.depth               = 1;
-        vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
-        vk_copy_region.imageSubresource.baseArrayLayer = 0;
-        vk_copy_region.imageSubresource.layerCount     = 1;
-
-        vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_BufferHandle,
-            texture->m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &vk_copy_region);
-
-        res = vkEndCommandBuffer(vk_command_buffer);
-        CHECK_VK_ERROR(res);
-
-        VkSubmitInfo vk_submit_info;
-        memset(&vk_submit_info, 0, sizeof(vk_submit_info));
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-        res = vkQueueSubmit(logical_device.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        CHECK_VK_ERROR(res);
-
-        vkQueueWaitIdle(logical_device.m_GraphicsQueue);
-
-        vkFreeCommandBuffers(vk_device, logical_device.m_CommandPool, 1, &vk_command_buffer);
-
-        res = TransitionImageLayout(vk_device, logical_device.m_CommandPool, logical_device.m_GraphicsQueue,
-            texture->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
-        CHECK_VK_ERROR(res);
-
-        DestroyDeviceBuffer(vk_device, &stage_buffer);
+        CopyToTexture(g_Context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
