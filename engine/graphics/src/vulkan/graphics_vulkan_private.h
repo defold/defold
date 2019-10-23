@@ -8,15 +8,43 @@ namespace dmGraphics
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
 
+    struct DeviceBuffer
+    {
+        DeviceBuffer(const VkBufferUsageFlags usage)
+        : m_MappedDataPtr(0)
+        , m_Usage(usage)
+        , m_BufferHandle(VK_NULL_HANDLE)
+        , m_MemoryHandle(VK_NULL_HANDLE)
+        , m_MemorySize(0)
+        , m_FrameTag(0)
+        {}
+
+        void*              m_MappedDataPtr;
+        VkBufferUsageFlags m_Usage;
+        VkBuffer           m_BufferHandle;
+        VkDeviceMemory     m_MemoryHandle;
+        uint32_t           m_MemorySize : 31; // ~2gb max
+        uint32_t           m_FrameTag   : 1;
+
+        VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
+        void     UnmapMemory(VkDevice vk_device);
+    };
+
     struct Texture
     {
+        Texture()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_Image(VK_NULL_HANDLE)
+        , m_ImageView(VK_NULL_HANDLE)
+        , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
+        {}
+
         TextureType    m_Type;
         TextureParams  m_TextureParams;
         VkImage        m_Image;
         VkImageView    m_ImageView;
         VkFormat       m_Format;
-        VkDeviceMemory m_MemoryHandle;
-        uint32_t       m_MemorySize;
+        DeviceBuffer   m_DeviceBuffer;
         uint16_t       m_Width;
         uint16_t       m_Height;
         uint16_t       m_OriginalWidth;
@@ -54,28 +82,6 @@ namespace dmGraphics
         Stream      m_Streams[DM_MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
-    };
-
-    struct DeviceBuffer
-    {
-        DeviceBuffer(const VkBufferUsageFlags usage)
-        : m_MappedDataPtr(0)
-        , m_Usage(usage)
-        , m_BufferHandle(VK_NULL_HANDLE)
-        , m_MemoryHandle(VK_NULL_HANDLE)
-        , m_MemorySize(0)
-        , m_FrameTag(0)
-        {}
-
-        void*              m_MappedDataPtr;
-        VkBufferUsageFlags m_Usage;
-        VkBuffer           m_BufferHandle;
-        VkDeviceMemory     m_MemoryHandle;
-        uint32_t           m_MemorySize : 31; // ~2gb max
-        uint32_t           m_FrameTag   : 1;
-
-        VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
-        void     UnmapMemory(VkDevice vk_device);
     };
 
     struct DescriptorAllocator
@@ -320,7 +326,8 @@ namespace dmGraphics
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
         VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
-        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut);
+        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect,
+        VkImageLayout vk_initial_layout, Texture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device,
         VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
         VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v,

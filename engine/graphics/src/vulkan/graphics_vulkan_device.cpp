@@ -194,10 +194,19 @@ namespace dmGraphics
         VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
 
         // These stage changes are explicit in our case:
+        //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
         //   1) undefined -> transfer. This transition is used for staging buffers when uploading texture data
         //   2) transfer  -> shader read. This transition is used when the staging transfer is complete.
         //   3) undefined -> depth stencil. This transition is used when creating a depth buffer.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
         {
             vk_memory_barrier.srcAccessMask = 0;
             vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -269,7 +278,7 @@ namespace dmGraphics
             memcpy(buffer->m_MappedDataPtr, data, (size_t) size);
         }
 
-        vkUnmapMemory(vk_device, buffer->m_MemoryHandle);
+        buffer->UnmapMemory(vk_device);
 
         return res;
     }
@@ -457,11 +466,14 @@ bail:
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
         VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
-        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut)
+        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect,
+        VkImageLayout vk_initial_layout, Texture* textureOut)
     {
         assert(textureOut);
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
-        assert(textureOut->m_MemoryHandle == VK_NULL_HANDLE && textureOut->m_MemorySize == 0);
+
+        DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
+        assert(device_buffer.m_MemoryHandle == VK_NULL_HANDLE && device_buffer.m_MemorySize == 0);
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -475,7 +487,7 @@ bail:
         vk_image_create_info.arrayLayers   = 1;
         vk_image_create_info.format        = vk_format;
         vk_image_create_info.tiling        = vk_tiling;
-        vk_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        vk_image_create_info.initialLayout = vk_initial_layout;
         vk_image_create_info.usage         = vk_usage;
         vk_image_create_info.samples       = VK_SAMPLE_COUNT_1_BIT;
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
@@ -507,19 +519,19 @@ bail:
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_MemoryHandle);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &device_buffer.m_MemoryHandle);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_MemoryHandle, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Image, device_buffer.m_MemoryHandle, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        textureOut->m_MemorySize = vk_memory_req.size;
+        device_buffer.m_MemorySize = vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -952,11 +964,11 @@ bail:
             texture->m_Image = VK_NULL_HANDLE;
         }
 
-        if (texture->m_MemoryHandle != VK_NULL_HANDLE)
+        if (texture->m_DeviceBuffer.m_MemoryHandle != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, texture->m_MemoryHandle, 0);
-            texture->m_MemoryHandle = VK_NULL_HANDLE;
-            texture->m_MemorySize   = 0;
+            vkFreeMemory(vk_device, texture->m_DeviceBuffer.m_MemoryHandle, 0);
+            texture->m_DeviceBuffer.m_MemoryHandle = VK_NULL_HANDLE;
+            texture->m_DeviceBuffer.m_MemorySize   = 0;
         }
     }
 
