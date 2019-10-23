@@ -2673,7 +2673,7 @@ bail:
 
     static inline uint32_t GetOffsetFromMipmap(Texture* texture, uint8_t mipmap)
     {
-        uint8_t bitspp  = GetTextureFormatBPP(texture->m_TextureParams.m_Format);
+        uint8_t bitspp  = GetTextureFormatBPP(texture->m_GraphicsFormat);
         uint32_t width  = texture->m_Width;
         uint32_t height = texture->m_Height;
         uint32_t offset = 0;
@@ -2842,8 +2842,8 @@ bail:
             tex_bpp       = bpp_new;
         }
 
-        texture->m_TextureParams = params;
-        texture->m_MipMapCount   = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        texture->m_GraphicsFormat = params.m_Format;
+        texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         if (params.m_SubUpdate)
         {
@@ -2935,7 +2935,7 @@ bail:
     uint32_t GetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
-        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_TextureParams.m_Format)) >> 3;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_GraphicsFormat)) >> 3;
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
         {
             size_total += size;

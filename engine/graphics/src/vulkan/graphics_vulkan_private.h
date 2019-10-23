@@ -34,6 +34,7 @@ namespace dmGraphics
     {
         Texture()
         : m_Type(TEXTURE_TYPE_2D)
+        , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
         , m_Image(VK_NULL_HANDLE)
         , m_ImageView(VK_NULL_HANDLE)
         , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
@@ -44,12 +45,10 @@ namespace dmGraphics
         , m_MipMapCount(0)
         , m_TextureSamplerIndex(0)
         , m_FrameTag(0)
-        {
-            m_TextureParams = TextureParams();
-        }
+        {}
 
         TextureType    m_Type;
-        TextureParams  m_TextureParams;
+        TextureFormat  m_GraphicsFormat;
         VkImage        m_Image;
         VkImageView    m_ImageView;
         VkFormat       m_Format;
@@ -224,7 +223,6 @@ namespace dmGraphics
 
     typedef VkPipeline Pipeline;
 
-    // TODO: Naming!
     struct ShaderSamplerBinding
     {
         uint16_t m_UniformIndex;
