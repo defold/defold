@@ -37,7 +37,16 @@ namespace dmGraphics
         , m_Image(VK_NULL_HANDLE)
         , m_ImageView(VK_NULL_HANDLE)
         , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
-        {}
+        , m_Width(0)
+        , m_Height(0)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_MipMapCount(0)
+        , m_TextureSamplerIndex(0)
+        , m_FrameTag(0)
+        {
+            m_TextureParams = TextureParams();
+        }
 
         TextureType    m_Type;
         TextureParams  m_TextureParams;

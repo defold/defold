@@ -1740,9 +1740,7 @@ bail:
         {
             ShaderSamplerBinding sampler  = shader_module->m_TextureSamplers[i];
             ShaderResourceBinding uniform = shader_module->m_Uniforms[sampler.m_UniformIndex];
-
-            // TODO: Pass in texture ptr instead of using global context?
-            Texture* texture = g_Context->m_TextureUnits[sampler.m_TextureUnit];
+            Texture* texture              = g_Context->m_TextureUnits[sampler.m_TextureUnit];
 
             VkDescriptorImageInfo vk_image_info;
             vk_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1761,6 +1759,8 @@ bail:
             vk_write_desc_info.pBufferInfo      = 0;
             vk_write_desc_info.pTexelBufferView = 0;
 
+            // TODO: It would be better to update all descriptors in one go instead of
+            //       one-by-one like we do now.
             vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
         }
 
@@ -1800,6 +1800,8 @@ bail:
             vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
             vk_write_desc_info.pTexelBufferView = 0;
 
+            // TODO: It would be better to update all descriptors in one go instead of
+            //       one-by-one like we do now.
             vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
             scratchBuffer->m_MappedDataCursor += uniform_size;
         }
@@ -1994,10 +1996,10 @@ bail:
     {
         if (ddf->m_Uniforms.m_Count > 0)
         {
-            shader->m_Uniforms               = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
-            shader->m_UniformCount           = ddf->m_Uniforms.m_Count;
-            shader->m_UniformDataSizeAligned = 0;
-            shader->m_TextureSamplerCount    = 0;
+            shader->m_Uniforms                 = new ShaderResourceBinding[ddf->m_Uniforms.m_Count];
+            shader->m_UniformCount             = ddf->m_Uniforms.m_Count;
+            uint32_t uniform_data_size_aligned = 0;
+            uint32_t texture_sampler_count     = 0;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -2010,18 +2012,18 @@ bail:
 
                 if (IsUniformTextureSampler(res))
                 {
-                    shader->m_TextureSamplerCount++;
+                    texture_sampler_count++;
                 }
 
                 // Calculate aligned data size on the fly
-                shader->m_UniformDataSizeAligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
+                uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
             }
 
-            if (shader->m_TextureSamplerCount > 0)
+            if (texture_sampler_count > 0)
             {
-                shader->m_TextureSamplers = new ShaderSamplerBinding[shader->m_TextureSamplerCount];
+                shader->m_TextureSamplers = new ShaderSamplerBinding[texture_sampler_count];
                 uint16_t next_uniform_index = 0;
-                for (uint32_t i=0; i < ddf->m_Uniforms.m_Count && next_uniform_index < shader->m_TextureSamplerCount; i++)
+                for (uint32_t i=0; i < ddf->m_Uniforms.m_Count && next_uniform_index < texture_sampler_count; i++)
                 {
                     ShaderResourceBinding& res = shader->m_Uniforms[i];
                     if (IsUniformTextureSampler(res))
@@ -2031,6 +2033,9 @@ bail:
                     }
                 }
             }
+
+            shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
+            shader->m_TextureSamplerCount    = texture_sampler_count;
         }
 
         if (ddf->m_Attributes.m_Count > 0)
