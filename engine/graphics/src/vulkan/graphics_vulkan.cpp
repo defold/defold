@@ -1095,11 +1095,6 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
-        if (context->m_DeviceBuffersToDelete.Size() > 0)
-        {
-            FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, context->m_CurrentFrameInFlight);
-        }
-
         VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
 
@@ -1129,6 +1124,11 @@ bail:
 
         // TODO: Test allocating a scratch buffer per frame-in-flight instead of
         //       one per swap chain image.
+		if (context->m_DeviceBuffersToDelete.Size() > 0)
+		{
+			FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, frame_ix);
+		}
+
         if (context->m_DescriptorAllocatorsToDelete.Size() > 0)
         {
             FlushResourceToDestroy<DescriptorAllocator>(vk_device, context->m_MainDescriptorAllocators, DestroyDescriptorAllocator, frame_ix);
@@ -1264,7 +1264,7 @@ bail:
         if (bufferOut->m_BufferHandle == VK_NULL_HANDLE)
         {
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
+                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
             CHECK_VK_ERROR(res);
         }
 
@@ -1316,7 +1316,7 @@ bail:
         }
 
         DeviceBuffer buffer_copy = *buffer;
-        buffer_copy.m_FrameTag = context->m_CurrentFrameInFlight;
+        buffer_copy.m_FrameTag = context->m_SwapChain->m_ImageIndex;
         context->m_DeviceBuffersToDelete.Push(buffer_copy);
 
         // Since the buffer will be deleted later, we just clear the
@@ -1344,7 +1344,7 @@ bail:
         }
 
         Texture texture_copy = *texture;
-        texture_copy.m_FrameTag = context->m_CurrentFrameInFlight;
+        texture_copy.m_FrameTag = context->m_SwapChain->m_ImageIndex;
         context->m_TexturesToDelete.Push(texture_copy);
 
         texture->m_Image                       = VK_NULL_HANDLE;
