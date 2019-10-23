@@ -287,7 +287,7 @@
                    [k (persistent! v)]))
             decl))))
 
-(defn- property-edit-type [property]
+(defn property-edit-type [property]
   (or (get property :edit-type)
       {:type (:type property)}))
 
