@@ -393,7 +393,9 @@
       (when (and outline-property
                  (properties/visible? outline-property)
                  (edit-type-id->value-converter (properties/edit-type-id outline-property)))
-        outline-property))))
+        (cond-> outline-property
+                (not (contains? outline-property :prop-kw))
+                (assoc :prop-kw prop-kw))))))
 
 (defmulti ext-get (fn [node-id property ec]
                     [(node-id->type-keyword node-id ec) property]))
@@ -494,7 +496,6 @@
                               :from)]
             #(properties/set-value evaluation-context
                                    outline-property
-                                   (property->prop-kw property)
                                    (from % outline-property execution-context))))
         nil))))
 
