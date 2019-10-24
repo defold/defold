@@ -24,7 +24,7 @@ namespace dmGraphics
         VkBuffer           m_BufferHandle;
         VkDeviceMemory     m_MemoryHandle;
         uint32_t           m_MemorySize : 31; // ~2gb max
-        uint32_t           m_FrameTag   : 1;
+        uint32_t           m_FrameTag   : 2;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
@@ -59,7 +59,7 @@ namespace dmGraphics
         uint16_t       m_OriginalHeight;
         uint16_t       m_MipMapCount         : 8;
         uint16_t       m_TextureSamplerIndex : 7;
-        uint16_t       m_FrameTag            : 1;
+        uint16_t       m_FrameTag            : 2;
     };
 
     struct TextureSampler
