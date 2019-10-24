@@ -356,14 +356,15 @@
     (ensure-spec spec value)))
 
 (defn- resource-converter [node-id-or-path outline-property execution-context]
-  (ensure-spec ::node-id node-id-or-path)
-  (let [{:keys [project evaluation-context]} execution-context
-        node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
-        resource (g/node-value node-id :resource evaluation-context)
-        ext (:ext (properties/property-edit-type outline-property))]
-    (when (seq ext)
-      (ensure-spec (set ext) (resource/type-ext resource)))
-    resource))
+  (ensure-spec (s/or :nothing #{""} :resource ::node-id) node-id-or-path)
+  (when-not (= node-id-or-path "")
+    (let [{:keys [project evaluation-context]} execution-context
+          node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
+          resource (g/node-value node-id :resource evaluation-context)
+          ext (:ext (properties/property-edit-type outline-property))]
+      (when (seq ext)
+        (ensure-spec (set ext) (resource/type-ext resource)))
+      resource)))
 
 (def ^:private edit-type-id->value-converter
   {g/Str {:to identity :from (ensuring-converter string?)}
