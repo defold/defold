@@ -287,7 +287,7 @@
                    [k (persistent! v)]))
             decl))))
 
-(defn- property-edit-type [property]
+(defn property-edit-type [property]
   (or (get property :edit-type)
       {:type (:type property)}))
 
@@ -432,8 +432,8 @@
     (vector? key) (g/update-property node-id prop-kw assoc-in (rest key) new-value)
     :else (g/set-property node-id prop-kw new-value)))
 
-(defn set-value [evaluation-context property prop-kw new-value]
-  (let [{:keys [key value node-id edit-type]} property
+(defn set-value [evaluation-context un-coalesced-property new-value]
+  (let [{:keys [key value node-id edit-type prop-kw]} un-coalesced-property
         set-fn (:set-fn edit-type)
         from-fn (:from-type edit-type identity)
         new-value (from-fn new-value)]

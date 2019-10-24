@@ -120,7 +120,7 @@
 
 (def ^:private ^:dynamic *execution-context*
   "A map with following keys:
-   - `:project-id`
+   - `:project`
    - `:evaluation-context`
    - `:ui` - instance of UI protocol
    - `:request-sync` - volatile with boolean indicating whether extension
@@ -343,16 +343,38 @@
 (defn- node-id->type-keyword [node-id ec]
   (g/node-type-kw (:basis ec) node-id))
 
+(defn- node-id-or-path->node-id [node-id-or-path project evaluation-context]
+  (if (string? node-id-or-path)
+    (let [node-id (project/get-resource-node project node-id-or-path evaluation-context)]
+      (when (nil? node-id)
+        (throw (LuaError. (str node-id-or-path " not found"))))
+      node-id)
+    node-id-or-path))
+
+(defn- ensuring-converter [spec]
+  (fn [value _outline-property _execution-context]
+    (ensure-spec spec value)))
+
+(defn- resource-converter [node-id-or-path outline-property execution-context]
+  (ensure-spec (s/or :nothing #{""} :resource ::node-id) node-id-or-path)
+  (when-not (= node-id-or-path "")
+    (let [{:keys [project evaluation-context]} execution-context
+          node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
+          resource (g/node-value node-id :resource evaluation-context)
+          ext (:ext (properties/property-edit-type outline-property))]
+      (when (seq ext)
+        (ensure-spec (set ext) (resource/type-ext resource)))
+      resource)))
+
 (def ^:private edit-type-id->value-converter
-  {g/Str {:to identity :from #(ensure-spec string? %)}
-   g/Bool {:to identity :from #(ensure-spec boolean? %)}
-   g/Num {:to identity :from #(ensure-spec number? %)}
-   g/Int {:to identity :from #(ensure-spec int? %)}
-   types/Vec2 {:to identity :from #(ensure-spec (s/tuple number? number?) %)}
-   types/Vec3 {:to identity :from #(ensure-spec (s/tuple number? number? number?) %)}
-   types/Vec4 {:to identity :from #(ensure-spec (s/tuple number? number? number? number?) %)}
-   ;; TODO allow setting resources, needs proper validation
-   'editor.resource.Resource {:to resource/proj-path}})
+  {g/Str {:to identity :from (ensuring-converter string?)}
+   g/Bool {:to identity :from (ensuring-converter boolean?)}
+   g/Num {:to identity :from (ensuring-converter number?)}
+   g/Int {:to identity :from (ensuring-converter int?)}
+   types/Vec2 {:to identity :from (ensuring-converter (s/tuple number? number?))}
+   types/Vec3 {:to identity :from (ensuring-converter (s/tuple number? number? number?))}
+   types/Vec4 {:to identity :from (ensuring-converter (s/tuple number? number? number? number?))}
+   'editor.resource.Resource {:to resource/proj-path :from resource-converter}})
 
 (defn- multi-responds? [^MultiFn multi & args]
   (some? (.getMethod multi (apply (.-dispatchFn multi) args))))
@@ -371,7 +393,9 @@
       (when (and outline-property
                  (properties/visible? outline-property)
                  (edit-type-id->value-converter (properties/edit-type-id outline-property)))
-        outline-property))))
+        (cond-> outline-property
+                (not (contains? outline-property :prop-kw))
+                (assoc :prop-kw prop-kw))))))
 
 (defmulti ext-get (fn [node-id property ec]
                     [(node-id->type-keyword node-id ec) property]))
@@ -381,14 +405,6 @@
 
 (defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
   (resource/resource->proj-path (g/node-value node-id :resource ec)))
-
-(defn- node-id-or-path->node-id [node-id-or-path project evaluation-context]
-  (if (string? node-id-or-path)
-    (let [node-id (project/get-resource-node project node-id-or-path evaluation-context)]
-      (when (nil? node-id)
-        (throw (LuaError. (str node-id-or-path " not found"))))
-      node-id)
-    node-id-or-path))
 
 (defn- ext-value-getter [node-id property evaluation-context]
   (if (multi-responds? ext-get node-id property evaluation-context)
@@ -468,26 +484,26 @@
 (defmulti action->batched-executor+input (fn [action _execution-context]
                                            (:action action)))
 
-(defn- ext-value-setter [node-id property evaluation-context]
-  (if (multi-responds? ext-setter node-id property evaluation-context)
-    (ext-setter node-id property evaluation-context)
-    (if-let [outline-property (outline-property node-id property evaluation-context)]
-      (when-not (properties/read-only? outline-property)
-        (when-let [from (-> outline-property
-                            properties/edit-type-id
-                            edit-type-id->value-converter
-                            :from)]
-          #(properties/set-value evaluation-context
-                                 outline-property
-                                 (property->prop-kw property)
-                                 (from %))))
-      nil)))
+(defn- ext-value-setter [node-id property execution-context]
+  (let [{:keys [evaluation-context]} execution-context]
+    (if (multi-responds? ext-setter node-id property evaluation-context)
+      (ext-setter node-id property evaluation-context)
+      (if-let [outline-property (outline-property node-id property evaluation-context)]
+        (when-not (properties/read-only? outline-property)
+          (when-let [from (-> outline-property
+                              properties/edit-type-id
+                              edit-type-id->value-converter
+                              :from)]
+            #(properties/set-value evaluation-context
+                                   outline-property
+                                   (from % outline-property execution-context))))
+        nil))))
 
 (defmethod action->batched-executor+input "set" [action execution-context]
   (let [{:keys [project evaluation-context]} execution-context
         node-id (node-id-or-path->node-id (:node-id action) project evaluation-context)
         property (:property action)
-        setter (ext-value-setter node-id property evaluation-context)]
+        setter (ext-value-setter node-id property execution-context)]
     (if setter
       [transact! (setter (:value action))]
       (throw (LuaError.
@@ -503,7 +519,7 @@
   (ensure-spec-in-api-call "editor.can_set()" string? property)
   (let [{:keys [evaluation-context project]} *execution-context*
         node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)]
-    (some? (ext-value-setter node-id property evaluation-context))))
+    (some? (ext-value-setter node-id property *execution-context*))))
 
 (defn- perform-actions! [actions execution-context]
   (ensure-spec ::actions actions)
