@@ -13,7 +13,9 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def TCursor (s/record Cursor {:row Long :col Long}))
-(def TCursorRange (s/record CursorRange {:from TCursor :to TCursor}))
+(def TCursorRange (s/record CursorRange {:from TCursor
+                                         :to TCursor
+                                         (s/optional-key :dragged) s/Bool}))
 (def TRegion (s/record CursorRange {:from TCursor
                                     :to TCursor
                                     :type s/Keyword
