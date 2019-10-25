@@ -1569,22 +1569,23 @@ void _glfwPlatformPollEvents( void )
         return;
     }
 
+    // check if there are any active special keys, decrease the counter
+    // and release the keys if the counter has reached zero
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    if (view.textkeyActive > 0) {
+        view.textkeyActive = view.textkeyActive - 1;
+        if (view.textkeyActive == 0) {
+            _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
+            _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
+        }
+    }
+
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     SInt32 result;
     do {
         result = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, TRUE);
     } while (result == kCFRunLoopRunHandledSource);
     [pool release];
-
-    EAGLView* view = (EAGLView*) _glfwWin.view;
-    if (view.keyboardActive) {
-        if (view.textkeyActive == 0) {
-            _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
-            _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
-        } else {
-            view.textkeyActive = view.textkeyActive - 1;
-        }
-    }
 }
 
 //========================================================================
@@ -1640,7 +1641,6 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
         default:
             view.keyboardType = UIKeyboardTypeDefault;
     }
-    view.textkeyActive = -1;
     view.autoCloseKeyboard = auto_close;
     if (show) {
         view.keyboardActive = YES;
@@ -1648,6 +1648,13 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     } else {
         view.keyboardActive = NO;
         [_glfwWin.view resignFirstResponder];
+    }
+    // check if there are any active special keys and immediately release
+    // them when the keyboard is manipulated
+    if (view.textkeyActive > 0) {
+        _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
+        _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
+        view.textkeyActive = 0;
     }
 }
 
@@ -1734,4 +1741,3 @@ GLFWAPI void glfwAccelerometerEnable()
     [[UIAccelerometer sharedAccelerometer] setDelegate:_glfwWin.viewController];
     g_AccelerometerEnabled = 1;
 }
-
