@@ -2,23 +2,6 @@
 #include "../../../include/GL/glfw.h"
 #include "internal.h"
 
-// DEPRECATED
-// Notes about the crazy startup
-// In order to have a classic event-loop we must "bail" the built-in event dispatch loop
-// using setjmp/longjmp. Moreover, data must be loaded before applicationDidFinishLaunching
-// is completed as the launch image is removed moments after applicationDidFinishLaunching finish.
-// It's also imperative that applicationDidFinishLaunching completes entirely. If not, the launch image
-// isn't removed as the startup sequence isn't completed properly. Something that complicates this matter
-// is that it isn't allowed to longjmp in a setjmp as the stack is squashed. By allocating a lot
-// of stack *before* UIApplicationMain is invoked we can be quite confident that stack used by UIApplicationMain
-// and descendants is kept intact. This is a crazy hack but we don't have much of a choice. Only
-// alternative is to modify glfw to have a structure similar to Cocoa Touch.
-
-// Additionally we postpone startup sequence until we have swapped gl-buffers twice in
-// order to avoid black screen between launch image and game content.
-
-
-
 extern int g_IsReboot;
 
 EAGLContext* g_glContext = nil;
@@ -242,29 +225,7 @@ EAGLContext* g_glAuxContext = nil;
     // have an active context (context is set to nil when view is deallocated)
     [EAGLContext setCurrentContext: glView.context];
 
-    NSLog(@"INFO:GLFW: iOS SDK Version: %g", [[[UIDevice currentDevice] systemVersion] floatValue]);
-
-    printf("viewDidAppear before super\n");
-
     [super viewDidAppear: animated];
-
-
-    printf("viewDidAppear after super\n");
-
-
-    NSArray *items = @[[NSString stringWithUTF8String:"foobar"]];
-    UIActivityViewController *controller = [[UIActivityViewController alloc]initWithActivityItems:items applicationActivities:nil];
-    controller.modalPresentationStyle = UIModalPresentationFullScreen;
-    printf("presentViewController\n");
-    [self presentViewController:controller animated:YES completion:NULL];
-
-    //printf("g_StartupPhase %d  == %d\n", g_StartupPhase, INIT2);
-
-    // if (g_StartupPhase == INIT2) {
-    //     longjmp(bailEventLoopBuf, 1);
-    // }
-
-    printf("viewDidAppear end\n");
 }
 
 - (void)viewDidUnload
@@ -289,7 +250,6 @@ EAGLContext* g_glAuxContext = nil;
 
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
 {
-
 }
 
 -(BOOL)shouldAutorotate{
@@ -322,6 +282,5 @@ EAGLContext* g_glAuxContext = nil;
     return UIRectEdgeAll;
 }
 
-@end // ViewController
+@end
 
-// Application delegate

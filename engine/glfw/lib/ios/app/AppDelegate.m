@@ -6,26 +6,10 @@
 
 int g_IsReboot = 0;
 
-// extern enum StartupPhase    g_StartupPhase;
-// extern jmp_buf              bailEventLoopBuf;
-// extern jmp_buf              finishInitBuf;
-
 @implementation AppDelegate
-
-// int g_AppDelegatesCount = 0;
-// const int MAX_APP_DELEGATES = 8;
-// id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
-// id<UIApplicationDelegate> g_ApplicationDelegate = 0;
-
 
 UIWindow*           g_ApplicationWindow = 0;
 AppDelegate*        g_AppDelegate = 0;
-
-// AppStartedCallback  g_EngineStartedFn = 0;
-// void*               g_EngineStartedContext = 0;
-// WindowStepMethod    g_EngineStepFn = 0;
-// WindowIsRunning     g_EngineIsRunningFn = 0;
-// void*               g_EngineRunContext = 0;
 
 _GLFWwin            g_Savewin;
 
@@ -128,16 +112,6 @@ char**  g_Argv = 0;
         }
     }
 
-    // if (!setjmp(finishInitBuf))
-    // {
-    //     g_StartupPhase = INIT1;
-    //     longjmp(bailEventLoopBuf, 1);
-    // }
-    // else
-    // {
-    //     g_StartupPhase = INIT2;
-    // }
-
     BOOL handled = NO;
 
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
@@ -213,7 +187,6 @@ char**  g_Argv = 0;
 
 @end
 
-
 void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn)
 {
     g_EngineCreateFn = create_fn;
@@ -227,25 +200,3 @@ void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestr
     int retVal = UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
     (void) retVal;
 }
-
-// static void Sleep(uint32_t useconds)
-// {
-// #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-//     usleep(useconds);
-// #elif defined(_WIN32)
-//     ::Sleep(useconds / 1000);
-// #else
-// #error "Unsupported platform"
-// #endif
-// }
-
-// void glfwRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-// {
-//     g_EngineRunContext = user_data;
-//     g_EngineStepFn = step_method;
-//     g_EngineIsRunningFn = is_running;
-
-//     while (g_EngineIsRunningFn(g_EngineRunContext)) {
-//         Sleep(100);
-//     }
-// }

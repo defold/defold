@@ -1,9 +1,5 @@
 #import <UIKit/UIKit.h>
 
-//************************************************************************
-//****               Platform implementation functions                ****
-//************************************************************************
-
 @interface IndexedPosition : UITextPosition {
     NSUInteger _index;
 }

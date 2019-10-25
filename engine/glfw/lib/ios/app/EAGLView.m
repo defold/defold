@@ -12,8 +12,6 @@
  *   See TN2244 for more information
  */
 
-
-
 #include "EAGLView.h"
 #import "TextUtil.h"
 #import "AppDelegate.h"
@@ -101,7 +99,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 {
     self.multipleTouchEnabled = YES;
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    //_glfwWin.view = self;
     g_EAGLView = self;
     if ((self = [super initWithFrame:frame]))
     {
@@ -128,10 +125,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         _glfwInput.Touch[i].Reference = 0x0;
         _glfwInput.Touch[i].Phase = GLFW_PHASE_IDLE;
     }
-
-    // // Let the engine know it's started
-    // printf("MAWE: g_EngineStartedFn\n");
-    // g_EngineStartedFn(g_EngineStartedContext);
 
     return self;
 }
@@ -271,41 +264,15 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)swapBuffers
 {
-    //NSLog(@"swapBuffers");
-    //if (g_StartupPhase == COMPLETE) {
-    //     // Do not poll event before startup sequence is completed
-    //     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    //     while (countDown > 0)
-    //     {
-    //         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, TRUE);
-    //     }
-    //     [pool release];
-
-    //     countDown = swapInterval;
-    // //}
-
-    //g_SwapCount++;
-
-    // NOTE: We poll events above and the application might be iconfied
-    // At least when running in frame-rates < 60
-    //if (!_glfwWin.iconified && g_StartupPhase == COMPLETE)
     if (_glfwWin.iconified)
         return;
 
-    {
-        // if (!g_EngineIsRunningFn(g_EngineRunContext)) {
-        //     NSLog(@"Exiting app!");
-        //     [[NSThread mainThread] exit];
-        // }
-        //g_EngineStepFn(g_EngineRunContext);
+    const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
+    glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
+    glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
 
-        const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
-        glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
-        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
-
-        glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
-        [context presentRenderbuffer:GL_RENDERBUFFER];
-    }
+    glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
+    [context presentRenderbuffer:GL_RENDERBUFFER];
 }
 
 - (void)newFrame
@@ -637,10 +604,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &backingWidth);
     glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &backingHeight);
 
-    // _glfwWin.width = backingWidth;
-    // _glfwWin.height = backingHeight;
-    // _glfwWin.frameBuffer = viewFramebuffer;
-
     if (_glfwWin.windowSizeCallback)
     {
         _glfwWin.windowSizeCallback( backingWidth, backingHeight );
@@ -854,7 +817,6 @@ void _glfwPlatformPollEvents( void )
     }
 }
 
-
 int _glfwPlatformGetWindowRefreshRate( void )
 {
     EAGLView* view = (EAGLView*) _glfwWin.view;
@@ -884,6 +846,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     // The desired orientation might have changed when rebooting to a new game
     g_Savewin.portrait = _glfwWin.portrait;
 
+// TODO: Do we still need this after the rewrite?
     /*
      * This is somewhat of a hack. We can't recreate the application here.
      * Instead we reinit the app and return and keep application and windows as is
@@ -893,7 +856,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     // if (app)
     // {
     //     printf("_glfwPlatformOpenWindow calling reinit");
-    //     [g_ApplicationDelegate reinit: app];
+    //     [g_AppDelegate reinit: app];
     //     return GL_TRUE;
     // }
 
@@ -907,30 +870,5 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.aux_context = g_glAuxContext;
 
     _glfwWin.frameBuffer = [g_EAGLView getViewFramebuffer];
-
-    /*
-     * NOTE:
-     * We ignore the following
-     * wndconfig->*
-     * fbconfig->*
-     */
-
-    // const int stack_size = 1 << 18;
-    // // // Store stack pointer in a global variable.
-    // // // Otherwise the allocated stack might be removed by the optimizer
-    // g_ReservedStack = alloca(stack_size);
-
-    //     printf("_glfwPlatformOpenWindow setting bailEventLoopBuf");
-    // if (!setjmp(_glfwWin.bailEventLoopBuf) )
-    // {
-    //     char* argv[] = { "dummy" };
-    //     int retVal = UIApplicationMain(1, argv, nil, @"AppDelegate");
-    //     (void) retVal;
-    // }
-    // else
-    // {
-    // }
-
-    printf("_glfwPlatformOpenWindow exiting\n");
     return GL_TRUE;
 }
