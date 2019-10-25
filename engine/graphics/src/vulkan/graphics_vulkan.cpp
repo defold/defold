@@ -115,7 +115,9 @@ namespace dmGraphics
         uint32_t                 m_CurrentFrameInFlight : 1;
         uint32_t                 m_WindowOpened         : 1;
         uint32_t                 m_VerifyGraphicsCalls  : 1;
-        uint32_t                 : 28;
+        uint32_t                 m_ViewportChanged      : 1;
+        uint32_t                 m_CullFaceChanged      : 1;
+        uint32_t                 : 26;
     } *g_Context = 0;
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -387,11 +389,11 @@ namespace dmGraphics
         context->m_CurrentRenderTarget->m_IsBound = 1;
     }
 
-    static VkResult AllocateDepthStencilTexture(HContext context, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
+    static void GetDepthFormatAndTiling(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_list, uint8_t vk_format_list_size, VkFormat* vk_format_out, VkImageTiling* vk_tiling_out)
     {
         // Depth formats are optional, so we need to query
         // what available formats we have.
-        VkFormat vk_format_list_default[] = {
+        const VkFormat vk_format_list_default[] = {
             VK_FORMAT_D32_SFLOAT_S8_UINT,
             VK_FORMAT_D32_SFLOAT,
             VK_FORMAT_D24_UNORM_S8_UINT,
@@ -399,21 +401,30 @@ namespace dmGraphics
             VK_FORMAT_D16_UNORM
         };
 
-        const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
-        const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
-        const size_t vk_format_list_size          = sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
+        const VkFormat* vk_formats_to_test = vk_format_list != 0x0 ? vk_format_list : vk_format_list_default;
+        uint8_t vk_formats_to_test_size = vk_format_list != 0x0 ? vk_format_list_size : sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
 
-        // Check format support
+        // Check if we can use optimal tiling for this format, otherwise
+        // we try to find the best format that supports linear
         VkImageTiling vk_image_tiling = VK_IMAGE_TILING_OPTIMAL;
-        VkFormat vk_depth_format      = GetSupportedTilingFormat(vk_physical_device, &vk_format_list_default[0],
-            vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+        VkFormat vk_depth_format      = GetSupportedTilingFormat(vk_physical_device, &vk_formats_to_test[0],
+            vk_formats_to_test_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
         if (vk_depth_format == VK_FORMAT_UNDEFINED)
         {
             vk_image_tiling = VK_IMAGE_TILING_LINEAR;
-            vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_format_list_default[0],
-                vk_format_list_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+            vk_depth_format = GetSupportedTilingFormat(vk_physical_device, &vk_formats_to_test[0],
+                vk_formats_to_test_size, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
         }
+
+        *vk_format_out = vk_depth_format;
+        *vk_tiling_out = vk_image_tiling;
+    }
+
+    static VkResult CreateDepthStencilTexture(HContext context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
+    {
+        const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
+        const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
 
         // The aspect flag indicates what the image should be used for,
         // it is usually color or stencil | depth.
@@ -426,7 +437,7 @@ namespace dmGraphics
         }
 
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
-            vk_depth_format, vk_image_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depthStencilTextureOut);
         CHECK_VK_ERROR(res);
 
@@ -483,8 +494,12 @@ namespace dmGraphics
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
         // Create depth/stencil buffer
+        VkFormat vk_depth_format;
+        VkImageTiling vk_depth_tiling;
+        GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
         memset(&context->m_MainTextureDepthStencil, 0, sizeof(context->m_MainTextureDepthStencil));
-        VkResult res = AllocateDepthStencilTexture(context,
+        VkResult res = CreateDepthStencilTexture(context,
+            vk_depth_format, vk_depth_tiling,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             &context->m_MainTextureDepthStencil);
@@ -581,7 +596,11 @@ namespace dmGraphics
 
         // Reset & create main Depth/Stencil buffer
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
-        res = AllocateDepthStencilTexture(context,
+        VkFormat vk_depth_format;
+        VkImageTiling vk_depth_tiling;
+        GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
+        res = CreateDepthStencilTexture(context,
+            vk_depth_format, vk_depth_tiling,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             &context->m_MainTextureDepthStencil);
@@ -1371,8 +1390,9 @@ bail:
             memset(&new_pipeline, 0, sizeof(new_pipeline));
 
             VkRect2D vk_scissor;
-            memset(&vk_scissor, 0, sizeof(vk_scissor));
-            vk_scissor.extent = g_Context->m_SwapChain->m_ImageExtent;
+            vk_scissor.extent   = rt->m_Extent;
+            vk_scissor.offset.x = 0;
+            vk_scissor.offset.y = 0;
 
             VkResult res = CreatePipeline(vk_device, vk_scissor, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
             CHECK_VK_ERROR(res);
@@ -1921,6 +1941,49 @@ bail:
             program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, context->m_DynamicOffsetBufferSize, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
+        // If the culling, or viewport has changed, make sure to flip the
+        // culling flag if we are rendering to the backbuffer.
+        // This is needed because we are rendering with a negative viewport
+        // which means that the face direction is inverted.
+        if (context->m_CullFaceChanged || context->m_ViewportChanged)
+        {
+            if (context->m_CurrentRenderTarget->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_BACK)
+                {
+                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_FRONT;
+                }
+                else if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT)
+                {
+                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
+                }
+            }
+
+            context->m_CullFaceChanged = 0;
+        }
+
+        // Update the viewport
+        if (context->m_ViewportChanged)
+        {
+            Viewport& vp = context->m_MainViewport;
+
+            // If we are rendering to the backbuffer, we must invert the viewport on
+            // the y axis. Otherwise we just use the values as-is.
+            // If we don't, all FBO rendering will be upside down.
+            if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+                    vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
+            }
+            else
+            {
+                SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+                    vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
+            }
+
+            context->m_ViewportChanged = 0;
+        }
+
         // Get the pipeline for the active draw state
         Pipeline* pipeline = GetOrCreatePipeline(vk_device,
             context->m_PipelineState, context->m_PipelineCache,
@@ -1947,34 +2010,6 @@ bail:
         VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_BufferHandle;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
-
-        // Update the viewport
-        if (context->m_MainViewport.m_HasChanged)
-        {
-            Viewport& vp = context->m_MainViewport;
-
-            // Update scissor
-            VkRect2D vk_scissor;
-            memset(&vk_scissor, 0, sizeof(vk_scissor));
-            vk_scissor.extent = context->m_SwapChain->m_ImageExtent;
-            vkCmdSetScissor(vk_command_buffer, 0, 1, &vk_scissor);
-
-            // If we are rendering to the backbuffer, we must invert the viewport on
-            // the y axis. Otherwise we just use the values as-is.
-            // If we don't, all FBO rendering will be upside down.
-            if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-            {
-                SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
-                    vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
-            }
-            else
-            {
-                SetViewportHelper(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
-                    vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
-            }
-
-            vp.m_HasChanged = 0;
-        }
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -2534,30 +2569,77 @@ bail:
         // depending on wether or not we have set a different rendertarget from when
         // this call was made.
         Viewport& viewport    = context->m_MainViewport;
-        viewport.m_HasChanged = 1;
         viewport.m_X          = (uint16_t) x;
         viewport.m_Y          = (uint16_t) y;
         viewport.m_W          = (uint16_t) width;
         viewport.m_H          = (uint16_t) height;
+
+        context->m_ViewportChanged = 1;
+    }
+
+    static inline void SetStateValue(PipelineState& pipeline_state, State state, uint8_t value)
+    {
+        if (state == STATE_DEPTH_TEST)
+        {
+            pipeline_state.m_DepthTestEnabled = value;
+        }
+        else if (state == STATE_STENCIL_TEST)
+        {
+            pipeline_state.m_StencilEnabled = value;
+        }
+        else if (state == STATE_BLEND)
+        {
+            pipeline_state.m_BlendEnabled = value;
+        }
+        else if (state == STATE_CULL_FACE)
+        {
+            pipeline_state.m_CullFaceEnabled = value;
+        }
+        else
+        {
+            assert(0 && "EnableState: State not supported");
+        }
     }
 
     void EnableState(HContext context, State state)
-    {}
+    {
+        assert(context);
+        SetStateValue(context->m_PipelineState, state, 1);
+    }
 
     void DisableState(HContext context, State state)
-    {}
+    {
+        assert(context);
+        SetStateValue(context->m_PipelineState, state, 0);
+    }
 
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
-    {}
+    {
+        assert(context);
+        context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
+    }
 
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
-    {}
+    {
+        assert(context);
+        uint8_t write_mask = red   ? DMGRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DMGRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DMGRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DMGRAPHICS_STATE_WRITE_A : 0;
+
+        context->m_PipelineState.m_WriteColorMask = write_mask;
+    }
 
     void SetDepthMask(HContext context, bool mask)
-    {}
+    {
+        context->m_PipelineState.m_WriteDepth = mask;
+    }
 
     void SetDepthFunc(HContext context, CompareFunc func)
-    {}
+    {
+        context->m_PipelineState.m_DepthTestFunc = func;
+    }
 
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
@@ -2568,44 +2650,243 @@ bail:
     }
 
     void SetStencilMask(HContext context, uint32_t mask)
-    {}
+    {
+        context->m_PipelineState.m_StencilWriteMask = mask;
+    }
 
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
-    {}
+    {
+        assert(context);
+        context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+    }
 
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
-    {}
+    {
+        assert(context);
+        context->m_PipelineState.m_StencilOpFail      = sfail;
+        context->m_PipelineState.m_StencilOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilOpPass      = dppass;
+    }
 
     void SetCullFace(HContext context, FaceType face_type)
-    {}
+    {
+        assert(context);
+        context->m_PipelineState.m_CullFaceType = face_type;
+        context->m_CullFaceChanged              = true;
+    }
 
     void SetPolygonOffset(HContext context, float factor, float units)
     {}
 
+    static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format)
+    {
+        // Reference: https://github.com/KhronosGroup/Vulkan-Samples-Deprecated/blob/master/external/include/vulkan/vk_format.h
+        assert(format <= TEXTURE_FORMAT_COUNT);
+        const VkFormat conversion_table[] = {
+            VK_FORMAT_R8_UNORM,                    // TEXTURE_FORMAT_LUMINANCE
+            VK_FORMAT_R8G8_UNORM,                  // TEXTURE_FORMAT_LUMINANCE_ALPHA
+            VK_FORMAT_R8G8B8_UNORM,                // TEXTURE_FORMAT_RGB
+            VK_FORMAT_R8G8B8A8_UNORM,              // TEXTURE_FORMAT_RGBA
+            VK_FORMAT_R16G16B16_UNORM,             // TEXTURE_FORMAT_RGB_16BPP
+            VK_FORMAT_R16G16B16A16_UNORM,          // TEXTURE_FORMAT_RGBA_16BPP
+            VK_FORMAT_BC1_RGB_UNORM_BLOCK,         // TEXTURE_FORMAT_RGB_DXT1
+            VK_FORMAT_BC1_RGBA_UNORM_BLOCK,        // TEXTURE_FORMAT_RGBA_DXT1
+            VK_FORMAT_BC3_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT3
+            VK_FORMAT_BC2_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT5
+            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_DEPTH
+            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_STENCIL
+            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+            VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,     // TEXTURE_FORMAT_RGB_ETC1
+            VK_FORMAT_R16G16B16_SFLOAT,            // TEXTURE_FORMAT_RGB16F
+            VK_FORMAT_R32G32B32_SFLOAT,            // TEXTURE_FORMAT_RGB32F
+            VK_FORMAT_R16G16B16A16_SFLOAT,         // TEXTURE_FORMAT_RGBA16F
+            VK_FORMAT_R32G32B32A32_SFLOAT,         // TEXTURE_FORMAT_RGBA32F
+            VK_FORMAT_R16_SFLOAT,                  // TEXTURE_FORMAT_R16F
+            VK_FORMAT_R16G16_SFLOAT,               // TEXTURE_FORMAT_RG16F
+            VK_FORMAT_R32_SFLOAT,                  // TEXTURE_FORMAT_R32F
+            VK_FORMAT_R32G32_SFLOAT,               // TEXTURE_FORMAT_RG32F
+            VK_FORMAT_UNDEFINED                    // TEXTURE_FORMAT_COUNT
+        };
+
+        return conversion_table[format];
+    }
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        return new RenderTarget(GetNextRenderTargetId());
+        assert(context);
+        RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
+        memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
+
+        uint8_t has_color   = buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT;
+        uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+        uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+
+        // don't save the data
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            rt->m_BufferTextureParams[i].m_Data     = 0x0;
+            rt->m_BufferTextureParams[i].m_DataSize = 0;
+        }
+
+        RenderPassAttachment  rp_attachments[2];
+        RenderPassAttachment* rp_attachment_color         = 0;
+        RenderPassAttachment* rp_attachment_depth_stencil = 0;
+
+        VkImageView fb_attachments[2];
+        uint16_t    fb_attachment_count = 0;
+        uint16_t    fb_width  = 0;
+        uint16_t    fb_height = 0;
+
+        if(has_color)
+        {
+            uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
+            fb_width  = params[color_buffer_index].m_Width;
+            fb_height = params[color_buffer_index].m_Height;
+
+            rp_attachment_color = &rp_attachments[0];
+            rp_attachment_color->m_ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            rp_attachment_color->m_Format      = GetVulkanFormatFromTextureFormat(params[color_buffer_index].m_Format);
+
+            Texture* texture_color = NewTexture(context, creation_params[color_buffer_index]);
+            VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount, rp_attachment_color->m_Format,
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
+            CHECK_VK_ERROR(res);
+
+            fb_attachments[fb_attachment_count++] = texture_color->m_ImageView;
+            rt->m_TextureColor = texture_color;
+        }
+
+        if(has_depth || has_stencil)
+        {
+            VkFormat vk_depth_stencil_format = VK_FORMAT_UNDEFINED;
+            VkImageTiling vk_depth_tiling    = VK_IMAGE_TILING_OPTIMAL;
+
+            uint8_t depth_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+            uint16_t depth_width       = params[depth_buffer_index].m_Width;
+            uint16_t depth_height      = params[depth_buffer_index].m_Height;
+
+            if (!has_color)
+            {
+                fb_width  = depth_width;
+                fb_height = depth_height;
+            }
+
+            // Only try depth formats first
+            if (has_depth && !has_stencil)
+            {
+                VkFormat vk_format_list[] = {
+                    VK_FORMAT_D32_SFLOAT,
+                    VK_FORMAT_D16_UNORM
+                };
+
+                uint8_t vk_format_list_size = sizeof(vk_format_list) / sizeof(vk_format_list[2]);
+                GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, vk_format_list, vk_format_list_size, &vk_depth_stencil_format, &vk_depth_tiling);
+            }
+
+            // If we request both depth & stencil OR test above failed,
+            // try with default depth stencil formats
+            if (vk_depth_stencil_format == VK_FORMAT_UNDEFINED)
+            {
+                GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
+            }
+
+            rp_attachment_depth_stencil                = &rp_attachments[1];
+            rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            rp_attachment_depth_stencil->m_Format      = vk_depth_stencil_format;
+
+            Texture* texture_depth_stencil = NewTexture(context, creation_params[depth_buffer_index]);
+            VkResult res = CreateDepthStencilTexture(context,
+                vk_depth_stencil_format, vk_depth_tiling,
+                fb_width, fb_height, texture_depth_stencil);
+            CHECK_VK_ERROR(res);
+
+            fb_attachments[fb_attachment_count++] = texture_depth_stencil->m_ImageView;
+            rt->m_TextureDepthStencil = texture_depth_stencil;
+        }
+        VkResult res = CreateRenderPass(context->m_LogicalDevice.m_Device, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, &rt->m_RenderPass);
+        CHECK_VK_ERROR(res);
+
+        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rt->m_RenderPass,
+            fb_width, fb_height, fb_attachments, fb_attachment_count, &rt->m_Framebuffer);
+        CHECK_VK_ERROR(res);
+
+        VkResult CreateRenderPass(VkDevice vk_device,
+        RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
+        RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
+
+        rt->m_Extent.width  = fb_width;
+        rt->m_Extent.height = fb_height;
+
+        return rt;
     }
 
     void DeleteRenderTarget(HRenderTarget render_target)
     {
+        assert(render_target);
+        if (render_target->m_TextureColor)
+        {
+            DeleteTexture(render_target->m_TextureColor);
+        }
+
+        if (render_target->m_TextureDepthStencil)
+        {
+            DeleteTexture(render_target->m_TextureDepthStencil);
+        }
+
+        DestroyRenderTarget(&g_Context->m_LogicalDevice, render_target);
+
         delete render_target;
     }
 
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
-    {}
+    {
+        (void) transient_buffer_types;
+        assert(context);
+        context->m_ViewportChanged = 1;
+        BeginRenderPass(context, render_target != 0x0 ? render_target : &context->m_MainRenderTarget);
+    }
 
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        return 0;
+        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
+            return 0;
+
+        return (HTexture) render_target->m_TextureColor;
     }
 
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {}
+    {
+        assert(render_target);
+        uint32_t i = GetBufferTypeIndex(buffer_type);
+        assert(i < MAX_BUFFER_TYPE_COUNT);
+        width  = render_target->m_BufferTextureParams[i].m_Width;
+        height = render_target->m_BufferTextureParams[i].m_Height;
+    }
 
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
-    {}
+    {
+        /*
+        assert(render_target);
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            render_target->m_BufferTextureParams[i].m_Width = width;
+            render_target->m_BufferTextureParams[i].m_Height = height;
+            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT))
+            {
+                if(render_target->m_ColorBufferTexture)
+                    SetTexture(render_target->m_ColorBufferTexture, render_target->m_BufferTextureParams[i]);
+            }
+        }
+        SetDepthStencilRenderBuffer(render_target, true);
+        */
+    }
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
@@ -2640,42 +2921,6 @@ bail:
     {
         DestroyTextureDeferred(g_Context, t);
         delete t;
-    }
-
-    VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format)
-    {
-        // Reference: https://github.com/KhronosGroup/Vulkan-Samples-Deprecated/blob/master/external/include/vulkan/vk_format.h
-        assert(format <= TEXTURE_FORMAT_COUNT);
-        const VkFormat conversion_table[] = {
-            VK_FORMAT_R8_UNORM,                    // TEXTURE_FORMAT_LUMINANCE
-            VK_FORMAT_R8G8_UNORM,                  // TEXTURE_FORMAT_LUMINANCE_ALPHA
-            VK_FORMAT_R8G8B8_UNORM,                // TEXTURE_FORMAT_RGB
-            VK_FORMAT_R8G8B8A8_UNORM,              // TEXTURE_FORMAT_RGBA
-            VK_FORMAT_R16G16B16_UNORM,             // TEXTURE_FORMAT_RGB_16BPP
-            VK_FORMAT_R16G16B16A16_UNORM,          // TEXTURE_FORMAT_RGBA_16BPP
-            VK_FORMAT_BC1_RGB_UNORM_BLOCK,         // TEXTURE_FORMAT_RGB_DXT1
-            VK_FORMAT_BC1_RGBA_UNORM_BLOCK,        // TEXTURE_FORMAT_RGBA_DXT1
-            VK_FORMAT_BC3_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT3
-            VK_FORMAT_BC2_UNORM_BLOCK,             // TEXTURE_FORMAT_RGBA_DXT5
-            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_DEPTH
-            VK_FORMAT_UNDEFINED,                   // TEXTURE_FORMAT_STENCIL
-            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-            VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
-            VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG, // TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
-            VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,     // TEXTURE_FORMAT_RGB_ETC1
-            VK_FORMAT_R16G16B16_SFLOAT,            // TEXTURE_FORMAT_RGB16F
-            VK_FORMAT_R32G32B32_SFLOAT,            // TEXTURE_FORMAT_RGB32F
-            VK_FORMAT_R16G16B16A16_SFLOAT,         // TEXTURE_FORMAT_RGBA16F
-            VK_FORMAT_R32G32B32A32_SFLOAT,         // TEXTURE_FORMAT_RGBA32F
-            VK_FORMAT_R16_SFLOAT,                  // TEXTURE_FORMAT_R16F
-            VK_FORMAT_R16G16_SFLOAT,               // TEXTURE_FORMAT_RG16F
-            VK_FORMAT_R32_SFLOAT,                  // TEXTURE_FORMAT_R32F
-            VK_FORMAT_R32G32_SFLOAT,               // TEXTURE_FORMAT_RG32F
-            VK_FORMAT_UNDEFINED                    // TEXTURE_FORMAT_COUNT
-        };
-
-        return conversion_table[format];
     }
 
     static inline uint32_t GetOffsetFromMipmap(Texture* texture, uint8_t mipmap)

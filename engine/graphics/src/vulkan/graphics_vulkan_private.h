@@ -119,12 +119,20 @@ namespace dmGraphics
     struct RenderTarget
     {
         RenderTarget(const uint32_t rtId)
-        : m_RenderPass(VK_NULL_HANDLE)
+        : m_TextureColor(0)
+        , m_TextureDepthStencil(0)
+        , m_RenderPass(VK_NULL_HANDLE)
         , m_Framebuffer(VK_NULL_HANDLE)
         , m_Id(rtId)
         , m_IsBound(0)
-        {}
+        {
+            m_Extent.width  = 0;
+            m_Extent.height = 0;
+        }
 
+        Texture*       m_TextureColor;
+        Texture*       m_TextureDepthStencil;
+        TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         VkRenderPass   m_RenderPass;
         VkFramebuffer  m_Framebuffer;
         VkExtent2D     m_Extent;
@@ -139,8 +147,6 @@ namespace dmGraphics
         uint16_t m_Y;
         uint16_t m_W;
         uint16_t m_H;
-        uint8_t  m_HasChanged : 1;
-        uint8_t               : 7; // unused
     };
 
     struct FrameResource
@@ -367,7 +373,7 @@ namespace dmGraphics
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
     bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
     QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
-    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
+    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,

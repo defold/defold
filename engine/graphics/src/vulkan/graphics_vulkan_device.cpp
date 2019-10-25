@@ -140,7 +140,7 @@ namespace dmGraphics
     // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
     // Optimal is always sought after since it should be the most performant (depending on hardware),
     // but is not always supported.
-    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
+    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags)
     {
         for (uint32_t i=0; i < vk_num_format_candidates; i++)
@@ -858,8 +858,7 @@ bail:
         const VkDynamicState vk_dynamic_states[] =
         {
             VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_STENCIL_REFERENCE,
-            VK_DYNAMIC_STATE_SCISSOR
+            VK_DYNAMIC_STATE_STENCIL_REFERENCE
         };
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
