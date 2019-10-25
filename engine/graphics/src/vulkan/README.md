@@ -1,5 +1,16 @@
 # Vulkan
 
+## Updating the packages
+
+* Current SDK version of Vulkan packages is 1.1.108
+
+The Vulkan packages are not built from source so update the packages must be done manually.
+The current procedure is to first go to the official SDK site (https://vulkan.lunarg.com/sdk/home) and
+download the bundles for each available platform. Copy the appropriate library files from within the SDK and make
+a tar ball as usual per platform. Make a common package for the headers - these can usually be taken from any of the SDKs.
+
+* Android - the Vulkan SDK is distributed with the NDK, so it should already be available on that platform.
+
 ## Enabling validation Layers
 
 To enable validation layers, set the environment variable `DM_VULKAN_VALIDATION=1`.
@@ -41,13 +52,9 @@ export VK_LAYER_PATH=$VULKAN_SDK/macOs/etc/vulkan/explicit_layer.d
 export LD_LIBRARY_PATH=$VULKAN_SDK/macOS/lib/
 ```
 
-## Updating the packages
+## Windows
 
-* Current SDK version of Vulkan packages is 1.1.108
-
-The Vulkan packages are not built from source so update the packages must be done manually.
-The current procedure is to first go to the official SDK site (https://vulkan.lunarg.com/sdk/home) and
-download the bundles for each available platform. Copy the appropriate library files from within the SDK and make
-a tar ball as usual per platform. Make a common package for the headers - these can usually be taken from any of the SDKs.
-
-* Android - the Vulkan SDK is distributed with the NDK, so it should already be available on that platform.
+To enable validation for Windows, you need to install the Vulkan SDK at (https://vulkan.lunarg.com/sdk/home#windows).
+Make sure to install the same version as we are currently using in the engine, although it will probably work with a newer
+version aswell. The SDK will add entries into the registry so that the loader can find the validation layer libraries from
+the SDK.
