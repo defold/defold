@@ -554,24 +554,25 @@ namespace dmGraphics
 
         // Create default pipeline state
         PipelineState vk_default_pipeline;
-        vk_default_pipeline.m_WriteColorMask     = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
-        vk_default_pipeline.m_WriteDepth         = 1;
-        vk_default_pipeline.m_PrimtiveType       = PRIMITIVE_TRIANGLES;
-        vk_default_pipeline.m_DepthTestEnabled   = 1;
-        vk_default_pipeline.m_DepthTestFunc      = COMPARE_FUNC_LEQUAL;
-        vk_default_pipeline.m_BlendEnabled       = 0;
-        vk_default_pipeline.m_BlendSrcFactor     = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_BlendDstFactor     = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_StencilEnabled     = 0;
-        vk_default_pipeline.m_StencilOpFail      = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpDepthFail = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpPass      = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilTestFunc    = COMPARE_FUNC_ALWAYS;
-        vk_default_pipeline.m_StencilWriteMask   = 0xff;
-        vk_default_pipeline.m_StencilCompareMask = 0xff;
-        vk_default_pipeline.m_StencilReference   = 0x0;
-        vk_default_pipeline.m_CullFaceEnabled    = 0;
-        vk_default_pipeline.m_CullFaceType       = FACE_TYPE_BACK;
+        vk_default_pipeline.m_WriteColorMask           = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
+        vk_default_pipeline.m_WriteDepth               = 1;
+        vk_default_pipeline.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
+        vk_default_pipeline.m_DepthTestEnabled         = 1;
+        vk_default_pipeline.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        vk_default_pipeline.m_BlendEnabled             = 0;
+        vk_default_pipeline.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
+        vk_default_pipeline.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
+        vk_default_pipeline.m_StencilEnabled           = 0;
+        vk_default_pipeline.m_StencilOpFail            = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilOpDepthFail       = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilOpPass            = STENCIL_OP_KEEP;
+        vk_default_pipeline.m_StencilTestFunc          = COMPARE_FUNC_ALWAYS;
+        vk_default_pipeline.m_StencilWriteMask         = 0xff;
+        vk_default_pipeline.m_StencilCompareMask       = 0xff;
+        vk_default_pipeline.m_StencilReference         = 0x0;
+        vk_default_pipeline.m_CullFaceEnabled          = 0;
+        vk_default_pipeline.m_CullFaceType             = FACE_TYPE_BACK;
+        vk_default_pipeline.m_PolygonOffsetFillEnabled = 0;
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
@@ -2595,6 +2596,10 @@ bail:
         {
             pipeline_state.m_CullFaceEnabled = value;
         }
+        else if (state == STATE_POLYGON_OFFSET_FILL)
+        {
+            pipeline_state.m_PolygonOffsetFillEnabled = value;
+        }
         else
         {
             assert(0 && "EnableState: State not supported");
@@ -2678,7 +2683,11 @@ bail:
     }
 
     void SetPolygonOffset(HContext context, float factor, float units)
-    {}
+    {
+        assert(context);
+        vkCmdSetDepthBias(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+            factor, 0.0, units);
+    }
 
     static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format)
     {
@@ -2872,7 +2881,6 @@ bail:
 
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        /*
         assert(render_target);
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
@@ -2880,12 +2888,16 @@ bail:
             render_target->m_BufferTextureParams[i].m_Height = height;
             if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT))
             {
-                if(render_target->m_ColorBufferTexture)
-                    SetTexture(render_target->m_ColorBufferTexture, render_target->m_BufferTextureParams[i]);
+                if(render_target->m_TextureColor)
+                {
+                    SetTexture(render_target->m_TextureColor, render_target->m_BufferTextureParams[i]);
+                }
             }
         }
-        SetDepthStencilRenderBuffer(render_target, true);
-        */
+
+        if (render_target->m_TextureDepthStencil)
+        {
+        }
     }
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)

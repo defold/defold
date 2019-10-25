@@ -199,29 +199,31 @@ namespace dmGraphics
     {
         struct
         {
-            uint64_t m_WriteColorMask     : 4;
-            uint64_t m_WriteDepth         : 1;
-            uint64_t m_PrimtiveType       : 3;
+            uint64_t m_WriteColorMask           : 4;
+            uint64_t m_WriteDepth               : 1;
+            uint64_t m_PrimtiveType             : 3;
             // Depth Test
-            uint64_t m_DepthTestEnabled   : 1;
-            uint64_t m_DepthTestFunc      : 3;
+            uint64_t m_DepthTestEnabled         : 1;
+            uint64_t m_DepthTestFunc            : 3;
             // Stencil Test
-            uint64_t m_StencilEnabled     : 1;
-            uint64_t m_StencilOpFail      : 3;
-            uint64_t m_StencilOpPass      : 3;
-            uint64_t m_StencilOpDepthFail : 3;
-            uint64_t m_StencilTestFunc    : 3;
-            uint64_t m_StencilWriteMask   : 8;
-            uint64_t m_StencilCompareMask : 8;
-            uint64_t m_StencilReference   : 8;
+            uint64_t m_StencilEnabled           : 1;
+            uint64_t m_StencilOpFail            : 3;
+            uint64_t m_StencilOpPass            : 3;
+            uint64_t m_StencilOpDepthFail       : 3;
+            uint64_t m_StencilTestFunc          : 3;
+            uint64_t m_StencilWriteMask         : 8;
+            uint64_t m_StencilCompareMask       : 8;
+            uint64_t m_StencilReference         : 8;
             // Blending
-            uint64_t m_BlendEnabled       : 1;
-            uint64_t m_BlendSrcFactor     : 4;
-            uint64_t m_BlendDstFactor     : 4;
+            uint64_t m_BlendEnabled             : 1;
+            uint64_t m_BlendSrcFactor           : 4;
+            uint64_t m_BlendDstFactor           : 4;
             // Culling
-            uint64_t m_CullFaceEnabled    : 1;
-            uint64_t m_CullFaceType       : 2;
-            uint64_t                      : 3; // Unused
+            uint64_t m_CullFaceEnabled          : 1;
+            uint64_t m_CullFaceType             : 2;
+            // Polygon offset
+            uint64_t m_PolygonOffsetFillEnabled : 1;
+            uint64_t                            : 2; // Unused
         };
 
         uint64_t m_State;
