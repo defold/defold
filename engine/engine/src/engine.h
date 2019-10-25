@@ -3,10 +3,6 @@
 
 #include <stdint.h>
 
-#include <dlib/message.h>
-
-#include <resource/resource.h>
-
 namespace dmEngine
 {
     typedef struct Engine* HEngine;
@@ -19,5 +15,10 @@ namespace dmEngine
     uint16_t GetHttpPort(HEngine engine);
     uint32_t GetFrameCount(HEngine engine);
 };
+
+// For better granularity
+dmEngine::HEngine 	dmEngineCreate(int argc, char *argv[]);
+void 				dmEngineDestroy(dmEngine::HEngine engine);
+int 				dmEngineUpdate(dmEngine::HEngine engine);
 
 #endif // DM_ENGINE_H

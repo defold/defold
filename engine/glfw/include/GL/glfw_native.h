@@ -78,6 +78,15 @@ GLFWAPI struct android_app* glfwGetAndroidApp(void);
 GLFWAPI android_app* glfwGetAndroidApp(void);
 #endif
 
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+
+    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef void (*EngineDestroy)(void* engine);
+    typedef int (*EngineUpdate)(void* engine);
+
+    void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn);
+#endif
+
 GLFWAPI Window glfwGetX11Window(void);
 GLFWAPI GLXContext glfwGetX11GLXContext(void);
 GLFWAPI Display* glfwGetX11Display(void);

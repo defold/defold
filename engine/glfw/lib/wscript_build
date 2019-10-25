@@ -17,11 +17,16 @@ if platform == 'darwin' or platform == 'x86_64-darwin':
         dmglfw.source.remove(os.path.join('cocoa','cocoa_window_vulkan.m'))
 
 elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-    dmglfw.find_sources_in_dirs('. ios')
+    dmglfw.find_sources_in_dirs('. ios ios/app')
     dmglfw.includes = '. ios'
 
     if not platform == 'x86_64-ios' and Options.options.with_vulkan:
         dmglfw.source.remove(os.path.join('ios','ios_window.m'))
+        dmglfw.source.remove(os.path.join('ios','app','EAGLView.m'))
+        dmglfw.source.remove(os.path.join('ios','app','AppDelegate.m'))
+        dmglfw.source.remove(os.path.join('ios','app','AppDelegateProxy.m'))
+        dmglfw.source.remove(os.path.join('ios','app','TextUtil.m'))
+        dmglfw.source.remove(os.path.join('ios','app','ViewController.m'))
     else:
         dmglfw.source.remove(os.path.join('ios','ios_window_vulkan.m'))
 

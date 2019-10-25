@@ -835,6 +835,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn)
+    {
+        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn);
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         #ifdef __EMSCRIPTEN__
