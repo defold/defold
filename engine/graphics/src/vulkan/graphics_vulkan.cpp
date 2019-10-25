@@ -1878,6 +1878,7 @@ bail:
         Program* program_ptr           = context->m_CurrentProgram;
         VkDevice vk_device             = context->m_LogicalDevice.m_Device;
 
+        // Ensure there is room in the descriptor allocator to support this draw call
         bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) >
             scratchBuffer->m_DescriptorAllocator->m_DescriptorMax;
         bool resize_scratch_buffer = (program_ptr->m_VertexModule->m_UniformDataSizeAligned +
@@ -1897,19 +1898,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        if (indexBuffer)
-        {
-            assert(indexBufferType == TYPE_UNSIGNED_SHORT || indexBufferType == TYPE_UNSIGNED_INT);
-            VkIndexType vk_index_type = VK_INDEX_TYPE_UINT16;
-
-            if (indexBufferType == TYPE_UNSIGNED_INT)
-            {
-                vk_index_type = VK_INDEX_TYPE_UINT32;
-            }
-
-            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
-        }
-
+        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
         const uint32_t num_uniforms = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
 
         if (context->m_DynamicOffsetBufferSize < num_uniforms)
@@ -1926,22 +1915,40 @@ bail:
             context->m_DynamicOffsetBufferSize = num_uniforms;
         }
 
+        // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
         VkResult res = CommitUniforms(vk_command_buffer, vk_device,
             program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, context->m_DynamicOffsetBufferSize, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
+        // Get the pipeline for the active draw state
         Pipeline* pipeline = GetOrCreatePipeline(vk_device,
             context->m_PipelineState, context->m_PipelineCache,
             program_ptr, context->m_CurrentRenderTarget,
             context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
 
+
+        // Bind the indexbuffer
+        if (indexBuffer)
+        {
+            assert(indexBufferType == TYPE_UNSIGNED_SHORT || indexBufferType == TYPE_UNSIGNED_INT);
+            VkIndexType vk_index_type = VK_INDEX_TYPE_UINT16;
+
+            if (indexBufferType == TYPE_UNSIGNED_INT)
+            {
+                vk_index_type = VK_INDEX_TYPE_UINT32;
+            }
+
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
+        }
+
+        // Bind the vertex buffers
         VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_BufferHandle;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
-
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
 
+        // Update the viewport
         if (context->m_MainViewport.m_HasChanged)
         {
             Viewport& vp = context->m_MainViewport;

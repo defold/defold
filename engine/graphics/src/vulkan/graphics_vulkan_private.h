@@ -125,11 +125,12 @@ namespace dmGraphics
         , m_IsBound(0)
         {}
 
-        VkRenderPass  m_RenderPass;
-        VkFramebuffer m_Framebuffer;
-        VkExtent2D    m_Extent;
-        uint32_t      m_Id      : 31;
-        uint32_t      m_IsBound : 1;
+        VkRenderPass   m_RenderPass;
+        VkFramebuffer  m_Framebuffer;
+        VkExtent2D     m_Extent;
+        const uint16_t m_Id;
+        uint8_t        m_IsBound : 1;
+        uint8_t                  : 7; // unused
     };
 
     struct Viewport
