@@ -905,7 +905,7 @@ TEST(Socket, ServerSocketIPv4)
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress, true, false);
@@ -927,7 +927,7 @@ TEST(Socket, ServerSocketIPv6)
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
@@ -952,7 +952,7 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
     r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket2);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress1;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress1, true, false);
@@ -985,7 +985,7 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
     r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket2);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress1;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress1, false, true);
@@ -1017,7 +1017,7 @@ TEST(Socket, ServerSocketIPv4_Accept)
     r = dmSocket::SetBlocking(socket, false);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress, true, false);
@@ -1047,7 +1047,7 @@ TEST(Socket, ServerSocketIPv6_Accept)
     r = dmSocket::SetBlocking(socket, false);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
