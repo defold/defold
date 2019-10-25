@@ -1124,10 +1124,10 @@ bail:
 
         // TODO: Test allocating a scratch buffer per frame-in-flight instead of
         //       one per swap chain image.
-		if (context->m_DeviceBuffersToDelete.Size() > 0)
-		{
-			FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, frame_ix);
-		}
+        if (context->m_DeviceBuffersToDelete.Size() > 0)
+        {
+            FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, frame_ix);
+        }
 
         if (context->m_DescriptorAllocatorsToDelete.Size() > 0)
         {
@@ -1710,9 +1710,9 @@ bail:
         uint32_t            dynamicAlignment,
         uint32_t*           dynamicOffsetsOut)
     {
-        ShaderModule*   shader_module;
-        uint32_t*       uniform_data_offsets;
-        uint32_t*       dynamic_offsets       = dynamicOffsetsOut;
+        ShaderModule* shader_module;
+        uint32_t*     uniform_data_offsets;
+        uint32_t*     dynamic_offsets = dynamicOffsetsOut;
 
         if (moduleType == Program::MODULE_TYPE_VERTEX)
         {
@@ -1818,9 +1818,9 @@ bail:
             return res;
         }
 
-        const uint32_t num_samplers       = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
-        const uint32_t num_uniforms       = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount - num_samplers;
-        uint32_t* dynamic_uniform_offsets = new uint32_t[num_uniforms];
+        const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
+        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount - num_samplers;
+        uint32_t* dynamic_uniform_offsets  = new uint32_t[num_uniform_buffers];
 
         VkDescriptorSet vs_set = vk_descriptor_set_list[Program::MODULE_TYPE_VERTEX];
         VkDescriptorSet fs_set = vk_descriptor_set_list[Program::MODULE_TYPE_FRAGMENT];
@@ -1835,7 +1835,7 @@ bail:
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
             0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
-            num_uniforms, dynamic_uniform_offsets);
+            num_uniform_buffers, dynamic_uniform_offsets);
 
         return VK_SUCCESS;
     }
