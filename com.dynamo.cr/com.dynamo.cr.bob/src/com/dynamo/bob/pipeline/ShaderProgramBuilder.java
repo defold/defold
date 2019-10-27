@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Collections;
+import java.util.Comparator;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -162,6 +164,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
     static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
     static private class SetEntry extends HashMap<Integer,BindingEntry> {}
+    static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
+        public int compare(SPIRVReflector.Resource a, SPIRVReflector.Resource b) {
+            return a.binding - b.binding;
+        }
+    }
 
     private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
@@ -246,6 +253,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         //                       |_ U5
         //
         HashMap<Integer,SetEntry> setBindingMap = new HashMap<Integer,SetEntry>();
+        ArrayList<SPIRVReflector.Resource> uniformBuffers = new ArrayList();
         for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
 
             // We only support a 1-1 mapping between uniform blocks and uniforms.
@@ -287,17 +295,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
 
                 if (issue_count == shaderIssues.size()) {
-                    ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                    resourceBindingBuilder.setName(MurmurHash.hash64(uniform.name));
-                    resourceBindingBuilder.setType(type);
-                    resourceBindingBuilder.setSet(uniform.set);
-                    resourceBindingBuilder.setBinding(uniform.binding);
-                    builder.addUniforms(resourceBindingBuilder);
+                    uniformBuffers.add(uniform);
                 }
             }
         }
 
-        for (SPIRVReflector.Resource tex : reflector.getTextures()) {
+        ArrayList<SPIRVReflector.Resource> textures = reflector.getTextures();
+        Collections.sort(textures, new SortBindingsComparator());
+
+        for (SPIRVReflector.Resource tex : textures) {
             SetEntry setEntry = setBindingMap.get(tex.set);
             if (setEntry == null) {
                 setEntry = new SetEntry();
@@ -364,9 +370,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         // Process all vertex attributes (inputs)
         if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
+            ArrayList<SPIRVReflector.Resource> attributes = reflector.getInputs();
+
+            Collections.sort(attributes, new SortBindingsComparator());
+
             // Note: No need to check for duplicates for vertex attributes,
             // the SPIR-V compiler will complain about it.
-            for (SPIRVReflector.Resource input : reflector.getInputs()) {
+            for (SPIRVReflector.Resource input : attributes) {
                 ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
                 resourceBindingBuilder.setName(MurmurHash.hash64(input.name));
                 resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
@@ -374,6 +384,18 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 resourceBindingBuilder.setBinding(input.binding);
                 builder.addAttributes(resourceBindingBuilder);
             }
+        }
+
+        // Sort all uniform buffers by increasing binding number
+        Collections.sort(uniformBuffers, new SortBindingsComparator());
+
+        for (SPIRVReflector.Resource uniformBuffer : uniformBuffers) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+            resourceBindingBuilder.setName(MurmurHash.hash64(uniformBuffer.name));
+            resourceBindingBuilder.setType(stringTypeToShaderType(uniformBuffer.type));
+            resourceBindingBuilder.setSet(uniformBuffer.set);
+            resourceBindingBuilder.setBinding(uniformBuffer.binding);
+            builder.addUniforms(resourceBindingBuilder);
         }
 
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
