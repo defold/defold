@@ -231,18 +231,17 @@ namespace dmGraphics
 
     typedef VkPipeline Pipeline;
 
-    struct ShaderSamplerBinding
-    {
-        uint16_t m_UniformIndex;
-        uint16_t m_TextureUnit;
-    };
-
     struct ShaderResourceBinding
     {
         uint64_t                   m_NameHash;
         ShaderDesc::ShaderDataType m_Type;
         uint16_t                   m_Set;
         uint16_t                   m_Binding;
+        union
+        {
+            uint16_t               m_UniformDataIndex;
+            uint16_t               m_TextureUnit;
+        };
     };
 
     struct ShaderModule
@@ -251,12 +250,10 @@ namespace dmGraphics
         VkShaderModule         m_Module;
         ShaderResourceBinding* m_Uniforms;
         ShaderResourceBinding* m_Attributes;
-        ShaderSamplerBinding*  m_TextureSamplers;
-        uint32_t               m_UniformDataSize;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformCount;
         uint16_t               m_AttributeCount;
-        uint16_t               m_TextureSamplerCount;
+        uint16_t               m_UniformBufferCount;
     };
 
     struct Program

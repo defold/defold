@@ -1751,80 +1751,57 @@ bail:
             assert(0);
         }
 
-        const uint32_t texture_sampler_count = shader_module->m_TextureSamplerCount;
-        if (shader_module->m_UniformCount == 0 && texture_sampler_count == 0)
+        for (int i = 0; i < shader_module->m_UniformCount; ++i)
         {
-            return;
-        }
-
-        for (int i = 0; i < texture_sampler_count; ++i)
-        {
-            ShaderSamplerBinding sampler  = shader_module->m_TextureSamplers[i];
-            ShaderResourceBinding uniform = shader_module->m_Uniforms[sampler.m_UniformIndex];
-            Texture* texture              = g_Context->m_TextureUnits[sampler.m_TextureUnit];
-
-            VkDescriptorImageInfo vk_image_info;
-            vk_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            vk_image_info.imageView   = texture->m_ImageView;
-            vk_image_info.sampler     = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
-
+            ShaderResourceBinding& res = shader_module->m_Uniforms[i];
             VkWriteDescriptorSet vk_write_desc_info;
             vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext            = 0;
             vk_write_desc_info.dstSet           = vk_descriptor_set;
-            vk_write_desc_info.dstBinding       = uniform.m_Binding;
+            vk_write_desc_info.dstBinding       = res.m_Binding;
             vk_write_desc_info.dstArrayElement  = 0;
-            vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             vk_write_desc_info.descriptorCount  = 1;
-            vk_write_desc_info.pImageInfo       = &vk_image_info;
+            vk_write_desc_info.pImageInfo       = 0;
             vk_write_desc_info.pBufferInfo      = 0;
             vk_write_desc_info.pTexelBufferView = 0;
 
-            // TODO: It would be better to update all descriptors in one go instead of
-            //       one-by-one like we do now.
+            if (IsUniformTextureSampler(res))
+            {
+                Texture* texture = g_Context->m_TextureUnits[res.m_TextureUnit];
+                VkDescriptorImageInfo vk_image_info;
+                vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                vk_image_info.imageView           = texture->m_ImageView;
+                vk_image_info.sampler             = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
+                vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                vk_write_desc_info.pImageInfo     = &vk_image_info;
+            }
+            else
+            {
+                dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratchBuffer->m_MappedDataCursor;
+                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(shader_module->m_Uniforms[i].m_Type);
+                const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
+                // Copy client data to aligned host memory
+                // The data_offset here is the offset into the programs uniform data,
+                // i.e the source buffer.
+                const uint32_t data_offset = uniform_data_offsets[res.m_UniformDataIndex];
+                memcpy(&((uint8_t*)scratchBuffer->m_DeviceBuffer.m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor],
+                    &program->m_UniformData[data_offset], uniform_size_nonalign);
+
+                // Note in the spec about the offset being zero:
+                //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
+                //    offset is the base offset from which the dynamic offset is applied and range is the static size
+                //    used for all dynamic offsets."
+                VkDescriptorBufferInfo vk_buffer_info;
+                vk_buffer_info.buffer = scratchBuffer->m_DeviceBuffer.m_BufferHandle;
+                vk_buffer_info.offset = 0;
+                vk_buffer_info.range  = uniform_size;
+                vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
+
+                scratchBuffer->m_MappedDataCursor += uniform_size;
+            }
+
             vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
-        }
-
-        for (int i = 0; i < shader_module->m_UniformCount; ++i)
-        {
-            if (IsUniformTextureSampler(shader_module->m_Uniforms[i]))
-                continue;
-
-            dynamic_offsets[i]                  = (uint32_t) scratchBuffer->m_MappedDataCursor;
-            const uint32_t uniform_size_nonalign = GetShaderTypeSize(shader_module->m_Uniforms[i].m_Type);
-            const uint32_t uniform_size          = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
-
-            // Copy client data to aligned host memory
-            // The data_offset here is the offset into the programs uniform data,
-            // i.e the source buffer.
-            const uint32_t data_offset = uniform_data_offsets[i];
-            memcpy(&((uint8_t*)scratchBuffer->m_DeviceBuffer.m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor], &program->m_UniformData[data_offset], uniform_size_nonalign);
-
-            // Note in the spec about the offset being zero:
-            //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
-            //    offset is the base offset from which the dynamic offset is applied and range is the static size
-            //    used for all dynamic offsets."
-            VkDescriptorBufferInfo vk_buffer_info;
-            vk_buffer_info.buffer = scratchBuffer->m_DeviceBuffer.m_BufferHandle;
-            vk_buffer_info.offset = 0;
-            vk_buffer_info.range  = uniform_size;
-
-            VkWriteDescriptorSet vk_write_desc_info;
-            vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            vk_write_desc_info.pNext            = 0;
-            vk_write_desc_info.dstSet           = vk_descriptor_set;
-            vk_write_desc_info.dstBinding       = shader_module->m_Uniforms[i].m_Binding;
-            vk_write_desc_info.dstArrayElement  = 0;
-            vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-            vk_write_desc_info.descriptorCount  = 1;
-            vk_write_desc_info.pImageInfo       = 0;
-            vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
-            vk_write_desc_info.pTexelBufferView = 0;
-
-            // TODO: It would be better to update all descriptors in one go instead of
-            //       one-by-one like we do now.
-            vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
-            scratchBuffer->m_MappedDataCursor += uniform_size;
         }
     }
 
@@ -1839,8 +1816,7 @@ bail:
             return res;
         }
 
-        const uint32_t num_samplers        = program_ptr->m_VertexModule->m_TextureSamplerCount + program_ptr->m_FragmentModule->m_TextureSamplerCount;
-        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount - num_samplers;
+        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
         uint32_t* dynamic_uniform_offsets  = new uint32_t[num_uniform_buffers];
 
         VkDescriptorSet vs_set = vk_descriptor_set_list[Program::MODULE_TYPE_VERTEX];
@@ -2043,6 +2019,8 @@ bail:
             shader->m_UniformCount             = ddf->m_Uniforms.m_Count;
             uint32_t uniform_data_size_aligned = 0;
             uint32_t texture_sampler_count     = 0;
+            uint32_t uniform_buffer_count      = 0;
+            int32_t  last_binding              = -1;
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
@@ -2052,39 +2030,30 @@ bail:
                 res.m_NameHash             = ddf->m_Uniforms[i].m_Name;
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
                 assert(res.m_Set <= 1);
+                assert(res.m_Binding >= last_binding);
+                last_binding = res.m_Binding;
 
                 if (IsUniformTextureSampler(res))
                 {
                     texture_sampler_count++;
                 }
-
-                // Calculate aligned data size on the fly
-                uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
-            }
-
-            if (texture_sampler_count > 0)
-            {
-                shader->m_TextureSamplers = new ShaderSamplerBinding[texture_sampler_count];
-                uint16_t next_uniform_index = 0;
-                for (uint32_t i=0; i < ddf->m_Uniforms.m_Count && next_uniform_index < texture_sampler_count; i++)
+                else
                 {
-                    ShaderResourceBinding& res = shader->m_Uniforms[i];
-                    if (IsUniformTextureSampler(res))
-                    {
-                        shader->m_TextureSamplers[next_uniform_index].m_UniformIndex = i;
-                        shader->m_TextureSamplers[next_uniform_index].m_TextureUnit  = 0;
-                    }
+                    res.m_UniformDataIndex     = uniform_buffer_count;
+                    uniform_data_size_aligned += DM_ALIGN(GetShaderTypeSize(res.m_Type), dynamicAlignment);
+                    uniform_buffer_count++;
                 }
             }
 
             shader->m_UniformDataSizeAligned = uniform_data_size_aligned;
-            shader->m_TextureSamplerCount    = texture_sampler_count;
+            shader->m_UniformBufferCount     = uniform_buffer_count;
         }
 
         if (ddf->m_Attributes.m_Count > 0)
         {
             shader->m_Attributes     = new ShaderResourceBinding[ddf->m_Attributes.m_Count];
             shader->m_AttributeCount = ddf->m_Attributes.m_Count;
+            int32_t  last_binding    = -1;
 
             for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
             {
@@ -2093,6 +2062,8 @@ bail:
                 res.m_Set                  = ddf->m_Attributes[i].m_Set;
                 res.m_NameHash             = ddf->m_Attributes[i].m_Name;
                 res.m_Type                 = ddf->m_Attributes[i].m_Type;
+                assert(res.m_Binding >= last_binding);
+                last_binding = res.m_Binding;
             }
         }
     }
@@ -2121,30 +2092,26 @@ bail:
         uint32_t byte_offset_base, uint32_t* byte_offset_list, uint32_t* byte_offset_end_out,
         VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
-        uint32_t byte_offset         = byte_offset_base;
-        uint32_t num_samplers        = 0;
-        uint32_t num_uniform_buffers = 0;
+        uint32_t byte_offset = byte_offset_base;
         for(uint32_t i=0; i < module->m_UniformCount; i++)
         {
             // Process uniform data size
-            ShaderResourceBinding& uniform = module->m_Uniforms[i];
-            assert(uniform.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
+            ShaderResourceBinding& res = module->m_Uniforms[i];
+            assert(res.m_Type         != ShaderDesc::SHADER_TYPE_UNKNOWN);
 
             // Process samplers
             VkDescriptorType vk_descriptor_type;
 
             // Texture samplers don't need to allocate any memory
-            if (IsUniformTextureSampler(uniform))
+            if (IsUniformTextureSampler(res))
             {
                 vk_descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                num_samplers++;
             }
             else
             {
-                byte_offset_list[num_uniform_buffers] = byte_offset;
-                byte_offset                          += GetShaderTypeSize(uniform.m_Type);
-                vk_descriptor_type                    = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                num_uniform_buffers++;
+                byte_offset_list[res.m_UniformDataIndex] = byte_offset;
+                byte_offset                             += GetShaderTypeSize(res.m_Type);
+                vk_descriptor_type                       = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
             }
 
             // Process descriptor layout
@@ -2206,12 +2173,10 @@ bail:
         program->m_Hash = dmHashFinal64(&program_hash);
 
         const uint32_t num_uniforms = vertex_module->m_UniformCount + fragment_module->m_UniformCount;
-        const uint32_t num_samplers = vertex_module->m_TextureSamplerCount + fragment_module->m_TextureSamplerCount;
         if (num_uniforms > 0)
         {
-            const uint32_t num_buffers = num_uniforms - num_samplers;
-
             VkDescriptorSetLayoutBinding* vk_descriptor_set_bindings = new VkDescriptorSetLayoutBinding[num_uniforms];
+            const uint32_t num_buffers  = vertex_module->m_UniformBufferCount + fragment_module->m_UniformBufferCount;
 
             if (num_buffers > 0)
             {
@@ -2225,7 +2190,7 @@ bail:
                 0, program->m_UniformDataOffsets,
                 &vs_last_offset, vk_descriptor_set_bindings);
             CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
-                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformCount],
+                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount],
                 &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
 
             program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
@@ -2311,11 +2276,6 @@ bail:
         if (shader->m_Uniforms)
         {
             delete[] shader->m_Uniforms;
-        }
-
-        if (shader->m_TextureSamplers)
-        {
-            delete[] shader->m_TextureSamplers;
         }
 
         delete shader;
@@ -2433,31 +2393,13 @@ bail:
     #define UNIFORM_LOCATION_GET_VS(loc) (loc  & UNIFORM_LOCATION_MAX)
     #define UNIFORM_LOCATION_GET_FS(loc) ((loc & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BIT_COUNT)) >> UNIFORM_LOCATION_BIT_COUNT)
 
-    static bool GetSamplerIndex(ShaderSamplerBinding* samplers, uint32_t samplerCount, uint32_t uniform, uint32_t* index_out)
-    {
-        for (uint32_t i = 0; i < samplerCount; ++i)
-        {
-            if (samplers[i].m_UniformIndex == (uint16_t)uniform)
-            {
-                *index_out = i;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, ShaderSamplerBinding* samplers, uint32_t samplerCount, dmhash_t name, uint32_t* index_out)
+    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
     {
         assert(uniformCount < UNIFORM_LOCATION_MAX);
         for (uint32_t i = 0; i < uniformCount; ++i)
         {
             if (uniforms[i].m_NameHash == name)
             {
-                // If the uniform is a sampler, we return the index into the sampler array instead
-                if (IsUniformTextureSampler(uniforms[i]))
-                {
-                    return GetSamplerIndex(samplers, samplerCount, i, index_out);
-                }
                 *index_out = i;
                 return true;
             }
@@ -2475,8 +2417,8 @@ bail:
         uint32_t vs_location = UNIFORM_LOCATION_MAX;
         uint32_t fs_location = UNIFORM_LOCATION_MAX;
 
-        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, vs->m_TextureSamplers, vs->m_TextureSamplerCount, name, &vs_location) ||
-            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, fs->m_TextureSamplers, fs->m_TextureSamplerCount, name, &fs_location))
+        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, name, &vs_location) ||
+            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, name, &fs_location))
         {
             return vs_location | (fs_location << UNIFORM_LOCATION_BIT_COUNT);
         }
@@ -2496,17 +2438,22 @@ bail:
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
+            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
-            uint32_t offset = program_ptr->m_UniformDataOffsets[index_vs];
+            assert(!IsUniformTextureSampler(res));
+            uint32_t offset_index      = res.m_UniformDataIndex;
+            uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
+            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            assert(!IsUniformTextureSampler(res));
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
-            index_fs       += program_ptr->m_VertexModule->m_UniformCount;
-            uint32_t offset = program_ptr->m_UniformDataOffsets[index_fs];
+            uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
+            uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4));
         }
     }
@@ -2521,17 +2468,22 @@ bail:
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
+            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
-            uint32_t offset = program_ptr->m_UniformDataOffsets[index_vs];
+            assert(!IsUniformTextureSampler(res));
+            uint32_t offset_index      = res.m_UniformDataIndex;
+            uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
+            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            assert(!IsUniformTextureSampler(res));
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
-            index_fs       += program_ptr->m_VertexModule->m_UniformCount;
-            uint32_t offset = program_ptr->m_UniformDataOffsets[index_fs];
+            uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
+            uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
             memcpy(&program_ptr->m_UniformData[offset], data, sizeof(Vectormath::Aos::Vector4) * 4);
         }
     }
@@ -2547,15 +2499,18 @@ bail:
 
         if (index_vs != UNIFORM_LOCATION_MAX)
         {
-            assert(index_vs < program_ptr->m_VertexModule->m_TextureSamplerCount);
-            program_ptr->m_VertexModule->m_TextureSamplers[index_vs].m_TextureUnit = (uint16_t) unit;
+            ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
+            assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
+            assert(IsUniformTextureSampler(res));
+            program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) unit;
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
         {
-            index_fs += program_ptr->m_VertexModule->m_TextureSamplerCount;
-            assert(index_fs < program_ptr->m_FragmentModule->m_TextureSamplerCount);
-            program_ptr->m_FragmentModule->m_TextureSamplers[index_fs].m_TextureUnit = (uint16_t) unit;
+            ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
+            assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
+            assert(IsUniformTextureSampler(res));
+            program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) unit;
         }
     }
 
