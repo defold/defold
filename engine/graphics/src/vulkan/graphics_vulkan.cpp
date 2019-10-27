@@ -717,7 +717,7 @@ namespace dmGraphics
 
             // Make sure all device extensions are supported
             bool all_extensions_found = true;
-            for (int32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
+            for (uint32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
             {
                 if (!IsExtensionSupported(device, device_extensions[ext_i]))
                 {
@@ -1751,10 +1751,16 @@ bail:
             assert(0);
         }
 
-        for (int i = 0; i < shader_module->m_UniformCount; ++i)
+        const uint8_t max_write_descriptors = 16;
+        uint16_t uniforms_to_write          = shader_module->m_UniformCount;
+        uint16_t uniform_to_write_index     = 0;
+        uint16_t uniform_index              = 0;
+        VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
+
+        while(uniforms_to_write > 0)
         {
-            ShaderResourceBinding& res = shader_module->m_Uniforms[i];
-            VkWriteDescriptorSet vk_write_desc_info;
+            ShaderResourceBinding& res = shader_module->m_Uniforms[uniform_index++];
+            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index++];
             vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext            = 0;
             vk_write_desc_info.dstSet           = vk_descriptor_set;
@@ -1778,7 +1784,7 @@ bail:
             else
             {
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratchBuffer->m_MappedDataCursor;
-                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(shader_module->m_Uniforms[i].m_Type);
+                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(res.m_Type);
                 const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
                 // Copy client data to aligned host memory
                 // The data_offset here is the offset into the programs uniform data,
@@ -1801,7 +1807,19 @@ bail:
                 scratchBuffer->m_MappedDataCursor += uniform_size;
             }
 
-            vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
+            uniforms_to_write--;
+
+            // Commit and restart if we reached max descriptors per batch
+            if (uniform_to_write_index == max_write_descriptors)
+            {
+                vkUpdateDescriptorSets(vk_device, max_write_descriptors, vk_write_descriptors, 0, 0);
+                uniform_to_write_index = 0;
+            }
+        }
+
+        if (uniform_to_write_index > 0)
+        {
+            vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
         }
     }
 
@@ -2702,7 +2720,7 @@ bail:
         RenderPassAttachment* rp_attachment_depth_stencil = 0;
 
         VkImageView fb_attachments[2];
-        uint16_t    fb_attachment_count = 0;
+        uint8_t     fb_attachment_count = 0;
         uint16_t    fb_width  = 0;
         uint16_t    fb_height = 0;
 
@@ -2988,7 +3006,7 @@ bail:
         }
         else
         {
-            uint32_t write_offset = GetOffsetFromMipmap(textureOut, params.m_MipMap);
+            uint32_t write_offset = GetOffsetFromMipmap(textureOut, (uint8_t) params.m_MipMap);
 
             VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
             CHECK_VK_ERROR(res);
@@ -3024,7 +3042,7 @@ bail:
 
         TextureFormat format_orig   = params.m_Format;
         uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format) >> 3;
-        size_t tex_data_size        = params.m_DataSize;
+        uint32_t tex_data_size      = params.m_DataSize;
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
 
@@ -3045,7 +3063,7 @@ bail:
             uint8_t* data_new = new uint8_t[bpp_new * params.m_Width * params.m_Height];
             uint8_t* data_old = (uint8_t*) tex_data_ptr;
 
-            for(uint32_t px=0; px < params.m_Width * params.m_Height; px++)
+            for(uint32_t px=0; px < (uint32_t) (params.m_Width * params.m_Height); px++)
             {
                 uint32_t px_old    = px * tex_bpp;
                 uint32_t px_new    = px * bpp_new;
