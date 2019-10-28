@@ -421,7 +421,8 @@ namespace dmGraphics
         *vk_tiling_out = vk_image_tiling;
     }
 
-    static VkResult CreateDepthStencilTexture(HContext context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
+    static VkResult CreateDepthStencilTexture(HContext context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling,
+        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, Texture* depthStencilTextureOut)
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
@@ -437,7 +438,7 @@ namespace dmGraphics
         }
 
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
-            vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depthStencilTextureOut);
         CHECK_VK_ERROR(res);
 
@@ -468,13 +469,31 @@ namespace dmGraphics
         {
             // All swap chain images can share the same depth buffer,
             // that's why we create a single depth buffer at the start and reuse it.
-            VkImageView&   vk_image_view_color     = swapChain->m_ImageViews[i];
+            // Same thing goes for the resolve buffer if we are rendering with
+            // multisampling enabled.
+            VkImageView&   vk_image_view_swap      = swapChain->m_ImageViews[i];
             VkImageView&   vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
-            VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
+            VkImageView&   vk_image_view_resolve   = swapChain->m_ResolveTexture.m_ImageView;
+            VkImageView    vk_image_attachments[3];
+            uint8_t num_attachments;
+
+            if (swapChain->HasMultiSampling())
+            {
+                vk_image_attachments[0] = vk_image_view_resolve;
+                vk_image_attachments[1] = vk_image_view_depth;
+                vk_image_attachments[2] = vk_image_view_swap;
+                num_attachments = 3;
+            }
+            else
+            {
+                vk_image_attachments[0] = vk_image_view_swap;
+                vk_image_attachments[1] = vk_image_view_depth;
+                num_attachments = 2;
+            }
 
             res = CreateFramebuffer(context->m_LogicalDevice.m_Device,context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, 2, &context->m_MainFrameBuffers[i]);
+                vk_image_attachments, num_attachments, &context->m_MainFrameBuffers[i]);
             CHECK_VK_ERROR(res);
         }
 
@@ -502,17 +521,27 @@ namespace dmGraphics
             vk_depth_format, vk_depth_tiling,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
+            context->m_SwapChain->m_SampleCountFlag,
             &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
         // Create main render pass with two attachments
-        RenderPassAttachment attachments[2];
-        attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;;
-        attachments[0].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        RenderPassAttachment  attachments[3];
+        RenderPassAttachment* attachment_resolve = 0;
+        attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
+        attachments[0].m_ImageLayout = context->m_SwapChain->HasMultiSampling() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         attachments[1].m_Format      = context->m_MainTextureDepthStencil.m_Format;
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-        res = CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass);
+        // Set third attachment as framebuffer resolve attachment
+        if (context->m_SwapChain->HasMultiSampling())
+        {
+            attachments[2].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
+            attachments[2].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            attachment_resolve = &attachments[2];
+        }
+
+        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
         CHECK_VK_ERROR(res);
 
         res = CreateMainRenderTarget(context);
@@ -589,10 +618,10 @@ namespace dmGraphics
 
         // Update swap chain capabilities
         SwapChainCapabilities swap_chain_capabilities;
-        GetSwapChainCapabilities(&context->m_PhysicalDevice, context->m_WindowSurface, swap_chain_capabilities);
+        GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
-        VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
+        VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, true, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
 
         // Reset & create main Depth/Stencil buffer
@@ -604,6 +633,7 @@ namespace dmGraphics
             vk_depth_format, vk_depth_tiling,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
+            context->m_SwapChain->m_SampleCountFlag,
             &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
@@ -732,7 +762,7 @@ namespace dmGraphics
             }
 
             // Make sure device has swap chain support
-            GetSwapChainCapabilities(device, context->m_WindowSurface, selected_swap_chain_capabilities);
+            GetSwapChainCapabilities(device->m_Device, context->m_WindowSurface, selected_swap_chain_capabilities);
 
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
@@ -751,6 +781,7 @@ namespace dmGraphics
         uint32_t created_width  = params->m_Width;
         uint32_t created_height = params->m_Height;
         const bool want_vsync   = true;
+        VkSampleCountFlagBits vk_closest_multisample_flag;
 
         if (selected_device == NULL)
         {
@@ -778,14 +809,15 @@ namespace dmGraphics
             goto bail;
         }
 
-        context->m_PhysicalDevice = *selected_device;
-        context->m_LogicalDevice  = logical_device;
+        context->m_PhysicalDevice   = *selected_device;
+        context->m_LogicalDevice    = logical_device;
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family);
 
-        res = UpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
+        res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
@@ -998,7 +1030,7 @@ bail:
                 vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
 
-            DestroySwapChain(context->m_SwapChain);
+            DestroySwapChain(vk_device, context->m_SwapChain);
             DestroyLogicalDevice(&context->m_LogicalDevice);
             DestroyPhysicalDevice(&context->m_PhysicalDevice);
 
@@ -1115,7 +1147,7 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
-        VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+        VkResult res      = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
 
         if (res != VK_SUCCESS)
@@ -1127,7 +1159,7 @@ bail:
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
-                res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+                res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
                 assert(res == VK_SUCCESS);
             }
             else if (res == VK_SUBOPTIMAL_KHR)
@@ -1373,7 +1405,8 @@ bail:
         texture->m_DeviceBuffer.m_MemorySize   = 0;
     }
 
-    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
+    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
+        const PipelineState pipelineState, PipelineCache& pipelineCache,
         Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
@@ -1382,6 +1415,7 @@ bail:
         dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count, sizeof(vk_sample_count));
         uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
         Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
@@ -1396,7 +1430,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
+            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1963,7 +1997,13 @@ bail:
         }
 
         // Get the pipeline for the active draw state
-        Pipeline* pipeline = GetOrCreatePipeline(vk_device,
+        VkSampleCountFlagBits vk_sample_count = VK_SAMPLE_COUNT_1_BIT;
+        if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            vk_sample_count = context->m_SwapChain->m_SampleCountFlag;
+        }
+
+        Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
             program_ptr, context->m_CurrentRenderTarget,
             context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
@@ -2727,7 +2767,7 @@ bail:
             fb_attachments[fb_attachment_count++] = depthStencilTexture->m_ImageView;
         }
 
-        VkResult res = CreateRenderPass(vk_device, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, &rtOut->m_RenderPass);
+        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -2781,7 +2821,8 @@ bail:
 
             texture_color = NewTexture(context, creation_params[color_buffer_index]);
             VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount, vk_color_format,
+                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount,
+                VK_SAMPLE_COUNT_1_BIT, vk_color_format,
                 VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
             CHECK_VK_ERROR(res);
@@ -2817,7 +2858,8 @@ bail:
             texture_depth_stencil = NewTexture(context, creation_params[depth_buffer_index]);
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_depth_tiling,
-                fb_width, fb_height, texture_depth_stencil);
+                fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
+                texture_depth_stencil);
             CHECK_VK_ERROR(res);
         }
 
@@ -2882,10 +2924,8 @@ bail:
             if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT) && texture_color)
             {
                 DestroyTextureDeferred(g_Context, texture_color);
-                texture_color->m_Width  = width;
-                texture_color->m_Height = height;
                 VkResult res = CreateTexture2D(g_Context->m_PhysicalDevice.m_Device, g_Context->m_LogicalDevice.m_Device,
-                    texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount, texture_color->m_Format,
+                    width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
                 CHECK_VK_ERROR(res);
@@ -2909,7 +2949,8 @@ bail:
 
             VkResult res = CreateDepthStencilTexture(g_Context,
                 vk_depth_stencil_format, vk_image_tiling,
-                width, height, render_target->m_TextureDepthStencil);
+                width, height, VK_SAMPLE_COUNT_1_BIT,
+                render_target->m_TextureDepthStencil);
             CHECK_VK_ERROR(res);
         }
 
@@ -3181,7 +3222,8 @@ bail:
             }
 
             VkResult res = CreateTexture2D(vk_physical_device, logical_device.m_Device,
-                texture->m_Width, texture->m_Height, texture->m_MipMapCount, vk_format, vk_image_tiling, vk_usage_flags,
+                texture->m_Width, texture->m_Height, texture->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT,
+                vk_format, vk_image_tiling, vk_usage_flags,
                 vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
             CHECK_VK_ERROR(res);
         }
