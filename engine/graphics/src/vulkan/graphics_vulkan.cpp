@@ -1626,8 +1626,7 @@ bail:
         allocator->m_PoolHandle     = VK_NULL_HANDLE;
         allocator->m_DescriptorSets = 0x0;
 
-        VkResult res = CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_SwapChainIndex, allocator);
-        CHECK_VK_ERROR(res);
+        return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_SwapChainIndex, allocator);
     }
 
     static VkResult ResizeScratchBuffer(HContext context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
