@@ -103,7 +103,6 @@ GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
 
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
 {
-    assert(g_AppDelegatesCount > 0);
     for (int i = 0; i < g_AppDelegatesCount; ++i)
     {
         if (g_AppDelegates[i] == delegate)
@@ -113,5 +112,4 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
             return;
         }
     }
-    assert(false && "app delegate not found");
 }

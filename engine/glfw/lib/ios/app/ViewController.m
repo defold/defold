@@ -2,75 +2,26 @@
 #include "../../../include/GL/glfw.h"
 #include "internal.h"
 
-extern int g_IsReboot;
+#if defined(DM_USE_VULKAN)
+#import "VulkanView.h"
+#else
+#import "EAGLView.h"
+#endif
 
-EAGLContext* g_glContext = nil;
-EAGLContext* g_glAuxContext = nil;
+extern int g_IsReboot;
 
 @implementation ViewController
 
-@synthesize glView;
+@synthesize baseView;
 
 - (void)dealloc
 {
-    [glView release];
+    [baseView release];
     [super dealloc];
 }
 
-- (void)viewDidLoad
+- (void)createView:(BOOL)recreate
 {
-    [super viewDidLoad];
-    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    self.view.autoresizesSubviews = YES;
-
-    [self createGlView];
-
-    _glfwWin.viewController = self;
-
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-
-    if (version < 6)
-    {
-        // NOTE: This is only required for older versions of iOS
-        // In iOS 6 new method was introduced for rotation logc, see AppDelegate
-        UIInterfaceOrientation orientation = UIInterfaceOrientationPortrait;
-        [[UIApplication sharedApplication] setStatusBarOrientation: orientation animated: NO];
-    }
-}
-
-- (EAGLContext *)initialiseGlAuxContext:(EAGLContext *)parentContext
-{
-    EAGLContext *context = [[EAGLContext alloc] initWithAPI:[parentContext API] sharegroup: [parentContext sharegroup]];
-
-    if (!context)
-    {
-        return nil;
-    }
-
-    return context;
-}
-
-- (void)createGlView
-{
-    EAGLContext* glContext = nil;
-    EAGLContext* glAuxContext = nil;
-    if (glView) {
-        // We must recycle the GL context, since the engine will be performing operations
-        // (e.g. creating shaders and textures) that depend upon it.
-        glContext = glView.context;
-        glAuxContext = glView.auxContext;
-        [glView removeFromSuperview];
-    }
-
-    if (!glContext) {
-        glContext = [self initialiseGlContext];
-        glAuxContext = [self initialiseGlAuxContext: glContext];
-    }
-    g_glContext = glContext;
-    g_glAuxContext = glAuxContext;
-    // _glfwWin.context = glContext;
-    // _glfwWin.aux_context = glAuxContext;
-
     CGRect bounds = self.view.bounds;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
     if (8.0 <= version && version < 8.1) {
@@ -91,15 +42,28 @@ EAGLContext* g_glAuxContext = nil;
     }
     cachedViewSize = bounds.size;
 
-    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
-    glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
-    glView.context = glContext;
-    glView.auxContext = glAuxContext;
-    glView.contentScaleFactor = scaleFactor;
-    glView.layer.contentsScale = scaleFactor;
-    [[self view] insertSubview:glView atIndex:0];
+#if defined(DM_USE_VULKAN)
+    baseView = [VulkanView createView: bounds recreate:recreate];
+#else
+    baseView = [EAGLView createView: bounds recreate:recreate];
+#endif
 
-    [glView createFramebuffer];
+    [[self view] removeFromSuperview];
+
+    [[self view] insertSubview:baseView atIndex:0];
+}
+
+- (void)viewDidLoad
+{
+    NSLog(@"ViewController viewDidLoad");
+
+    [super viewDidLoad];
+    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.view.autoresizesSubviews = YES;
+
+    _glfwWin.viewController = self;
+
+    [self createView:FALSE];
 }
 
 - (void)updateViewFramesWorkaround
@@ -120,7 +84,8 @@ EAGLContext* g_glAuxContext = nil;
 
             self.view.frame = parent_frame;
         }
-        glView.frame = parent_bounds;
+
+        baseView.frame = parent_bounds;
     }
 }
 
@@ -206,24 +171,9 @@ EAGLContext* g_glAuxContext = nil;
     return origin;
 }
 
-- (EAGLContext *)initialiseGlContext
-{
-    EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-
-    if (!context || ![EAGLContext setCurrentContext:context])
-    {
-        return nil;
-    }
-
-    return context;
-}
-
 - (void)viewDidAppear:(BOOL)animated
 {
-    // NOTE: We rely on an active OpenGL-context as we have no concept of Begin/End rendering
-    // As we replace view-controller and view when re-opening the "window" we must ensure that we always
-    // have an active context (context is set to nil when view is deallocated)
-    [EAGLContext setCurrentContext: glView.context];
+    [baseView setCurrentContext];
 
     [super viewDidAppear: animated];
 }

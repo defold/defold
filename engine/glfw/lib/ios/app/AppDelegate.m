@@ -69,7 +69,7 @@ char**  g_Argv = 0;
     // We then rebuild the GL view back within the application's event loop.
     dispatch_async(dispatch_get_main_queue(), ^{
         ViewController *controller = (ViewController *)window.rootViewController;
-        [controller createGlView];
+        [controller createView:TRUE];
     });
 }
 
@@ -89,6 +89,8 @@ char**  g_Argv = 0;
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     [self forceDeviceOrientation];
 
+    NSLog(@"didFinishLaunchingWithOptions");
+
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
     // Points vs pixels (and scale factors). I'm not sure that this correct though
     // and that we really get the correct and highest physical resolution in pixels.
@@ -97,7 +99,7 @@ char**  g_Argv = 0;
     window = [[UIWindow alloc] initWithFrame:bounds];
     window.rootViewController = [[[ViewController alloc] init] autorelease];
     [window makeKeyAndVisible];
-    //_glfwWin.window = window;
+
     g_ApplicationWindow = window;
     g_AppDelegate = self;
 
@@ -126,7 +128,6 @@ char**  g_Argv = 0;
 
 - (void)applicationWillResignActive:(UIApplication *)application
 {
-    NSLog(@"applicationWillResignActive");
     // We should pause the update loop when this message is sent
     _glfwWin.iconified = GL_TRUE;
 
@@ -139,17 +140,14 @@ char**  g_Argv = 0;
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
 {
-    NSLog(@"applicationDidEnterBackground");
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
 {
-    NSLog(@"applicationWillEnterForeground");
 }
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
-    NSLog(@"applicationDidBecomeActive");
     _glfwWin.iconified = GL_FALSE;
     if(_glfwWin.windowFocusCallback)
         _glfwWin.windowFocusCallback(1);
@@ -157,7 +155,6 @@ char**  g_Argv = 0;
 
 - (void)applicationWillTerminate:(UIApplication *)application
 {
-    NSLog(@"applicationWillTerminate");
 }
 
 - (void)dealloc

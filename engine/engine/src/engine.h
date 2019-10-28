@@ -17,8 +17,8 @@ namespace dmEngine
 };
 
 // For better granularity
-dmEngine::HEngine 	dmEngineCreate(int argc, char *argv[]);
-void 				dmEngineDestroy(dmEngine::HEngine engine);
-int 				dmEngineUpdate(dmEngine::HEngine engine);
+dmEngine::HEngine   dmEngineCreate(int argc, char *argv[]);
+void                dmEngineDestroy(dmEngine::HEngine engine);
+int                 dmEngineUpdate(dmEngine::HEngine engine);
 
 #endif // DM_ENGINE_H

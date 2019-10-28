@@ -5,8 +5,8 @@
     UIWindow *window;
 }
 
-- (void)forceDeviceOrientation;
 - (void)reinit:(UIApplication *)application;
+- (void)appUpdate;
 
 @property (nonatomic, retain) IBOutlet UIWindow *window;
 
