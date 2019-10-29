@@ -247,30 +247,7 @@ namespace dmSys
 
 #if defined(__MACH__)
 
-#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
-    // NOTE: iOS implementation in sys_cocoa.mm
-    __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        FSRef file;
-        OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
-        if (err != 0)
-        {
-            return RESULT_INVAL;
-        }
-        FSRefMakePath(&file, (UInt8*) path, path_len);
-        if (dmStrlCat(path, "/", path_len) >= path_len)
-            return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
-            return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
-        if (r == RESULT_EXIST)
-            return RESULT_OK;
-        else
-            return r;
-    }
-
-    // NOTE: iOS/OSX implementation of GetApplicationPath() in sys_cocoa.mm
-#endif
+// NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
 
 #elif defined(_WIN32)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
