@@ -596,6 +596,21 @@ namespace dmEngine
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
 
+        engine->m_ClearColor = dmConfigFile::GetInt(engine->m_Config, "display.clear_color", 0x00000000);
+
+        // clear it a couple of times, due to initialization of extensions might stall the updates
+        for (int i = 0; i < 3; ++i) {
+            dmGraphics::BeginFrame(engine->m_GraphicsContext);
+            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, physical_width, physical_height);
+            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT,
+                                        (float)((engine->m_ClearColor>> 0)&0xFF),
+                                        (float)((engine->m_ClearColor>> 8)&0xFF),
+                                        (float)((engine->m_ClearColor>>16)&0xFF),
+                                        (float)((engine->m_ClearColor>>24)&0xFF),
+                                        1.0f, 0);
+            dmGraphics::Flip(engine->m_GraphicsContext);
+        }
+
         if (!setting_vsync)
         {
             engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
@@ -1308,7 +1323,12 @@ bail:
                     else
                     {
                         dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0, 0);
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                            (float)((engine->m_ClearColor>> 0)&0xFF),
+                                            (float)((engine->m_ClearColor>> 8)&0xFF),
+                                            (float)((engine->m_ClearColor>>16)&0xFF),
+                                            (float)((engine->m_ClearColor>>24)&0xFF),
+                                            1.0f, 0);
                         dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
                     }
 
