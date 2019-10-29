@@ -2,7 +2,47 @@
 
 #include "internal.h"
 
+#define MAX_APP_DELEGATES (32)
+id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
+int g_AppDelegatesCount = 0;
+id<UIApplicationDelegate> g_ApplicationDelegate = 0;
+
 @implementation AppDelegateProxy
+
+- (void)init
+{
+    UIApplication* app = [UIApplication sharedApplication];
+    g_ApplicationDelegate = [app.delegate retain];
+    app.delegate = self;
+}
+
+- (BOOL) application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    BOOL handled = NO;
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)]) {
+            if ([g_AppDelegates[i] application:application willFinishLaunchingWithOptions:launchOptions])
+                handled = YES;
+        }
+    }
+    return handled;
+}
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(applicationDidFinishLaunching:)]) {
+            [g_AppDelegates[i] applicationDidFinishLaunching: application];
+        }
+    }
+
+    BOOL handled = NO;
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
+            if ([g_AppDelegates[i] application:application didFinishLaunchingWithOptions:launchOptions])
+                handled = YES;
+        }
+    }
+    return handled;
+}
 
 // NOTE: Don't understand why this special case is required. "forwardInvocation" et al
 // should be able to intercept all invocations but for some unknown reason not handleOpenURL

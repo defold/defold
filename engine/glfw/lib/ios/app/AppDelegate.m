@@ -75,18 +75,9 @@ char**              g_Argv = 0;
     });
 }
 
-
 - (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    BOOL handled = NO;
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)]) {
-            if ([g_AppDelegates[i] application:application willFinishLaunchingWithOptions:launchOptions])
-                handled = YES;
-        }
-    }
-    return handled;
+    return [proxy application:application willFinishLaunchingWithOptions:launchOptions];
 }
-
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     [self forceDeviceOrientation];
@@ -103,27 +94,9 @@ char**              g_Argv = 0;
     g_ApplicationWindow = window;
     g_AppDelegate = self;
 
-    UIApplication* app = [UIApplication sharedApplication];
-    g_ApplicationDelegate = [app.delegate retain];
-    AppDelegateProxy* proxy = [AppDelegateProxy alloc];
-    app.delegate = proxy;
+    proxy = [AppDelegateProxy alloc];
 
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(applicationDidFinishLaunching:)]) {
-            [g_AppDelegates[i] applicationDidFinishLaunching: application];
-        }
-    }
-
-    BOOL handled = NO;
-
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
-            if ([g_AppDelegates[i] application:application didFinishLaunchingWithOptions:launchOptions])
-                handled = YES;
-        }
-    }
-
-    return handled;
+    return [proxy application:application didFinishLaunchingWithOptions:launchOptions];
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
