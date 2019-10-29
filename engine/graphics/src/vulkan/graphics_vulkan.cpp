@@ -401,8 +401,8 @@ namespace dmGraphics
             VK_FORMAT_D16_UNORM
         };
 
-        const VkFormat* vk_formats_to_test = vk_format_list != 0x0 ? vk_format_list : vk_format_list_default;
-        uint8_t vk_formats_to_test_size = vk_format_list != 0x0 ? vk_format_list_size : sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
+        const VkFormat* vk_formats_to_test = vk_format_list ? vk_format_list : vk_format_list_default;
+        uint8_t vk_formats_to_test_size    = vk_format_list ? vk_format_list_size : sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
 
         // Check if we can use optimal tiling for this format, otherwise
         // we try to find the best format that supports linear
@@ -471,10 +471,10 @@ namespace dmGraphics
             // that's why we create a single depth buffer at the start and reuse it.
             // Same thing goes for the resolve buffer if we are rendering with
             // multisampling enabled.
-            VkImageView&   vk_image_view_swap      = swapChain->m_ImageViews[i];
-            VkImageView&   vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
-            VkImageView&   vk_image_view_resolve   = swapChain->m_ResolveTexture.m_ImageView;
-            VkImageView    vk_image_attachments[3];
+            VkImageView& vk_image_view_swap      = swapChain->m_ImageViews[i];
+            VkImageView& vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
+            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture.m_ImageView;
+            VkImageView  vk_image_attachments[3];
             uint8_t num_attachments;
 
             if (swapChain->HasMultiSampling())
