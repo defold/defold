@@ -30,6 +30,7 @@ namespace dmGameSystem
         float m_FarZ;
         uint32_t m_AutoAspectRatio : 1;
         uint32_t m_AddedToUpdate : 1;
+        uint16_t m_ComponentIndex;
     };
 
     struct CameraWorld
@@ -68,6 +69,7 @@ namespace dmGameSystem
             camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
             camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
             camera.m_AddedToUpdate = 0;
+            camera.m_ComponentIndex = params.m_ComponentIndex;
             w->m_Cameras.Push(camera);
             *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
@@ -149,9 +151,15 @@ namespace dmGameSystem
             dmhash_t message_id = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
 
             dmGameSystemDDF::SetViewProjection set_view_projection;
-            set_view_projection.m_Id = dmHashString64("game");
             set_view_projection.m_View = view;
             set_view_projection.m_Projection = projection;
+
+            dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
+            if (go_result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Could not send set_view_projection because of incomplete component.");
+                return dmGameObject::UPDATE_RESULT_OK;
+            }
 
             dmMessage::URL receiver;
             dmMessage::ResetURL(receiver);
