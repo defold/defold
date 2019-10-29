@@ -110,6 +110,11 @@
    :severity-default :warning
    :help "This setting is deprecated. When checked, will disable \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
    :path ["display" "variable_dt"]}
+  {:type :integer,
+   :help "Render clear color (RGBA)",
+   :label "Clear Color"
+   :default 0,
+   :path ["display" "clear_color"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
