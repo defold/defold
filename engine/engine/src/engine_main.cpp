@@ -35,7 +35,8 @@ int engine_main(int argc, char *argv[])
     dmGraphics::AppBootstrap(argc, argv,
                 (dmGraphics::EngineCreate) dmEngineCreate,
                 (dmGraphics::EngineDestroy) dmEngineDestroy,
-                (dmGraphics::EngineUpdate) dmEngineUpdate);
+                (dmGraphics::EngineUpdate) dmEngineUpdate,
+                (dmGraphics::EngineGetResult) dmEngineGetResult);
 #else
     if (!dmGraphics::Initialize())
     {

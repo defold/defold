@@ -55,8 +55,6 @@ extern int g_IsReboot;
 
 - (void)viewDidLoad
 {
-    NSLog(@"ViewController viewDidLoad");
-
     [super viewDidLoad];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;

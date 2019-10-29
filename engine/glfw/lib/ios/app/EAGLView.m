@@ -94,7 +94,6 @@ static void LogGLError(GLint err)
 
 + (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate
 {
-    NSLog(@"EAGLView createView");
     EAGLContext* glContext = nil;
     EAGLContext* glAuxContext = nil;
     if (recreate) {

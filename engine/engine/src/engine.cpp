@@ -1751,14 +1751,17 @@ void dmEngineDestroy(dmEngine::HEngine engine)
 int dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
+    {
         dmEngine::PerformStep(engine);
+    }
+
     if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
     {
-        return 1; // TODO: Implement
+        return 1;
     }
     else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
     {
-        return engine->m_RunResult.m_ExitCode;
+        return -1;
     }
     else
     {
@@ -1766,3 +1769,24 @@ int dmEngineUpdate(dmEngine::HEngine engine)
     }
 }
 
+void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
+{
+    if (run_action)
+        *run_action = engine->m_RunResult.m_Action;
+    if (exit_code)
+        *exit_code = engine->m_RunResult.m_ExitCode;
+
+    int _argc = engine->m_RunResult.m_Argc;
+    if (argc)
+        *argc = _argc;
+
+    if (argv)
+    {
+        *argv = (char**)malloc(sizeof(char*) * _argc);
+
+        for (int i = 0; i < _argc; ++i)
+        {
+            (*argv)[i] = strdup(engine->m_RunResult.m_Argv[i]);
+        }
+    }
+}

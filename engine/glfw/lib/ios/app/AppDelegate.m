@@ -16,10 +16,12 @@ _GLFWwin            g_Savewin;
 EngineCreate        g_EngineCreateFn = 0;
 EngineDestroy       g_EngineDestroyFn = 0;
 EngineUpdate        g_EngineUpdateFn = 0;
+EngineGetResult     g_EngineResultFn = 0;
 void*               g_EngineContext = 0;
 
-int     g_Argc = 0;
-char**  g_Argv = 0;
+int                 g_WasRebooted = 0;
+int                 g_Argc = 0;
+char**              g_Argv = 0;
 
 @synthesize window;
 
@@ -88,8 +90,6 @@ char**  g_Argv = 0;
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     [self forceDeviceOrientation];
-
-    NSLog(@"didFinishLaunchingWithOptions");
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
     // Points vs pixels (and scale factors). I'm not sure that this correct though
@@ -175,24 +175,54 @@ char**  g_Argv = 0;
         return;
     }
 
-    int exit_code = g_EngineUpdateFn(g_EngineContext);
-    if (exit_code) {
+    int update_code = g_EngineUpdateFn(g_EngineContext);
+    if (update_code != 0)
+    {
+        int run_action = GLFW_APP_RUN_UPDATE;
+        int exit_code = 0;
+        int argc = 0;
+        char** argv = 0;
+        g_EngineResultFn(g_EngineContext, &run_action, &exit_code, &argc, &argv);
+
         g_EngineDestroyFn(g_EngineContext);
-        exit(exit_code);
+        g_EngineContext = 0;
+
+        // Free the old one (if we own it)
+        if (g_WasRebooted)
+        {
+            for (int i = 0; i < g_Argc; ++i)
+            {
+                free(g_Argv[i]);
+            }
+            free(g_Argv);
+        }
+
+        if (run_action == GLFW_APP_RUN_EXIT)
+        {
+            NSLog(@"Exiting app with code %d", exit_code);
+            exit(exit_code);
+        }
+
+        // GLFW_APP_RUN_REBOOT
+        g_Argc = argc;
+        g_Argv = argv;
+        g_WasRebooted = 1;
     }
 }
 
 @end
 
-void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn)
+void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
 {
     g_EngineCreateFn = create_fn;
     g_EngineDestroyFn = destroy_fn;
     g_EngineUpdateFn = update_fn;
+    g_EngineResultFn = result_fn;
     g_EngineContext = 0;
 
     g_Argc = argc;
     g_Argv = argv;
+    g_WasRebooted = 0;
 
     int retVal = UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
     (void) retVal;
