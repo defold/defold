@@ -385,11 +385,11 @@ namespace dmRender
         {
                 {"position", 0, 4, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"face_color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"outline_color", 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"shadow_color", 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"face_color", 2, 4, dmGraphics::TYPE_FLOAT, true},
+                {"outline_color", 3, 4, dmGraphics::TYPE_FLOAT, true},
+                {"shadow_color", 4, 4, dmGraphics::TYPE_FLOAT, true},
                 {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
-                {"layer_mask", 6, 3, dmGraphics::TYPE_UNSIGNED_BYTE, false},
+                {"layer_mask", 6, 3, dmGraphics::TYPE_FLOAT, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
@@ -428,9 +428,9 @@ namespace dmRender
 
     DrawTextParams::DrawTextParams()
     : m_WorldTransform(Matrix4::identity())
-    , m_FaceColor(0.0f, 0.0f, 0.0f, -1.0f)
-    , m_OutlineColor(0.0f, 0.0f, 0.0f, -1.0f)
-    , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
+    , m_FaceColor(0.0f, 0.0f, 0.0f, 1.0f)
+    , m_OutlineColor(0.0f, 0.0f, 0.0f, 1.0f)
+    , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
@@ -645,9 +645,9 @@ namespace dmRender
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
-        uint32_t face_color = te.m_FaceColor;
-        uint32_t outline_color = te.m_OutlineColor;
-        uint32_t shadow_color = te.m_ShadowColor;
+        const Vectormath::Aos::Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
+        const Vectormath::Aos::Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
+        const Vectormath::Aos::Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
 
         // No support for non-uniform scale with SDF so just peek at the first
         // row to extract scale factor. The purpose of this scaling is to have
@@ -802,21 +802,34 @@ namespace dmRender
                         v6_layer_face.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
                         v6_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
-                        #define SET_VERTEX_PARAMS(v) \
-                            v.m_FaceColor = face_color; \
-                            v.m_OutlineColor = outline_color; \
-                            v.m_ShadowColor = shadow_color; \
-                            v.m_SdfParams[0] = sdf_edge_value; \
-                            v.m_SdfParams[1] = sdf_outline; \
-                            v.m_SdfParams[2] = sdf_smoothing; \
-                            v.m_SdfParams[3] = sdf_shadow;
+                        #define SET_VERTEX_FONT_PROPERTIES(v) \
+                            v.m_FaceColor[0]    = face_color[0]; \
+                            v.m_FaceColor[1]    = face_color[1]; \
+                            v.m_FaceColor[2]    = face_color[2]; \
+                            v.m_FaceColor[3]    = face_color[3]; \
+                            v.m_OutlineColor[0] = outline_color[0]; \
+                            v.m_OutlineColor[1] = outline_color[1]; \
+                            v.m_OutlineColor[2] = outline_color[2]; \
+                            v.m_OutlineColor[3] = outline_color[3]; \
+                            v.m_ShadowColor[0]  = shadow_color[0]; \
+                            v.m_ShadowColor[1]  = shadow_color[1]; \
+                            v.m_ShadowColor[2]  = shadow_color[2]; \
+                            v.m_ShadowColor[3]  = shadow_color[3]; \
+                            v.m_FaceColor[0]    = face_color[0]; \
+                            v.m_FaceColor[1]    = face_color[1]; \
+                            v.m_FaceColor[2]    = face_color[2]; \
+                            v.m_FaceColor[3]    = face_color[3]; \
+                            v.m_SdfParams[0]    = sdf_edge_value; \
+                            v.m_SdfParams[1]    = sdf_outline; \
+                            v.m_SdfParams[2]    = sdf_smoothing; \
+                            v.m_SdfParams[3]    = sdf_shadow;
 
-                        SET_VERTEX_PARAMS(v1_layer_face)
-                        SET_VERTEX_PARAMS(v2_layer_face)
-                        SET_VERTEX_PARAMS(v3_layer_face)
-                        SET_VERTEX_PARAMS(v6_layer_face)
+                        SET_VERTEX_FONT_PROPERTIES(v1_layer_face)
+                        SET_VERTEX_FONT_PROPERTIES(v2_layer_face)
+                        SET_VERTEX_FONT_PROPERTIES(v3_layer_face)
+                        SET_VERTEX_FONT_PROPERTIES(v6_layer_face)
 
-                        #undef SET_VERTEX_PARAMS
+                        #undef SET_VERTEX_FONT_PROPERTIES
 
                         v4_layer_face = v3_layer_face;
                         v5_layer_face = v2_layer_face;
