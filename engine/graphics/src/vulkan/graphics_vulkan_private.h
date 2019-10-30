@@ -294,19 +294,21 @@ namespace dmGraphics
 
     struct SwapChain
     {
-        dmArray<VkImage>     m_Images;
-        dmArray<VkImageView> m_ImageViews;
-        const LogicalDevice* m_LogicalDevice;
-        const VkSurfaceKHR   m_Surface;
-        const QueueFamily    m_QueueFamily;
-        VkSurfaceFormatKHR   m_SurfaceFormat;
-        VkSwapchainKHR       m_SwapChain;
-        VkExtent2D           m_ImageExtent;
-        uint8_t              m_ImageIndex;
+        dmArray<VkImage>      m_Images;
+        dmArray<VkImageView>  m_ImageViews;
+        Texture               m_ResolveTexture;
+        const VkSurfaceKHR    m_Surface;
+        const QueueFamily     m_QueueFamily;
+        VkSurfaceFormatKHR    m_SurfaceFormat;
+        VkSwapchainKHR        m_SwapChain;
+        VkExtent2D            m_ImageExtent;
+        VkSampleCountFlagBits m_SampleCountFlag;
+        uint8_t               m_ImageIndex;
 
-        SwapChain(const LogicalDevice* logicalDevice, const VkSurfaceKHR surface,
+        SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
             const SwapChainCapabilities& capabilities, const QueueFamily queueFamily);
-        VkResult Advance(VkSemaphore);
+        VkResult Advance(VkDevice vk_device, VkSemaphore);
+        bool     HasMultiSampling();
     };
 
     // Implemented in graphics_vulkan_context.cpp
@@ -337,21 +339,22 @@ namespace dmGraphics
         uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
-        VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
-        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect,
-        VkImageLayout vk_initial_layout, Texture* textureOut);
+        VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling,
+        VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags,
+        VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, Texture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device,
         VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
         VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v,
         float minLod, float maxLod, VkSampler* vk_sampler_out);
-    VkResult CreateRenderPass(VkDevice vk_device,
+    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
-        RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
+        RenderPassAttachment* depthStencilAttachment,
+        RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,
         const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor,
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
         HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
     // Reset functions
@@ -374,6 +377,7 @@ namespace dmGraphics
     QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount);
     // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
@@ -383,10 +387,11 @@ namespace dmGraphics
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
-    VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
-        const bool wantVSync, SwapChainCapabilities& capabilities);
-    void     DestroySwapChain(SwapChain* swapChain);
-    void     GetSwapChainCapabilities(PhysicalDevice* device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
+    VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
+        uint32_t* wantedWidth, uint32_t* wantedHeight, const bool wantVSync,
+        SwapChainCapabilities& capabilities, SwapChain* swapChain);
+    void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
+    void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
     // Implemented per supported platform
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);

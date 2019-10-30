@@ -401,8 +401,8 @@ namespace dmGraphics
             VK_FORMAT_D16_UNORM
         };
 
-        const VkFormat* vk_formats_to_test = vk_format_list != 0x0 ? vk_format_list : vk_format_list_default;
-        uint8_t vk_formats_to_test_size = vk_format_list != 0x0 ? vk_format_list_size : sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
+        const VkFormat* vk_formats_to_test = vk_format_list ? vk_format_list : vk_format_list_default;
+        uint8_t vk_formats_to_test_size    = vk_format_list ? vk_format_list_size : sizeof(vk_format_list_default) / sizeof(vk_format_list_default[0]);
 
         // Check if we can use optimal tiling for this format, otherwise
         // we try to find the best format that supports linear
@@ -421,7 +421,8 @@ namespace dmGraphics
         *vk_tiling_out = vk_image_tiling;
     }
 
-    static VkResult CreateDepthStencilTexture(HContext context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling, uint32_t width, uint32_t height, Texture* depthStencilTextureOut)
+    static VkResult CreateDepthStencilTexture(HContext context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling,
+        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, Texture* depthStencilTextureOut)
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
@@ -437,7 +438,7 @@ namespace dmGraphics
         }
 
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
-            vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depthStencilTextureOut);
         CHECK_VK_ERROR(res);
 
@@ -468,13 +469,31 @@ namespace dmGraphics
         {
             // All swap chain images can share the same depth buffer,
             // that's why we create a single depth buffer at the start and reuse it.
-            VkImageView&   vk_image_view_color     = swapChain->m_ImageViews[i];
-            VkImageView&   vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
-            VkImageView    vk_image_attachments[2] = { vk_image_view_color, vk_image_view_depth };
+            // Same thing goes for the resolve buffer if we are rendering with
+            // multisampling enabled.
+            VkImageView& vk_image_view_swap      = swapChain->m_ImageViews[i];
+            VkImageView& vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
+            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture.m_ImageView;
+            VkImageView  vk_image_attachments[3];
+            uint8_t num_attachments;
+
+            if (swapChain->HasMultiSampling())
+            {
+                vk_image_attachments[0] = vk_image_view_resolve;
+                vk_image_attachments[1] = vk_image_view_depth;
+                vk_image_attachments[2] = vk_image_view_swap;
+                num_attachments = 3;
+            }
+            else
+            {
+                vk_image_attachments[0] = vk_image_view_swap;
+                vk_image_attachments[1] = vk_image_view_depth;
+                num_attachments = 2;
+            }
 
             res = CreateFramebuffer(context->m_LogicalDevice.m_Device,context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, 2, &context->m_MainFrameBuffers[i]);
+                vk_image_attachments, num_attachments, &context->m_MainFrameBuffers[i]);
             CHECK_VK_ERROR(res);
         }
 
@@ -502,17 +521,27 @@ namespace dmGraphics
             vk_depth_format, vk_depth_tiling,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
+            context->m_SwapChain->m_SampleCountFlag,
             &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
         // Create main render pass with two attachments
-        RenderPassAttachment attachments[2];
-        attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;;
-        attachments[0].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        RenderPassAttachment  attachments[3];
+        RenderPassAttachment* attachment_resolve = 0;
+        attachments[0].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
+        attachments[0].m_ImageLayout = context->m_SwapChain->HasMultiSampling() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         attachments[1].m_Format      = context->m_MainTextureDepthStencil.m_Format;
         attachments[1].m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-        res = CreateRenderPass(vk_device, attachments, 1, &attachments[1], &context->m_MainRenderPass);
+        // Set third attachment as framebuffer resolve attachment
+        if (context->m_SwapChain->HasMultiSampling())
+        {
+            attachments[2].m_Format      = context->m_SwapChain->m_SurfaceFormat.format;
+            attachments[2].m_ImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            attachment_resolve = &attachments[2];
+        }
+
+        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
         CHECK_VK_ERROR(res);
 
         res = CreateMainRenderTarget(context);
@@ -589,10 +618,10 @@ namespace dmGraphics
 
         // Update swap chain capabilities
         SwapChainCapabilities swap_chain_capabilities;
-        GetSwapChainCapabilities(&context->m_PhysicalDevice, context->m_WindowSurface, swap_chain_capabilities);
+        GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
-        VkResult res = UpdateSwapChain(context->m_SwapChain, width, height, true, context->m_SwapChainCapabilities);
+        VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, true, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
 
         // Reset & create main Depth/Stencil buffer
@@ -604,6 +633,7 @@ namespace dmGraphics
             vk_depth_format, vk_depth_tiling,
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
+            context->m_SwapChain->m_SampleCountFlag,
             &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
@@ -732,7 +762,7 @@ namespace dmGraphics
             }
 
             // Make sure device has swap chain support
-            GetSwapChainCapabilities(device, context->m_WindowSurface, selected_swap_chain_capabilities);
+            GetSwapChainCapabilities(device->m_Device, context->m_WindowSurface, selected_swap_chain_capabilities);
 
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
@@ -751,6 +781,7 @@ namespace dmGraphics
         uint32_t created_width  = params->m_Width;
         uint32_t created_height = params->m_Height;
         const bool want_vsync   = true;
+        VkSampleCountFlagBits vk_closest_multisample_flag;
 
         if (selected_device == NULL)
         {
@@ -778,14 +809,15 @@ namespace dmGraphics
             goto bail;
         }
 
-        context->m_PhysicalDevice = *selected_device;
-        context->m_LogicalDevice  = logical_device;
+        context->m_PhysicalDevice   = *selected_device;
+        context->m_LogicalDevice    = logical_device;
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
-        context->m_SwapChain = new SwapChain(&context->m_LogicalDevice, context->m_WindowSurface, context->m_SwapChainCapabilities, selected_queue_family);
+        context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family);
 
-        res = UpdateSwapChain(context->m_SwapChain, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities);
+        res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
@@ -998,7 +1030,7 @@ bail:
                 vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
             }
 
-            DestroySwapChain(context->m_SwapChain);
+            DestroySwapChain(vk_device, context->m_SwapChain);
             DestroyLogicalDevice(&context->m_LogicalDevice);
             DestroyPhysicalDevice(&context->m_PhysicalDevice);
 
@@ -1115,7 +1147,7 @@ bail:
         vkWaitForFences(vk_device, 1, &current_frame_resource.m_SubmitFence, VK_TRUE, UINT64_MAX);
         vkResetFences(vk_device, 1, &current_frame_resource.m_SubmitFence);
 
-        VkResult res      = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+        VkResult res      = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
 
         if (res != VK_SUCCESS)
@@ -1127,7 +1159,7 @@ bail:
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
-                res = context->m_SwapChain->Advance(current_frame_resource.m_ImageAvailable);
+                res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
                 assert(res == VK_SUCCESS);
             }
             else if (res == VK_SUBOPTIMAL_KHR)
@@ -1370,9 +1402,11 @@ bail:
         texture->m_Image                       = VK_NULL_HANDLE;
         texture->m_ImageView                   = VK_NULL_HANDLE;
         texture->m_DeviceBuffer.m_MemoryHandle = VK_NULL_HANDLE;
+        texture->m_DeviceBuffer.m_MemorySize   = 0;
     }
 
-    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, const PipelineState pipelineState, PipelineCache& pipelineCache,
+    static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
+        const PipelineState pipelineState, PipelineCache& pipelineCache,
         Program* program, RenderTarget* rt, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration)
     {
         HashState64 pipeline_hash_state;
@@ -1381,6 +1415,7 @@ bail:
         dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
         dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration->m_Hash, sizeof(vertexDeclaration->m_Hash));
         dmHashUpdateBuffer64(&pipeline_hash_state, &rt->m_Id, sizeof(rt->m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count, sizeof(vk_sample_count));
         uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
 
         Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
@@ -1395,7 +1430,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
+            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1980,7 +2015,13 @@ bail:
         }
 
         // Get the pipeline for the active draw state
-        Pipeline* pipeline = GetOrCreatePipeline(vk_device,
+        VkSampleCountFlagBits vk_sample_count = VK_SAMPLE_COUNT_1_BIT;
+        if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            vk_sample_count = context->m_SwapChain->m_SampleCountFlag;
+        }
+
+        Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
             program_ptr, context->m_CurrentRenderTarget,
             context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
@@ -2053,6 +2094,7 @@ bail:
 
                 if (IsUniformTextureSampler(res))
                 {
+                    res.m_TextureUnit = 0;
                     texture_sampler_count++;
                 }
                 else
@@ -2698,11 +2740,80 @@ bail:
         return conversion_table[format];
     }
 
+    static VkResult CreateRenderTarget(VkDevice vk_device, Texture* colorTexture, Texture* depthStencilTexture, RenderTarget* rtOut)
+    {
+        assert(rtOut->m_Framebuffer == VK_NULL_HANDLE && rtOut->m_RenderPass == VK_NULL_HANDLE);
+        RenderPassAttachment  rp_attachments[2];
+        RenderPassAttachment* rp_attachment_color         = 0;
+        RenderPassAttachment* rp_attachment_depth_stencil = 0;
+
+        VkImageView fb_attachments[2];
+        uint16_t    fb_attachment_count = 0;
+        uint16_t    fb_width            = 0;
+        uint16_t    fb_height           = 0;
+
+        if (colorTexture)
+        {
+            assert(colorTexture->m_ImageView != VK_NULL_HANDLE && colorTexture->m_Image != VK_NULL_HANDLE);
+            uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
+            fb_width                   = rtOut->m_BufferTextureParams[color_buffer_index].m_Width;
+            fb_height                  = rtOut->m_BufferTextureParams[color_buffer_index].m_Height;
+
+            rp_attachment_color = &rp_attachments[0];
+            rp_attachment_color->m_ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            rp_attachment_color->m_Format      = colorTexture->m_Format;
+
+            fb_attachments[fb_attachment_count++] = colorTexture->m_ImageView;
+        }
+
+        if (depthStencilTexture)
+        {
+            uint8_t depth_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+            uint16_t depth_width       = rtOut->m_BufferTextureParams[depth_buffer_index].m_Width;
+            uint16_t depth_height      = rtOut->m_BufferTextureParams[depth_buffer_index].m_Height;
+
+            if (!colorTexture)
+            {
+                fb_width  = depth_width;
+                fb_height = depth_height;
+            }
+
+            rp_attachment_depth_stencil                = &rp_attachments[1];
+            rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            rp_attachment_depth_stencil->m_Format      = depthStencilTexture->m_Format;
+
+            fb_attachments[fb_attachment_count++] = depthStencilTexture->m_ImageView;
+        }
+
+        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        res = CreateFramebuffer(vk_device, rtOut->m_RenderPass,
+            fb_width, fb_height, fb_attachments, fb_attachment_count, &rtOut->m_Framebuffer);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        rtOut->m_TextureColor        = colorTexture;
+        rtOut->m_TextureDepthStencil = depthStencilTexture;
+        rtOut->m_Extent.width        = fb_width;
+        rtOut->m_Extent.height       = fb_height;
+
+        return VK_SUCCESS;
+    }
+
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         assert(context);
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
         memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
+
+        Texture* texture_color         = 0;
+        Texture* texture_depth_stencil = 0;
 
         uint8_t has_color   = buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT;
         uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
@@ -2715,50 +2826,33 @@ bail:
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
 
-        RenderPassAttachment  rp_attachments[2];
-        RenderPassAttachment* rp_attachment_color         = 0;
-        RenderPassAttachment* rp_attachment_depth_stencil = 0;
-
-        VkImageView fb_attachments[2];
-        uint8_t     fb_attachment_count = 0;
         uint16_t    fb_width  = 0;
         uint16_t    fb_height = 0;
 
         if(has_color)
         {
             uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            fb_width  = params[color_buffer_index].m_Width;
-            fb_height = params[color_buffer_index].m_Height;
+            const TextureParams color_buffer_params = params[color_buffer_index];
+            fb_width  = color_buffer_params.m_Width;
+            fb_height = color_buffer_params.m_Height;
+            VkFormat vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
 
-            rp_attachment_color = &rp_attachments[0];
-            rp_attachment_color->m_ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            rp_attachment_color->m_Format      = GetVulkanFormatFromTextureFormat(params[color_buffer_index].m_Format);
-
-            Texture* texture_color = NewTexture(context, creation_params[color_buffer_index]);
+            texture_color = NewTexture(context, creation_params[color_buffer_index]);
             VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount, rp_attachment_color->m_Format,
+                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount,
+                VK_SAMPLE_COUNT_1_BIT, vk_color_format,
                 VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
             CHECK_VK_ERROR(res);
 
-            fb_attachments[fb_attachment_count++] = texture_color->m_ImageView;
-            rt->m_TextureColor = texture_color;
+            SetTextureParams(texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap);
         }
 
         if(has_depth || has_stencil)
         {
             VkFormat vk_depth_stencil_format = VK_FORMAT_UNDEFINED;
             VkImageTiling vk_depth_tiling    = VK_IMAGE_TILING_OPTIMAL;
-
-            uint8_t depth_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
-            uint16_t depth_width       = params[depth_buffer_index].m_Width;
-            uint16_t depth_height      = params[depth_buffer_index].m_Height;
-
-            if (!has_color)
-            {
-                fb_width  = depth_width;
-                fb_height = depth_height;
-            }
+            uint8_t depth_buffer_index       = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
 
             // Only try depth formats first
             if (has_depth && !has_stencil)
@@ -2779,32 +2873,16 @@ bail:
                 GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            rp_attachment_depth_stencil                = &rp_attachments[1];
-            rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            rp_attachment_depth_stencil->m_Format      = vk_depth_stencil_format;
-
-            Texture* texture_depth_stencil = NewTexture(context, creation_params[depth_buffer_index]);
+            texture_depth_stencil = NewTexture(context, creation_params[depth_buffer_index]);
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_depth_tiling,
-                fb_width, fb_height, texture_depth_stencil);
+                fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
+                texture_depth_stencil);
             CHECK_VK_ERROR(res);
-
-            fb_attachments[fb_attachment_count++] = texture_depth_stencil->m_ImageView;
-            rt->m_TextureDepthStencil = texture_depth_stencil;
         }
-        VkResult res = CreateRenderPass(context->m_LogicalDevice.m_Device, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, &rt->m_RenderPass);
+
+        VkResult res = CreateRenderTarget(context->m_LogicalDevice.m_Device, texture_color, texture_depth_stencil, rt);
         CHECK_VK_ERROR(res);
-
-        res = CreateFramebuffer(context->m_LogicalDevice.m_Device, rt->m_RenderPass,
-            fb_width, fb_height, fb_attachments, fb_attachment_count, &rt->m_Framebuffer);
-        CHECK_VK_ERROR(res);
-
-        VkResult CreateRenderPass(VkDevice vk_device,
-        RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
-        RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut);
-
-        rt->m_Extent.width  = fb_width;
-        rt->m_Extent.height = fb_height;
 
         return rt;
     }
@@ -2855,22 +2933,48 @@ bail:
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         assert(render_target);
+        Texture* texture_color = render_target->m_TextureColor;
+
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             render_target->m_BufferTextureParams[i].m_Width = width;
             render_target->m_BufferTextureParams[i].m_Height = height;
-            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT))
+            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT) && texture_color)
             {
-                if(render_target->m_TextureColor)
-                {
-                    SetTexture(render_target->m_TextureColor, render_target->m_BufferTextureParams[i]);
-                }
+                DestroyTextureDeferred(g_Context, texture_color);
+                VkResult res = CreateTexture2D(g_Context->m_PhysicalDevice.m_Device, g_Context->m_LogicalDevice.m_Device,
+                    width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
+                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
+                CHECK_VK_ERROR(res);
             }
         }
 
         if (render_target->m_TextureDepthStencil)
         {
+            DestroyTextureDeferred(g_Context, render_target->m_TextureDepthStencil);
+
+            // Check tiling support for this format
+            VkImageTiling vk_image_tiling    = VK_IMAGE_TILING_OPTIMAL;
+            VkFormat vk_depth_stencil_format = render_target->m_TextureDepthStencil->m_Format;
+            VkFormat vk_depth_format         = GetSupportedTilingFormat(g_Context->m_PhysicalDevice.m_Device, &vk_depth_stencil_format,
+                1, vk_image_tiling, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+            if (vk_depth_format == VK_FORMAT_UNDEFINED)
+            {
+                vk_image_tiling = VK_IMAGE_TILING_LINEAR;
+            }
+
+            VkResult res = CreateDepthStencilTexture(g_Context,
+                vk_depth_stencil_format, vk_image_tiling,
+                width, height, VK_SAMPLE_COUNT_1_BIT,
+                render_target->m_TextureDepthStencil);
+            CHECK_VK_ERROR(res);
         }
+
+        DestroyRenderTarget(&g_Context->m_LogicalDevice, render_target);
+        VkResult res = CreateRenderTarget(g_Context->m_LogicalDevice.m_Device, render_target->m_TextureColor, render_target->m_TextureDepthStencil, render_target);
+        CHECK_VK_ERROR(res);
     }
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
@@ -3042,7 +3146,7 @@ bail:
 
         TextureFormat format_orig   = params.m_Format;
         uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format) >> 3;
-        uint32_t tex_data_size      = params.m_DataSize;
+        size_t tex_data_size        = 0;
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
 
@@ -3075,10 +3179,10 @@ bail:
 
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
-            tex_data_size = bpp_new * params.m_Width * params.m_Height;
             tex_bpp       = bpp_new;
         }
 
+        tex_data_size             = tex_bpp * params.m_Width * params.m_Height;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
@@ -3092,7 +3196,7 @@ bail:
             SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
             if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
             {
-                DestroyTexture(logical_device.m_Device, texture);
+                DestroyTextureDeferred(g_Context, texture);
                 texture->m_Format = vk_format;
                 texture->m_Width  = params.m_Width;
                 texture->m_Height = params.m_Height;
@@ -3136,7 +3240,8 @@ bail:
             }
 
             VkResult res = CreateTexture2D(vk_physical_device, logical_device.m_Device,
-                texture->m_Width, texture->m_Height, texture->m_MipMapCount, vk_format, vk_image_tiling, vk_usage_flags,
+                texture->m_Width, texture->m_Height, texture->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT,
+                vk_format, vk_image_tiling, vk_usage_flags,
                 vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
             CHECK_VK_ERROR(res);
         }

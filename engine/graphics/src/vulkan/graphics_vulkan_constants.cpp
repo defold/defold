@@ -22,7 +22,7 @@ namespace dmGraphics
 	// Missing VK equivalent (use increasing number)
     const BufferType BUFFER_TYPE_COLOR_BIT       = 1;
     const BufferType BUFFER_TYPE_DEPTH_BIT       = 2;
-    const BufferType BUFFER_TYPE_STENCIL_BIT     = 3;
+    const BufferType BUFFER_TYPE_STENCIL_BIT     = 4;
 
     const State STATE_DEPTH_TEST                 = 4;
     const State STATE_SCISSOR_TEST               = 5;

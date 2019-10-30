@@ -184,7 +184,18 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location);
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    {
+                        Matrix4 ndc_matrix = Matrix4::identity();
+                        ndc_matrix.setElem(2, 2, 0.5f );
+                        ndc_matrix.setElem(3, 2, 0.5f );
+                        const Matrix4 view_projection = ndc_matrix * render_context->m_ViewProj;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, location);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location);
+                    }
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
@@ -204,7 +215,20 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                    // Vulkan NDC is [0..1] for z, so we must transform
+                    // the projection before setting the constant.
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    {
+                        Matrix4 ndc_matrix = Matrix4::identity();
+                        ndc_matrix.setElem(2, 2, 0.5f );
+                        ndc_matrix.setElem(3, 2, 0.5f );
+                        const Matrix4 proj = ndc_matrix * render_context->m_Projection;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, location);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                    }
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
@@ -230,9 +254,18 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
                 {
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
-                        Matrix4 world_view = render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                        Matrix4 ndc_matrix = Matrix4::identity();
+                        ndc_matrix.setElem(2, 2, 0.5f );
+                        ndc_matrix.setElem(3, 2, 0.5f );
+                        const Matrix4 world_view_projection = ndc_matrix * render_context->m_ViewProj * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, location);
+                    }
+                    else
+                    {
+                        const Matrix4 world_view_projection = render_context->m_ViewProj * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, location);
                     }
                     break;
                 }

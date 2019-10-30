@@ -162,6 +162,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
     }
 
+    static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
+    {
+        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
+               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
+               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+    }
+
     static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
     static private class SetEntry extends HashMap<Integer,BindingEntry> {}
     static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
@@ -242,6 +249,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         ArrayList<String> shaderIssues    = new ArrayList<String>();
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
 
+        // Put all shader resources on a separate list that will be sorted by binding number later
+        ArrayList<SPIRVReflector.Resource> resource_list = new ArrayList();
+
         // Generate a mapping of Uniform Set -> List of Bindings for that set
         // so that we can check for duplicate bindings.
         //
@@ -253,7 +263,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         //                       |_ U5
         //
         HashMap<Integer,SetEntry> setBindingMap = new HashMap<Integer,SetEntry>();
-        ArrayList<SPIRVReflector.Resource> uniformBuffers = new ArrayList();
         for (SPIRVReflector.UniformBlock ubo : reflector.getUniformBlocks()) {
 
             // We only support a 1-1 mapping between uniform blocks and uniforms.
@@ -295,15 +304,12 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
 
                 if (issue_count == shaderIssues.size()) {
-                    uniformBuffers.add(uniform);
+                    resource_list.add(uniform);
                 }
             }
         }
 
-        ArrayList<SPIRVReflector.Resource> textures = reflector.getTextures();
-        Collections.sort(textures, new SortBindingsComparator());
-
-        for (SPIRVReflector.Resource tex : textures) {
+        for (SPIRVReflector.Resource tex : reflector.getTextures()) {
             SetEntry setEntry = setBindingMap.get(tex.set);
             if (setEntry == null) {
                 setEntry = new SetEntry();
@@ -320,12 +326,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             if (type != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D) {
                 shaderIssues.add("Unsupported type for texture sampler '" + tex.name + "'");
             } else {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                resourceBindingBuilder.setName(MurmurHash.hash64(tex.name));
-                resourceBindingBuilder.setType(type);
-                resourceBindingBuilder.setSet(tex.set);
-                resourceBindingBuilder.setBinding(tex.binding);
-                builder.addUniforms(resourceBindingBuilder);
+                resource_list.add(tex);
             }
 
             bindingEntry.add(tex);
@@ -368,7 +369,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             return null;
         }
 
-        // Process all vertex attributes (inputs)
+        // Build vertex attributes (inputs)
         if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
             ArrayList<SPIRVReflector.Resource> attributes = reflector.getInputs();
 
@@ -386,15 +387,16 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
         }
 
-        // Sort all uniform buffers by increasing binding number
-        Collections.sort(uniformBuffers, new SortBindingsComparator());
+        // Sort shader resources by increasing binding number
+        Collections.sort(resource_list, new SortBindingsComparator());
 
-        for (SPIRVReflector.Resource uniformBuffer : uniformBuffers) {
+        // Build uniforms
+        for (SPIRVReflector.Resource res : resource_list) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-            resourceBindingBuilder.setName(MurmurHash.hash64(uniformBuffer.name));
-            resourceBindingBuilder.setType(stringTypeToShaderType(uniformBuffer.type));
-            resourceBindingBuilder.setSet(uniformBuffer.set);
-            resourceBindingBuilder.setBinding(uniformBuffer.binding);
+            resourceBindingBuilder.setName(MurmurHash.hash64(res.name));
+            resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
+            resourceBindingBuilder.setSet(res.set);
+            resourceBindingBuilder.setBinding(res.binding);
             builder.addUniforms(resourceBindingBuilder);
         }
 

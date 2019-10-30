@@ -1,3 +1,4 @@
+#include <math.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 
@@ -160,6 +161,40 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount)
+    {
+        VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
+
+        if (bufferFlags & BUFFER_TYPE_COLOR_BIT)
+        {
+            vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
+        }
+
+        if (bufferFlags & BUFFER_TYPE_DEPTH_BIT)
+        {
+            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferColorSampleCounts);
+        }
+
+        if (bufferFlags & BUFFER_TYPE_STENCIL_BIT)
+        {
+            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
+        }
+
+        const uint8_t sample_count_index_requested = (uint8_t) log2f((float) sampleCount);
+        const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
+        const VkSampleCountFlagBits vk_count_bits[] = {
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_SAMPLE_COUNT_2_BIT,
+            VK_SAMPLE_COUNT_4_BIT,
+            VK_SAMPLE_COUNT_8_BIT,
+            VK_SAMPLE_COUNT_16_BIT,
+            VK_SAMPLE_COUNT_32_BIT,
+            VK_SAMPLE_COUNT_64_BIT,
+        };
+
+        return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
+    }
+
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel, uint32_t levelCount)
     {
@@ -195,9 +230,10 @@ namespace dmGraphics
 
         // These stage changes are explicit in our case:
         //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
-        //   1) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   2) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   3) undefined -> depth stencil. This transition is used when creating a depth buffer.
+        //   2) undefined -> transfer. This transition is used for staging buffers when uploading texture data
+        //   3) transfer  -> shader read. This transition is used when the staging transfer is complete.
+        //   4) undefined -> depth stencil. This transition is used when creating a depth buffer attachment.
+        //   5) undefined -> color attachment. This transition is used when creating a color buffer attachment.
         if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
         {
             vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
@@ -229,6 +265,14 @@ namespace dmGraphics
 
             vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        {
+            vk_memory_barrier.srcAccessMask = 0;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
         else
         {
@@ -463,11 +507,20 @@ bail:
         return VK_SUCCESS;
     }
 
-    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
-        VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
-        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect,
-        VkImageLayout vk_initial_layout, Texture* textureOut)
+    VkResult CreateTexture2D(
+        VkPhysicalDevice      vk_physical_device,
+        VkDevice              vk_device,
+        uint32_t              imageWidth,
+        uint32_t              imageHeight,
+        uint16_t              imageMips,
+        VkSampleCountFlagBits vk_sample_count,
+        VkFormat              vk_format,
+        VkImageTiling         vk_tiling,
+        VkImageUsageFlags     vk_usage,
+        VkMemoryPropertyFlags vk_memory_flags,
+        VkImageAspectFlags    vk_aspect,
+        VkImageLayout         vk_initial_layout,
+        Texture*              textureOut)
     {
         assert(textureOut);
         assert(textureOut->m_ImageView == VK_NULL_HANDLE);
@@ -489,7 +542,7 @@ bail:
         vk_image_create_info.tiling        = vk_tiling;
         vk_image_create_info.initialLayout = vk_initial_layout;
         vk_image_create_info.usage         = vk_usage;
-        vk_image_create_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        vk_image_create_info.samples       = vk_sample_count;
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
@@ -548,6 +601,12 @@ bail:
 
         textureOut->m_Format = vk_format;
 
+        if (imageMips == 0)
+        {
+            textureOut->m_Width  = imageWidth;
+            textureOut->m_Height = imageHeight;
+        }
+
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);
 bail:
         DestroyTexture(vk_device, textureOut);
@@ -579,14 +638,20 @@ bail:
         return vkCreateSampler(vk_device, &vk_sampler_create_info, 0, vk_sampler_out);
     }
 
-    VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
+    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
+        RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
+        RenderPassAttachment* depthStencilAttachment,
+        RenderPassAttachment* resolveAttachment,
+        VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
 
-        uint8_t num_attachments  = numColorAttachments + (depthStencilAttachment ? 1 : 0);
-        VkAttachmentDescription* vk_attachment_desc    = new VkAttachmentDescription[num_attachments];
-        VkAttachmentReference* vk_attachment_color_ref = new VkAttachmentReference[numColorAttachments];
-        VkAttachmentReference vk_attachment_depth_ref  = {};
+        const uint8_t num_depth_attachments = (depthStencilAttachment ? 1 : 0);
+        const uint8_t num_attachments       = numColorAttachments + num_depth_attachments + (resolveAttachment ? 1 : 0);
+        VkAttachmentDescription* vk_attachment_desc     = new VkAttachmentDescription[num_attachments];
+        VkAttachmentReference* vk_attachment_color_ref  = new VkAttachmentReference[numColorAttachments];
+        VkAttachmentReference vk_attachment_depth_ref   = {};
+        VkAttachmentReference vk_attachment_resolve_ref = {};
 
         memset(vk_attachment_desc, 0, sizeof(VkAttachmentDescription) * num_attachments);
         memset(vk_attachment_color_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
@@ -596,7 +661,7 @@ bail:
             VkAttachmentDescription& attachment_color = vk_attachment_desc[i];
 
             attachment_color.format         = colorAttachments[i].m_Format;
-            attachment_color.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_color.samples        = vk_sample_flags;
             attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -614,7 +679,7 @@ bail:
             VkAttachmentDescription& attachment_depth = vk_attachment_desc[numColorAttachments];
 
             attachment_depth.format         = depthStencilAttachment->m_Format;
-            attachment_depth.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -624,6 +689,23 @@ bail:
 
             vk_attachment_depth_ref.attachment = numColorAttachments;
             vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+
+        if (resolveAttachment)
+        {
+            const uint8_t resolve_index = numColorAttachments + num_depth_attachments;
+            VkAttachmentDescription& attachment_resolve = vk_attachment_desc[resolve_index];
+            attachment_resolve.format         = resolveAttachment->m_Format;
+            attachment_resolve.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_resolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_resolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_resolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment_resolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_resolve.finalLayout    = resolveAttachment->m_ImageLayout;
+
+            vk_attachment_resolve_ref.attachment = resolve_index;
+            vk_attachment_resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
 
         // Subpass dependencies describe access patterns between several 'sub-passes',
@@ -651,6 +733,7 @@ bail:
         vk_sub_pass_description.colorAttachmentCount    = numColorAttachments;
         vk_sub_pass_description.pColorAttachments       = vk_attachment_color_ref;
         vk_sub_pass_description.pDepthStencilAttachment = depthStencilAttachment ? &vk_attachment_depth_ref : 0;
+        vk_sub_pass_description.pResolveAttachments     = resolveAttachment ? &vk_attachment_resolve_ref : 0;
 
         VkRenderPassCreateInfo render_pass_create_info;
         memset(&render_pass_create_info, 0, sizeof(render_pass_create_info));
@@ -720,7 +803,9 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+        PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
+        HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -792,7 +877,7 @@ bail:
 
         vk_multisampling.sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         vk_multisampling.sampleShadingEnable   = VK_FALSE;
-        vk_multisampling.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT;
+        vk_multisampling.rasterizationSamples  = vk_sample_count;
         vk_multisampling.minSampleShading      = 1.0f;
         vk_multisampling.pSampleMask           = 0;
         vk_multisampling.alphaToCoverageEnable = VK_FALSE;

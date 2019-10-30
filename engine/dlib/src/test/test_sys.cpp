@@ -5,9 +5,15 @@
 #include <string>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "../dlib/dstrings.h"
 #include "../dlib/sys.h"
+#include "../dlib/sys_internal.h"
 #include "../dlib/path.h"
 #include "../dlib/log.h"
+
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
+}
 
 TEST(dmSys, Mkdir)
 {

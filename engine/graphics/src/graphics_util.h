@@ -20,6 +20,22 @@ namespace dmGraphics
 #endif
         return c;
     }
+
+    inline const Vectormath::Aos::Vector4 UnpackRGBA(uint32_t in_color)
+    {
+#if DM_ENDIAN == DM_ENDIAN_LITTLE
+        float r = (float)((in_color & 0x000000FF)      ) / 255.0f;
+        float g = (float)((in_color & 0x0000FF00) >>  8) / 255.0f;
+        float b = (float)((in_color & 0x00FF0000) >> 16) / 255.0f;
+        float a = (float)((in_color & 0xFF000000) >> 24) / 255.0f;
+#else
+        float r = (float)((in_color & 0xFF000000) >> 24) / 255.0f;
+        float g = (float)((in_color & 0x00FF0000) >> 16) / 255.0f;
+        float b = (float)((in_color & 0x0000FF00) >>  8) / 255.0f;
+        float a = (float)((in_color & 0x000000FF)      ) / 255.0f;
+#endif
+        return Vectormath::Aos::Vector4(r,g,b,a);
+    }
 }
 
 
