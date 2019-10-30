@@ -641,7 +641,7 @@ if (sock_res != dmSocket::RESULT_OK)\
             }
         }
 
-        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0) {
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
             HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
             char buf[64];
@@ -652,7 +652,7 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n")
 
-        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0)
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0)
         {
             Result post_result = client->m_HttpWrite(response, client->m_Userdata);
             if (post_result != RESULT_OK) {
