@@ -31,14 +31,14 @@ namespace dmGraphics
     VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
     {
         assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
-        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorIndex];
+        *vk_descriptor_set_out  = &m_Handle.m_DescriptorSets[m_DescriptorIndex];
         m_DescriptorIndex      += setCount;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
-        vk_descriptor_set_alloc.descriptorPool     = m_PoolHandle;
+        vk_descriptor_set_alloc.descriptorPool     = m_Handle.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
 
         return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
@@ -48,20 +48,35 @@ namespace dmGraphics
     {
         if (m_DescriptorIndex > 0)
         {
-            vkFreeDescriptorSets(vk_device, m_PoolHandle, m_DescriptorIndex, m_DescriptorSets);
+            vkFreeDescriptorSets(vk_device, m_Handle.m_DescriptorPool, m_DescriptorIndex, m_Handle.m_DescriptorSets);
             m_DescriptorIndex = 0;
         }
     }
 
+    const VulkanResourceType DescriptorAllocator::GetType()
+    {
+        return RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR;
+    }
+
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
-        return vkMapMemory(vk_device, m_MemoryHandle, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
     {
         assert(m_MappedDataPtr);
-        vkUnmapMemory(vk_device, m_MemoryHandle);
+        vkUnmapMemory(vk_device, m_Handle.m_Memory);
+    }
+
+    const VulkanResourceType DeviceBuffer::GetType()
+    {
+        return RESOURCE_TYPE_DEVICE_BUFFER;
+    }
+
+    const VulkanResourceType Texture::GetType()
+    {
+        return RESOURCE_TYPE_TEXTURE;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -349,9 +364,8 @@ namespace dmGraphics
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
-        assert(bufferOut);
-        assert(bufferOut->m_BufferHandle == VK_NULL_HANDLE);
-        assert(vk_size < 0x80000000); // bit count is 31 in graphics_vulkan_private.h
+        assert(bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE);
+        assert(vk_size < 0x80000000); // must match max bit count in graphics_vulkan_private.h
 
         VkBufferCreateInfo vk_buffer_create_info;
         memset(&vk_buffer_create_info, 0, sizeof(vk_buffer_create_info));
@@ -361,7 +375,7 @@ namespace dmGraphics
         vk_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         vk_buffer_create_info.usage       = bufferOut->m_Usage;
 
-        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_BufferHandle);
+        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_Handle.m_Buffer);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -369,7 +383,7 @@ namespace dmGraphics
 
         // Allocate GPU memory to hold buffer
         VkMemoryRequirements vk_buffer_memory_req;
-        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_BufferHandle, &vk_buffer_memory_req);
+        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_Handle.m_Buffer, &vk_buffer_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -387,49 +401,50 @@ namespace dmGraphics
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_MemoryHandle);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_Handle.m_Memory);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindBufferMemory(vk_device, bufferOut->m_BufferHandle, bufferOut->m_MemoryHandle, 0);
+        res = vkBindBufferMemory(vk_device, bufferOut->m_Handle.m_Buffer, bufferOut->m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
         bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
+        bufferOut->m_Destroyed  = 0;
 
         return VK_SUCCESS;
 bail:
-        DestroyDeviceBuffer(vk_device, bufferOut);
+        DestroyDeviceBuffer(vk_device, &bufferOut->m_Handle);
         return res;
     }
 
-    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator)
+    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        assert(descriptorAllocator && descriptorAllocator->m_DescriptorSets == 0x0);
-        assert(descriptor_count < 0x8000); // bit count is 15 in graphics_vulkan_private.h
+        assert(descriptorAllocator->m_Handle.m_DescriptorSets == 0x0);
+        assert(descriptor_count < 0x8000); // Should match the bit count in graphics_vulkan_private.h
 
         VkDescriptorPoolSize vk_pool_size[] = {
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
         };
 
-        descriptorAllocator->m_DescriptorSets  = new VkDescriptorSet[descriptor_count];
-        descriptorAllocator->m_DescriptorMax   = descriptor_count;
-        descriptorAllocator->m_DescriptorIndex = 0;
-        descriptorAllocator->m_FrameTag        = swapChainIndex;
+        descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
+        descriptorAllocator->m_DescriptorMax           = descriptor_count;
+        descriptorAllocator->m_DescriptorIndex         = 0;
+        descriptorAllocator->m_Destroyed               = 0;
 
-        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_PoolHandle);
+        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_Handle.m_DescriptorPool);
     }
 
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut)
     {
-        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
-        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
+        assert(scratchBufferOut->m_DeviceBuffer.m_Handle.m_Buffer == VK_NULL_HANDLE);
+        assert(scratchBufferOut->m_DeviceBuffer.m_Handle.m_Buffer == VK_NULL_HANDLE);
         scratchBufferOut->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
         DeviceBuffer& device_buffer = scratchBufferOut->m_DeviceBuffer;
@@ -449,7 +464,7 @@ bail:
 
             if (res != VK_SUCCESS)
             {
-                DestroyDeviceBuffer(vk_device, &device_buffer);
+                DestroyDeviceBuffer(vk_device, &device_buffer.m_Handle);
                 return res;
             }
 
@@ -469,11 +484,7 @@ bail:
         VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect,
         VkImageLayout vk_initial_layout, Texture* textureOut)
     {
-        assert(textureOut);
-        assert(textureOut->m_ImageView == VK_NULL_HANDLE);
-
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
-        assert(device_buffer.m_MemoryHandle == VK_NULL_HANDLE && device_buffer.m_MemorySize == 0);
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -493,7 +504,7 @@ bail:
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
-        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
+        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -501,7 +512,7 @@ bail:
 
         // Allocate GPU memory to hold texture
         VkMemoryRequirements vk_memory_req;
-        vkGetImageMemoryRequirements(vk_device, textureOut->m_Image, &vk_memory_req);
+        vkGetImageMemoryRequirements(vk_device, textureOut->m_Handle.m_Image, &vk_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -519,13 +530,13 @@ bail:
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &device_buffer.m_MemoryHandle);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &device_buffer.m_Handle.m_Memory);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Image, device_buffer.m_MemoryHandle, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Handle.m_Image, device_buffer.m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
@@ -537,7 +548,7 @@ bail:
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
 
         vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        vk_view_create_info.image                           = textureOut->m_Image;
+        vk_view_create_info.image                           = textureOut->m_Handle.m_Image;
         vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
         vk_view_create_info.format                          = vk_format;
         vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
@@ -546,11 +557,12 @@ bail:
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
         vk_view_create_info.subresourceRange.layerCount     = 1;
 
-        textureOut->m_Format = vk_format;
+        textureOut->m_Format    = vk_format;
+        textureOut->m_Destroyed = 0;
 
-        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);
+        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
 bail:
-        DestroyTexture(vk_device, textureOut);
+        DestroyTexture(vk_device, &textureOut->m_Handle);
         return res;
     }
 
@@ -916,19 +928,19 @@ bail:
         memset((void*)device, 0, sizeof(*device));
     }
 
-    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator)
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle)
     {
-        assert(descriptorAllocator);
-        if (descriptorAllocator->m_DescriptorSets)
+        assert(handle);
+        if (handle->m_DescriptorSets)
         {
-            delete[] descriptorAllocator->m_DescriptorSets;
-            descriptorAllocator->m_DescriptorSets = 0x0;
+            delete[] handle->m_DescriptorSets;
+            handle->m_DescriptorSets = 0x0;
         }
 
-        if (descriptorAllocator->m_PoolHandle != VK_NULL_HANDLE)
+        if (handle->m_DescriptorPool != VK_NULL_HANDLE)
         {
-            vkDestroyDescriptorPool(vk_device, descriptorAllocator->m_PoolHandle, 0);
-            descriptorAllocator->m_PoolHandle = VK_NULL_HANDLE;
+            vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
+            handle->m_DescriptorPool = VK_NULL_HANDLE;
         }
     }
 
@@ -949,26 +961,19 @@ bail:
         }
     }
 
-    void DestroyTexture(VkDevice vk_device, Texture* texture)
+    void DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle)
     {
-        assert(texture);
-        if (texture->m_ImageView != VK_NULL_HANDLE)
+        assert(handle);
+        if (handle->m_ImageView != VK_NULL_HANDLE)
         {
-            vkDestroyImageView(vk_device, texture->m_ImageView, 0);
-            texture->m_ImageView = VK_NULL_HANDLE;
+            vkDestroyImageView(vk_device, handle->m_ImageView, 0);
+            handle->m_ImageView = VK_NULL_HANDLE;
         }
 
-        if (texture->m_Image != VK_NULL_HANDLE)
+        if (handle->m_Image != VK_NULL_HANDLE)
         {
-            vkDestroyImage(vk_device, texture->m_Image, 0);
-            texture->m_Image = VK_NULL_HANDLE;
-        }
-
-        if (texture->m_DeviceBuffer.m_MemoryHandle != VK_NULL_HANDLE)
-        {
-            vkFreeMemory(vk_device, texture->m_DeviceBuffer.m_MemoryHandle, 0);
-            texture->m_DeviceBuffer.m_MemoryHandle = VK_NULL_HANDLE;
-            texture->m_DeviceBuffer.m_MemorySize   = 0;
+            vkDestroyImage(vk_device, handle->m_Image, 0);
+            handle->m_Image = VK_NULL_HANDLE;
         }
     }
 
@@ -982,21 +987,20 @@ bail:
         }
     }
 
-    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer)
+    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
     {
-        assert(buffer);
+        assert(handle);
 
-        if (buffer->m_BufferHandle != VK_NULL_HANDLE)
+        if (handle->m_Buffer != VK_NULL_HANDLE)
         {
-            vkDestroyBuffer(vk_device, buffer->m_BufferHandle, 0);
-            buffer->m_BufferHandle = VK_NULL_HANDLE;
+            vkDestroyBuffer(vk_device, handle->m_Buffer, 0);
+            handle->m_Buffer = VK_NULL_HANDLE;
         }
 
-        if (buffer->m_MemoryHandle != VK_NULL_HANDLE)
+        if (handle->m_Memory != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, buffer->m_MemoryHandle, 0);
-            buffer->m_MemoryHandle = VK_NULL_HANDLE;
-            buffer->m_MemorySize   = 0;
+            vkFreeMemory(vk_device, handle->m_Memory, 0);
+            handle->m_Memory = VK_NULL_HANDLE;
         }
     }
 

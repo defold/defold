@@ -8,26 +8,40 @@ namespace dmGraphics
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
 
+    enum VulkanResourceType
+    {
+        RESOURCE_TYPE_DEVICE_BUFFER        = 0,
+        RESOURCE_TYPE_TEXTURE              = 1,
+        RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR = 2,
+    };
+
     struct DeviceBuffer
     {
         DeviceBuffer(const VkBufferUsageFlags usage)
         : m_MappedDataPtr(0)
         , m_Usage(usage)
-        , m_BufferHandle(VK_NULL_HANDLE)
-        , m_MemoryHandle(VK_NULL_HANDLE)
         , m_MemorySize(0)
-        , m_FrameTag(0)
-        {}
+        , m_Destroyed(1)
+        {
+            memset(&m_Handle, 0, sizeof(m_Handle));
+        }
+
+        struct VulkanHandle
+        {
+            VkBuffer       m_Buffer;
+            VkDeviceMemory m_Memory;
+        };
 
         void*              m_MappedDataPtr;
+        VulkanHandle       m_Handle;
         VkBufferUsageFlags m_Usage;
-        VkBuffer           m_BufferHandle;
-        VkDeviceMemory     m_MemoryHandle;
-        uint32_t           m_MemorySize : 31; // ~2gb max
-        uint32_t           m_FrameTag   : 2;
+        uint32_t           m_MemorySize : 31;
+        uint32_t           m_Destroyed : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
+
+        const VulkanResourceType GetType();
     };
 
     struct Texture
@@ -35,8 +49,6 @@ namespace dmGraphics
         Texture()
         : m_Type(TEXTURE_TYPE_2D)
         , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
-        , m_Image(VK_NULL_HANDLE)
-        , m_ImageView(VK_NULL_HANDLE)
         , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
         , m_Width(0)
         , m_Height(0)
@@ -44,22 +56,31 @@ namespace dmGraphics
         , m_OriginalHeight(0)
         , m_MipMapCount(0)
         , m_TextureSamplerIndex(0)
-        , m_FrameTag(0)
-        {}
+        , m_Destroyed(0)
+        {
+            memset(&m_Handle, 0, sizeof(m_Handle));
+        }
 
+        struct VulkanHandle
+        {
+            VkImage     m_Image;
+            VkImageView m_ImageView;
+        };
+
+        VulkanHandle   m_Handle;
         TextureType    m_Type;
         TextureFormat  m_GraphicsFormat;
-        VkImage        m_Image;
-        VkImageView    m_ImageView;
         VkFormat       m_Format;
         DeviceBuffer   m_DeviceBuffer;
         uint16_t       m_Width;
         uint16_t       m_Height;
         uint16_t       m_OriginalWidth;
         uint16_t       m_OriginalHeight;
-        uint16_t       m_MipMapCount         : 8;
-        uint16_t       m_TextureSamplerIndex : 7;
-        uint16_t       m_FrameTag            : 2;
+        uint16_t       m_MipMapCount         : 5;
+        uint16_t       m_TextureSamplerIndex : 10;
+        uint32_t       m_Destroyed           : 1;
+
+        const VulkanResourceType GetType();
     };
 
     struct TextureSampler
@@ -70,6 +91,45 @@ namespace dmGraphics
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
         uint8_t       m_MaxLod;
+    };
+
+    struct DescriptorAllocator
+    {
+        DescriptorAllocator()
+        : m_DescriptorMax(0)
+        , m_DescriptorIndex(0)
+        , m_Destroyed(1)
+        {
+            memset(&m_Handle, 0, sizeof(m_Handle));
+        }
+
+        struct VulkanHandle
+        {
+            VkDescriptorPool m_DescriptorPool;
+            VkDescriptorSet* m_DescriptorSets;
+        };
+
+        VulkanHandle     m_Handle;
+        // 16 bits supports max 65536 draw calls
+        uint32_t         m_DescriptorMax   : 15;
+        uint32_t         m_DescriptorIndex : 15;
+        uint32_t         m_Destroyed       : 1;
+        uint32_t                           : 1; // unused
+
+        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
+        void     Release(VkDevice vk_device);
+        const    VulkanResourceType GetType();
+    };
+
+    struct ResourceToDestroy
+    {
+        union
+        {
+            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
+            Texture::VulkanHandle             m_Texture;
+            DescriptorAllocator::VulkanHandle m_DescriptorAllocator;
+        };
+        VulkanResourceType m_ResourceType;
     };
 
     struct VertexDeclaration
@@ -90,18 +150,6 @@ namespace dmGraphics
         Stream      m_Streams[DM_MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
-    };
-
-    struct DescriptorAllocator
-    {
-        VkDescriptorPool m_PoolHandle;
-        VkDescriptorSet* m_DescriptorSets;
-        uint32_t         m_DescriptorMax   : 15; // 16384 max draw calls
-        uint32_t         m_DescriptorIndex : 15;
-        uint32_t         m_FrameTag        : 2;
-
-        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
-        void     Release(VkDevice vk_device);
     };
 
     struct ScratchBuffer
@@ -326,8 +374,7 @@ namespace dmGraphics
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
         LogicalDevice* logicalDeviceOut);
-    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count,
-        uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator);
+    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator);
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -355,11 +402,11 @@ namespace dmGraphics
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
     void           DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
-    void           DestroyTexture(VkDevice vk_device, Texture* texture);
-    void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer);
+    void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
+    void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
     void           DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void           DestroyPipeline(VkDevice vk_device, Pipeline* pipeline);
-    void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator);
+    void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle);
     void           DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     void           DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
     // Get functions
