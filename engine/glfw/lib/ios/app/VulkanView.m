@@ -53,6 +53,7 @@ static VulkanView* 		g_VulkanView = 0;
 
 void* _glfwPlatformAcquireAuxContext()
 {
+    return 0;
 }
 
 void _glfwPlatformUnacquireAuxContext(void* context)
