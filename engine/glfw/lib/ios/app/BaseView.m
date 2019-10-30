@@ -596,7 +596,6 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
         default:
             view.keyboardType = UIKeyboardTypeDefault;
     }
-    view.textkeyActive = -1;
     view.autoCloseKeyboard = auto_close;
     if (show) {
         view.keyboardActive = YES;
@@ -605,7 +604,6 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
         view.keyboardActive = NO;
         [_glfwWin.view resignFirstResponder];
     }
-
     // check if there are any active special keys and immediately release
     // them when the keyboard is manipulated
     if (view.textkeyActive > 0) {
