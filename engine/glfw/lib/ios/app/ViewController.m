@@ -64,6 +64,16 @@ extern int g_IsReboot;
     [self createView:FALSE];
 }
 
+- (void)viewWillDisappear:(BOOL)animated
+{
+    [super viewWillDisappear:animated];
+
+#if !defined(DM_USE_VULKAN)
+    // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
+    glFinish();
+#endif
+}
+
 - (void)updateViewFramesWorkaround
 {
     float version = [[UIDevice currentDevice].systemVersion floatValue];

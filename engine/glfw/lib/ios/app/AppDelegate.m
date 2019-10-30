@@ -104,9 +104,6 @@ char**              g_Argv = 0;
     // We should pause the update loop when this message is sent
     _glfwWin.iconified = GL_TRUE;
 
-    // According to Apple glFinish() should be called here
-    glFinish();
-
     if(_glfwWin.windowFocusCallback)
         _glfwWin.windowFocusCallback(0);
 }
