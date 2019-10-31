@@ -142,6 +142,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     {
         switch(typeAsString)
         {
+            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
+            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
+            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
             case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
             case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
             case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
@@ -271,6 +274,26 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 uniform.binding = ubo.binding;
                 uniform.set     = ubo.set;
                 bindingEntry.add(uniform);
+
+                ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
+
+                int issue_count = shaderIssues.size();
+                if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
+                    shaderIssues.add("Unsupported type for uniform '" + uniform.name + "'");
+                }
+
+                if (uniform.set > 1) {
+                    shaderIssues.add("Unsupported set value for uniform '" + uniform.name + "', expected <= 1 but found " + uniform.set);
+                }
+
+                if (issue_count == shaderIssues.size()) {
+                    ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                    resourceBindingBuilder.setName(MurmurHash.hash64(uniform.name));
+                    resourceBindingBuilder.setType(type);
+                    resourceBindingBuilder.setSet(uniform.set);
+                    resourceBindingBuilder.setBinding(uniform.binding);
+                    builder.addUniforms(resourceBindingBuilder);
+                }
             }
         }
 
@@ -318,22 +341,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                         }
                     }
 
-                    shaderIssues.add("Uniforms '" + duplicateList + " from set " + setIndex + " have the same binding " + bindingIndex);
+                    shaderIssues.add("Uniforms '" + duplicateList + "' from set " + setIndex + " have the same binding " + bindingIndex);
                 }
-            }
-        }
-
-        // Process all vertex attributes (inputs)
-        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
-            // Note: No need to check for duplicates for vertex attributes,
-            // the SPIR-V compiler will complain about it.
-            for (SPIRVReflector.Resource input : reflector.getInputs()) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                resourceBindingBuilder.setName(MurmurHash.hash64(input.name));
-                resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
-                resourceBindingBuilder.setSet(input.set);
-                resourceBindingBuilder.setBinding(input.binding);
-                builder.addAttributes(resourceBindingBuilder);
             }
         }
 
@@ -351,6 +360,20 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
 
             return null;
+        }
+
+        // Process all vertex attributes (inputs)
+        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
+            // Note: No need to check for duplicates for vertex attributes,
+            // the SPIR-V compiler will complain about it.
+            for (SPIRVReflector.Resource input : reflector.getInputs()) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                resourceBindingBuilder.setName(MurmurHash.hash64(input.name));
+                resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
+                resourceBindingBuilder.setSet(input.set);
+                resourceBindingBuilder.setBinding(input.binding);
+                builder.addAttributes(resourceBindingBuilder);
+            }
         }
 
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);

@@ -35,11 +35,11 @@ namespace dmEngine
         RunResult()
         {
             memset(this, 0, sizeof(*this));
-            m_Action = EXIT;
         }
 
         enum Action
         {
+            NONE,
             EXIT,
             REBOOT,
         };
@@ -149,6 +149,7 @@ namespace dmEngine
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
+        uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
         Vsync                                       m_VsyncMode;

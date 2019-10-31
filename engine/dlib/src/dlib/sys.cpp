@@ -247,30 +247,7 @@ namespace dmSys
 
 #if defined(__MACH__)
 
-#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
-    // NOTE: iOS implementation in sys_cocoa.mm
-    __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        FSRef file;
-        OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
-        if (err != 0)
-        {
-            return RESULT_INVAL;
-        }
-        FSRefMakePath(&file, (UInt8*) path, path_len);
-        if (dmStrlCat(path, "/", path_len) >= path_len)
-            return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
-            return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
-        if (r == RESULT_EXIST)
-            return RESULT_OK;
-        else
-            return r;
-    }
-
-    // NOTE: iOS/OSX implementation of GetApplicationPath() in sys_cocoa.mm
-#endif
+// NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
 
 #elif defined(_WIN32)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
@@ -1033,4 +1010,48 @@ namespace dmSys
 #endif
     }
 
+    // Currently only used in tests
+    #define DM_SYS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_SYS_RESULT_TO_STRING_CASE(OK);
+            DM_SYS_RESULT_TO_STRING_CASE(PERM);
+            DM_SYS_RESULT_TO_STRING_CASE(NOENT);
+            DM_SYS_RESULT_TO_STRING_CASE(SRCH);
+            DM_SYS_RESULT_TO_STRING_CASE(INTR);
+            DM_SYS_RESULT_TO_STRING_CASE(IO);
+            DM_SYS_RESULT_TO_STRING_CASE(NXIO);
+            DM_SYS_RESULT_TO_STRING_CASE(2BIG);
+            DM_SYS_RESULT_TO_STRING_CASE(NOEXEC);
+            DM_SYS_RESULT_TO_STRING_CASE(BADF);
+            DM_SYS_RESULT_TO_STRING_CASE(CHILD);
+            DM_SYS_RESULT_TO_STRING_CASE(DEADLK);
+            DM_SYS_RESULT_TO_STRING_CASE(NOMEM);
+            DM_SYS_RESULT_TO_STRING_CASE(ACCES);
+            DM_SYS_RESULT_TO_STRING_CASE(FAULT);
+            DM_SYS_RESULT_TO_STRING_CASE(BUSY);
+            DM_SYS_RESULT_TO_STRING_CASE(EXIST);
+            DM_SYS_RESULT_TO_STRING_CASE(XDEV);
+            DM_SYS_RESULT_TO_STRING_CASE(NODEV);
+            DM_SYS_RESULT_TO_STRING_CASE(NOTDIR);
+            DM_SYS_RESULT_TO_STRING_CASE(ISDIR);
+            DM_SYS_RESULT_TO_STRING_CASE(INVAL);
+            DM_SYS_RESULT_TO_STRING_CASE(NFILE);
+            DM_SYS_RESULT_TO_STRING_CASE(MFILE);
+            DM_SYS_RESULT_TO_STRING_CASE(NOTTY);
+            DM_SYS_RESULT_TO_STRING_CASE(TXTBSY);
+            DM_SYS_RESULT_TO_STRING_CASE(FBIG);
+            DM_SYS_RESULT_TO_STRING_CASE(NOSPC);
+            DM_SYS_RESULT_TO_STRING_CASE(SPIPE);
+            DM_SYS_RESULT_TO_STRING_CASE(ROFS);
+            DM_SYS_RESULT_TO_STRING_CASE(MLINK);
+            DM_SYS_RESULT_TO_STRING_CASE(PIPE);
+            DM_SYS_RESULT_TO_STRING_CASE(UNKNOWN);
+
+        }
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_SYS_RESULT_TO_STRING_CASE
 }

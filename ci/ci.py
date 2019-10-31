@@ -7,13 +7,9 @@ import os
 from argparse import ArgumentParser
 
 def call(args):
-    args.replace("--release", "")
-    print(args)
     ret = os.system(args)
     if ret != 0:
         exit(1)
-    # subprocess.check_call(args, shell=True)
-    # subprocess.call(args, stdin=None, stdout=None, stderr=None, shell=True)
 
 
 def aptget(package):
@@ -52,8 +48,7 @@ def install():
         aptget("tree")
         aptget("silversearcher-ag")
         aptget("valgrind")
-
-
+        aptget("lib32z1") # aapt: error while loading shared libraries: libz.so.1: cannot open shared object file: No such file or directory
 
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
     args = 'python scripts/build.py distclean install_ext'.split()
@@ -110,7 +105,7 @@ def build_editor(channel = None, release = False, engine_artifacts = None):
     # From build.py:
     #     'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)'
     if engine_artifacts:
-        args.append('--engine_artifacts=' + engine_artifacts)
+        args.append('--engine-artifacts=' + engine_artifacts)
 
     if channel:
         args.append('--channel=' + channel)
@@ -179,8 +174,7 @@ def main(argv):
         channel = None
         release = False
 
-    print("Platform: %s Branch: %s Channel: %s" % (platform, branch, channel))
-
+    # execute commands
     for command in args.commands:
         if command == "engine":
             if not platform:
@@ -192,9 +186,11 @@ def main(argv):
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
             elif branch == "editor-dev":
                 build_editor(channel = "editor-alpha", release = True)
+            elif branch.startswith("DEFEDIT-"):
+                build_editor(release = False, engine_artifacts = "archived-stable")
             else:
+                # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
                 build_editor(release = False, engine_artifacts = "archived")
-                build_editor(release = False)
         elif command == "bob":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)

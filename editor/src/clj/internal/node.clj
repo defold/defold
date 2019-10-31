@@ -889,7 +889,7 @@
        (assert-symbol "inherits" form)
        (let [typeref (util/vgr form)]
          (assert (node-type-resolve typeref)
-                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ".)"))
+                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ")."))
          typeref)))})
 
 (defmethod process-as 'display-order [[_ decl]]

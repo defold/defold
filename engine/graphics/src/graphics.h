@@ -45,6 +45,12 @@ namespace dmGraphics
      */
     typedef int32_t (*WindowIsRunning)(void* user_data);
 
+    // See documentation in engine.h
+    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef void (*EngineDestroy)(void* engine);
+    typedef int (*EngineUpdate)(void* engine);
+    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
@@ -391,6 +397,11 @@ namespace dmGraphics
     void Finalize();
 
     /**
+     * Starts the app that needs to control the update loop (e.g iOS)
+     */
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+
+    /**
      * Get the window refresh rate
      * @params context Graphics context handle
      * @return The window refresh rate, 0 if refresh rate ciuld not be read.
@@ -571,9 +582,11 @@ namespace dmGraphics
     void DisableProgram(HContext context);
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
 
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type);
     uint32_t GetUniformCount(HProgram prog);
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
-    int32_t GetUniformLocation(HProgram prog, const char* name);
+    int32_t  GetUniformLocation(HProgram prog, const char* name);
+    int32_t  GetUniformLocation(HProgram prog, dmhash_t name);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);

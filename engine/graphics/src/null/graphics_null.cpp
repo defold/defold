@@ -143,6 +143,10 @@ namespace dmGraphics
         assert(context);
     }
 
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
@@ -538,7 +542,7 @@ namespace dmGraphics
         }
         else if (type == dmGraphics::TYPE_FLOAT)
         {
-            return ((float*)index_buffer)[index];
+            return (uint32_t)((float*)index_buffer)[index];
         }
 
         assert(0);
@@ -755,7 +759,19 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        // Not supported
+        return 0;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
+        // Not supported
+        return -1;
+    }
+
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -763,6 +779,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        return (uint32_t)strlen(buffer);
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)

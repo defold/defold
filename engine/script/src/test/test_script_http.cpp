@@ -242,7 +242,7 @@ TEST_F(ScriptHttpTest, TestPost)
         uint64_t now = dmTime::GetTime();
         uint64_t elapsed = now - start;
 
-        if (elapsed / 1000000 > 4) {
+        if (elapsed / 1000000 > 8) {
             dmLogError("The test timed out\n");
             ASSERT_TRUE(0);
         }

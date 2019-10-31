@@ -73,6 +73,17 @@ namespace dmThread
      */
     void* GetTlsValue(TlsKey key);
 
+    /** Gets the current thread
+     * @return the current thread
+     */
+    Thread GetCurrentThread();
+
+    /** Sets the current thread name
+     * @param thread the thread
+     * @param name the thread name
+     * @note The thread argument is unused on Darwin (uses current thread)
+     */
+    void SetThreadName(Thread thread, const char* name);
 }
 
 #endif // DM_THREAD_H

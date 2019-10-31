@@ -77,7 +77,7 @@ namespace dmGameSystem
      * @variable
      */
 
-    /*# hinge joint type
+    /*# slider joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SLIDER` type:
      * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.

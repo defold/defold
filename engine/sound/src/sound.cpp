@@ -396,6 +396,12 @@ namespace dmSound
         *stats = g_SoundSystem->m_Stats;
     }
 
+    static inline const char* GetSoundName(SoundSystem* sound, SoundInstance* instance)
+    {
+        dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
+        return dmHashReverseSafe64(hash);
+    }
+
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         SoundSystem* sound = g_SoundSystem;
@@ -505,7 +511,7 @@ namespace dmSound
         SoundSystem* sound = g_SoundSystem;
         if (IsPlaying(sound_instance))
         {
-            dmLogError("Deleting playing sound instance");
+            dmLogError("Deleting playing sound instance (%s)", GetSoundName(sound, sound_instance));
             Stop(sound_instance);
         }
         uint16_t index = sound_instance->m_Index;
@@ -724,7 +730,7 @@ namespace dmSound
                 sound_instance->m_Speed = dmMath::Max(0.1f, dmMath::Min((float)SOUND_MAX_SPEED, value.getX()));
                 break;
             default:
-                dmLogError("Invalid parameter: %d\n", parameter);
+                dmLogError("Invalid parameter: %d (%s)\n", parameter, GetSoundName(g_SoundSystem, sound_instance));
                 return RESULT_INVALID_PROPERTY;
         }
         return RESULT_OK;
@@ -1014,12 +1020,12 @@ namespace dmSound
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
         if (info.m_BitsPerSample == 16 && info.m_Channels > SOUND_MAX_MIX_CHANNELS ) {
-            dmLogError("Only mono/stereo with 16 bits per sample is supported");
+            dmLogError("Only mono/stereo with 16 bits per sample is supported (%s)", GetSoundName(sound, instance));
             return;
         }
 
         if (info.m_Rate > sound->m_MixRate) {
-            dmLogError("Sounds with rate higher than sample-rate not supported (%d > %d)", info.m_Rate, sound->m_MixRate);
+            dmLogError("Sounds with rate higher than sample-rate not supported (%d > %d) (%s)", info.m_Rate, sound->m_MixRate, GetSoundName(sound, instance));
             return;
         }
 
@@ -1079,8 +1085,7 @@ namespace dmSound
         }
 
         if (r != dmSoundCodec::RESULT_OK) {
-            dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
-            dmLogWarning("Unable to decode file '%s'. Result %d", dmHashReverseSafe64(hash), r);
+            dmLogWarning("Unable to decode file '%s'. Result %d", GetSoundName(sound, instance), r);
 
             instance->m_Playing = 0;
             return;

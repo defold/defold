@@ -37,10 +37,10 @@ CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
-PACKAGES_IOS_SDK="iPhoneOS12.1.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator12.1.sdk"
-PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault10.1.xctoolchain"
+PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
+PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.1.xctoolchain"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
@@ -195,7 +195,8 @@ class Configuration(object):
                  channel = None,
                  eclipse_version = None,
                  engine_artifacts = None,
-                 waf_options = []):
+                 waf_options = [],
+                 save_env_path = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -234,6 +235,7 @@ class Configuration(object):
         self.eclipse_version = eclipse_version
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
+        self.save_env_path = save_env_path
 
         self.thread_pool = None
         self.s3buckets = {}
@@ -1128,13 +1130,6 @@ instructions.configure=\
         for p in glob(join(build_dir, 'build/distributions/*.zip')):
             self.upload_file(p, full_archive_path)
 
-    def _find_jdk8_folder(self, path):
-        for root, dirs, files in os.walk(path):
-            for d in dirs:
-                if d.startswith('jdk1.8.0'):
-                    return os.path.join(root, d, 'bin')
-        return ''
-
     def _build_cr(self, product):
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         env = self._form_env()
@@ -1209,6 +1204,18 @@ instructions.configure=\
 
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
+
+    def save_env(self):
+        if not self.save_env_path:
+            self._log("No --save-env-path set when trying to save environment export")
+            return
+
+        env = self._form_env()
+        res = ""
+        for key in env:
+            res = res + ("export %s='%s'\n" % (key, env[key]))
+        with open(self.save_env_path, "w") as f:
+            f.write(res)
 
     def shell(self):
         print 'Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
@@ -1438,8 +1445,7 @@ instructions.configure=\
   </children>
 </repository>
 """
-
-        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1:
+        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
@@ -1815,15 +1821,20 @@ instructions.configure=\
         if bucket_name in self.s3buckets:
             return self.s3buckets[bucket_name]
 
-        config = ConfigParser()
         configpath = os.path.expanduser("~/.s3cfg")
-        config.read(configpath)
+        if os.path.exists(configpath):
+            config = ConfigParser()
+            config.read(configpath)
+            key = config.get('default', 'access_key')
+            secret = config.get('default', 'secret_key')
+        else:
+            key = os.getenv("S3_ACCESS_KEY")
+            secret = os.getenv("S3_SECRET_KEY")
 
-        key = config.get('default', 'access_key')
-        secret = config.get('default', 'secret_key')
+        print("_get_s3_bucket key %s" % (key))
 
         if not (key and secret):
-            self._log('key/secret not found in "%s"' % configpath)
+            self._log('S3 key and/or secret not found in .s3cfg or environment variables')
             sys.exit(5)
 
         from boto.s3.connection import S3Connection
@@ -2159,6 +2170,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = 'auto',
                       help = 'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)')
 
+    parser.add_option('--save-env-path', dest='save_env_path',
+                      default = None,
+                      help = 'Save environment variables to a file')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2191,7 +2206,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       channel = options.channel,
                       eclipse_version = options.eclipse_version,
                       engine_artifacts = options.engine_artifacts,
-                      waf_options = waf_options)
+                      waf_options = waf_options,
+                      save_env_path = options.save_env_path)
 
     for cmd in args:
         f = getattr(c, cmd, None)

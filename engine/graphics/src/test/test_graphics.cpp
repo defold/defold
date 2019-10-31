@@ -116,7 +116,7 @@ TEST_F(dmGraphicsTest, CloseOpenWindow)
 
 TEST_F(dmGraphicsTest, TestWindowState)
 {
-    ASSERT_TRUE((bool) dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED) ? true : false);
     dmGraphics::CloseWindow(m_Context);
     ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
@@ -355,8 +355,8 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, strlen(vertex_data));
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, strlen(fragment_data));
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, (uint32_t) strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, (uint32_t) strlen(fragment_data));
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
@@ -662,7 +662,7 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     // Request close
     m_Context->m_RequestWindowClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_TRUE((bool) dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED) ? true : false);
     // Accept close
     m_CloseData.m_ShouldClose = 1;
     dmGraphics::Flip(m_Context);

@@ -422,7 +422,11 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
+#if defined(GITHUB_CI)
+    const int thread_count = 2;    // 32 is the maximum number of items in the connection pool, stay below that
+#else
     const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
+#endif
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
@@ -494,7 +498,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // The TCP + SSL connection handshake take up a considerable amount of time on linux (peaks of 60+ ms), and
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 175 * 1000); // microseconds
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)
@@ -1033,11 +1037,15 @@ TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
     dmDNS::NewChannel(&params.m_DNSChannel);
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "0.0.0.0", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
+    #ifndef _WIN32
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
+    #else
+    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
+    #endif
     dmHttpClient::Delete(client);
     dmDNS::DeleteChannel(params.m_DNSChannel);
 }
