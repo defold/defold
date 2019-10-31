@@ -424,6 +424,8 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
@@ -1476,7 +1478,6 @@ bail:
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
-        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
         if (dmEngine::Init(engine, argc, argv))
         {
             if (pre_run)
@@ -1719,5 +1720,93 @@ bail:
     uint32_t GetFrameCount(HEngine engine)
     {
         return engine->m_Stats.m_FrameCount;
+    }
+}
+
+
+dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+{
+    dmEngineService::HEngineService engine_service = 0;
+
+    if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
+    {
+        uint16_t engine_port = dmEngineService::GetServicePort(8001);
+        engine_service = dmEngineService::New(engine_port);
+    }
+
+    if (!dmGraphics::Initialize())
+    {
+        dmLogError("Could not initialize graphics.");
+        return 0;
+    }
+
+    dmEngine::HEngine engine = dmEngine::New(engine_service);
+    bool initialized = dmEngine::Init(engine, argc, argv);
+
+    if (!initialized)
+    {
+        if (engine_service)
+        {
+            dmEngineService::Delete(engine_service);
+        }
+
+        Delete(engine);
+        return 0;
+    }
+    return engine;
+}
+
+void dmEngineDestroy(dmEngine::HEngine engine)
+{
+    engine->m_RunResult.Free();
+
+    if (engine->m_EngineService)
+    {
+        dmEngineService::Delete(engine->m_EngineService);
+    }
+
+    Delete(engine);
+}
+
+int dmEngineUpdate(dmEngine::HEngine engine)
+{
+    if (dmEngine::IsRunning(engine))
+    {
+        dmEngine::PerformStep(engine);
+    }
+
+    if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
+    {
+        return 1;
+    }
+    else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
+{
+    if (run_action)
+        *run_action = engine->m_RunResult.m_Action;
+    if (exit_code)
+        *exit_code = engine->m_RunResult.m_ExitCode;
+
+    int _argc = engine->m_RunResult.m_Argc;
+    if (argc)
+        *argc = _argc;
+
+    if (argv)
+    {
+        *argv = (char**)malloc(sizeof(char*) * _argc);
+
+        for (int i = 0; i < _argc; ++i)
+        {
+            (*argv)[i] = strdup(engine->m_RunResult.m_Argv[i]);
+        }
     }
 }

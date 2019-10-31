@@ -2361,6 +2361,13 @@ bail:
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {}
 
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
+#endif
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
