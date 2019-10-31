@@ -34,7 +34,8 @@ namespace dmGraphics
     // In flight frames - number of concurrent frames being processed
     static const uint8_t g_max_frames_in_flight       = 2;
 
-    typedef dmHashTable64<Pipeline> PipelineCache;
+    typedef dmHashTable64<Pipeline>    PipelineCache;
+    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
     static struct Context
     {
@@ -63,61 +64,57 @@ namespace dmGraphics
             }
         }
 
-        Texture*                     m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        PipelineCache                m_PipelineCache;
-        PipelineState                m_PipelineState;
-        SwapChain*                   m_SwapChain;
-        SwapChainCapabilities        m_SwapChainCapabilities;
-        PhysicalDevice               m_PhysicalDevice;
-        LogicalDevice                m_LogicalDevice;
-        FrameResource                m_FrameResources[g_max_frames_in_flight];
-        VkInstance                   m_Instance;
-        VkSurfaceKHR                 m_WindowSurface;
-        dmArray<TextureSampler>      m_TextureSamplers;
-        dmArray<Texture>             m_TexturesToDelete;
-        dmArray<DescriptorAllocator> m_DescriptorAllocatorsToDelete;
-        dmArray<DeviceBuffer>        m_DeviceBuffersToDelete;
-        uint32_t*                    m_DynamicOffsetBuffer;
-        uint16_t                     m_DynamicOffsetBufferSize;
-
+        Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        PipelineCache                   m_PipelineCache;
+        PipelineState                   m_PipelineState;
+        SwapChain*                      m_SwapChain;
+        SwapChainCapabilities           m_SwapChainCapabilities;
+        PhysicalDevice                  m_PhysicalDevice;
+        LogicalDevice                   m_LogicalDevice;
+        FrameResource                   m_FrameResources[g_max_frames_in_flight];
+        VkInstance                      m_Instance;
+        VkSurfaceKHR                    m_WindowSurface;
+        dmArray<TextureSampler>         m_TextureSamplers;
+        uint32_t*                       m_DynamicOffsetBuffer;
+        uint16_t                        m_DynamicOffsetBufferSize;
         // Window callbacks
-        WindowResizeCallback     m_WindowResizeCallback;
-        void*                    m_WindowResizeCallbackUserData;
-        WindowCloseCallback      m_WindowCloseCallback;
-        void*                    m_WindowCloseCallbackUserData;
-        WindowFocusCallback      m_WindowFocusCallback;
-        void*                    m_WindowFocusCallbackUserData;
-
+        WindowResizeCallback            m_WindowResizeCallback;
+        void*                           m_WindowResizeCallbackUserData;
+        WindowCloseCallback             m_WindowCloseCallback;
+        void*                           m_WindowCloseCallbackUserData;
+        WindowFocusCallback             m_WindowFocusCallback;
+        void*                           m_WindowFocusCallbackUserData;
         // Main device rendering constructs
-        dmArray<VkFramebuffer>       m_MainFrameBuffers;
-        dmArray<VkCommandBuffer>     m_MainCommandBuffers;
-        dmArray<ScratchBuffer>       m_MainScratchBuffers;
-        dmArray<DescriptorAllocator> m_MainDescriptorAllocators;
-        VkRenderPass                 m_MainRenderPass;
-        Texture                      m_MainTextureDepthStencil;
-        RenderTarget                 m_MainRenderTarget;
-        Viewport                     m_MainViewport;
-
+        dmArray<VkFramebuffer>          m_MainFrameBuffers;
+        dmArray<VkCommandBuffer>        m_MainCommandBuffers;
+        //dmArray<ResourcesToDestroyList*> m_MainResourcesToDestroy;
+        ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
+        dmArray<ScratchBuffer>          m_MainScratchBuffers;
+        dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
+        VkRenderPass                    m_MainRenderPass;
+        Texture                         m_MainTextureDepthStencil;
+        RenderTarget                    m_MainRenderTarget;
+        Viewport                        m_MainViewport;
         // Rendering state
-        RenderTarget*            m_CurrentRenderTarget;
-        DeviceBuffer*            m_CurrentVertexBuffer;
-        VertexDeclaration*       m_CurrentVertexDeclaration;
-        Program*                 m_CurrentProgram;
-
-        TextureFilter            m_DefaultTextureMinFilter;
-        TextureFilter            m_DefaultTextureMagFilter;
-        uint32_t                 m_TextureFormatSupport;
-        uint32_t                 m_Width;
-        uint32_t                 m_Height;
-        uint32_t                 m_WindowWidth;
-        uint32_t                 m_WindowHeight;
-        uint32_t                 m_FrameBegun           : 1;
-        uint32_t                 m_CurrentFrameInFlight : 1;
-        uint32_t                 m_WindowOpened         : 1;
-        uint32_t                 m_VerifyGraphicsCalls  : 1;
-        uint32_t                 m_ViewportChanged      : 1;
-        uint32_t                 m_CullFaceChanged      : 1;
-        uint32_t                 : 26;
+        RenderTarget*                   m_CurrentRenderTarget;
+        DeviceBuffer*                   m_CurrentVertexBuffer;
+        VertexDeclaration*              m_CurrentVertexDeclaration;
+        Program*                        m_CurrentProgram;
+        // Misc state
+        TextureFilter                   m_DefaultTextureMinFilter;
+        TextureFilter                   m_DefaultTextureMagFilter;
+        uint32_t                        m_TextureFormatSupport;
+        uint32_t                        m_Width;
+        uint32_t                        m_Height;
+        uint32_t                        m_WindowWidth;
+        uint32_t                        m_WindowHeight;
+        uint32_t                        m_FrameBegun           : 1;
+        uint32_t                        m_CurrentFrameInFlight : 1;
+        uint32_t                        m_WindowOpened         : 1;
+        uint32_t                        m_VerifyGraphicsCalls  : 1;
+        uint32_t                        m_ViewportChanged      : 1;
+        uint32_t                        m_CullFaceChanged      : 1;
+        uint32_t                                               : 28;
     } *g_Context = 0;
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -165,6 +162,42 @@ namespace dmGraphics
     }
     #undef DM_VK_RESULT_TO_STRING_CASE
 
+    #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
+    static const char* TextureFormatToString(TextureFormat format)
+    {
+        switch(format)
+        {
+            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(LUMINANCE_ALPHA);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_16BPP);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_16BPP);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_DXT1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT3);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_DXT5);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(DEPTH);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(STENCIL);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_2BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_PVRTC_4BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_2BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGB32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG16F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(R32F);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RG32F);
+            default:break;
+        }
+        return "UNKNOWN_FORMAT";
+    }
+    #undef DM_TEXTURE_FORMAT_TO_STR_CASE
+
     static inline void SynchronizeDevice(VkDevice vk_device)
     {
         vkDeviceWaitIdle(vk_device);
@@ -183,7 +216,7 @@ namespace dmGraphics
         return next_id++;
     }
 
-    static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t numFrameResources, FrameResource* frameResourcesOut)
+    static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t frame_resource_count, FrameResource* frame_resources_out)
     {
         VkSemaphoreCreateInfo vk_create_semaphore_info;
         memset(&vk_create_semaphore_info, 0, sizeof(vk_create_semaphore_info));
@@ -194,11 +227,11 @@ namespace dmGraphics
         vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         vk_create_fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for(uint8_t i=0; i < numFrameResources; i++)
+        for(uint8_t i=0; i < frame_resource_count; i++)
         {
-            if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frameResourcesOut[i].m_ImageAvailable) != VK_SUCCESS ||
-                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frameResourcesOut[i].m_RenderFinished) != VK_SUCCESS ||
-                vkCreateFence(vk_device, &vk_create_fence_info, 0, &frameResourcesOut[i].m_SubmitFence) != VK_SUCCESS)
+            if (vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_ImageAvailable) != VK_SUCCESS ||
+                vkCreateSemaphore(vk_device, &vk_create_semaphore_info, 0, &frame_resources_out[i].m_RenderFinished) != VK_SUCCESS ||
+                vkCreateFence(vk_device, &vk_create_fence_info, 0, &frame_resources_out[i].m_SubmitFence) != VK_SUCCESS)
             {
                 return VK_ERROR_INITIALIZATION_FAILED;
             }
@@ -208,20 +241,20 @@ namespace dmGraphics
     }
 
     static VkResult CreateMainScratchBuffers(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint8_t numSwapChainImages, uint32_t bufferSize, uint16_t numDescriptors,
-        DescriptorAllocator* descriptorAllocatorsOut, ScratchBuffer* scratchBuffersOut)
+        uint8_t swap_chain_image_count, uint32_t scratch_buffer_size, uint16_t descriptor_count,
+        DescriptorAllocator* descriptor_allocators_out, ScratchBuffer* scratch_buffers_out)
     {
-        memset(scratchBuffersOut, 0, sizeof(ScratchBuffer) * numSwapChainImages);
-        memset(descriptorAllocatorsOut, 0, sizeof(DescriptorAllocator) * numSwapChainImages);
-        for(uint8_t i=0; i < numSwapChainImages; i++)
+        memset(scratch_buffers_out, 0, sizeof(ScratchBuffer) * swap_chain_image_count);
+        memset(descriptor_allocators_out, 0, sizeof(DescriptorAllocator) * swap_chain_image_count);
+        for(uint8_t i=0; i < swap_chain_image_count; i++)
         {
-            VkResult res = CreateDescriptorAllocator(vk_device, numDescriptors, i, &descriptorAllocatorsOut[i]);
+            VkResult res = CreateDescriptorAllocator(vk_device, descriptor_count, &descriptor_allocators_out[i]);
             if (res != VK_SUCCESS)
             {
                 return res;
             }
 
-            res = CreateScratchBuffer(vk_physical_device, vk_device, bufferSize, true, &descriptorAllocatorsOut[i], &scratchBuffersOut[i]);
+            res = CreateScratchBuffer(vk_physical_device, vk_device, scratch_buffer_size, true, &descriptor_allocators_out[i], &scratch_buffers_out[i]);
             if (res != VK_SUCCESS)
             {
                 return res;
@@ -231,21 +264,8 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    static uint8_t GetTextureSamplerIndex(HContext context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
     {
-        for (uint32_t i=0; i < context->m_TextureSamplers.Size(); i++)
-        {
-            TextureSampler& sampler = context->m_TextureSamplers[i];
-            if (sampler.m_MagFilter     == magfilter &&
-                sampler.m_MinFilter     == minfilter &&
-                sampler.m_AddressModeU  == uwrap     &&
-                sampler.m_AddressModeV  == vwrap     &&
-                sampler.m_MaxLod        == maxLod)
-            {
-                return (uint8_t) i;
-            }
-        }
-
         VkFilter             vk_mag_filter;
         VkFilter             vk_min_filter;
         VkSamplerMipmapMode  vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
@@ -311,20 +331,38 @@ namespace dmGraphics
         new_sampler.m_AddressModeV = vwrap;
         new_sampler.m_MaxLod       = maxLod;
 
-        uint32_t sampler_index = context->m_TextureSamplers.Size();
+        uint32_t sampler_index = texture_samplers.Size();
 
-        if (context->m_TextureSamplers.Full())
+        if (texture_samplers.Full())
         {
-            context->m_TextureSamplers.OffsetCapacity(1);
+            texture_samplers.OffsetCapacity(1);
         }
 
-        VkResult res = CreateTextureSampler(context->m_LogicalDevice.m_Device,
+        VkResult res = CreateTextureSampler(vk_device,
             vk_min_filter, vk_mag_filter, vk_mipmap_mode, vk_wrap_u, vk_wrap_v,
             0.0, max_lod, &new_sampler.m_Sampler);
         CHECK_VK_ERROR(res);
 
-        context->m_TextureSamplers.Push(new_sampler);
+        texture_samplers.Push(new_sampler);
         return (uint8_t) sampler_index;
+    }
+
+    static int8_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    {
+        for (uint32_t i=0; i < texture_samplers.Size(); i++)
+        {
+            TextureSampler& sampler = texture_samplers[i];
+            if (sampler.m_MagFilter     == magfilter &&
+                sampler.m_MinFilter     == minfilter &&
+                sampler.m_AddressModeU  == uwrap     &&
+                sampler.m_AddressModeV  == vwrap     &&
+                sampler.m_MaxLod        == maxLod)
+            {
+                return (uint8_t) i;
+            }
+        }
+
+        return -1;
     }
 
     static void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
@@ -422,7 +460,7 @@ namespace dmGraphics
     }
 
     static VkResult CreateDepthStencilTexture(HContext context, VkFormat vk_depth_format, VkImageTiling vk_depth_tiling,
-        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, Texture* depthStencilTextureOut)
+        uint32_t width, uint32_t height, VkSampleCountFlagBits vk_sample_count, Texture* depth_stencil_texture_out)
     {
         const VkPhysicalDevice vk_physical_device = context->m_PhysicalDevice.m_Device;
         const VkDevice vk_device                  = context->m_LogicalDevice.m_Device;
@@ -439,12 +477,12 @@ namespace dmGraphics
 
         VkResult res = CreateTexture2D(vk_physical_device, vk_device, width, height, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depthStencilTextureOut);
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vk_aspect, VK_IMAGE_LAYOUT_UNDEFINED, depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depthStencilTextureOut->m_Image, vk_aspect,
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect,
                 VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
@@ -454,7 +492,6 @@ namespace dmGraphics
 
     static VkResult CreateMainRenderTarget(HContext context)
     {
-        assert(context);
         assert(context->m_SwapChain);
 
         // We need to create a framebuffer per swap chain image
@@ -472,8 +509,8 @@ namespace dmGraphics
             // Same thing goes for the resolve buffer if we are rendering with
             // multisampling enabled.
             VkImageView& vk_image_view_swap      = swapChain->m_ImageViews[i];
-            VkImageView& vk_image_view_depth     = context->m_MainTextureDepthStencil.m_ImageView;
-            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture.m_ImageView;
+            VkImageView& vk_image_view_depth     = context->m_MainTextureDepthStencil.m_Handle.m_ImageView;
+            VkImageView& vk_image_view_resolve   = swapChain->m_ResolveTexture.m_Handle.m_ImageView;
             VkImageView  vk_image_attachments[3];
             uint8_t num_attachments;
 
@@ -549,7 +586,7 @@ namespace dmGraphics
         context->m_CurrentRenderTarget = &context->m_MainRenderTarget;
 
         // Create main command buffers, one for each swap chain image
-        uint32_t num_swap_chain_images = context->m_SwapChain->m_Images.Size();
+        const uint32_t num_swap_chain_images = context->m_SwapChain->m_Images.Size();
         context->m_MainCommandBuffers.SetCapacity(num_swap_chain_images);
         context->m_MainCommandBuffers.SetSize(num_swap_chain_images);
 
@@ -558,6 +595,13 @@ namespace dmGraphics
             context->m_MainCommandBuffers.Size(),
             context->m_MainCommandBuffers.Begin());
         CHECK_VK_ERROR(res);
+
+        // Create main resources-to-destroy lists, one for each command buffer
+        for (uint32_t i = 0; i < num_swap_chain_images; ++i)
+        {
+            context->m_MainResourcesToDestroy[i] = new ResourcesToDestroyList;
+            context->m_MainResourcesToDestroy[i]->SetCapacity(8);
+        }
 
         // Create main sync objects
         res = CreateMainFrameSyncObjects(vk_device, g_max_frames_in_flight, context->m_FrameResources);
@@ -605,7 +649,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        GetTextureSamplerIndex(context, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1);
+        CreateTextureSampler(vk_device, context->m_TextureSamplers, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1);
 
         return res;
     }
@@ -625,7 +669,9 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
 
         // Reset & create main Depth/Stencil buffer
-        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
+        Texture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
+        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
         VkFormat vk_depth_format;
         VkImageTiling vk_depth_tiling;
         GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
@@ -634,7 +680,7 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
-            &context->m_MainTextureDepthStencil);
+            depth_stencil_texture);
         CHECK_VK_ERROR(res);
 
         context->m_WindowWidth  = context->m_SwapChain->m_ImageExtent.width;
@@ -656,18 +702,29 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    template <typename T>
-    static void FlushResourceToDestroy(VkDevice vk_device, dmArray<T>& resourceList, void (*destroy_fn)(VkDevice vk_device, T* texture), uint8_t frame_tag, bool flushAll = false)
+    static void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
     {
-        for (uint32_t i = 0; i < resourceList.Size(); ++i)
+        for (uint32_t i = 0; i < resource_list->Size(); ++i)
         {
-            T& resource = resourceList[i];
-            if (resource.m_FrameTag == frame_tag || flushAll)
+            ResourceToDestroy& resource = resource_list->Begin()[i];
+
+            switch(resource.m_ResourceType)
             {
-                destroy_fn(vk_device, &resource);
-                resourceList.EraseSwap(i);
-                --i;
+                case RESOURCE_TYPE_DEVICE_BUFFER:
+                    DestroyDeviceBuffer(vk_device, &resource.m_DeviceBuffer);
+                    break;
+                case RESOURCE_TYPE_TEXTURE:
+                    DestroyTexture(vk_device, &resource.m_Texture);
+                    break;
+                case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
+                    DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
+                default:
+                    assert(0);
+                    break;
             }
+
+            resource_list->EraseSwap(i);
+            --i;
         }
     }
 
@@ -789,6 +846,7 @@ namespace dmGraphics
             goto bail;
         }
 
+    #if defined(__MACH__)
         // Check for optional extensions so that we can enable them if they exist
         if (IsExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
@@ -799,6 +857,7 @@ namespace dmGraphics
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
+    #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), device_extensions.Size(),
@@ -827,8 +886,6 @@ namespace dmGraphics
         delete[] device_list;
 
         context->m_PipelineCache.SetCapacity(32,64);
-        context->m_DeviceBuffersToDelete.SetCapacity(8);
-        context->m_DescriptorAllocatorsToDelete.SetCapacity(context->m_SwapChain->m_ImageViews.Size());
         context->m_TextureSamplers.SetCapacity(4);
 
         // Create framebuffers, default renderpass etc.
@@ -939,7 +996,6 @@ bail:
 
     WindowResult OpenWindow(HContext context, WindowParams* params)
     {
-        assert(context);
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
@@ -982,22 +1038,18 @@ bail:
 
     void CloseWindow(HContext context)
     {
-        assert(context);
         if (context->m_WindowOpened)
         {
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
             SynchronizeDevice(vk_device);
 
-            FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, 0, true);
-            FlushResourceToDestroy<DescriptorAllocator>(vk_device, context->m_DescriptorAllocatorsToDelete, DestroyDescriptorAllocator, 0, true);
-            FlushResourceToDestroy<Texture>(vk_device, context->m_TexturesToDelete, DestroyTexture, 0, true);
-
             glfwCloseWindow();
 
             context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
 
-            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil);
+            DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
+            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -1015,12 +1067,17 @@ bail:
 
             for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
             {
-                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer);
+                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
             }
 
             for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
             {
-                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i]);
+                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
+            }
+
+            for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
+            {
+                FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
             }
 
             for (size_t i = 0; i < g_max_frames_in_flight; i++) {
@@ -1051,7 +1108,6 @@ bail:
 
     void IconifyWindow(HContext context)
     {
-        assert(context);
         if (context->m_WindowOpened)
         {
             glfwIconifyWindow();
@@ -1060,7 +1116,6 @@ bail:
 
     uint32_t GetWindowState(HContext context, WindowState state)
     {
-        assert(context);
         if (context->m_WindowOpened)
         {
             return glfwGetWindowParam(state);
@@ -1078,31 +1133,26 @@ bail:
 
     uint32_t GetWidth(HContext context)
     {
-        assert(context);
         return context->m_Width;
     }
 
     uint32_t GetHeight(HContext context)
     {
-        assert(context);
         return context->m_Height;
     }
 
     uint32_t GetWindowWidth(HContext context)
     {
-        assert(context);
         return context->m_WindowWidth;
     }
 
     uint32_t GetWindowHeight(HContext context)
     {
-        assert(context);
         return context->m_WindowHeight;
     }
 
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
-        assert(context);
         if (context->m_WindowOpened)
         {
             context->m_Width  = width;
@@ -1125,7 +1175,6 @@ bail:
 
     void ResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
-        assert(context);
         if (context->m_WindowOpened)
         {
             glfwSetWindowSize((int)width, (int)height);
@@ -1174,21 +1223,9 @@ bail:
             }
         }
 
-        // TODO: Test allocating a scratch buffer per frame-in-flight instead of
-        //       one per swap chain image.
-        if (context->m_DeviceBuffersToDelete.Size() > 0)
+        if (context->m_MainResourcesToDestroy[frame_ix]->Size() > 0)
         {
-            FlushResourceToDestroy<DeviceBuffer>(vk_device, context->m_DeviceBuffersToDelete, DestroyDeviceBuffer, frame_ix);
-        }
-
-        if (context->m_DescriptorAllocatorsToDelete.Size() > 0)
-        {
-            FlushResourceToDestroy<DescriptorAllocator>(vk_device, context->m_MainDescriptorAllocators, DestroyDescriptorAllocator, frame_ix);
-        }
-
-        if (context->m_TexturesToDelete.Size() > 0)
-        {
-            FlushResourceToDestroy<Texture>(vk_device, context->m_TexturesToDelete, DestroyTexture, 0, true);
+            FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[frame_ix]);
         }
 
         // Reset the scratch buffer for this swapchain image, so we can reuse its descriptors
@@ -1273,7 +1310,6 @@ bail:
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
-        assert(context);
         assert(context->m_CurrentRenderTarget);
         DM_PROFILE(Graphics, "Clear");
 
@@ -1313,7 +1349,7 @@ bail:
     {
         VkResult res;
 
-        if (bufferOut->m_BufferHandle == VK_NULL_HANDLE)
+        if (bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE)
         {
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
@@ -1348,61 +1384,39 @@ bail:
         }
     }
 
-    static void DestroyDeviceBufferDeferred(HContext context, DeviceBuffer* buffer)
+    template <typename T>
+    static void DestroyResourceDeferred(ResourcesToDestroyList* resource_list, T* resource)
     {
-        assert(buffer->m_BufferHandle != VK_NULL_HANDLE);
-
-        for (uint32_t i = 0; i < context->m_DeviceBuffersToDelete.Size(); ++i)
+        if (resource->m_Destroyed)
         {
-            const DeviceBuffer buffer_to_delete = context->m_DeviceBuffersToDelete[i];
-            if (buffer_to_delete.m_BufferHandle == buffer->m_BufferHandle)
-            {
-                assert(buffer_to_delete.m_MemoryHandle == buffer->m_MemoryHandle);
-                return;
-            }
+            return;
         }
 
-        if (context->m_DeviceBuffersToDelete.Full())
+        ResourceToDestroy resource_to_destroy;
+        resource_to_destroy.m_ResourceType = resource->GetType();
+
+        switch(resource_to_destroy.m_ResourceType)
         {
-            context->m_DeviceBuffersToDelete.OffsetCapacity(4);
+            case RESOURCE_TYPE_TEXTURE:
+                resource_to_destroy.m_Texture = ((Texture*) resource)->m_Handle;
+                DestroyResourceDeferred(resource_list, &((Texture*) resource)->m_DeviceBuffer);
+                break;
+            case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
+                resource_to_destroy.m_DescriptorAllocator = ((DescriptorAllocator*) resource)->m_Handle;
+                break;
+            case RESOURCE_TYPE_DEVICE_BUFFER:
+                resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
+                break;
+            default:break;
         }
 
-        DeviceBuffer buffer_copy = *buffer;
-        buffer_copy.m_FrameTag = context->m_SwapChain->m_ImageIndex;
-        context->m_DeviceBuffersToDelete.Push(buffer_copy);
-
-        // Since the buffer will be deleted later, we just clear the
-        // buffer and memory handles here so they won't be used
-        // when rendering.
-        buffer->m_BufferHandle = VK_NULL_HANDLE;
-        buffer->m_MemoryHandle = VK_NULL_HANDLE;
-        buffer->m_MemorySize   = 0;
-    }
-
-    static void DestroyTextureDeferred(HContext context, Texture* texture)
-    {
-        for (uint32_t i = 0; i < context->m_TexturesToDelete.Size(); ++i)
+        if (resource_list->Full())
         {
-            const Texture texture_to_delete = context->m_TexturesToDelete[i];
-            if (texture_to_delete.m_Image == texture->m_Image)
-            {
-                return;
-            }
+            resource_list->OffsetCapacity(2);
         }
 
-        if (context->m_TexturesToDelete.Full())
-        {
-            context->m_TexturesToDelete.OffsetCapacity(2);
-        }
-
-        Texture texture_copy = *texture;
-        texture_copy.m_FrameTag = context->m_SwapChain->m_ImageIndex;
-        context->m_TexturesToDelete.Push(texture_copy);
-
-        texture->m_Image                       = VK_NULL_HANDLE;
-        texture->m_ImageView                   = VK_NULL_HANDLE;
-        texture->m_DeviceBuffer.m_MemoryHandle = VK_NULL_HANDLE;
-        texture->m_DeviceBuffer.m_MemorySize   = 0;
+        resource_list->Push(resource_to_destroy);
+        resource->m_Destroyed = 1;
     }
 
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
@@ -1450,7 +1464,6 @@ bail:
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(context);
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
         if (size > 0)
@@ -1463,19 +1476,19 @@ bail:
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
+        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE)
         {
-            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
+            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
+            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
         delete buffer_ptr;
     }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(buffer);
         if (size == 0)
         {
             return;
@@ -1483,9 +1496,11 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
+        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
+            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
+            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1493,7 +1508,6 @@ bail:
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        assert(buffer);
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_MemorySize);
@@ -1529,9 +1543,11 @@ bail:
     {
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE)
+        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE)
         {
-            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
+            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
+            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
         delete buffer_ptr;
     }
@@ -1543,9 +1559,11 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_BufferHandle != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
+        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
         {
-            DestroyDeviceBufferDeferred(g_Context, buffer_ptr);
+            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
+            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1761,29 +1779,34 @@ bail:
         VkDevice            vk_device,
         VkDescriptorSet     vk_descriptor_set,
         Program*            program,
-        Program::ModuleType moduleType,
-        ScratchBuffer*      scratchBuffer,
-        uint32_t            dynamicAlignment,
-        uint32_t*           dynamicOffsetsOut)
+        Program::ModuleType module_type,
+        ScratchBuffer*      scratch_buffer,
+        uint32_t            dynamic_alignment,
+        uint32_t*           dynamic_offsetsOut)
     {
         ShaderModule* shader_module;
         uint32_t*     uniform_data_offsets;
-        uint32_t*     dynamic_offsets = dynamicOffsetsOut;
+        uint32_t*     dynamic_offsets = dynamic_offsetsOut;
 
-        if (moduleType == Program::MODULE_TYPE_VERTEX)
+        if (module_type == Program::MODULE_TYPE_VERTEX)
         {
             shader_module         = program->m_VertexModule;
             uniform_data_offsets  = program->m_UniformDataOffsets;
         }
-        else if (moduleType == Program::MODULE_TYPE_FRAGMENT)
+        else if (module_type == Program::MODULE_TYPE_FRAGMENT)
         {
             shader_module        = program->m_FragmentModule;
             uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_UniformCount];
-            dynamic_offsets      = &dynamicOffsetsOut[program->m_VertexModule->m_UniformCount];
+            dynamic_offsets      = &dynamic_offsetsOut[program->m_VertexModule->m_UniformCount];
         }
         else
         {
             assert(0);
+        }
+
+        if (shader_module->m_UniformCount == 0)
+        {
+            return;
         }
 
         for (int i = 0; i < shader_module->m_UniformCount; ++i)
@@ -1805,21 +1828,21 @@ bail:
                 Texture* texture = g_Context->m_TextureUnits[res.m_TextureUnit];
                 VkDescriptorImageInfo vk_image_info;
                 vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                vk_image_info.imageView           = texture->m_ImageView;
+                vk_image_info.imageView           = texture->m_Handle.m_ImageView;
                 vk_image_info.sampler             = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
                 vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 vk_write_desc_info.pImageInfo     = &vk_image_info;
             }
             else
             {
-                dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratchBuffer->m_MappedDataCursor;
+                dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
                 const uint32_t uniform_size_nonalign    = GetShaderTypeSize(shader_module->m_Uniforms[i].m_Type);
-                const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamicAlignment);
+                const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
                 // Copy client data to aligned host memory
                 // The data_offset here is the offset into the programs uniform data,
                 // i.e the source buffer.
                 const uint32_t data_offset = uniform_data_offsets[res.m_UniformDataIndex];
-                memcpy(&((uint8_t*)scratchBuffer->m_DeviceBuffer.m_MappedDataPtr)[scratchBuffer->m_MappedDataCursor],
+                memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
                     &program->m_UniformData[data_offset], uniform_size_nonalign);
 
                 // Note in the spec about the offset being zero:
@@ -1827,13 +1850,13 @@ bail:
                 //    offset is the base offset from which the dynamic offset is applied and range is the static size
                 //    used for all dynamic offsets."
                 VkDescriptorBufferInfo vk_buffer_info;
-                vk_buffer_info.buffer = scratchBuffer->m_DeviceBuffer.m_BufferHandle;
+                vk_buffer_info.buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
                 vk_buffer_info.offset = 0;
                 vk_buffer_info.range  = uniform_size;
                 vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                 vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
 
-                scratchBuffer->m_MappedDataCursor += uniform_size;
+                scratch_buffer->m_MappedDataCursor += uniform_size;
             }
 
             vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
@@ -1874,27 +1897,22 @@ bail:
 
     static VkResult ResizeDescriptorAllocator(HContext context, DescriptorAllocator* allocator, uint32_t newDescriptorCount)
     {
-        if (context->m_DescriptorAllocatorsToDelete.Full())
-        {
-            context->m_DescriptorAllocatorsToDelete.OffsetCapacity(1);
-        }
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], allocator);
 
-        // No need to check for duplicates here
-        const DescriptorAllocator allocator_copy = *allocator;
-        context->m_DescriptorAllocatorsToDelete.Push(allocator_copy);
+        allocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
+        allocator->m_Handle.m_DescriptorSets = 0;
 
-        // Since we have handed over ownership of the allocator to the allocators-to-delete list,
-        // we need to clear out the allocator state.
-        allocator->m_PoolHandle     = VK_NULL_HANDLE;
-        allocator->m_DescriptorSets = 0x0;
-
-        return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator->m_FrameTag, allocator);
+        return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator);
     }
 
     static VkResult ResizeScratchBuffer(HContext context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
     {
         // Put old buffer on the delete queue so we don't mess the descriptors already in-use
-        DestroyDeviceBufferDeferred(context, &scratchBuffer->m_DeviceBuffer);
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], &scratchBuffer->m_DeviceBuffer);
+        scratchBuffer->m_DeviceBuffer.m_Handle.m_Memory = VK_NULL_HANDLE;
+        scratchBuffer->m_DeviceBuffer.m_Handle.m_Buffer = VK_NULL_HANDLE;
+        scratchBuffer->m_DeviceBuffer.m_MemorySize      = 0;
+
         VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
         scratchBuffer->m_DeviceBuffer.MapMemory(context->m_LogicalDevice.m_Device);
@@ -1904,11 +1922,9 @@ bail:
 
     static void DrawSetup(HContext context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
-        assert(context);
-        assert(context->m_CurrentVertexBuffer);
-
-        Program* program_ptr           = context->m_CurrentProgram;
-        VkDevice vk_device             = context->m_LogicalDevice.m_Device;
+        DeviceBuffer* vertex_buffer = context->m_CurrentVertexBuffer;
+        Program* program_ptr        = context->m_CurrentProgram;
+        VkDevice vk_device          = context->m_LogicalDevice.m_Device;
 
         // Ensure there is room in the descriptor allocator to support this draw call
         bool resize_desc_allocator = (scratchBuffer->m_DescriptorAllocator->m_DescriptorIndex + DM_MAX_SET_COUNT) >
@@ -1970,10 +1986,8 @@ bail:
                     context->m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
                 }
             }
-
             context->m_CullFaceChanged = 0;
         }
-
         // Update the viewport
         if (context->m_ViewportChanged)
         {
@@ -2006,7 +2020,7 @@ bail:
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
             program_ptr, context->m_CurrentRenderTarget,
-            context->m_CurrentVertexBuffer, context->m_CurrentVertexDeclaration);
+            vertex_buffer, context->m_CurrentVertexDeclaration);
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
 
 
@@ -2021,11 +2035,11 @@ bail:
                 vk_index_type = VK_INDEX_TYPE_UINT32;
             }
 
-            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_BufferHandle, 0, vk_index_type);
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Handle.m_Buffer, 0, vk_index_type);
         }
 
         // Bind the vertex buffers
-        VkBuffer vk_vertex_buffer             = context->m_CurrentVertexBuffer->m_BufferHandle;
+        VkBuffer vk_vertex_buffer             = vertex_buffer->m_Handle.m_Buffer;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
     }
@@ -2131,10 +2145,11 @@ bail:
     }
 
     static void CreateProgramUniforms(ShaderModule* module, VkShaderStageFlags vk_stage_flag,
-        uint32_t byte_offset_base, uint32_t* byte_offset_list, uint32_t* byte_offset_end_out,
-        VkDescriptorSetLayoutBinding* vk_bindings_out)
+        uint32_t byte_offset_base, uint32_t* byte_offset_list_out, uint32_t byte_offset_list_size,
+        uint32_t* byte_offset_end_out, VkDescriptorSetLayoutBinding* vk_bindings_out)
     {
-        uint32_t byte_offset = byte_offset_base;
+        uint32_t byte_offset         = byte_offset_base;
+        uint32_t num_uniform_buffers = 0;
         for(uint32_t i=0; i < module->m_UniformCount; i++)
         {
             // Process uniform data size
@@ -2151,9 +2166,11 @@ bail:
             }
             else
             {
-                byte_offset_list[res.m_UniformDataIndex] = byte_offset;
-                byte_offset                             += GetShaderTypeSize(res.m_Type);
-                vk_descriptor_type                       = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                assert(num_uniform_buffers < byte_offset_list_size);
+                byte_offset_list_out[res.m_UniformDataIndex] = byte_offset;
+                byte_offset                                 += GetShaderTypeSize(res.m_Type);
+                vk_descriptor_type                           = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                num_uniform_buffers++;
             }
 
             // Process descriptor layout
@@ -2229,10 +2246,10 @@ bail:
             uint32_t fs_last_offset   = 0;
 
             CreateProgramUniforms(vertex_module, VK_SHADER_STAGE_VERTEX_BIT,
-                0, program->m_UniformDataOffsets,
+                0, program->m_UniformDataOffsets, num_buffers,
                 &vs_last_offset, vk_descriptor_set_bindings);
             CreateProgramUniforms(fragment_module, VK_SHADER_STAGE_FRAGMENT_BIT,
-                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount],
+                vs_last_offset, &program->m_UniformDataOffsets[vertex_module->m_UniformBufferCount], num_buffers,
                 &fs_last_offset, &vk_descriptor_set_bindings[vertex_module->m_UniformCount]);
 
             program->m_UniformData = new uint8_t[vs_last_offset + fs_last_offset];
@@ -2345,13 +2362,11 @@ bail:
 
     void EnableProgram(HContext context, HProgram program)
     {
-        assert(context);
         context->m_CurrentProgram = (Program*) program;
     }
 
     void DisableProgram(HContext context)
     {
-        assert(context);
         context->m_CurrentProgram = 0;
     }
 
@@ -2435,6 +2450,10 @@ bail:
     #define UNIFORM_LOCATION_GET_VS(loc) (loc  & UNIFORM_LOCATION_MAX)
     #define UNIFORM_LOCATION_GET_FS(loc) ((loc & (UNIFORM_LOCATION_MAX << UNIFORM_LOCATION_BIT_COUNT)) >> UNIFORM_LOCATION_BIT_COUNT)
 
+    // TODO, comment from the PR (#4544):
+    //   "These frequent lookups could be improved by sorting on the key beforehand,
+    //   and during lookup, do a lower_bound, to find the item (or not).
+    //   E.g see: engine/render/src/render/material.cpp#L446"
     static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
     {
         assert(uniformCount < UNIFORM_LOCATION_MAX);
@@ -2736,7 +2755,7 @@ bail:
 
         if (colorTexture)
         {
-            assert(colorTexture->m_ImageView != VK_NULL_HANDLE && colorTexture->m_Image != VK_NULL_HANDLE);
+            assert(colorTexture->m_Handle.m_ImageView != VK_NULL_HANDLE && colorTexture->m_Handle.m_Image != VK_NULL_HANDLE);
             uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
             fb_width                   = rtOut->m_BufferTextureParams[color_buffer_index].m_Width;
             fb_height                  = rtOut->m_BufferTextureParams[color_buffer_index].m_Height;
@@ -2745,7 +2764,7 @@ bail:
             rp_attachment_color->m_ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             rp_attachment_color->m_Format      = colorTexture->m_Format;
 
-            fb_attachments[fb_attachment_count++] = colorTexture->m_ImageView;
+            fb_attachments[fb_attachment_count++] = colorTexture->m_Handle.m_ImageView;
         }
 
         if (depthStencilTexture)
@@ -2764,7 +2783,7 @@ bail:
             rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             rp_attachment_depth_stencil->m_Format      = depthStencilTexture->m_Format;
 
-            fb_attachments[fb_attachment_count++] = depthStencilTexture->m_ImageView;
+            fb_attachments[fb_attachment_count++] = depthStencilTexture->m_Handle.m_ImageView;
         }
 
         VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
@@ -2923,7 +2942,7 @@ bail:
             render_target->m_BufferTextureParams[i].m_Height = height;
             if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT) && texture_color)
             {
-                DestroyTextureDeferred(g_Context, texture_color);
+                DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(g_Context->m_PhysicalDevice.m_Device, g_Context->m_LogicalDevice.m_Device,
                     width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -2934,7 +2953,7 @@ bail:
 
         if (render_target->m_TextureDepthStencil)
         {
-            DestroyTextureDeferred(g_Context, render_target->m_TextureDepthStencil);
+            DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], render_target->m_TextureDepthStencil);
 
             // Check tiling support for this format
             VkImageTiling vk_image_tiling    = VK_IMAGE_TILING_OPTIMAL;
@@ -2966,13 +2985,11 @@ bail:
 
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
-        Texture* tex = new Texture;
-
-        tex->m_Type                = params.m_Type;
-        tex->m_Width               = params.m_Width;
-        tex->m_Height              = params.m_Height;
-        tex->m_MipMapCount         = params.m_MipMapCount;
-        tex->m_ImageView           = VK_NULL_HANDLE;
+        Texture* tex       = new Texture;
+        tex->m_Type        = params.m_Type;
+        tex->m_Width       = params.m_Width;
+        tex->m_Height      = params.m_Height;
+        tex->m_MipMapCount = params.m_MipMapCount;
 
         if (params.m_OriginalWidth == 0)
         {
@@ -2990,7 +3007,7 @@ bail:
 
     void DeleteTexture(HTexture t)
     {
-        DestroyTextureDeferred(g_Context, t);
+        DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], t);
         delete t;
     }
 
@@ -3052,7 +3069,7 @@ bail:
 
             // Transition image to transfer dst for the mipmap level we are uploading
             res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, params.m_MipMap);
+                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, params.m_MipMap);
             CHECK_VK_ERROR(res);
 
             VkBufferImageCopy vk_copy_region;
@@ -3070,8 +3087,8 @@ bail:
             vk_copy_region.imageSubresource.baseArrayLayer = 0;
             vk_copy_region.imageSubresource.layerCount     = 1;
 
-            vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_BufferHandle,
-                textureOut->m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
+                textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 1, &vk_copy_region);
 
             res = vkEndCommandBuffer(vk_command_buffer);
@@ -3083,10 +3100,10 @@ bail:
             vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
 
             res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
+                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
             CHECK_VK_ERROR(res);
 
-            DestroyDeviceBuffer(vk_device, &stage_buffer);
+            DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
         }
@@ -3097,9 +3114,22 @@ bail:
             VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
             CHECK_VK_ERROR(res);
 
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Image,
+            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Handle.m_Image,
                 VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
             CHECK_VK_ERROR(res);
+        }
+    }
+
+    static void RepatchRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
+    {
+        for(uint32_t px=0; px < num_pixels; px++)
+        {
+            rgba[0] = rgb[0];
+            rgba[1] = rgb[1];
+            rgba[2] = rgb[2];
+            rgba[3] = 255;
+            rgba+=4;
+            rgb+=3;
         }
     }
 
@@ -3109,13 +3139,10 @@ bail:
         switch (params.m_Format)
         {
             case TEXTURE_FORMAT_DEPTH:
-                dmLogError("TEXTURE_FORMAT_DEPTH is not a valid argument for SetTexture");
-                return;
             case TEXTURE_FORMAT_STENCIL:
-                dmLogError("TEXTURE_FORMAT_STENCIL is not a valid argument for SetTexture");
+                dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
                 return;
-            default:
-                break;
+            default:break;
         }
 
         assert(params.m_Width  <= g_Context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D);
@@ -3134,7 +3161,7 @@ bail:
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
-            dmLogError("Unable to upload texture data, unsupported type.");
+            dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(format_orig));
             return;
         }
 
@@ -3145,19 +3172,11 @@ bail:
         // TODO: Can we use R11G11B10 somehow?
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
-            uint8_t bpp_new   = 4;
-            uint8_t* data_new = new uint8_t[bpp_new * params.m_Width * params.m_Height];
-            uint8_t* data_old = (uint8_t*) tex_data_ptr;
+            uint32_t data_pixel_count = params.m_Width * params.m_Height;
+            uint8_t bpp_new           = 4;
+            uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
-            for(uint32_t px=0; px < params.m_Width * params.m_Height; px++)
-            {
-                uint32_t px_old    = px * tex_bpp;
-                uint32_t px_new    = px * bpp_new;
-                data_new[px_new]   = data_old[px_old];
-                data_new[px_new+1] = data_old[px_old+1];
-                data_new[px_new+2] = data_old[px_old+2];
-                data_new[px_new+3] = 255;
-            }
+            RepatchRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
 
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
@@ -3178,10 +3197,13 @@ bail:
             SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
             if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
             {
-                DestroyTextureDeferred(g_Context, texture);
-                texture->m_Format = vk_format;
-                texture->m_Width  = params.m_Width;
-                texture->m_Height = params.m_Height;
+                DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], texture);
+                texture->m_Handle.m_Image                 = VK_NULL_HANDLE;
+                texture->m_Handle.m_ImageView             = VK_NULL_HANDLE;
+                texture->m_DeviceBuffer.m_Handle.m_Memory = VK_NULL_HANDLE;
+                texture->m_DeviceBuffer.m_Handle.m_Buffer = VK_NULL_HANDLE;
+                texture->m_DeviceBuffer.m_MemorySize      = 0;
+                texture->m_Format                         = vk_format;
             }
         }
 
@@ -3197,7 +3219,7 @@ bail:
 #endif
 
         // If texture hasn't been used yet or if it has been changed
-        if (texture->m_Image == VK_NULL_HANDLE)
+        if (texture->m_Handle.m_Image == VK_NULL_HANDLE)
         {
             assert(!params.m_SubUpdate);
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
@@ -3252,7 +3274,13 @@ bail:
             sampler.m_AddressModeV != vwrap     ||
             sampler.m_MaxLod       != texture->m_MipMapCount)
         {
-            texture->m_TextureSamplerIndex = GetTextureSamplerIndex(g_Context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            int8_t sampler_index = GetTextureSamplerIndex(g_Context->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            if (sampler_index < 0)
+            {
+                sampler_index = CreateTextureSampler(g_Context->m_LogicalDevice.m_Device, g_Context->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            }
+            
+            texture->m_TextureSamplerIndex = sampler_index;
         }
     }
 
