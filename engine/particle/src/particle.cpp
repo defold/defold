@@ -1150,19 +1150,16 @@ namespace dmParticle
             {
                 Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
 
-#define TO_BYTE(val) (uint8_t)(val * 255.0f)
-#define TO_SHORT(val) (uint16_t)(val * 65535.0f)
-
 #define SET_VERTEX_GO(vertex, p, c, u, v)\
     vertex->m_X = p.getX();\
     vertex->m_Y = p.getY();\
     vertex->m_Z = p.getZ();\
-    vertex->m_Red = TO_BYTE(c.getX());\
-    vertex->m_Green = TO_BYTE(c.getY());\
-    vertex->m_Blue = TO_BYTE(c.getZ());\
-    vertex->m_Alpha = TO_BYTE(c.getW());\
-    vertex->m_U = TO_SHORT(u);\
-    vertex->m_V = TO_SHORT(v);
+    vertex->m_Red = c.getX();\
+    vertex->m_Green = c.getY();\
+    vertex->m_Blue = c.getZ();\
+    vertex->m_Alpha = c.getW();\
+    vertex->m_U = u;\
+    vertex->m_V = v;
 
                 SET_VERTEX_GO(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1])
                 ++vertex;
@@ -1176,7 +1173,6 @@ namespace dmParticle
                 ++vertex;
                 SET_VERTEX_GO(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1])
 
-#undef TO_BYTE
 #undef SET_VERTEX_GO
             }
             else if (format == PARTICLE_GUI)
@@ -1187,7 +1183,7 @@ namespace dmParticle
     vertex->m_Position[0] = p.getX();\
     vertex->m_Position[1] = p.getY();\
     vertex->m_Position[2] = p.getZ();\
-    vertex->m_Color = (((uint32_t) (c.getW() * 255.0f)) << 24) | (((uint32_t) (c.getZ() * 255.0f)) << 16) | (((uint32_t) (c.getY() * 255.0f)) << 8) | ((uint32_t) (c.getX() * 255.0f));\
+    vertex->m_Color = c; \
     vertex->m_UV[0] = u;\
     vertex->m_UV[1] = v;
 
