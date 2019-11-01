@@ -37,20 +37,16 @@ namespace dmRender
         m->m_Program = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
 
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
-        char buffer[128];
+        const uint32_t buffer_size = 128;
+        char buffer[buffer_size];
         dmGraphics::Type type;
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmhash_t name_hash = 0;
-            // Try getting location by string name first and then by hash if it fails.
-            // Not all graphics system (i.e Vulkan) supports fetching by string.
-            if (!dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type))
-            {
-                dmGraphics::GetUniformName(m->m_Program, i, &name_hash, &type);
-            }
+            type = -1;
+            dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
@@ -59,10 +55,6 @@ namespace dmRender
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 samplers_count++;
-            }
-            else if (name_hash != 0)
-            {
-                dmLogWarning("Type for uniform %llu is not supported (%d)", (unsigned long long) name_hash, type);
             }
             else
             {
@@ -87,20 +79,8 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
-            dmhash_t name_hash       = 0;
-            int32_t location         = -1;
-
-            // Same as when counting constants, try string first and then hashes
-            if(name_str_length)
-            {
-                location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
-            }
-            else
-            {
-                dmGraphics::GetUniformName(m->m_Program, i, &name_hash, &type);
-                location = dmGraphics::GetUniformLocation(m->m_Program, name_hash);
-            }
+            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
+            int32_t location         = dmGraphics::GetUniformLocation(m->m_Program, buffer);
 
             // DEF-2971-hotfix
             // Previously this check was an assert. In Emscripten 1.38.3 they made changes
@@ -113,11 +93,8 @@ namespace dmRender
                 continue;
             }
 
-            if (name_str_length > 0)
-            {
-                assert(name_hash == 0);
-                name_hash = dmHashBuffer64(buffer, name_str_length);
-            }
+            assert(name_str_length > 0);
+            dmhash_t name_hash = dmHashString64(buffer);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {

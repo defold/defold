@@ -281,6 +281,7 @@ namespace dmGraphics
 
     struct ShaderResourceBinding
     {
+        char*                      m_Name;
         uint64_t                   m_NameHash;
         ShaderDesc::ShaderDataType m_Type;
         uint16_t                   m_Set;

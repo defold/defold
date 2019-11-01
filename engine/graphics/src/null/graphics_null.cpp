@@ -755,18 +755,6 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
-    {
-        // Not supported
-        return 0;
-    }
-
-    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
-    {
-        // Not supported
-        return -1;
-    }
-
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;

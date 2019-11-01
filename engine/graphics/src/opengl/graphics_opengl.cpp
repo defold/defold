@@ -1520,18 +1520,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
-    {
-        // Not supported
-        return 0;
-    }
-
-    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
-    {
-        // Not supported
-        return -1;
-    }
-
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;

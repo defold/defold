@@ -39,7 +39,6 @@ import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
@@ -379,7 +378,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             // the SPIR-V compiler will complain about it.
             for (SPIRVReflector.Resource input : attributes) {
                 ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                resourceBindingBuilder.setName(MurmurHash.hash64(input.name));
+                resourceBindingBuilder.setName(input.name);
                 resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
                 resourceBindingBuilder.setSet(input.set);
                 resourceBindingBuilder.setBinding(input.binding);
@@ -393,7 +392,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         // Build uniforms
         for (SPIRVReflector.Resource res : resource_list) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-            resourceBindingBuilder.setName(MurmurHash.hash64(res.name));
+            resourceBindingBuilder.setName(res.name);
             resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);

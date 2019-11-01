@@ -2084,11 +2084,16 @@ bail:
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
+                uint32_t name_len          = strlen(ddf->m_Uniforms[i].m_Name);
                 ShaderResourceBinding& res = shader->m_Uniforms[i];
                 res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
                 res.m_Set                  = ddf->m_Uniforms[i].m_Set;
-                res.m_NameHash             = ddf->m_Uniforms[i].m_Name;
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
+                res.m_Name                 = new char[name_len + 1];
+                res.m_NameHash             = 0;
+                memcpy((void*)res.m_Name, (void*)ddf->m_Uniforms[i].m_Name, name_len);
+                res.m_Name[name_len]       = 0;
+
                 assert(res.m_Set <= 1);
                 assert(res.m_Binding >= last_binding);
                 last_binding = res.m_Binding;
@@ -2118,11 +2123,16 @@ bail:
 
             for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
             {
+                uint32_t name_len          = strlen(ddf->m_Attributes[i].m_Name);
                 ShaderResourceBinding& res = shader->m_Attributes[i];
                 res.m_Binding              = ddf->m_Attributes[i].m_Binding;
                 res.m_Set                  = ddf->m_Attributes[i].m_Set;
-                res.m_NameHash             = ddf->m_Attributes[i].m_Name;
                 res.m_Type                 = ddf->m_Attributes[i].m_Type;
+                res.m_Name                 = new char[name_len + 1];
+                memcpy((void*)res.m_Name, (void*) ddf->m_Attributes[i].m_Name, name_len);
+                res.m_Name[name_len]       = 0;
+                res.m_NameHash             = dmHashString64(res.m_Name);
+
                 assert(res.m_Binding >= last_binding);
                 last_binding = res.m_Binding;
             }
@@ -2332,6 +2342,16 @@ bail:
 
         DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
+        for (uint32_t i=0; i < shader->m_UniformCount; i++)
+        {
+            delete[] shader->m_Uniforms[i].m_Name;
+        }
+
+        for (uint32_t i=0; i < shader->m_AttributeCount; i++)
+        {
+            delete[] shader->m_Attributes[i].m_Name;
+        }
+
         if (shader->m_Attributes)
         {
             delete[] shader->m_Attributes;
@@ -2351,6 +2371,11 @@ bail:
         assert(shader->m_Attributes == 0);
 
         DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
+
+        for (uint32_t i=0; i < shader->m_UniformCount; i++)
+        {
+            delete[] shader->m_Uniforms[i].m_Name;
+        }
 
         if (shader->m_Uniforms)
         {
@@ -2406,7 +2431,7 @@ bail:
         return (Type) 0xffffffff;
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2424,24 +2449,11 @@ bail:
         }
 
         ShaderResourceBinding* res = &module->m_Uniforms[index];
-
-        *hash = res->m_NameHash;
         *type = shaderDataTypeToGraphicsType(res->m_Type);
 
-        // Don't know the name length here
-        return 1;
-    }
+        dmStrlCpy(buffer, res->m_Name, buffer_size);
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
-    {
-        // Not supported
-        return 0;
-    }
-
-    int32_t GetUniformLocation(HProgram prog, const char* name)
-    {
-        // Not supported
-        return -1;
+        return strlen(res->m_Name);
     }
 
     // In OpenGL, there is a single global resource identifier between
@@ -2459,12 +2471,12 @@ bail:
     //   "These frequent lookups could be improved by sorting on the key beforehand,
     //   and during lookup, do a lower_bound, to find the item (or not).
     //   E.g see: engine/render/src/render/material.cpp#L446"
-    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, dmhash_t name, uint32_t* index_out)
+    static bool GetUniformIndex(ShaderResourceBinding* uniforms, uint32_t uniformCount, const char* name, uint32_t* index_out)
     {
         assert(uniformCount < UNIFORM_LOCATION_MAX);
         for (uint32_t i = 0; i < uniformCount; ++i)
         {
-            if (uniforms[i].m_NameHash == name)
+            if (dmStrCaseCmp(uniforms[i].m_Name, name) == 0)
             {
                 *index_out = i;
                 return true;
@@ -2474,7 +2486,7 @@ bail:
         return false;
     }
 
-    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    int32_t GetUniformLocation(HProgram prog, const char* name)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
