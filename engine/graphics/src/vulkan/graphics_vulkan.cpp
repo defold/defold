@@ -1854,7 +1854,7 @@ bail:
             else
             {
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(shader_module->m_Uniforms[i].m_Type);
+                const uint32_t uniform_size_nonalign    = GetShaderTypeSize(res.m_Type);
                 const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                 // Copy client data to aligned host memory
