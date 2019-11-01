@@ -804,7 +804,7 @@ namespace dmGraphics
 
             // Make sure all device extensions are supported
             bool all_extensions_found = true;
-            for (int32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
+            for (uint32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
             {
                 if (!IsExtensionSupported(device, device_extensions[ext_i]))
                 {
@@ -1821,10 +1821,16 @@ bail:
             return;
         }
 
-        for (int i = 0; i < shader_module->m_UniformCount; ++i)
+        const uint8_t max_write_descriptors = 16;
+        uint16_t uniforms_to_write          = shader_module->m_UniformCount;
+        uint16_t uniform_to_write_index     = 0;
+        uint16_t uniform_index              = 0;
+        VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
+
+        while(uniforms_to_write > 0)
         {
-            ShaderResourceBinding& res = shader_module->m_Uniforms[i];
-            VkWriteDescriptorSet vk_write_desc_info;
+            ShaderResourceBinding& res = shader_module->m_Uniforms[uniform_index++];
+            VkWriteDescriptorSet& vk_write_desc_info = vk_write_descriptors[uniform_to_write_index++];
             vk_write_desc_info.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             vk_write_desc_info.pNext            = 0;
             vk_write_desc_info.dstSet           = vk_descriptor_set;
@@ -1850,6 +1856,7 @@ bail:
                 dynamic_offsets[res.m_UniformDataIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
                 const uint32_t uniform_size_nonalign    = GetShaderTypeSize(shader_module->m_Uniforms[i].m_Type);
                 const uint32_t uniform_size             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+
                 // Copy client data to aligned host memory
                 // The data_offset here is the offset into the programs uniform data,
                 // i.e the source buffer.
@@ -1871,7 +1878,19 @@ bail:
                 scratch_buffer->m_MappedDataCursor += uniform_size;
             }
 
-            vkUpdateDescriptorSets(vk_device, 1, &vk_write_desc_info, 0, 0);
+            uniforms_to_write--;
+
+            // Commit and restart if we reached max descriptors per batch
+            if (uniform_to_write_index == max_write_descriptors)
+            {
+                vkUpdateDescriptorSets(vk_device, max_write_descriptors, vk_write_descriptors, 0, 0);
+                uniform_to_write_index = 0;
+            }
+        }
+
+        if (uniform_to_write_index > 0)
+        {
+            vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
         }
     }
 
@@ -3133,7 +3152,7 @@ bail:
         }
         else
         {
-            uint32_t write_offset = GetOffsetFromMipmap(textureOut, params.m_MipMap);
+            uint32_t write_offset = GetOffsetFromMipmap(textureOut, (uint8_t) params.m_MipMap);
 
             VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
             CHECK_VK_ERROR(res);
@@ -3201,7 +3220,6 @@ bail:
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
             RepatchRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
             tex_bpp       = bpp_new;
