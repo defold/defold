@@ -1313,10 +1313,9 @@ bail:
         assert(context->m_CurrentRenderTarget);
         DM_PROFILE(Graphics, "Clear");
 
-        float r = ((float)red)/255.0f;
-        float g = ((float)green)/255.0f;
-        float b = ((float)blue)/255.0f;
-        float a = ((float)alpha)/255.0f;
+        uint32_t attachment_count = 0;
+        VkClearAttachment vk_clear_attachments[2];
+        memset(vk_clear_attachments, 0, sizeof(vk_clear_attachments));
 
         VkClearRect vk_clear_rect;
         vk_clear_rect.rect.offset.x      = 0;
@@ -1326,30 +1325,51 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        VkClearAttachment vk_clear_attachments[2];
-        memset(vk_clear_attachments, 0, sizeof(vk_clear_attachments));
-
         // Clear color
-        vk_clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
-        vk_clear_attachments[0].clearValue.color.float32[0] = r;
-        vk_clear_attachments[0].clearValue.color.float32[1] = g;
-        vk_clear_attachments[0].clearValue.color.float32[2] = b;
-        vk_clear_attachments[0].clearValue.color.float32[3] = a;
+        if (flags & BUFFER_TYPE_COLOR_BIT)
+        {
+            float r = ((float)red)/255.0f;
+            float g = ((float)green)/255.0f;
+            float b = ((float)blue)/255.0f;
+            float a = ((float)alpha)/255.0f;
+
+            VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
+            vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_color_attachment.clearValue.color.float32[0] = r;
+            vk_color_attachment.clearValue.color.float32[1] = g;
+            vk_color_attachment.clearValue.color.float32[2] = b;
+            vk_color_attachment.clearValue.color.float32[3] = a;
+        }
 
         // Clear depth / stencil
-        vk_clear_attachments[1].aspectMask                      = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-        vk_clear_attachments[1].clearValue.depthStencil.stencil = stencil;
-        vk_clear_attachments[1].clearValue.depthStencil.depth   = depth;
+        if (flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT))
+        {
+            VkImageAspectFlags vk_aspect = 0;
+            if (flags & BUFFER_TYPE_DEPTH_BIT)
+            {
+                vk_aspect |= BUFFER_TYPE_DEPTH_BIT;
+            }
+
+            if (flags & BUFFER_TYPE_STENCIL_BIT)
+            {
+                vk_aspect |= BUFFER_TYPE_STENCIL_BIT;
+            }
+
+            VkClearAttachment& vk_depth_attachment              = vk_clear_attachments[attachment_count++];
+            vk_depth_attachment.aspectMask                      = vk_aspect;
+            vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
+            vk_depth_attachment.clearValue.depthStencil.depth   = depth;
+        }
 
         vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
-            2, vk_clear_attachments, 1, &vk_clear_rect);
+            attachment_count, vk_clear_attachments, 1, &vk_clear_rect);
     }
 
     static void DeviceBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut)
     {
         VkResult res;
 
-        if (bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE)
+        if (bufferOut->m_Destroyed || bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE)
         {
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
@@ -1478,11 +1498,9 @@ bail:
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE)
+        if (!buffer_ptr->m_Destroyed)
         {
             DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
-            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
-            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
         delete buffer_ptr;
     }
@@ -1496,11 +1514,9 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
+        if (!buffer_ptr->m_Destroyed && size != buffer_ptr->m_MemorySize)
         {
             DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
-            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
-            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1543,11 +1559,9 @@ bail:
     {
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE)
+        if (!buffer_ptr->m_Destroyed)
         {
             DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
-            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
-            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
         delete buffer_ptr;
     }
@@ -1559,11 +1573,9 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (buffer_ptr->m_Handle.m_Buffer != VK_NULL_HANDLE && size != buffer_ptr->m_MemorySize)
+        if (!buffer_ptr->m_Destroyed && size != buffer_ptr->m_MemorySize)
         {
             DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
-            buffer_ptr->m_Handle.m_Buffer = VK_NULL_HANDLE;
-            buffer_ptr->m_Handle.m_Memory = VK_NULL_HANDLE;
         }
 
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
@@ -1898,10 +1910,6 @@ bail:
     static VkResult ResizeDescriptorAllocator(HContext context, DescriptorAllocator* allocator, uint32_t newDescriptorCount)
     {
         DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], allocator);
-
-        allocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
-        allocator->m_Handle.m_DescriptorSets = 0;
-
         return CreateDescriptorAllocator(context->m_LogicalDevice.m_Device, newDescriptorCount, allocator);
     }
 
@@ -1909,9 +1917,6 @@ bail:
     {
         // Put old buffer on the delete queue so we don't mess the descriptors already in-use
         DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], &scratchBuffer->m_DeviceBuffer);
-        scratchBuffer->m_DeviceBuffer.m_Handle.m_Memory = VK_NULL_HANDLE;
-        scratchBuffer->m_DeviceBuffer.m_Handle.m_Buffer = VK_NULL_HANDLE;
-        scratchBuffer->m_DeviceBuffer.m_MemorySize      = 0;
 
         VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
             newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
@@ -2755,7 +2760,7 @@ bail:
 
         if (colorTexture)
         {
-            assert(colorTexture->m_Handle.m_ImageView != VK_NULL_HANDLE && colorTexture->m_Handle.m_Image != VK_NULL_HANDLE);
+            assert(!colorTexture->m_Destroyed && colorTexture->m_Handle.m_ImageView != VK_NULL_HANDLE && colorTexture->m_Handle.m_Image != VK_NULL_HANDLE);
             uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
             fb_width                   = rtOut->m_BufferTextureParams[color_buffer_index].m_Width;
             fb_height                  = rtOut->m_BufferTextureParams[color_buffer_index].m_Height;
@@ -2809,7 +2814,6 @@ bail:
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        assert(context);
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
         memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
 
@@ -2832,11 +2836,23 @@ bail:
 
         if(has_color)
         {
-            uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            const TextureParams color_buffer_params = params[color_buffer_index];
-            fb_width  = color_buffer_params.m_Width;
-            fb_height = color_buffer_params.m_Height;
-            VkFormat vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
+            uint8_t color_buffer_index         = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
+            TextureParams& color_buffer_params = rt->m_BufferTextureParams[color_buffer_index];
+            fb_width                           = color_buffer_params.m_Width;
+            fb_height                          = color_buffer_params.m_Height;
+
+            VkFormat vk_color_format;
+
+            // Promote format to RGBA if RBG, since it's not supported
+            if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
+            {
+                vk_color_format              = VK_FORMAT_R8G8B8A8_UNORM;
+                color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
+            }
+            else
+            {
+                vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
+            }
 
             texture_color = NewTexture(context, creation_params[color_buffer_index]);
             VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
@@ -2890,7 +2906,6 @@ bail:
 
     void DeleteRenderTarget(HRenderTarget render_target)
     {
-        assert(render_target);
         if (render_target->m_TextureColor)
         {
             DeleteTexture(render_target->m_TextureColor);
@@ -2909,7 +2924,6 @@ bail:
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         (void) transient_buffer_types;
-        assert(context);
         context->m_ViewportChanged = 1;
         BeginRenderPass(context, render_target != 0x0 ? render_target : &context->m_MainRenderTarget);
     }
@@ -2924,7 +2938,6 @@ bail:
 
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        assert(render_target);
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
         width  = render_target->m_BufferTextureParams[i].m_Width;
@@ -2933,7 +2946,6 @@ bail:
 
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        assert(render_target);
         Texture* texture_color = render_target->m_TextureColor;
 
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
@@ -3198,12 +3210,7 @@ bail:
             if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
             {
                 DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], texture);
-                texture->m_Handle.m_Image                 = VK_NULL_HANDLE;
-                texture->m_Handle.m_ImageView             = VK_NULL_HANDLE;
-                texture->m_DeviceBuffer.m_Handle.m_Memory = VK_NULL_HANDLE;
-                texture->m_DeviceBuffer.m_Handle.m_Buffer = VK_NULL_HANDLE;
-                texture->m_DeviceBuffer.m_MemorySize      = 0;
-                texture->m_Format                         = vk_format;
+                texture->m_Format = vk_format;
             }
         }
 
@@ -3219,7 +3226,7 @@ bail:
 #endif
 
         // If texture hasn't been used yet or if it has been changed
-        if (texture->m_Handle.m_Image == VK_NULL_HANDLE)
+        if (texture->m_Destroyed || texture->m_Handle.m_Image == VK_NULL_HANDLE)
         {
             assert(!params.m_SubUpdate);
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
@@ -3279,7 +3286,7 @@ bail:
             {
                 sampler_index = CreateTextureSampler(g_Context->m_LogicalDevice.m_Device, g_Context->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
             }
-            
+
             texture->m_TextureSamplerIndex = sampler_index;
         }
     }

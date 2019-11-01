@@ -408,7 +408,6 @@ namespace dmGraphics
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
-        assert(bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE);
         assert(vk_size < 0x80000000); // must match max bit count in graphics_vulkan_private.h
 
         VkBufferCreateInfo vk_buffer_create_info;
@@ -468,7 +467,6 @@ bail:
 
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        assert(descriptorAllocator->m_Handle.m_DescriptorSets == 0x0);
         assert(descriptor_count < 0x8000); // Should match the bit count in graphics_vulkan_private.h
 
         VkDescriptorPoolSize vk_pool_size[] = {
@@ -487,8 +485,6 @@ bail:
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut)
     {
-        assert(scratchBufferOut->m_DeviceBuffer.m_Handle.m_Buffer == VK_NULL_HANDLE);
-        assert(scratchBufferOut->m_DeviceBuffer.m_Handle.m_Buffer == VK_NULL_HANDLE);
         scratchBufferOut->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 
         DeviceBuffer& device_buffer = scratchBufferOut->m_DeviceBuffer;
@@ -953,18 +949,14 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
 
-        const VkDynamicState vk_dynamic_states[] =
-        {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_STENCIL_REFERENCE
-        };
+        const VkDynamicState vk_dynamic_state = VK_DYNAMIC_STATE_VIEWPORT;
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         vk_dynamic_state_create_info.pNext             = NULL;
         vk_dynamic_state_create_info.flags             = 0;
-        vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_states) / sizeof(VkDynamicState);
-        vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_states;
+        vk_dynamic_state_create_info.dynamicStateCount = 1;
+        vk_dynamic_state_create_info.pDynamicStates    = &vk_dynamic_state;
 
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
