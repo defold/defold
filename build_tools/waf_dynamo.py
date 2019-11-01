@@ -164,7 +164,11 @@ def dmsdk_add_file(bld, target, source):
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
 # * 'source' files are added to documentation pipeline
 def dmsdk_add_files(bld, target, source):
-    bld_sdk_files = bld.path.find_dir(source).abspath()
+    d = bld.path.find_dir(source)
+    if d is None:
+        print("Could not find source file/dir '%s' from dir '%s'" % (source,bld.path.abspath()))
+        sys.exit(1)
+    bld_sdk_files = d.abspath()
     bld_path = bld.path.abspath()
     doc_files = []
     for root, dirs, files in os.walk(bld_sdk_files):
