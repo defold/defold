@@ -28,7 +28,6 @@ namespace dmGraphics
 
     }
 
-
     TextureFormatToBPP::TextureFormatToBPP()
     {
         memset(m_FormatToBPP, 0x0, sizeof(m_FormatToBPP));
@@ -79,7 +78,7 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* shader_desc, uint32_t& data_len)
+    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
         ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
@@ -88,19 +87,9 @@ namespace dmGraphics
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
             if(shader->m_Language == language)
             {
-                if (shader->m_Source.m_Data && shader->m_Source.m_Count > 0)
-                {
-                    data_len = shader->m_Source.m_Count;
-                    return shader->m_Source.m_Data;
-                }
-                else
-                {
-                    data_len = shader->m_Binary.m_Count;
-                    return shader->m_Binary.m_Data;
-                }
+                return shader;
             }
         }
-        data_len = 0;
         return 0x0;
     }
 

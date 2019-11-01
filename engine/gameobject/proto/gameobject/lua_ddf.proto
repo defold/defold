@@ -20,4 +20,5 @@ message LuaModule
     repeated string modules                             = 2; // required modules
     repeated string resources                           = 3 [(resource)=true]; // required resources. same as modules but on the form /x/y/z.luac instead of x.y.z
     optional dmPropertiesDDF.PropertyDeclarations properties = 4;
+    repeated string property_resources  = 5 [(resource)=true];
 }

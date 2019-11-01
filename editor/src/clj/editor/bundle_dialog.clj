@@ -230,31 +230,36 @@
    (doto (VBox.)
      (ui/add-style! "settings")
      (ui/add-style! "toggles")
-     (ui/children! [(doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+     (ui/children! [(doto (CheckBox. "Generate debug symbols") (.setId "generate-debug-symbols-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                    (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
                     (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
 
 (defn- load-generic-prefs! [prefs view]
-  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (ui/value! variant-choice-box (prefs/get-prefs prefs "bundle-variant" "debug"))
+    (ui/value! generate-debug-symbols-check-box (prefs/get-prefs prefs "bundle-generate-debug-symbols?" true))
     (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
     (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))))
 
 (defn- save-generic-prefs! [prefs view]
-  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (prefs/set-prefs prefs "bundle-variant" (ui/value variant-choice-box))
+    (prefs/set-prefs prefs "bundle-generate-debug-symbols?" (ui/value generate-debug-symbols-check-box))
     (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
     (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))))
 
 (defn- get-generic-options [view]
-  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     {:variant (ui/value variant-choice-box)
+     :generate-debug-symbols? (ui/value generate-debug-symbols-check-box)
      :generate-build-report? (ui/value generate-build-report-check-box)
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))}))
 
 (defn- set-generic-options! [view options workspace]
-  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (ui/value! variant-choice-box (:variant options))
+    (ui/value! generate-debug-symbols-check-box (:generate-debug-symbols? options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
       (ui/value! (:publish-live-update-content? options)))))
@@ -493,9 +498,9 @@
   ;; but we will write to our own keys in the preference for these.
   (ui/with-controls view [sign-app-check-box code-signing-identity-choice-box provisioning-profile-text-field architecture-32bit-check-box architecture-64bit-check-box architecture-simulator-check-box]
     (ui/value! sign-app-check-box (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
-    (ui/value! code-signing-identity-choice-box (or (some (set code-signing-identity-names)
-                                                          (or (get-string-pref prefs "bundle-ios-code-signing-identity")
-                                                              (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
+    (ui/value! code-signing-identity-choice-box (or ((set code-signing-identity-names)
+                                                     (or (get-string-pref prefs "bundle-ios-code-signing-identity")
+                                                         (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
                                                     (first code-signing-identity-names)))
     (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
                                                    (get-string-pref prefs "last-provisioning-profile")))

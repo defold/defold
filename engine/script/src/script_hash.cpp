@@ -94,7 +94,7 @@ namespace dmScript
 
         dmhash_t hash = dmScript::CheckHash(L, 1);
         char buf[17];
-        DM_SNPRINTF(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
+        dmSnPrintf(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
         lua_pushstring(L, buf);
 
         assert(top + 1 == lua_gettop(L));
@@ -112,7 +112,7 @@ namespace dmScript
         dmCrypt::HashMd5((const uint8_t*)str, len, d);
 
         char md5[16 * 2 + 1]; // We need a terminal zero for snprintf
-        DM_SNPRINTF(md5, sizeof(md5), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+        dmSnPrintf(md5, sizeof(md5), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                     d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
         lua_pushstring(L, md5);
 
@@ -227,16 +227,16 @@ namespace dmScript
             const char* s = (const char*)dmHashReverse64(*hash, 0);
             if (s)
             {
-                DM_SNPRINTF(buffer, bufferlength, "%s", s);
+                dmSnPrintf(buffer, bufferlength, "%s", s);
             }
             else
             {
-                DM_SNPRINTF(buffer, bufferlength, "%llu", (unsigned long long)*hash);
+                dmSnPrintf(buffer, bufferlength, "%llu", (unsigned long long)*hash);
             }
         }
         else
         {
-            DM_SNPRINTF(buffer, bufferlength, "%s", "<unknown>");
+            dmSnPrintf(buffer, bufferlength, "%s", "<unknown>");
         }
         return buffer;
     }
@@ -259,11 +259,11 @@ namespace dmScript
         const char* reverse = (const char*) dmHashReverse64(hash, 0);
         if (reverse != 0x0)
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
+            dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
         }
         else
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
+            dmSnPrintf(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
         }
         lua_pushstring(L, buffer);
         return 1;
@@ -282,12 +282,12 @@ namespace dmScript
             {
                 size_t size = strlen(reverse) + 3;
                 s = (char*)malloc(size);
-                DM_SNPRINTF(s, size, "[%s]", reverse);
+                dmSnPrintf(s, size, "[%s]", reverse);
             }
             else
             {
                 s = (char*)malloc(64);
-                DM_SNPRINTF(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
+                dmSnPrintf(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
             }
             return s;
         }

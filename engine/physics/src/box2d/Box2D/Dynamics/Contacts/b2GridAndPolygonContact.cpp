@@ -33,6 +33,10 @@ b2GridAndPolygonContact::b2GridAndPolygonContact(b2Fixture* fixtureA, int32 inde
 void b2GridAndPolygonContact::Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB)
 {
     b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
+    if (!gridShape->m_enabled)
+    {
+    	return;
+    }
     b2PolygonShape* polyB = (b2PolygonShape*)m_fixtureB->GetShape();
 
     manifold->pointCount = 0;

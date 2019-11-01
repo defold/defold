@@ -55,6 +55,12 @@ def transform_tilesource_name(name):
     name = name.replace('.tilesource', '.texturesetc')
     return name
 
+def transform_textureset_filename(task, name):
+    name = name.replace('.tilesource', '.texturec')
+    name = name.replace('.tileset', '.texturec')
+    name = name.replace('.atlas', '.texturec')
+    return transform_texture_name(task, name)
+
 def transform_collection(task, msg):
     for i in msg.instances:
         i.prototype = i.prototype.replace('.go', '.goc')
@@ -284,8 +290,7 @@ def transform_render(task, msg):
     return msg
 
 def transform_sprite(task, msg):
-    msg.tile_set = msg.tile_set.replace('.tileset', '.texturesetc')
-    msg.tile_set = msg.tile_set.replace('.tilesource', '.texturesetc')
+    msg.tile_set = transform_tilesource_name(msg.tile_set)
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
@@ -308,6 +313,7 @@ def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
     msg.animation_set = msg.animation_set.replace('.animationset', '.animationsetc')
     msg.mesh_set = msg.mesh_set.replace('.meshset', '.meshsetc')
+    msg.texture_set = msg.texture_set.replace('.atlas', '.texturesetc')
     return msg
 
 def transform_label(task, msg):
@@ -632,7 +638,7 @@ def compile_spinescene(task):
         msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
         msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
         msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
-        msg_out.texture_set = transform_tilesource_name(msg.atlas)
+        msg_out.texture_set = transform_textureset_filename(task, msg.atlas)
 
         # write scene desc
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:

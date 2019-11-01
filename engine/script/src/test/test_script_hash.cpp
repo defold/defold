@@ -41,7 +41,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -67,7 +67,7 @@ TEST_F(ScriptHashTest, TestHash)
     char hash_hex[64];
     const char* s = "test_value";
     dmhash_t hash = dmHashString64(s);
-    DM_SNPRINTF(hash_hex, sizeof(hash_hex), "%016llx", (unsigned long long)hash);
+    dmSnPrintf(hash_hex, sizeof(hash_hex), "%016llx", (unsigned long long)hash);
     dmScript::PushHash(L, hash);
     ASSERT_EQ(hash, dmScript::CheckHash(L, -1));
     lua_pop(L, 1);

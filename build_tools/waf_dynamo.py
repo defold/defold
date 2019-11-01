@@ -12,10 +12,8 @@ if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
 
-HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-# Note: ANDROID_ROOT is the root of the Android SDK, the NDK is put into the DYNAMO_HOME folder with install_ext.
-#       It is also defined in the _strip_engine in build.py, so make sure these two paths are the same.
-ANDROID_ROOT=os.path.join(HOME, 'android')
+SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='20'
 ANDROID_NDK_API_VERSION='16' # Android 4.1
@@ -27,16 +25,16 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="12.1"
-IOS_SIMULATOR_SDK_VERSION="12.1"
+IOS_SDK_VERSION="13.1"
+IOS_SIMULATOR_SDK_VERSION="13.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
 
-OSX_SDK_VERSION="10.13"
+OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="10.1"
+XCODE_VERSION="11.1"
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
 
@@ -166,7 +164,11 @@ def dmsdk_add_file(bld, target, source):
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
 # * 'source' files are added to documentation pipeline
 def dmsdk_add_files(bld, target, source):
-    bld_sdk_files = bld.path.find_dir(source).abspath()
+    d = bld.path.find_dir(source)
+    if d is None:
+        print("Could not find source file/dir '%s' from dir '%s'" % (source,bld.path.abspath()))
+        sys.exit(1)
+    bld_sdk_files = d.abspath()
     bld_path = bld.path.abspath()
     doc_files = []
     for root, dirs, files in os.walk(bld_sdk_files):
@@ -247,10 +249,14 @@ def default_flags(self):
     for f in ['CCFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
+    if os.environ.get('GITHUB_WORKFLOW', None) is not None:
+       for f in ['CCFLAGS', 'CXXFLAGS']:
+           self.env.append_value(f, self.env.CXXDEFINES_ST % "GITHUB_CI")
+
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -271,16 +277,14 @@ def default_flags(self):
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
-                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-                # Force libstdc++ for now
-                self.env.append_value(f, ['-stdlib=libstdc++'])
+                self.env.append_value(f, ['-stdlib=libc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem', '-framework', 'Carbon','-flto'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem', '-framework', 'Carbon','-flto'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         if Options.options.with_asan:
@@ -410,7 +414,7 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios'):
+    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -813,39 +817,11 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <activity android:name="com.defold.iap.IapGooglePlayActivity"
-          android:theme="@android:style/Theme.Translucent.NoTitleBar"
-          android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
-          android:label="IAP">
-        </activity>
-
-        <!-- For IAC Invocations -->
-        <activity android:name="com.defold.iac.IACActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-               <action android:name="android.intent.action.VIEW" />
-               <category android:name="android.intent.category.DEFAULT" />
-               <category android:name="android.intent.category.BROWSABLE" />
-               <data android:scheme="%(package)s" />
-            </intent-filter>
-        </activity>
-
-        <!-- For Amazon IAP -->
-        <receiver android:name="com.amazon.device.iap.ResponseReceiver" >
-            <intent-filter>
-                <action android:name="com.amazon.inapp.purchasing.NOTIFY" android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY" />
-            </intent-filter>
-        </receiver>
 
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="com.android.vending.BILLING" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->
@@ -887,21 +863,8 @@ def android_package(task):
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
-    # DEF-3873
-    # Previously we looped over all subfolders in ext/share/java/res and added them to this list.
-    # After the release of 1.2.149 Facebook dialogs stopped working, unless the engine was built
-    # on NE server. It was narrowed down to what order the res dirs were listed in the aapt
-    # argument list and now we use the same order on all places.
-    res_dirs = ["%s/ext/share/java/res/com.android.support.support-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-core-ui-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.android.support.support-media-compat-27.1.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-base-16.0.1" % dynamo_home,
-                "%s/ext/share/java/res/com.google.android.gms.play-services-basement-16.0.1" % dynamo_home]
-
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
-    r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
-    r_jar = task.r_jar.abspath(task.env)
 
     libs = os.path.join(dme_and, 'libs')
     bin = os.path.join(dme_and, 'bin')
@@ -916,52 +879,21 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (bin_cls))
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
-    bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
-
-    res_args = ""
-    for d in res_dirs:
-        res_args += ' -S %s' % d
-
-    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt'), res_args))
-    if ret != 0:
-        error('Error running aapt')
-        return 1
 
     if task.extra_packages:
         extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
     else:
         extra_packages_cmd = ''
 
-    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -J %s %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, r_java_gen_dir, res_args, ap_))
+    ret = bld.exec_command('%s package -f %s -m --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, extra_packages_cmd, manifest, android_jar, ap_))
     if ret != 0:
         error('Error running aapt')
-        return 1
-
-    r_java_files = []
-    for root, dirs, files in os.walk(r_java_gen_dir):
-        for f in files:
-            if f.endswith(".java"):
-                p = os.path.join(root, f)
-                r_java_files.append(p)
-
-    ret = bld.exec_command('%s %s %s' % (task.env['JAVAC'][0], '-source 1.6 -target 1.6', ' '.join(r_java_files)))
-    if ret != 0:
-        error('Error compiling R.java files')
-        return 1
-
-    for p in r_java_files:
-        os.unlink(p)
-
-    ret = bld.exec_command('%s cf %s -C %s .' % (task.env['JAR'][0], r_jar, r_java_gen_dir))
-    if ret != 0:
-        error('Error creating jar of compiled R.java files')
         return 1
 
     dx_jars = []
     for jar in task.jars:
         dx_jars.append(jar)
-    dx_jars.append(r_jar)
 
     if getattr(task, 'proguard', None):
         proguardtxt = task.proguard[0]
@@ -975,13 +907,15 @@ def android_package(task):
     else:
         dex_input = dx_jars
 
-    ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
-    if ret != 0:
-        error('Error running dx')
-        return 1
+    if dex_input:
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dex_input)))
+        if ret != 0:
+            error('Error running dx')
+            return 1
 
-    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
-        zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
+    if os.path.exists(task.classes_dex.abspath(task.env)):
+        with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+            zip.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
@@ -1092,9 +1026,6 @@ def create_android_package(self):
     android_package_task.apk = apk
 
     android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
-
-    android_package_task.r_java_gen_dir = self.path.exclusive_build_node("%s.android/gen" % (exe_name))
-    android_package_task.r_jar = self.path.exclusive_build_node("%s.android/r.jar" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))

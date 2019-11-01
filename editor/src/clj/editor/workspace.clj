@@ -61,10 +61,13 @@ ordinary paths."
   io/Coercions
   (io/as-file [this] (File. (resource/abs-path this))))
 
+(def build-resource? (partial instance? BuildResource))
+
 (defn make-build-resource
   ([resource]
-    (make-build-resource resource nil))
+   (make-build-resource resource nil))
   ([resource prefix]
+   (assert (resource/resource? resource))
    (BuildResource. resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
@@ -127,9 +130,9 @@ ordinary paths."
 
 (defn get-resource-types
   ([workspace]
-    (map second (g/node-value workspace :resource-types)))
+   (map second (g/node-value workspace :resource-types)))
   ([workspace tag]
-    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
+   (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
 (defn- template-path [resource-type]
   (or (:template resource-type)
@@ -208,12 +211,9 @@ ordinary paths."
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
 
-(defn dependencies-reachable? [dependencies login-fn]
+(defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
-    (and (every? url/reachable? hosts)
-         (or (nil? login-fn)
-             (not-any? url/defold-hosted? dependencies)
-             (login-fn)))))
+    (every? url/reachable? hosts)))
 
 (defn missing-dependencies [workspace]
   (let [project-directory (project-path workspace)

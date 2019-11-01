@@ -509,7 +509,7 @@
   (g/node-value scene :node-ids evaluation-context))
 
 (defmulti update-gui-resource-reference (fn [gui-resource-type evaluation-context node-id _old-name _new-name]
-                                          [(:key @(g/node-type* (:basis evaluation-context) node-id)) gui-resource-type]))
+                                          [(g/node-type-kw (:basis evaluation-context) node-id) gui-resource-type]))
 (defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
 ;; used by (property x (set (partial ...)), thus evaluation-context in signature
@@ -3009,11 +3009,11 @@
                     :command :set-gui-layout
                     :user-data l}))))))
 
-(ui/extend-menu :toolbar :visibility-settings
-                [{:label :separator}
-                 {:icon layout-icon
-                  :command :set-gui-layout
-                  :label "Test"}])
+(handler/register-menu! ::toolbar :visibility-settings
+  [{:label :separator}
+   {:icon layout-icon
+    :command :set-gui-layout
+    :label "Test"}])
 
 (def ^:private node-type->kw {BoxNode :type-box
                               PieNode :type-pie

@@ -16,7 +16,8 @@ b2GridShape::b2GridShape(const b2HullSet* hullSet,
                          uint32 rowCount, uint32 columnCount)
     : m_hullSet(hullSet),
       m_cellWidth(cellWidth), m_cellHeight(cellHeight),
-      m_rowCount(rowCount), m_columnCount(columnCount)
+      m_rowCount(rowCount), m_columnCount(columnCount),
+      m_enabled(1)
 {
     uint32 cellCount = m_rowCount * m_columnCount;
     uint32 size = sizeof(Cell) * cellCount;
@@ -60,6 +61,8 @@ bool b2GridShape::TestPoint(const b2Transform& transform, const b2Vec2& p) const
 bool b2GridShape::RayCast(b2RayCastOutput* output, const b2RayCastInput& input,
                             const b2Transform& transform, int32 childIndex) const
 {
+    if (!m_enabled)
+        return false;
     const b2GridShape::Cell& cell = m_cells[childIndex];
     if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
     {
@@ -121,6 +124,8 @@ void b2GridShape::ComputeMass(b2MassData* massData, float32 density) const
 
 uint32 b2GridShape::GetCellVertices(uint32 index, b2Vec2* vertices) const
 {
+    if (!m_enabled)
+        return false;
     const b2GridShape::Cell& cell = m_cells[index];
     if (cell.m_Index == B2GRIDSHAPE_EMPTY_CELL)
         return 0;

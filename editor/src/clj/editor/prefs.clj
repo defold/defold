@@ -31,8 +31,18 @@
   (get-prefs [this key default])
   (set-prefs [this key value]))
 
+(defn- sanitize-prefs! [prefs]
+  (doto prefs
+    (set-prefs "email" nil)
+    (set-prefs "first-name" nil)
+    (set-prefs "last-name" nil)
+    (set-prefs "server-url" nil)
+    (set-prefs "token" nil)))
+
 (defn make-prefs [namespace]
-  (.node (Preferences/userRoot) namespace))
+  (-> (Preferences/userRoot)
+      (.node namespace)
+      sanitize-prefs!))
 
 (extend-type Preferences
   PreferenceStore
@@ -66,4 +76,5 @@
   (with-open [reader (io/reader path)]
     (let [prefs (->> (json/read reader :key-fn keyword)
                   (reduce-kv (fn [m k v] (assoc m (name k) v)) {}))]
-      (->DevPreferences path (atom prefs)))))
+      (sanitize-prefs!
+        (->DevPreferences path (atom prefs))))))

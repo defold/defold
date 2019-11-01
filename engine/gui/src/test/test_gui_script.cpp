@@ -846,8 +846,8 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
             if (tinyDifference < Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal)) {
                 char animatedScale[64];
                 char currentScale[64];
-                DM_SNPRINTF(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
-                DM_SNPRINTF(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
+                dmSnPrintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
+                dmSnPrintf(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
                 EXPECT_STREQ(animatedScale, currentScale);
             }
             ++ticks;
@@ -914,8 +914,8 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
             if ( (tinyDifference >= difference[0]) || (tinyDifference < difference[1]) || (tinyDifference >= difference[2])) {
                 char animatedScale[64];
                 char currentScale[64];
-                ::DM_SNPRINTF(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
-                ::DM_SNPRINTF(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
+                ::dmSnPrintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
+                ::dmSnPrintf(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
                 EXPECT_STREQ(animatedScale, currentScale);
             }
             ++ticks;

@@ -107,4 +107,9 @@ public class TexcLibrary {
     public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
     public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, int dither);
 
+    public static native Pointer TEXC_CompressWebPBuffer(int width, int height, int bitsPerPixel, Buffer data, int datasize, int pixelFormat, int compressionLevel, int compressionType);
+    public static native int TEXC_GetTotalBufferDataSize(Pointer buffer);
+    public static native int TEXC_GetBufferData(Pointer buffer, Buffer outData, int maxOutDataSize);
+    public static native void TEXC_DestroyBuffer(Pointer buffer);
+
 }

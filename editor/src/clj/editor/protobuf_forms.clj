@@ -1,28 +1,15 @@
 (ns editor.protobuf-forms
-  (:require [editor.protobuf :as protobuf]
-            [clojure.string :as str]
-            [dynamo.graph :as g])
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
+            [editor.protobuf :as protobuf]
+            [editor.util :as util])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
            [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]))
 
 (set! *warn-on-reflection* true)
 
-(defn- dissoc-in
-  "Dissociates an entry from a nested associative structure returning a new
-  nested structure. keys is a sequence of keys. Any empty maps that result
-  will not be present in the new structure."
-  [m [k & ks :as keys]]
-  (if ks
-    (if-let [nextmap (get m k)]
-      (let [newmap (dissoc-in nextmap ks)]
-        (if (empty? newmap)
-          (dissoc m k)
-          (assoc m k newmap)))
-      m)
-    (dissoc m k)))
-
 (defn- clear-form-op [{:keys [node-id]} path]
-  (g/update-property! node-id :pb dissoc-in path))
+  (g/update-property! node-id :pb util/dissoc-in path))
 
 (defn- set-form-op [{:keys [node-id]} path value]
   (g/update-property! node-id :pb assoc-in path value))

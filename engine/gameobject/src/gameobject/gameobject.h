@@ -112,7 +112,8 @@ namespace dmGameObject
         PROPERTY_RESULT_INVALID_INSTANCE = -6,
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
         PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
-        PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9
+        PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9,
+        PROPERTY_RESULT_RESOURCE_NOT_FOUND = -10
     };
 
     /**
@@ -1073,6 +1074,14 @@ namespace dmGameObject
      * @return The resource factory bound to the specified collection
      */
     dmResource::HFactory GetFactory(HCollection collection);
+
+    /**
+     * Retrieve a factory from the specified instance
+     * Convenience for GetFactory(GetCollection(instance)).
+     * @param instance Game object instance
+     * @return The resource factory bound to the specified instance, via its collection
+     */
+    dmResource::HFactory GetFactory(HInstance instance);
 
     /**
      * Retrieve a register from the specified collection

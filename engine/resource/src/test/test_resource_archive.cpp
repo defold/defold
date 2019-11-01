@@ -341,6 +341,7 @@ void PrintHash(const uint8_t* hash, uint32_t len)
     delete[] buf;
 }
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -367,7 +368,9 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -387,7 +390,9 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -407,6 +412,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
+#endif
 
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {

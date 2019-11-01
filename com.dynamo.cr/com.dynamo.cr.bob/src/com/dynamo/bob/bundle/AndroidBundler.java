@@ -80,6 +80,7 @@ public class AndroidBundler implements IBundler {
         BobProjectProperties projectProperties = project.getProjectProperties();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
+        final boolean has_symbols = project.hasOption("with-symbols");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = BundleHelper.projectNameToBinaryName(title);
@@ -387,5 +388,25 @@ public class AndroidBundler implements IBundler {
         ap3.delete();
         ap4.delete();
         FileUtils.deleteDirectory(tmpResourceDir);
+
+        // Copy debug symbols
+        if (has_symbols) {
+            File symbolsDir = new File(appDir, title + ".apk.symbols");
+            symbolsDir.mkdirs();
+
+            for(Platform architecture : architectures)
+            {
+                //FileUtils.forceMkdir(new File(symbolsDir, "libs/" + platformToLibMap.get(architecture)));
+                File buildExe = platformToExeFileMap.get(architecture);
+                File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+                FileUtils.copyFile(buildExe, symbolExe);
+            }
+
+            File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
+            if (proguardMapping.exists()) {
+                File symbolMapping = new File(symbolsDir, proguardMapping.getName());
+                FileUtils.copyFile(proguardMapping, symbolMapping);
+            }
+        }
     }
 }

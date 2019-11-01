@@ -30,7 +30,7 @@ extern "C"
 // static bool RunFile(lua_State* L, const char* filename)
 // {
 //     char path[64];
-//     DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+//     dmSnPrintf(path, 64, PATH_FORMAT, filename);
 //     if (luaL_dofile(L, path) != 0)
 //     {
 //         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -154,7 +154,7 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 2);
+    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 2);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
@@ -277,7 +277,7 @@ TEST_F(LuaTableTest, Overflow)
     // 2 bytes for count
     ASSERT_NE(0, result);
     char expected_error[64];
-    DM_SNPRINTF(expected_error, 64, "too many values in table, %d is max", 0xffff);
+    dmSnPrintf(expected_error, 64, "too many values in table, %d is max", 0xffff);
     ASSERT_STREQ(expected_error, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
@@ -310,7 +310,7 @@ TEST_F(LuaTableTest, IndexOutOfBounds)
     // 2 bytes for count
     ASSERT_NE(0, result);
     char expected_error[64];
-    DM_SNPRINTF(expected_error, 64, "index out of bounds, max is %d", 0xffffffff);
+    dmSnPrintf(expected_error, 64, "index out of bounds, max is %d", 0xffffffff);
     ASSERT_STREQ(expected_error, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);

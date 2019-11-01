@@ -247,30 +247,7 @@ namespace dmSys
 
 #if defined(__MACH__)
 
-#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
-    // NOTE: iOS implementation in sys_cocoa.mm
-    __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        FSRef file;
-        OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
-        if (err != 0)
-        {
-            return RESULT_INVAL;
-        }
-        FSRefMakePath(&file, (UInt8*) path, path_len);
-        if (dmStrlCat(path, "/", path_len) >= path_len)
-            return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
-            return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
-        if (r == RESULT_EXIST)
-            return RESULT_OK;
-        else
-            return r;
-    }
-
-    // NOTE: iOS/OSX implementation of GetApplicationPath() in sys_cocoa.mm
-#endif
+// NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
 
 #elif defined(_WIN32)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
@@ -532,7 +509,7 @@ namespace dmSys
     Result OpenURL(const char* url)
     {
         char buf[1024];
-        DM_SNPRINTF(buf, 1024, "xdg-open %s", url);
+        dmSnPrintf(buf, 1024, "xdg-open %s", url);
         int ret = system(buf);
         if (ret == 0)
         {
@@ -803,7 +780,7 @@ namespace dmSys
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
         jint sdkint = (jint) env->GetStaticIntField(build_version_class, env->GetStaticFieldID(build_version_class, "SDK_INT", "I")); // supported from api level 4
 
-        DM_SNPRINTF(info->m_ApiVersion, sizeof(info->m_ApiVersion), "%d", sdkint);
+        dmSnPrintf(info->m_ApiVersion, sizeof(info->m_ApiVersion), "%d", sdkint);
 
         if (manufacturerObj) {
             const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
@@ -840,20 +817,6 @@ namespace dmSys
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
 
-        jclass def_activity_class = env->GetObjectClass(g_AndroidApp->activity->clazz);
-        jmethodID getAdId = env->GetMethodID(def_activity_class, "getAdId", "()Ljava/lang/String;");
-        jstring val = (jstring) env->CallObjectMethod(g_AndroidApp->activity->clazz, getAdId);
-        if (val)
-        {
-            const char *id = env->GetStringUTFChars(val, NULL);
-            dmStrlCpy(info->m_AdIdentifier, id, sizeof(info->m_AdIdentifier));
-            env->ReleaseStringUTFChars(val, id);
-            env->DeleteLocalRef(val);
-        }
-
-        jmethodID get_limit_ad_tracking = env->GetMethodID(def_activity_class, "getLimitAdTracking", "()Z");
-        info->m_AdTrackingEnabled = !env->CallBooleanMethod(g_AndroidApp->activity->clazz, get_limit_ad_tracking);
-
         activity->vm->DetachCurrentThread();
     }
 #elif defined(_WIN32)
@@ -873,7 +836,7 @@ namespace dmSys
         char lang[max_len];
         dmStrlCpy(lang, "en-US", max_len);
 
-        DM_SNPRINTF(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
+        dmSnPrintf(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
         if (GetUserDefaultLocaleName) {
             // Only availble on >= Vista
             wchar_t tmp[max_len];
@@ -1047,4 +1010,48 @@ namespace dmSys
 #endif
     }
 
+    // Currently only used in tests
+    #define DM_SYS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_SYS_RESULT_TO_STRING_CASE(OK);
+            DM_SYS_RESULT_TO_STRING_CASE(PERM);
+            DM_SYS_RESULT_TO_STRING_CASE(NOENT);
+            DM_SYS_RESULT_TO_STRING_CASE(SRCH);
+            DM_SYS_RESULT_TO_STRING_CASE(INTR);
+            DM_SYS_RESULT_TO_STRING_CASE(IO);
+            DM_SYS_RESULT_TO_STRING_CASE(NXIO);
+            DM_SYS_RESULT_TO_STRING_CASE(2BIG);
+            DM_SYS_RESULT_TO_STRING_CASE(NOEXEC);
+            DM_SYS_RESULT_TO_STRING_CASE(BADF);
+            DM_SYS_RESULT_TO_STRING_CASE(CHILD);
+            DM_SYS_RESULT_TO_STRING_CASE(DEADLK);
+            DM_SYS_RESULT_TO_STRING_CASE(NOMEM);
+            DM_SYS_RESULT_TO_STRING_CASE(ACCES);
+            DM_SYS_RESULT_TO_STRING_CASE(FAULT);
+            DM_SYS_RESULT_TO_STRING_CASE(BUSY);
+            DM_SYS_RESULT_TO_STRING_CASE(EXIST);
+            DM_SYS_RESULT_TO_STRING_CASE(XDEV);
+            DM_SYS_RESULT_TO_STRING_CASE(NODEV);
+            DM_SYS_RESULT_TO_STRING_CASE(NOTDIR);
+            DM_SYS_RESULT_TO_STRING_CASE(ISDIR);
+            DM_SYS_RESULT_TO_STRING_CASE(INVAL);
+            DM_SYS_RESULT_TO_STRING_CASE(NFILE);
+            DM_SYS_RESULT_TO_STRING_CASE(MFILE);
+            DM_SYS_RESULT_TO_STRING_CASE(NOTTY);
+            DM_SYS_RESULT_TO_STRING_CASE(TXTBSY);
+            DM_SYS_RESULT_TO_STRING_CASE(FBIG);
+            DM_SYS_RESULT_TO_STRING_CASE(NOSPC);
+            DM_SYS_RESULT_TO_STRING_CASE(SPIPE);
+            DM_SYS_RESULT_TO_STRING_CASE(ROFS);
+            DM_SYS_RESULT_TO_STRING_CASE(MLINK);
+            DM_SYS_RESULT_TO_STRING_CASE(PIPE);
+            DM_SYS_RESULT_TO_STRING_CASE(UNKNOWN);
+
+        }
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_SYS_RESULT_TO_STRING_CASE
 }

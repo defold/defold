@@ -417,7 +417,7 @@ bail:
         if (r != RESULT_OK) goto bail;
 
         ssdp->m_MaxAge = params->m_MaxAge;
-        DM_SNPRINTF(ssdp->m_MaxAgeText, sizeof(ssdp->m_MaxAgeText), "%u", params->m_MaxAge);
+        dmSnPrintf(ssdp->m_MaxAgeText, sizeof(ssdp->m_MaxAgeText), "%u", params->m_MaxAge);
         ssdp->m_Announce = params->m_Announce;
         ssdp->m_AnnounceInterval = params->m_AnnounceInterval;
 
@@ -435,7 +435,7 @@ bail:
         uint16_t http_port;
         dmHttpServer::GetName(http_server, &http_address, &http_port);
 
-        DM_SNPRINTF(ssdp->m_HttpPortText, sizeof(ssdp->m_HttpPortText), "%u", http_port);
+        dmSnPrintf(ssdp->m_HttpPortText, sizeof(ssdp->m_HttpPortText), "%u", http_port);
 
         return RESULT_OK;
 

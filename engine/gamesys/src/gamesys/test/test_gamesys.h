@@ -150,28 +150,28 @@ public:
     virtual ~DrawCountTest() {}
 };
 
-struct TexturePropParams
-{
-    const char* go_path;
-    dmhash_t comp_same_1;
-    dmhash_t comp_same_2;
-    dmhash_t comp_different;
+struct ResourcePropParams {
+    const char* m_PropertyName;
+    const char* m_ResourcePath;
+    const char* m_ResourcePathNotFound;
+    const char* m_ResourcePathInvExt;
+    const char* m_Component0;
+    const char* m_Component1;
+    const char* m_Component2;
+    const char* m_Component3;
+    const char* m_Component4;
+    const char* m_Component5;
 };
 
-class TexturePropTest : public GamesysTest<TexturePropParams>
+class ResourcePropTest : public GamesysTest<ResourcePropParams>
 {
 protected:
     void SetUp()
     {
         GamesysTest::SetUp();
-        hash_property_id = dmHashString64("texture0");
-        hash_property_id_invalid = dmHashString64("texture");
     }
-
 public:
-    dmhash_t hash_property_id;
-    dmhash_t hash_property_id_invalid;
-    virtual ~TexturePropTest() {}
+    virtual ~ResourcePropTest() {}
 };
 
 class FlipbookTest : public GamesysTest<const char*>
@@ -206,7 +206,7 @@ void GamesysTest<T>::SetUp()
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
     dmResource::NewFactoryParams params;
-    params.m_MaxResources = 32;
+    params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);

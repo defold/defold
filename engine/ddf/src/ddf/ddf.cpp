@@ -140,8 +140,7 @@ namespace dmDDF
 
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message)
     {
-        uint32_t size;
-        return LoadMessage(buffer, buffer_size, desc, out_message, 0, &size);
+        return LoadMessage(buffer, buffer_size, desc, out_message, 0, 0);
     }
 
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message, uint32_t options, uint32_t* size)
@@ -151,7 +150,8 @@ namespace dmDDF
         assert(desc);
         assert(out_message);
 
-        *size = 0;
+        if (size)
+            *size = 0;
 
         if (desc->m_MajorVersion != DDF_MAJOR_VERSION)
             return RESULT_VERSION_MISMATCH;
@@ -181,7 +181,8 @@ namespace dmDDF
         e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
         if ( e == RESULT_OK )
         {
-            *size = message_buffer_size;
+            if (size)
+                *size = message_buffer_size;
             *out_message = (void*) message_buffer;
         }
         else

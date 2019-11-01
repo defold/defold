@@ -24,8 +24,6 @@
 
 #include <record/record.h>
 
-#include <tracking/tracking.h>
-
 #include "engine_service.h"
 #include "engine_ddf.h"
 
@@ -37,11 +35,11 @@ namespace dmEngine
         RunResult()
         {
             memset(this, 0, sizeof(*this));
-            m_Action = EXIT;
         }
 
         enum Action
         {
+            NONE,
             EXIT,
             REBOOT,
         };
@@ -135,7 +133,6 @@ namespace dmEngine
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;
         dmRender::HDisplayProfiles                  m_DisplayProfiles;
-        dmTracking::HContext                        m_TrackingContext;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
@@ -152,6 +149,7 @@ namespace dmEngine
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
+        uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
         Vsync                                       m_VsyncMode;

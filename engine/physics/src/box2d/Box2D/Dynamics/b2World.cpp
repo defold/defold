@@ -1101,33 +1101,35 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
     case b2Shape::e_grid:
         {
             b2GridShape* grid = (b2GridShape*)fixture->GetShape();
-
-            uint32 cellCount = grid->GetChildCount();
-            b2PolygonShape poly;
-            b2EdgeShape edgeShapes[b2_maxPolygonVertices];
-            const float32 fillShade = 0.8f;
-            b2Color fillColor(color.r * fillShade, color.g * fillShade, color.b * fillShade);
-            for (uint32 i = 0; i < cellCount; ++i)
+            if (grid->m_enabled)
             {
-                const b2Filter& filter = fixture->GetFilterData(i);
-                uint32 index = grid->m_cells[i].m_Index;
-                if (index != B2GRIDSHAPE_EMPTY_CELL && filter.categoryBits != 0)
-                {
-                    grid->GetPolygonShapeForCell(i, poly);
-                    DrawPolygon(xf, poly, fillColor);
-                    int32 row = i / grid->m_columnCount;
-                    int32 col = i - (grid->m_columnCount * row);
-                    uint32 edgeMask = grid->CalculateCellMask(fixture, row, col);
-                    uint32 edgeCount = grid->GetEdgeShapesForCell(i, edgeShapes, b2_maxPolygonVertices, edgeMask);
-                    for (uint32 j = 0; j < edgeCount; ++j)
-                    {
-                        b2EdgeShape* edge = &edgeShapes[j];
-                        b2Vec2 v1 = b2Mul(xf, edge->m_vertex1);
-                        b2Vec2 v2 = b2Mul(xf, edge->m_vertex2);
-                        m_debugDraw->DrawSegment(v1, v2, color);
-                    }
-                }
-            }
+	            uint32 cellCount = grid->GetChildCount();
+	            b2PolygonShape poly;
+	            b2EdgeShape edgeShapes[b2_maxPolygonVertices];
+	            const float32 fillShade = 0.8f;
+	            b2Color fillColor(color.r * fillShade, color.g * fillShade, color.b * fillShade);
+	            for (uint32 i = 0; i < cellCount; ++i)
+	            {
+	                const b2Filter& filter = fixture->GetFilterData(i);
+	                uint32 index = grid->m_cells[i].m_Index;
+	                if (index != B2GRIDSHAPE_EMPTY_CELL && filter.categoryBits != 0)
+	                {
+	                    grid->GetPolygonShapeForCell(i, poly);
+	                    DrawPolygon(xf, poly, fillColor);
+	                    int32 row = i / grid->m_columnCount;
+	                    int32 col = i - (grid->m_columnCount * row);
+	                    uint32 edgeMask = grid->CalculateCellMask(fixture, row, col);
+	                    uint32 edgeCount = grid->GetEdgeShapesForCell(i, edgeShapes, b2_maxPolygonVertices, edgeMask);
+	                    for (uint32 j = 0; j < edgeCount; ++j)
+	                    {
+	                        b2EdgeShape* edge = &edgeShapes[j];
+	                        b2Vec2 v1 = b2Mul(xf, edge->m_vertex1);
+	                        b2Vec2 v2 = b2Mul(xf, edge->m_vertex2);
+	                        m_debugDraw->DrawSegment(v1, v2, color);
+	                    }
+	                }
+	            }
+	        }
         }
         break;
 

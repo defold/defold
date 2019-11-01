@@ -134,7 +134,7 @@ namespace dmURI
                 }
             } else {
                 if (dst_left >= 3) {
-                    DM_SNPRINTF(d, 4, "%%%02X", c);
+                    dmSnPrintf(d, 4, "%%%02X", c);
                     s++;
                     d += 3;
                     dst_left -= 3;

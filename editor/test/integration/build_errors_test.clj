@@ -1,6 +1,7 @@
 (ns integration.build-errors-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.collection :as collection]
             [editor.defold-project :as project]
@@ -43,15 +44,6 @@
     (game-object/add-component-file game-object (test-util/resource workspace resource-path) select-fn)
     (created-node select-fn)))
 
-(defn- error-resource [error-tree]
-  (get-in error-tree [:children 0 :value :resource]))
-
-(defn- error-resource-node [error-tree]
-  (get-in error-tree [:children 0 :value :node-id]))
-
-(defn- error-outline-node [error-tree]
-  (get-in error-tree [:children 0 :children 0 :node-id]))
-
 (defn- find-outline-node [outline-node labels]
   (loop [labels (seq labels)
          node-outline (g/node-value outline-node :node-outline)]
@@ -59,6 +51,8 @@
       (:node-id node-outline)
       (when-let [child-outline (util/first-where #(= (first labels) (:label %)) (:children node-outline))]
         (recur (next labels) child-outline)))))
+
+(def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
 
 (deftest build-errors-test
   (test-util/with-loaded-project project-path
@@ -74,16 +68,16 @@
             (with-open [_ (make-restore-point!)]
               (add-component-from-file! workspace game-object component-resource-path)
               (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (project/build! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                    build-results (build/build-project! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
                     error-value (:error build-results)]
                 (if (is (some? error-value) component-resource-path)
-                  (let [error-tree (build-errors-view/build-resource-tree error-value)]
-                    (is (= (resource error-resource-path)
-                           (error-resource error-tree)))
-                    (is (= (resource-node error-resource-path)
-                           (error-resource-node error-tree)))
-                    (is (= (outline-node error-resource-path error-outline-path)
-                           (error-outline-node error-tree))))
+                  (let [error-tree (build-errors-view/build-resource-tree error-value)
+                        error-item-of-parent-resource (first (:children error-tree))
+                        error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                    (is (= [(resource error-resource-path) (resource-node error-resource-path)]
+                           (error-item-open-info-without-opts error-item-of-parent-resource)))
+                    (is (= [(resource error-resource-path) (outline-node error-resource-path error-outline-path)]
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))
                   (workspace/artifact-map! workspace (:artifact-map build-results))))
               true)
 
@@ -108,21 +102,21 @@
           "/errors/window_break_button.gui"
           "/errors/window_break_button.gui" ["Nodes" "panel" "panel/button" "panel/button/box"]))
 
-      (testing "Build error does not link to missing files"
+      (testing "Build errors from missing files link to referencing files, not referenced"
         (are [resource-path error-resource-path error-outline-path add-fn]
             (with-open [_ (make-restore-point!)]
               (add-fn resource-path)
               (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (project/build! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                    build-results (build/build-project! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
                     error-value (:error build-results)]
                 (if (is (some? error-value) resource-path)
-                  (let [error-tree (build-errors-view/build-resource-tree error-value)]
-                    (is (= (resource error-resource-path)
-                           (error-resource error-tree)))
-                    (is (= (resource-node error-resource-path)
-                           (error-resource-node error-tree)))
-                    (is (= (outline-node error-resource-path error-outline-path)
-                           (error-outline-node error-tree))))
+                  (let [error-tree (build-errors-view/build-resource-tree error-value)
+                        error-item-of-parent-resource (first (:children error-tree))
+                        error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                    (is (= [(resource error-resource-path) (resource-node error-resource-path)]
+                           (error-item-open-info-without-opts error-item-of-parent-resource)))
+                    (is (= [(resource error-resource-path) (outline-node error-resource-path error-outline-path)]
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))
                   (workspace/artifact-map! workspace (:artifact-map build-results))))
               true)
 
@@ -143,7 +137,7 @@
                         "/errors/window_using_panel_break_button.gui"]]
             (add-component-from-file! workspace game-object path))
           (let [old-artifact-map (workspace/artifact-map workspace)
-                build-results (project/build! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                build-results (build/build-project! project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
                 error-value (:error build-results)]
             (if (is (some? error-value))
               (let [error-tree (build-errors-view/build-resource-tree error-value)]

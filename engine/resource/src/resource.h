@@ -59,9 +59,10 @@ namespace dmResource
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
         RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
         RESULT_PENDING                   = -17,  //!< RESULT_PENDING
-        RESULT_VERSION_MISMATCH          = -18,  //!< RESULT_VERSION_MISMATCH
-        RESULT_SIGNATURE_MISMATCH        = -19,  //!< RESULT_SIGNATURE_MISMATCH
-        RESULT_UNKNOWN_ERROR             = -20,  //!< RESULT_UNKNOWN_ERROR
+        RESULT_INVALID_FILE_EXTENSION    = -18,  //!< RESULT_INVALID_FILE_EXTENSION
+        RESULT_VERSION_MISMATCH          = -19,  //!< RESULT_VERSION_MISMATCH
+        RESULT_SIGNATURE_MISMATCH        = -20,  //!< RESULT_SIGNATURE_MISMATCH
+        RESULT_UNKNOWN_ERROR             = -21,  //!< RESULT_UNKNOWN_ERROR
     };
 
     /**
@@ -71,17 +72,6 @@ namespace dmResource
     {
         KIND_DDF_DATA,//!< KIND_DDF_DATA
         KIND_POINTER, //!< KIND_POINTER
-    };
-
-    /** Data share state
-    * Describes the ownage of the resource/data
-    * NONE -> The descriptor owns all data -> delete/update all data
-    * SHALLOW -> The descriptor owns the "topmost" data, i.e. what's been previously duplicated -> delete the data that was instanced in the duplicate function
-    */
-    enum DataShareState
-    {
-        DATA_SHARE_STATE_NONE = 0,
-        DATA_SHARE_STATE_SHALLOW = 1,
     };
 
     struct Manifest
@@ -102,16 +92,6 @@ namespace dmResource
         /// Hash of resource name
         uint64_t m_NameHash;
 
-        /// Name of original resource
-        uint64_t m_OriginalNameHash;
-
-        /// Union of DDF descriptor and resource name
-        union
-        {
-            dmDDF::Descriptor* m_Descriptor;
-            const char*        m_ResourceTypeName;
-        };
-
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
         /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
@@ -131,9 +111,6 @@ namespace dmResource
 
         /// Resource kind
         Kind     m_ResourceKind;
-
-        /// The shared state tells who owns what data
-        uint8_t  m_SharedState:1;   // DataShareState enumerated value. For internal use.
     };
 
     /**
@@ -283,31 +260,6 @@ namespace dmResource
     typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
 
     /**
-     * Parameters to ResourceDuplicate callback.
-     */
-    struct ResourceDuplicateParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// Resource context
-        void* m_Context;
-        /// Resource descriptor to copy from
-        SResourceDescriptor* m_OriginalResource;
-        /// Resource descriptor to write into
-        SResourceDescriptor* m_Resource;
-    };
-
-    /**
-     * Resource duplicate function. Used to create a new resource, while still using the same payload (if possible)
-     * The responsibility of the duplicate function is to create a shallow copy: retaining the bulk payload, and handing out a light instance. E.g. HTexture vs OpenGL texture
-     * The resource system keeps track of reference counting.
-     * @params params Parameters for resource creation
-     * @return CREATE_RESULT_OK on success
-     */
-    typedef Result (*FResourceDuplicate)(const ResourceDuplicateParams& params);
-
-
-    /**
      * Parameters to ResourceReloaded callback.
      */
     struct ResourceReloadedParams
@@ -432,8 +384,7 @@ namespace dmResource
                                FResourceCreate create_function,
                                FResourcePostCreate post_create_function,
                                FResourceDestroy destroy_function,
-                               FResourceRecreate recreate_function,
-                               FResourceDuplicate duplicate_function);
+                               FResourceRecreate recreate_function);
 
     /**
      * Get a resource from factory
@@ -518,6 +469,17 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+
+    /**
+     * Get resource descriptor from resource (hash) with supplied extensions
+     * @param factory Factory handle
+     * @param hashed_name Resource name hash
+     * @param exts Allowed extension hashes
+     * @param ext_count Count of exts
+     * @param descriptor pointer to write result to in case of RESULT_OK
+     * @return RESULT_OK on success
+     */
+    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
 
     /**
      * Increase resource reference count
@@ -638,9 +600,11 @@ namespace dmResource
 
 
     /**
-     * Returns the hashed name of a resource
+     * Returns the canonical path hash of a resource
      * @param factory Factory handle
      * @param resource Resource
+     * @param hash Returned hash
+     * @return RESULT_OK on success
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
 

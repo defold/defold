@@ -81,6 +81,24 @@
                          (invalidate-target-menu!)))
     launched-target))
 
+(defn- find-by-id [targets id]
+  (some #(when (= (:id %) id) %) targets))
+
+(defn- url-watcher [id callback]
+  (fn [key ref _ targets]
+    (let [target (find-by-id targets id)
+          url (:url target)]
+      (when (or url (nil? target))
+        (remove-watch ref key))
+      (when url
+        (callback url)))))
+
+(defn when-url [id callback]
+  (when-let [target (find-by-id @launched-targets id)]
+    (if-let [url (:url target)]
+      (callback url)
+      (add-watch launched-targets [::url id callback] (url-watcher id callback)))))
+
 (defn update-launched-target! [target target-info]
   (let [old @launched-targets]
     (reset! launched-targets
@@ -272,8 +290,8 @@
          (fn [selected-target]
            (if (not= ::undefined selected-target)
              selected-target
-             (let [target-address (prefs/get-prefs prefs "selected-target-id" nil)]
-               (first (filter #(= (:id %) target-address) (all-targets))))))))
+             (let [target-id (prefs/get-prefs prefs "selected-target-id" nil)]
+               (find-by-id (all-targets) target-id))))))
 
 (defn controllable-target? [target]
   (some? (:url target)))
@@ -369,12 +387,12 @@
   (run []
        (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
 
-(ui/extend-menu ::menubar :editor.defold-project/project-end
-                [{:label "Target"
-                  :id ::target
-                  :on-submenu-open update!
-                  :command :target}
-                 {:label "Enter Target IP"
-                  :command :target-ip}
-                 {:label "Target Discovery Log"
-                  :command :target-log}])
+(handler/register-menu! ::menubar :editor.defold-project/project-end
+  [{:label "Target"
+    :id ::target
+    :on-submenu-open update!
+    :command :target}
+   {:label "Enter Target IP"
+    :command :target-ip}
+   {:label "Target Discovery Log"
+    :command :target-log}])
