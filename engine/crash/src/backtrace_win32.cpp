@@ -16,6 +16,7 @@ namespace dmCrash
 
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
+        fflush(stdout);
         bool is_debug_mode = dLib::IsDebugMode();
         dLib::SetDebugMode(true);
 
@@ -46,7 +47,7 @@ namespace dmCrash
         }
         else
         {
-            dmLogError(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() );
+            dmLogError("CreateFile for MiniDump failed: %s. Error: %u \n", path, GetLastError() );
         }
         dLib::SetDebugMode(is_debug_mode);
     }
@@ -105,7 +106,7 @@ namespace dmCrash
             if (offset < (dmCrash::AppState::EXTRA_MAX - 1))
             {
                 uint32_t size_left = dmCrash::AppState::EXTRA_MAX - offset;
-                offset += DM_SNPRINTF(&g_AppState.m_Extra[offset], size_left, "%d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
+                offset += dmSnPrintf(&g_AppState.m_Extra[offset], size_left, "%2d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
             }
         }
         g_AppState.m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
