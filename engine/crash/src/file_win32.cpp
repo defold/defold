@@ -1,7 +1,7 @@
 #include "crash_private.h"
 
-#include <windows.h>
-
+#include <Windows.h>
+#include <dlib/dlib.h>
 #include <dlib/log.h>
 
 namespace dmCrash
