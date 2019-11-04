@@ -1,5 +1,7 @@
 #include "crash.h"
 #include "crash_private.h"
+#include <dlib/dlib.h>
+#include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/sys.h>
@@ -14,7 +16,8 @@ namespace dmCrash
 
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
-        // Open the file
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
 
         HANDLE hFile = CreateFile( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 
@@ -32,15 +35,20 @@ namespace dmCrash
 
             if( !rv )
             {
-                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", GetLastError() );
+                dmLogError("MiniDumpWriteDump failed. Error: %u \n", GetLastError() );
+            }
+            else
+            {
+                dmLogInfo("Successfully wrote MiniDump to file: %s", path);
             }
 
             CloseHandle( hFile );
         }
         else
         {
-            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() );
+            dmLogError(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() );
         }
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     void OnCrash()
@@ -106,7 +114,10 @@ namespace dmCrash
 
         WriteCrash(g_FilePath, &g_AppState);
 
-        printf("\n%s\n", g_AppState.m_Extra);
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     void WriteDump()

@@ -8,6 +8,8 @@ namespace dmCrash
 {
     void WriteCrash(const char* file_name, AppState* data)
     {
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
         HANDLE fhandle = CreateFileA(file_name, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (fhandle != NULL)
         {
@@ -39,5 +41,6 @@ namespace dmCrash
         {
             dmLogError("Failed to write Crashdump file.");
         }
+        dLib::SetDebugMode(is_debug_mode);
     }
 }
