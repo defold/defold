@@ -216,7 +216,7 @@ namespace dmParticle
         // Offset 12
         float    m_UV[2];
         // Offset 20
-        Vector4  m_Color;
+        float    m_Color[4];
         // Offset 36
     };
 

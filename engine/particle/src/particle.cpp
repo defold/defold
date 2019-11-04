@@ -1183,7 +1183,10 @@ namespace dmParticle
     vertex->m_Position[0] = p.getX();\
     vertex->m_Position[1] = p.getY();\
     vertex->m_Position[2] = p.getZ();\
-    vertex->m_Color = c; \
+    vertex->m_Color[0] = c.getX(); \
+    vertex->m_Color[1] = c.getY(); \
+    vertex->m_Color[2] = c.getZ(); \
+    vertex->m_Color[3] = c.getW(); \
     vertex->m_UV[0] = u;\
     vertex->m_UV[1] = v;
 
