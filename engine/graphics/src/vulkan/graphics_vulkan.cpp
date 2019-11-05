@@ -1514,7 +1514,7 @@ bail:
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
-        if (!buffer_ptr->m_Destroyed && size != buffer_ptr->m_MemorySize)
+        if (!buffer_ptr->m_Destroyed)
         {
             DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], buffer_ptr);
         }
