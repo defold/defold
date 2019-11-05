@@ -4,10 +4,6 @@
 #include <windows.h>
 #include <psapi.h>
 
-#if PSAPI_VERSION=1
-#pragma comment(lib, "psapi.lib")
-#endif
-
 namespace dmCrash
 {
     void SetLoadAddrs(AppState* state)
