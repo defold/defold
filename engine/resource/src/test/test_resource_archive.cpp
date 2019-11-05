@@ -329,7 +329,7 @@ TEST(dmResourceArchive, ManifestHeader)
     delete manifest;
 }
 
-void PrintHash(const uint8_t* hash, uint32_t len)
+static void PrintHash(const uint8_t* hash, uint32_t len)
 {
     char* buf = new char[len*2+1];
     buf[len] = '\0';
@@ -341,7 +341,31 @@ void PrintHash(const uint8_t* hash, uint32_t len)
     delete[] buf;
 }
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
+static void PrintArray(uint8_t* a, uint32_t size)
+{
+    uint32_t left = size;
+    uint32_t stride = 32;
+    while (left > 0) {
+        if (left > 8) {
+            for (int i = 0; i < 8; ++i, ++a) {
+                printf("%02X ", *a);
+            }
+            left -= 8;
+            printf(" ");
+        } else {
+            for (int i = 0; i < left; ++i, ++a) {
+                printf("%02X ", *a);
+            }
+            left  = 0;
+        }
+        stride -= 8;
+        if (stride == 0) {
+            printf("\n");
+            stride = 32;
+        }
+    }
+}
+
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -350,6 +374,19 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
+    // We have an intermittent fail here, so let's output the info so we can start investigating it.
+    // We always print these so that we can compare the failed build with a successful one
+    {
+        printf("\nPUBLIC KEY (sz: %u):\n\n", RESOURCES_PUBLIC_SIZE);
+        PrintArray(RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
+        printf("\n");
+
+        uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+        printf("\nMANIFEST SIGNATURE (sz: %u):\n\n", signature_len);
+        PrintArray(signature, signature_len);
+        printf("\n");
+    }
     uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
@@ -368,9 +405,7 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
-#endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -390,9 +425,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
-#endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(__linux__))
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -412,7 +445,6 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
-#endif
 
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {

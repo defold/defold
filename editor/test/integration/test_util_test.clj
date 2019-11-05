@@ -60,7 +60,7 @@
       (test-util/run-event-loop! (fn [exit-event-loop!]
                                    (Thread/sleep 300)
                                    (exit-event-loop!)))
-      (is (<= 300 (- (System/currentTimeMillis) begin)))))
+      (is (<= 230 (- (System/currentTimeMillis) begin)))))
 
   (testing "Performs side-effects in order."
     (let [side-effects (atom [])]
