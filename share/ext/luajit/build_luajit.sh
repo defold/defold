@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 readonly BASE_URL=http://luajit.org/download/
 readonly FILE_URL=LuaJIT-2.1.0-beta3.tar.gz
@@ -28,23 +28,31 @@ function luajit_configure() {
 		armv7-darwin)
 			TAR_SKIP_BIN=1
 			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
+			export CROSS=""
+			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="clang -m32"
-			export HOST_CFLAGS="$XFLAGS -m32 -I."
+			export HOST_CFLAGS="$XFLAGS -m32 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m32"
+			export TARGET_FLAGS="$CFLAGS"
 			;;
 		arm64-darwin)
 			TAR_SKIP_BIN=1
 			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT"
+			export CROSS=""
+			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="clang -m64"
-			export HOST_CFLAGS="$XFLAGS -m64 -I."
+			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64"
+			export TARGET_FLAGS="$CFLAGS"
 			;;
 		x86_64-ios)
 			TAR_SKIP_BIN=1
 			XFLAGS+="-DLUAJIT_NUMMODE=2 -DLUAJIT_DISABLE_JIT -DLJ_NO_SYSTEM"
+			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="clang -m64"
-			export HOST_CFLAGS="$XFLAGS -m64 -I."
+			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64"
+			export TARGET_FLAGS="$CFLAGS"
 			;;
 		armv7-android)
 			TAR_SKIP_BIN=1

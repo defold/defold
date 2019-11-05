@@ -424,6 +424,8 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
@@ -593,6 +595,21 @@ namespace dmEngine
         uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
+
+        engine->m_ClearColor = dmConfigFile::GetInt(engine->m_Config, "display.clear_color", 0x00000000);
+
+        // clear it a couple of times, due to initialization of extensions might stall the updates
+        for (int i = 0; i < 3; ++i) {
+            dmGraphics::BeginFrame(engine->m_GraphicsContext);
+            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, physical_width, physical_height);
+            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT,
+                                        (float)((engine->m_ClearColor>> 0)&0xFF),
+                                        (float)((engine->m_ClearColor>> 8)&0xFF),
+                                        (float)((engine->m_ClearColor>>16)&0xFF),
+                                        (float)((engine->m_ClearColor>>24)&0xFF),
+                                        1.0f, 0);
+            dmGraphics::Flip(engine->m_GraphicsContext);
+        }
 
         if (!setting_vsync)
         {
@@ -1306,7 +1323,12 @@ bail:
                     else
                     {
                         dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0, 0);
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                            (float)((engine->m_ClearColor>> 0)&0xFF),
+                                            (float)((engine->m_ClearColor>> 8)&0xFF),
+                                            (float)((engine->m_ClearColor>>16)&0xFF),
+                                            (float)((engine->m_ClearColor>>24)&0xFF),
+                                            1.0f, 0);
                         dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
                     }
 
@@ -1456,7 +1478,6 @@ bail:
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
-        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
         if (dmEngine::Init(engine, argc, argv))
         {
             if (pre_run)
@@ -1699,5 +1720,93 @@ bail:
     uint32_t GetFrameCount(HEngine engine)
     {
         return engine->m_Stats.m_FrameCount;
+    }
+}
+
+
+dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+{
+    dmEngineService::HEngineService engine_service = 0;
+
+    if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
+    {
+        uint16_t engine_port = dmEngineService::GetServicePort(8001);
+        engine_service = dmEngineService::New(engine_port);
+    }
+
+    if (!dmGraphics::Initialize())
+    {
+        dmLogError("Could not initialize graphics.");
+        return 0;
+    }
+
+    dmEngine::HEngine engine = dmEngine::New(engine_service);
+    bool initialized = dmEngine::Init(engine, argc, argv);
+
+    if (!initialized)
+    {
+        if (engine_service)
+        {
+            dmEngineService::Delete(engine_service);
+        }
+
+        Delete(engine);
+        return 0;
+    }
+    return engine;
+}
+
+void dmEngineDestroy(dmEngine::HEngine engine)
+{
+    engine->m_RunResult.Free();
+
+    if (engine->m_EngineService)
+    {
+        dmEngineService::Delete(engine->m_EngineService);
+    }
+
+    Delete(engine);
+}
+
+int dmEngineUpdate(dmEngine::HEngine engine)
+{
+    if (dmEngine::IsRunning(engine))
+    {
+        dmEngine::PerformStep(engine);
+    }
+
+    if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
+    {
+        return 1;
+    }
+    else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
+{
+    if (run_action)
+        *run_action = engine->m_RunResult.m_Action;
+    if (exit_code)
+        *exit_code = engine->m_RunResult.m_ExitCode;
+
+    int _argc = engine->m_RunResult.m_Argc;
+    if (argc)
+        *argc = _argc;
+
+    if (argv)
+    {
+        *argv = (char**)malloc(sizeof(char*) * _argc);
+
+        for (int i = 0; i < _argc; ++i)
+        {
+            (*argv)[i] = strdup(engine->m_RunResult.m_Argv[i]);
+        }
     }
 }
