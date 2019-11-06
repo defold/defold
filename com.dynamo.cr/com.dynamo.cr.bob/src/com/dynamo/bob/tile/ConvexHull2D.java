@@ -97,47 +97,6 @@ public class ConvexHull2D {
         }
     }
 
-    public static class PointF {
-        double x;
-        double y;
-
-        public PointF(double x, double y) {
-            this.x = x;
-            this.y = y;
-        }
-    }
-
-    public static class Line {
-        Point p;
-        Point slope;
-
-        public Line(Point p0, Point p1) {
-            this.p = p0;
-            this.slope = new Point(p1.x - p0.x, p1.y - p0.y);
-        }
-
-        private static double perp(Point u, Point v) {
-            return u.x * v.y - u.y * v.x;
-        }
-
-        public static boolean intersect(Line l0, Line l1, PointF out) {
-            double d = perp(l0.slope, l1.slope);
-            if (Math.abs(d) < 0.000001f) {
-                return false; // parallel lines
-            }
-
-            double t = perp(l1.slope, new Point(l0.p.x-l1.p.x, l0.p.y-l1.p.y)) / d;
-
-            if (t < 0.5) { // wrong side
-                return false;
-            }
-
-            out.x = l0.p.x + t * l0.slope.x;
-            out.y = l0.p.y + t * l0.slope.y;
-            return true;
-        }
-    }
-
     static double support(int width, int height, int[] mask, Vector2d dir) {
 
         double maxValue = -Double.MAX_VALUE;
@@ -264,21 +223,6 @@ public class ConvexHull2D {
         return refine(distinct, mask, width, height);
     }
 
-    private static double areaX2(Point p0, Point p1, Point p2) {
-        // normally you'd divide by two, but we just need the area for sorting
-        Point v0 = new Point(p1.x - p0.x, p1.y - p0.y);
-        Point v1 = new Point(p2.x - p0.x, p2.y - p0.y);
-        return (v0.x*v1.y) - (v0.y*v1.x); // a 3D cross product
-    }
-
-    public static double area(Point[] points) {
-        double a = 0;
-        for (int i = 1; i < points.length-1; ++i) {
-            a += ConvexHull2D.areaX2(points[0], points[i], points[i+1]);
-        }
-        return a * 0.5;
-    }
-
     public static Point[] calcRect(Point[] points) {
         int maxX = -1000000;
         int maxY = -1000000;
@@ -299,12 +243,8 @@ public class ConvexHull2D {
         points[1] = new Point(minX, maxY);
         points[2] = new Point(maxX, maxY);
         points[3] = new Point(minX, minY);
-
-
-        System.out.println(String.format("calcRect: area %f", ConvexHull2D.area(points)));
         return points;
     }
-
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
@@ -415,12 +355,6 @@ public class ConvexHull2D {
 
             g2d.drawLine(point.getX(), height-point.getY(), pointNext.getX(), height-pointNext.getY());
         }
-
-
-        double area = ConvexHull2D.area(points);
-        System.out.println(String.format("Area: %f / %f  (%f %%)", area, (double)width*height, area / (width*height)));
-        double areaRect = (maxX-minX) * (maxY-minY);
-        System.out.println(String.format("Tight rect:  %f / %f  (%f %%)", areaRect, (double)width*height, areaRect / (width*height)));
 
         if (args.length >= 2) {
             // Write output

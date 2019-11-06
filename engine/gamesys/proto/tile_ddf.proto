@@ -70,7 +70,7 @@ message TileSet
     repeated Animation animations                   = 11;
     optional uint32 extrude_borders                 = 12 [default = 0];
     optional uint32 inner_padding                   = 13 [default = 0];
-    optional SpriteTrimmingMode sprite_trim_mode    = 14 [default = SPRITE_TRIM_MODE_6];
+    optional SpriteTrimmingMode sprite_trim_mode    = 14 [default = SPRITE_TRIM_MODE_OFF];
 }
 
 message TileCell

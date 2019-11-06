@@ -211,4 +211,26 @@ public class ConvexHull2D {
         return refine(distinct, mask, width, height);
     }
 
+    public static Point[] calcRect(Point[] points) {
+        int maxX = -1000000;
+        int maxY = -1000000;
+        int minX = 1000000;
+        int minY = 1000000;
+         for (Point p : points) {
+            if (p.x > maxX)
+                maxX = p.x;
+            if (p.x < minX)
+                minX = p.x;
+            if (p.y > maxY)
+                maxY = p.y;
+            if (p.y < minY)
+                minY = p.y;
+        }
+        points = new Point[4];
+        points[0] = new Point(minX, minY);
+        points[1] = new Point(minX, maxY);
+        points[2] = new Point(maxX, maxY);
+        points[3] = new Point(minX, minY);
+        return points;
+    }
 }

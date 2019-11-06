@@ -80,7 +80,7 @@
                           (reset! anims-atom animations)
                           (reset! anim-imgs-atom [])))
         result (TextureSetGenerator/calculateLayout
-                 (map map->Rect images) anim-iterator margin inner-padding extrude-borders
+                 (map map->Rect images) nil anim-iterator margin inner-padding extrude-borders
                  true false nil)]
     (doto (.builder result)
       (.setTexture "unknown"))
@@ -112,7 +112,7 @@
   [{:keys [width height tiles-per-column tiles-per-row] :as tile-source-attributes}]
   (for [tile-y (range tiles-per-column)
         tile-x (range tiles-per-row)]
-    (TextureSetLayout$Rect. (+ tile-x (* tile-y tiles-per-row)) (int width) (int height))))
+    (TextureSetLayout$Rect. (format "tile%d" (+ tile-x (* tile-y tiles-per-row))) (int width) (int height))))
 
 (defn- tile-anim->AnimDesc [anim]
   (when anim
@@ -172,6 +172,7 @@
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
         result (TextureSetGenerator/calculateLayout
                  image-rects
+                 nil
                  anim-iterator
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)
@@ -189,5 +190,5 @@
 
 (defn layout-tile-source
   [layout-result ^BufferedImage image tile-source-attributes]
-  (let [id->image (zipmap (range) (split-image image tile-source-attributes))]
+  (let [id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
     (TextureSetGenerator/layoutImages layout-result id->image)))
