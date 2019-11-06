@@ -158,17 +158,17 @@ public class AtlasUtil {
 
         List<AtlasImage> atlasImages = collectImages(atlas);
         List<String> imagePaths = new ArrayList<String>();
-        List<Integer> imageHullSize = new ArrayList<Integer>();
+        List<Integer> imageHullSizes = new ArrayList<Integer>();
         for (AtlasImage image : atlasImages) {
             imagePaths.add(image.getImage());
             SpriteTrimmingMode mode = image.getSpriteTrimMode();
             switch (mode) {
-                case SPRITE_TRIM_MODE_OFF:   imageHullSize.add(0); break;
-                case SPRITE_TRIM_MODE_4:     imageHullSize.add(4); break;
-                case SPRITE_TRIM_MODE_5:     imageHullSize.add(5); break;
-                case SPRITE_TRIM_MODE_6:     imageHullSize.add(6); break;
-                case SPRITE_TRIM_MODE_7:     imageHullSize.add(7); break;
-                case SPRITE_TRIM_MODE_8:     imageHullSize.add(8); break;
+                case SPRITE_TRIM_MODE_OFF:   imageHullSizes.add(0); break;
+                case SPRITE_TRIM_MODE_4:     imageHullSizes.add(4); break;
+                case SPRITE_TRIM_MODE_5:     imageHullSizes.add(5); break;
+                case SPRITE_TRIM_MODE_6:     imageHullSizes.add(6); break;
+                case SPRITE_TRIM_MODE_7:     imageHullSizes.add(7); break;
+                case SPRITE_TRIM_MODE_8:     imageHullSizes.add(8); break;
                 default:
                     throw new CompileExceptionError(atlasResource, -1, "Invalid sprite trim mode: " + mode.toString());
             }
@@ -187,7 +187,7 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
-        return TextureSetGenerator.generate(images, imageHullSize, iterator,
+        return TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()), true, false, null);

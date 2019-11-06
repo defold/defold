@@ -87,8 +87,6 @@ public class TileSetBuilder extends Builder<Void>  {
 
         String imgPath = tileSet.getImage();
 
-System.out.println("IMAGE: " + imgPath);
-
         String collisionPath = tileSet.getCollision();
         IResource imageRes = this.project.getResource(imgPath);
         IResource collisionRes = this.project.getResource(collisionPath);

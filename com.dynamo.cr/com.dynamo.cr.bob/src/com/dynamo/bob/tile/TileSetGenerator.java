@@ -10,6 +10,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
+import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto.SpriteGeometry;
@@ -87,10 +88,11 @@ public class TileSetGenerator {
         }
     }
 
-    public static TextureSetResult generate(TileSet tileSet, BufferedImage image,
-            BufferedImage collisionImage) {
-        TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
-                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
+    public static TextureSetResult generate(TileSet tileSet, BufferedImage image, BufferedImage collisionImage) {
+        Rect imageRect = image != null ? new Rect(null, image.getWidth(), image.getHeight()) : null;
+        Rect collisionRect = collisionImage != null ? new Rect(null, collisionImage.getWidth(), collisionImage.getHeight()) : null;
+        TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(imageRect, tileSet.getTileWidth(),
+                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionRect, 1.0f, 0.0f);
 
         if (metrics == null) {
             return null;
@@ -109,8 +111,11 @@ public class TileSetGenerator {
 
         List<BufferedImage> images = split(image, tileSet, metrics);
         List<Integer> imageHullSizes = new ArrayList<Integer>();
+        List<String> names = new ArrayList<String>();
+        int tileIndex = 0;
         for (BufferedImage tmp : images) {
             imageHullSizes.add(hullVertexSize);
+            names.add(String.format("tile%d", tileIndex++));
         }
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
@@ -118,7 +123,7 @@ public class TileSetGenerator {
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
-        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, names, iterator, 0,
                 tileSet.getInnerPadding(),
                 tileSet.getExtrudeBorders(), false, true, grid_size );
 

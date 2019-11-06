@@ -28,11 +28,11 @@ public class TextureSetLayout {
     }
 
     public static class Rect {
-        public Object id;
+        public String id;
         public int x, y, width, height;
         public boolean rotated;
 
-        public Rect(Object id, int x, int y, int width, int height) {
+        public Rect(String id, int x, int y, int width, int height) {
             this.id = id;
             this.x = x;
             this.y = y;
@@ -41,7 +41,7 @@ public class TextureSetLayout {
             this.rotated = false;
         }
 
-        public Rect(Object id, int width, int height) {
+        public Rect(String id, int width, int height) {
             this.id = id;
             this.x = -1;
             this.y = -1;

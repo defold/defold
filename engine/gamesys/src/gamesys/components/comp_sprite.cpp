@@ -376,7 +376,6 @@ namespace dmGameSystem
         uint16_t texture_height = dmGraphics::GetOriginalTextureHeight(texture_set->m_Texture);
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-        const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
 
         SpriteVertex*   vertices = *vb_where;
         uint8_t*        indices = *ib_where;
@@ -396,50 +395,44 @@ namespace dmGameSystem
                 const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[component->m_AnimationID];
 
                 uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
-                const float* tc = &tex_coords[frame_index * 4 * 2];
-                uint32_t flip_flag = 0;
-
-                // ddf values are guaranteed to be 0 or 1 when saved by the editor
-                // component values are guaranteed to be 0 or 1
-                if (animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal)
-                {
-                    flip_flag = 1;
-                }
-                if (animation_ddf->m_FlipVertical ^ component->m_FlipVertical)
-                {
-                    flip_flag |= 2;
-                }
-
-                const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
                 const Matrix4& w = component->m_World;
-
-                float min_u = tc[tex_lookup[0] * 2] / texture_width;
-                float min_v = tc[tex_lookup[0] * 2 + 1] / texture_height;
-                float max_u = tc[tex_lookup[2] * 2] / texture_width;
-                float max_v = tc[tex_lookup[2] * 2 + 1] / texture_height;
 
                 // The offset for the indices
                 uint32_t world_vertex_offset = *vb_where - sprite_world->m_VertexBufferData;
                 uint32_t vertex_offset = vertices - *vb_where;
 
-                const float* points = geometry->m_Vertices.m_Data;
-                const float* uvs = geometry->m_Uvs.m_Data;
                 uint32_t num_points = geometry->m_Vertices.m_Count / 2;
 
-                //for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points -= 2, uvs -= 2)
-                for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points += 2, uvs += 2)
+                const float* points = geometry->m_Vertices.m_Data;
+                const float* uvs = geometry->m_Uvs.m_Data;
+
+                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
+                // to respect face winding (and backface culling)
+                int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
+                int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
+                int reverse = flipx ^ flipy;
+
+                float scaleX = flipx ? -1 : 1;
+                float scaleY = flipy ? -1 : 1;
+
+                int step = reverse ? -2 : 2;
+                points = reverse ? points + num_points*2 - 2 : points;
+                uvs = reverse ? uvs + num_points*2 - 2 : uvs;
+
+                for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points += step, uvs += step)
                 {
-                    float x = points[0]; // range -0.5,+0.5
-                    float y = points[1];
+                    float x = points[0] * scaleX; // range -0.5,+0.5
+                    float y = points[1] * scaleY;
+                    float u = uvs[0];
+                    float v = uvs[1];
 
                     Vector4 p0 = w * Point3(x, y, 0.0f);
                     vertices[0].x = p0.getX();
                     vertices[0].y = p0.getY();
                     vertices[0].z = p0.getZ();
-                    vertices[0].u = uvs[0];
-                    vertices[0].v = uvs[1];
-
+                    vertices[0].u = u;
+                    vertices[0].v = v;
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -468,6 +461,8 @@ namespace dmGameSystem
                 1,0,3,3,2,1,    //v
                 2,3,0,0,1,2     //hv
             };
+
+            const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
 
             for (uint32_t *i = begin;i != end; ++i)
             {
@@ -522,8 +517,8 @@ namespace dmGameSystem
                 vertices[3].u = tc[tex_lookup[4] * 2];
                 vertices[3].v = tc[tex_lookup[4] * 2 + 1];
 
-                for (int f = 0; f < 4; ++f)
-                    printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
+                // for (int f = 0; f < 4; ++f)
+                //     printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
 
                 vertices += 4;
                 indices += 6 * index_type_size;
