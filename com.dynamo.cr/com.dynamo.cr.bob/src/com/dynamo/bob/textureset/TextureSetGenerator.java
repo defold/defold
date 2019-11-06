@@ -161,51 +161,49 @@ public class TextureSetGenerator {
     // Make sure to pass in an image with correct innerPadding and extrudeBorders!
     public static SpriteGeometry buildConvexHull(BufferedImage image, int hullVertexCount, int extrudeBorders) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
+        int width = image.getWidth();
+        int height = image.getHeight();
+
+        float tileSizeXRecip = 1.0f / (width - 2 * extrudeBorders);
+        float tileSizeYRecip = 1.0f / (height - 2 * extrudeBorders);
+        float halfSizeX = width / 2.0f;
+        float halfSizeY = height / 2.0f;
+
+        ConvexHull2D.Point[] points = null;
+
         Raster raster = image.getAlphaRaster();
-        if (raster != null) {
+        if (raster != null && hullVertexCount != 0) {
+            points = TileSetUtil.calculateConvexHulls(raster, hullVertexCount);
+        } else {
+            points = new ConvexHull2D.Point[4];
+            points[0] = new ConvexHull2D.Point(0,0);
+            points[1] = new ConvexHull2D.Point(width,0);
+            points[2] = new ConvexHull2D.Point(width,height);
+            points[3] = new ConvexHull2D.Point(0,height);
+        }
 
-            int width = image.getWidth();
-            int height = image.getHeight();
+        for (int i = 0; i < points.length; ++i) {
+            float x = points[i].getX() - halfSizeX;
+            float y = points[i].getY() - halfSizeY;
+            // To make a point(31,31) in a 32x32 texture map to vtx=(0.5,0.5) and uv=(1.0, 1.0)
+            if (x > 0)
+                ++x;
+            if (y > 0)
+                ++y;
+            x = (x * tileSizeXRecip);
+            y = (y * tileSizeYRecip);
 
-            float tileSizeXRecip = 1.0f / (width - 2 * extrudeBorders);
-            float tileSizeYRecip = 1.0f / (height - 2 * extrudeBorders);
-            float halfSizeX = width / 2.0f;
-            float halfSizeY = height / 2.0f;
+            geometryBuilder.addVertices(x);
+            geometryBuilder.addVertices(y);
 
-            ConvexHull2D.Point[] points = null;
-            if (hullVertexCount != 0) {
-                points = TileSetUtil.calculateConvexHulls(raster, hullVertexCount);
-            } else {
-                points = new ConvexHull2D.Point[4];
-                points[0] = new ConvexHull2D.Point(0,0);
-                points[1] = new ConvexHull2D.Point(width,0);
-                points[2] = new ConvexHull2D.Point(width,height);
-                points[3] = new ConvexHull2D.Point(0,height);
-            }
+            geometryBuilder.addUvs(0); // need to calculate these later
+            geometryBuilder.addUvs(0);
+        }
 
-            for (int i = 0; i < points.length; ++i) {
-                float x = points[i].getX() - halfSizeX;
-                float y = points[i].getY() - halfSizeY;
-                // To make a point(31,31) in a 32x32 texture map to vtx=(0.5,0.5) and uv=(1.0, 1.0)
-                if (x > 0)
-                    ++x;
-                if (y > 0)
-                    ++y;
-                x = (x * tileSizeXRecip);
-                y = (y * tileSizeYRecip);
-
-                geometryBuilder.addVertices(x);
-                geometryBuilder.addVertices(y);
-
-                geometryBuilder.addUvs(0); // need to calculate these later
-                geometryBuilder.addUvs(0);
-            }
-
-            for (int v = 1; v <= points.length-2; ++v) {
-                geometryBuilder.addIndices(0);
-                geometryBuilder.addIndices(v);
-                geometryBuilder.addIndices(v+1);
-            }
+        for (int v = 1; v <= points.length-2; ++v) {
+            geometryBuilder.addIndices(0);
+            geometryBuilder.addIndices(v);
+            geometryBuilder.addIndices(v+1);
         }
 
         return geometryBuilder.build();
