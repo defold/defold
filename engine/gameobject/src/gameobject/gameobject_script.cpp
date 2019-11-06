@@ -1774,7 +1774,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed
+     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.
