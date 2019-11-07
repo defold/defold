@@ -201,8 +201,8 @@
 
   (input animation-updatable g/Any)
 
-  (output atlas-image Image (g/fnk [image-resource maybe-image-size]
-                              (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size))))
+  (output atlas-image Image (g/fnk [image-resource maybe-image-size sprite-trim-mode]
+                              (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)))
   (output animation Animation (g/fnk [atlas-image id]
                                 (image->animation atlas-image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
@@ -455,8 +455,8 @@
                                     :passes [pass/outline]}}]
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders]}]
-  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders))
+(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders workspace]}]
+  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders workspace))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -521,7 +521,7 @@
   (output all-atlas-images           [Image]             :cached (g/fnk [animations]
                                                                    (into [] (comp (mapcat :images) (distinct)) animations)))
 
-  (output texture-set-data-generator g/Any (g/fnk [_node-id animations all-atlas-images margin inner-padding extrude-borders :as args]
+  (output texture-set-data-generator g/Any (g/fnk [_node-id animations all-atlas-images extrude-borders inner-padding margin resource :as args]
                                                   (or (when-let [errors (->> [[margin "Margin"]
                                                                               [inner-padding "Inner Padding"]
                                                                               [extrude-borders "Extrude Borders"]]
@@ -530,7 +530,8 @@
                                                                              not-empty)]
                                                         (g/error-aggregate errors))
                                                       {:f    generate-texture-set-data
-                                                       :args args})))
+                                                       :args (assoc args
+                                                               :workspace (resource/workspace resource))})))
 
   (output texture-set-data g/Any               :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
   (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))
