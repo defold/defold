@@ -1598,17 +1598,9 @@ TEST_F(RigInstanceTest, GetVertexCount)
     ASSERT_NEAR(exp_u, act_u, RIG_EPSILON_FLOAT);\
     ASSERT_NEAR(exp_v, act_v, RIG_EPSILON_FLOAT);\
 
-#define ASSERT_VERT_COLOR(exp, act)\
+#define ASSERT_VERT_COLOR(exp, color_vec4)\
     {\
-        uint32_t r = (act & 255);\
-        uint32_t g = ((act >> 8) & 255);\
-        uint32_t b = ((act >> 16) & 255);\
-        uint32_t a = ((act >> 24) & 255);\
-        float rf = r/255.0f;\
-        float gf = g/255.0f;\
-        float bf = b/255.0f;\
-        float af = a/255.0f;\
-        ASSERT_VEC4_NEAR(exp, Vector4(rf, gf, bf, af), RIG_EPSILON_BYTE);\
+        ASSERT_VEC4_NEAR(exp, color_vec4, RIG_EPSILON_BYTE);\
     }
 
 // DEF-2343 - Test that a bone with both scaling and rotation in its bind pose
@@ -1741,14 +1733,13 @@ TEST_F(RigInstanceTest, SkinColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     // Skin color is (0.5, 0.4, 0.3, 0.2)
-    ASSERT_VERT_COLOR(Vector4(0.5f, 0.4f, 0.3f, 0.2f), data[0].rgba);
+    ASSERT_VERT_COLOR(Vector4(0.5f, 0.4f, 0.3f, 0.2f), Vector4(data[0].r, data[0].g, data[0].b, data[0].a));
 }
 
 TEST_F(RigInstanceTest, SkinColorAndSlotColor)
@@ -1758,20 +1749,14 @@ TEST_F(RigInstanceTest, SkinColorAndSlotColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
-
-    /*anim_track0.m_Colors.m_Data[0] = 1.0f;
-            anim_track0.m_Colors.m_Data[1] = 0.5f;
-            anim_track0.m_Colors.m_Data[2] = 0.0f;
-            anim_track0.m_Colors.m_Data[3] = 1.0f;*/
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     // Slot color is (1.0, 0.5, 0.0, 1.0)
     // Skin color is (0.5, 0.4, 0.3, 0.2)
-    ASSERT_VERT_COLOR(Vector4(0.5f, 0.2f, 0.0f, 0.2f), data[0].rgba);
+    ASSERT_VERT_COLOR(Vector4(0.5f, 0.2f, 0.0f, 0.2f), Vector4(data[0].r, data[0].g, data[0].b, data[0].a));
 }
 
 TEST_F(RigInstanceTest, GenerateColorData)
@@ -1786,17 +1771,17 @@ TEST_F(RigInstanceTest, GenerateColorData)
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
-    ASSERT_VERT_COLOR(Vector4(1.0f, 0.5f, 0.0f, 1.0f), data[0].rgba);
+    ASSERT_VERT_COLOR(Vector4(1.0f, 0.5f, 0.0f, 1.0f), Vector4(data[0].r, data[0].g, data[0].b, data[0].a));
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
-    ASSERT_VERT_COLOR(Vector4(0.0f, 0.5f, 1.0f, 0.5f), data[0].rgba);
+    ASSERT_VERT_COLOR(Vector4(0.0f, 0.5f, 1.0f, 0.5f), Vector4(data[0].r, data[0].g, data[0].b, data[0].a));
 
     // sample 2, color has been changed for the model
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(0.5), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
-    ASSERT_VERT_COLOR(Vector4(0.0f, 0.25f, 0.5f, 0.25f), data[0].rgba);
+    ASSERT_VERT_COLOR(Vector4(0.0f, 0.25f, 0.5f, 0.25f), Vector4(data[0].r, data[0].g, data[0].b, data[0].a));
 }
 
 TEST_F(RigInstanceTest, GenerateTexcoordData)
