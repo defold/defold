@@ -1,21 +1,20 @@
 (ns editor.pipeline.texture-set-gen
-  (:require [editor.protobuf :as protobuf])
+  (:require [editor.image-util :as image-util]
+            [editor.protobuf :as protobuf]
+            [editor.workspace :as workspace])
   (:import [com.defold.editor.pipeline
             ConvexHull
             TextureSetGenerator
             TextureSetGenerator$AnimIterator
             TextureSetGenerator$AnimDesc
-            TextureSetGenerator$UVTransform
             TextureSetGenerator$TextureSetResult
-            TextureSetGenerator$LayoutResult
             TextureSetLayout$Rect
             TextureSetLayout$Grid
             TextureUtil
             TileSetUtil
             TileSetUtil$Metrics]
-           [com.dynamo.tile.proto Tile$Playback Tile$TileSet Tile$ConvexHull]
+           [com.dynamo.tile.proto Tile$Playback Tile$ConvexHull]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet$Builder]
-           [java.util ArrayList]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -60,9 +59,18 @@
   [layout-result id->image]
   (TextureSetGenerator/layoutImages layout-result id->image))
 
+(defn- sprite-trim-mode->hull-vertex-count
+  ^long [sprite-trim-mode]
+  (case sprite-trim-mode
+    :sprite-trim-mode-off 0
+    :sprite-trim-mode-4 4
+    :sprite-trim-mode-5 5
+    :sprite-trim-mode-6 6
+    :sprite-trim-mode-7 7
+    :sprite-trim-mode-8 8))
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders]
+  [animations images margin inner-padding extrude-borders workspace]
   (let [img-to-index (into {} (map-indexed #(vector %2 (Integer. ^int %1)) images))
         anims-atom (atom animations)
         anim-imgs-atom (atom [])
@@ -79,8 +87,15 @@
                         (rewind [this]
                           (reset! anims-atom animations)
                           (reset! anim-imgs-atom [])))
+        rects (map map->Rect images)
+        sprite-geometries (map (fn [{:keys [path sprite-trim-mode] :as _image}]
+                                 (let [image-resource (workspace/find-resource workspace path)
+                                       buffered-image (image-util/read-image image-resource)
+                                       hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
+                                   (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count extrude-borders)))
+                               images)
         result (TextureSetGenerator/calculateLayout
-                 (map map->Rect images) nil anim-iterator margin inner-padding extrude-borders
+                 rects sprite-geometries anim-iterator margin inner-padding extrude-borders
                  true false nil)]
     (doto (.builder result)
       (.setTexture "unknown"))
@@ -112,7 +127,11 @@
   [{:keys [width height tiles-per-column tiles-per-row] :as tile-source-attributes}]
   (for [tile-y (range tiles-per-column)
         tile-x (range tiles-per-row)]
-    (TextureSetLayout$Rect. (format "tile%d" (+ tile-x (* tile-y tiles-per-row))) (int width) (int height))))
+    (TextureSetLayout$Rect. (format "tile%d" (+ tile-x (* tile-y tiles-per-row)))
+                            tile-x
+                            tile-y
+                            (int width)
+                            (int height))))
 
 (defn- tile-anim->AnimDesc [anim]
   (when anim
@@ -150,7 +169,7 @@
             (run! #(.addCollisionHullPoints builder %) points))
           convex-hulls)))
 
-(defn tile-source->texture-set-data [tile-source-attributes convex-hulls collision-groups animations]
+(defn tile-source->texture-set-data [tile-source-attributes image-resource convex-hulls collision-groups animations]
   (let [image-rects (split-rects tile-source-attributes)
         anims-atom (atom animations)
         anim-indices-atom (atom [])
@@ -170,9 +189,18 @@
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
+        buffered-image (image-util/read-image image-resource)
+        hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
+        sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
+                                 (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
+                                   ;; Use zero for extrude borders here since we're basing
+                                   ;; this on source image data rather than the final
+                                   ;; texture set layout.
+                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count 0)))
+                               image-rects)
         result (TextureSetGenerator/calculateLayout
                  image-rects
-                 nil
+                 sprite-geometries
                  anim-iterator
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)

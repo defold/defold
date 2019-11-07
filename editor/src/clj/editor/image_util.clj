@@ -25,7 +25,7 @@
         abgr-image))))
 
 (defn read-image
-  [source]
+  ^BufferedImage [source]
   (with-open [source-stream (io/input-stream source)]
     (convert-to-abgr (ImageIO/read source-stream))))
 
@@ -60,7 +60,7 @@
 
 (s/defn make-image :- Image
   [nm :- s/Any contents :- BufferedImage]
-  (Image. nm contents (.getWidth contents) (.getHeight contents)))
+  (Image. nm contents (.getWidth contents) (.getHeight contents) :sprite-trim-mode-6))
 
 (s/defn blank-image :- BufferedImage
   ([space :- Rect]
