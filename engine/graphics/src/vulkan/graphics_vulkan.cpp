@@ -114,7 +114,7 @@ namespace dmGraphics
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
-        uint32_t                                               : 28;
+        uint32_t                                               : 26;
     } *g_Context = 0;
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -991,7 +991,14 @@ bail:
 
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return 0;
+        if (context->m_WindowOpened)
+        {
+            return glfwGetWindowRefreshRate();
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     WindowResult OpenWindow(HContext context, WindowParams* params)
@@ -3163,7 +3170,7 @@ bail:
         }
     }
 
-    static void RepatchRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
+    static void RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba)
     {
         for(uint32_t px=0; px < num_pixels; px++)
         {
@@ -3219,7 +3226,7 @@ bail:
             uint8_t bpp_new           = 4;
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
-            RepatchRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
+            RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
             tex_bpp       = bpp_new;
