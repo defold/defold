@@ -996,7 +996,13 @@ bail:
             }
         }
 
-        assert(response.m_TotalReceived == 0);
+        // Removed an assert here, in favor of returning an error instead
+        // which should allow the user to detect this and act accordingly
+        if (response.m_TotalReceived != 0)
+        {
+            dmLogError("Not all bytes were handled during the response (%d bytes left). Method: %s Status: %d", response.m_TotalReceived, method, response.m_Status);
+            r = RESULT_INVALID_RESPONSE;
+        }
 
         if (r == RESULT_OK)
         {

@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-engine-darwin-64:
-    runs-on: macOS-10.14
+    runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
