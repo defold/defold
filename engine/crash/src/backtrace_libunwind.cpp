@@ -1,4 +1,5 @@
 #include <signal.h>
+#include <dlib/dlib.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
@@ -120,7 +121,7 @@ namespace dmCrash
             // We try to keep a fairly "standard" formatting based on what FF write.
             char extra[256];
             snprintf(extra, sizeof(extra),
-                "#%d pc %p %s%s %s+%u",
+                "#%2d pc %12p %s%s %s+%u",
                 stack_index++,
                 (void*)(uintptr_t)pc,
                 proc_path_truncated ? "..." : "",
@@ -147,6 +148,11 @@ namespace dmCrash
 #endif
 
         WriteCrash(g_FilePath, &g_AppState);
+
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     void WriteDump()

@@ -45,6 +45,12 @@ namespace dmGraphics
      */
     typedef int32_t (*WindowIsRunning)(void* user_data);
 
+    // See documentation in engine.h
+    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef void (*EngineDestroy)(void* engine);
+    typedef int (*EngineUpdate)(void* engine);
+    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
@@ -391,6 +397,11 @@ namespace dmGraphics
      * Finalize graphics system
      */
     void Finalize();
+
+    /**
+     * Starts the app that needs to control the update loop (e.g iOS)
+     */
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 
     /**
      * Get the window refresh rate

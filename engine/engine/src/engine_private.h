@@ -35,11 +35,11 @@ namespace dmEngine
         RunResult()
         {
             memset(this, 0, sizeof(*this));
-            m_Action = EXIT;
         }
 
         enum Action
         {
+            NONE,
             EXIT,
             REBOOT,
         };

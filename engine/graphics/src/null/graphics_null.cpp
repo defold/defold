@@ -143,6 +143,10 @@ namespace dmGraphics
         assert(context);
     }
 
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))

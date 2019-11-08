@@ -10,15 +10,17 @@
 
 set -e
 
-SDK_10_VERSION="10.0.10240.0"
+SDK_10_VERSION="10.0.18362.0"
+MSVC_VERSION="14.23.28105"
 
 VS_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community"
 
 SDK_PATH="C:\Program Files (x86)\Windows Kits"
 
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019.tar.gz"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-${MSVC_VERSION}.tar.gz"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
-PACKAGES_WIN32_SDK_10="WindowsKits-10.0.tar.gz"
+PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_10_VERSION}.tar.gz"
+
 
 TARGET_PATH=$(pwd)
 TMP_PATH=${TARGET_PATH}/packages
@@ -33,12 +35,9 @@ else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
 fi
 
-
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Licenses
-	# For the next versions
-	#GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64 10/Licenses
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
 fi

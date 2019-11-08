@@ -197,6 +197,41 @@ namespace dmGameSystem
         return component->m_TextureSet ? component->m_TextureSet : resource->m_TextureSet;
     }
 
+    static void UpdateCurrentAnimationFrame(SpriteComponent* component) {
+        TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+        dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+        dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+
+        // Set frame from cursor (tileindex or animframe)
+        float t = component->m_AnimTimer;
+        float backwards = (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
+                        || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) ? 1.0f : 0;
+
+        // Original: t = backwards ? (1.0f - t) : t;
+        // which translates to:
+        t = backwards - 2 * t * backwards + t;
+
+        uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
+        uint32_t frame_count = interval;
+        if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
+                || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+        {
+            frame_count = dmMath::Max(1u, frame_count * 2 - 2);
+        }
+        uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
+        if (frame >= interval) {
+            frame = 2 * (interval - 1) - frame;
+        }
+
+        uint32_t frame_current = component->m_CurrentAnimationFrame;
+        component->m_CurrentAnimationFrame = frame;
+
+        if (frame != frame_current)
+        {
+            component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
+        }
+    }
+
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
         TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
@@ -205,7 +240,6 @@ namespace dmGameSystem
         {
             component->m_AnimationID = *anim_id;
             component->m_CurrentAnimation = animation;
-            component->m_CurrentAnimationFrame = 0;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             uint32_t frame_count = animation->m_End - animation->m_Start;
             if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
@@ -224,6 +258,7 @@ namespace dmGameSystem
 
             component->m_PlaybackRate = dmMath::Max(playback_rate, 0.0f);
             SetCursor(component, offset);
+            UpdateCurrentAnimationFrame(component);
         }
         else
         {
@@ -584,6 +619,7 @@ namespace dmGameSystem
         }
     }
 
+
     static void Animate(SpriteWorld* sprite_world, float dt)
     {
         DM_PROFILE(Sprite, "Animate");
@@ -624,39 +660,7 @@ namespace dmGameSystem
 
             if (component->m_DoTick) {
                 component->m_DoTick = 0;
-
-                TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
-                dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
-
-                // Set frame from cursor (tileindex or animframe)
-                float t = component->m_AnimTimer;
-                float backwards = (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
-                                || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) ? 1.0f : 0;
-
-                // Original: t = backwards ? (1.0f - t) : t;
-                // which translates to:
-                t = backwards - 2 * t * backwards + t;
-
-                uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
-                uint32_t frame_count = interval;
-                if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                        || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
-                {
-                    frame_count = dmMath::Max(1u, frame_count * 2 - 2);
-                }
-                uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
-                uint32_t frame_current = component->m_CurrentAnimationFrame;
-                if (frame >= interval) {
-                    frame = 2 * (interval - 1) - frame;
-                }
-
-                component->m_CurrentAnimationFrame = frame;
-
-                if (frame != frame_current)
-                {
-                    component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
-                }
+                UpdateCurrentAnimationFrame(component);
             }
         }
     }
