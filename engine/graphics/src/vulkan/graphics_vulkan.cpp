@@ -1434,7 +1434,9 @@ bail:
             case RESOURCE_TYPE_DEVICE_BUFFER:
                 resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
                 break;
-            default:break;
+            default:
+                assert(0);
+                break;
         }
 
         if (resource_list->Full())
@@ -1801,11 +1803,11 @@ bail:
         Program::ModuleType module_type,
         ScratchBuffer*      scratch_buffer,
         uint32_t            dynamic_alignment,
-        uint32_t*           dynamic_offsetsOut)
+        uint32_t*           dynamic_offsets_out)
     {
         ShaderModule* shader_module;
         uint32_t*     uniform_data_offsets;
-        uint32_t*     dynamic_offsets = dynamic_offsetsOut;
+        uint32_t*     dynamic_offsets = dynamic_offsets_out;
 
         if (module_type == Program::MODULE_TYPE_VERTEX)
         {
@@ -1816,7 +1818,7 @@ bail:
         {
             shader_module        = program->m_FragmentModule;
             uniform_data_offsets = &program->m_UniformDataOffsets[program->m_VertexModule->m_UniformCount];
-            dynamic_offsets      = &dynamic_offsetsOut[program->m_VertexModule->m_UniformCount];
+            dynamic_offsets      = &dynamic_offsets_out[program->m_VertexModule->m_UniformCount];
         }
         else
         {
@@ -1902,33 +1904,31 @@ bail:
     }
 
     static VkResult CommitUniforms(VkCommandBuffer vk_command_buffer, VkDevice vk_device,
-        Program* program_ptr, ScratchBuffer* scratchBuffer,
-        uint32_t* dynamicOffsets, uint16_t dynamicOffsetCount, const uint32_t alignment)
+        Program* program_ptr, ScratchBuffer* scratch_buffer,
+        uint32_t* dynamic_offsets, const uint32_t alignment)
     {
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratchBuffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
         const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
-        uint32_t* dynamic_uniform_offsets  = new uint32_t[num_uniform_buffers];
-
         VkDescriptorSet vs_set = vk_descriptor_set_list[Program::MODULE_TYPE_VERTEX];
         VkDescriptorSet fs_set = vk_descriptor_set_list[Program::MODULE_TYPE_FRAGMENT];
 
         UpdateDescriptorSets(vk_device, vs_set, program_ptr,
-            Program::MODULE_TYPE_VERTEX, scratchBuffer,
-            alignment, dynamic_uniform_offsets);
+            Program::MODULE_TYPE_VERTEX, scratch_buffer,
+            alignment, dynamic_offsets);
         UpdateDescriptorSets(vk_device, fs_set, program_ptr,
-            Program::MODULE_TYPE_FRAGMENT, scratchBuffer,
-            alignment, dynamic_uniform_offsets);
+            Program::MODULE_TYPE_FRAGMENT, scratch_buffer,
+            alignment, dynamic_offsets);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
             0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
-            num_uniform_buffers, dynamic_uniform_offsets);
+            num_uniform_buffers, dynamic_offsets);
 
         return VK_SUCCESS;
     }
@@ -1978,26 +1978,26 @@ bail:
         }
 
         // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
-        const uint32_t num_uniforms = program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
+        const uint32_t num_uniform_buffers = program_ptr->m_VertexModule->m_UniformBufferCount + program_ptr->m_FragmentModule->m_UniformBufferCount;
 
-        if (context->m_DynamicOffsetBufferSize < num_uniforms)
+        if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
         {
             if (context->m_DynamicOffsetBuffer == 0x0)
             {
-                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(sizeof(uint32_t) * num_uniforms);
+                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(sizeof(uint32_t) * num_uniform_buffers);
             }
             else
             {
-                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, sizeof(uint32_t) * num_uniforms);
+                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, sizeof(uint32_t) * num_uniform_buffers);
             }
 
-            context->m_DynamicOffsetBufferSize = num_uniforms;
+            context->m_DynamicOffsetBufferSize = num_uniform_buffers;
         }
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
         VkResult res = CommitUniforms(vk_command_buffer, vk_device,
-            program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, context->m_DynamicOffsetBufferSize, dynamic_alignment);
+            program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
         // If the culling, or viewport has changed, make sure to flip the
