@@ -181,7 +181,7 @@ namespace dmThread
 
     Thread GetCurrentThread()
     {
-        return GetCurrentThread();
+        return ::GetCurrentThread();
     }
 
 #else
