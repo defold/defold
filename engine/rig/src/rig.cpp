@@ -1437,13 +1437,6 @@ namespace dmRig
                         slot_color[2] = mesh_color[2] * slot_color[2];
                         slot_color[3] = mesh_color[3] * slot_color[3];
                         slot_color = mulPerElem(color, slot_color);
-                        // slot_color = slot_color * 255.0f;
-
-                        /*
-                        uint32_t rgba = (((uint32_t) slot_color.getW()) << 24) | (((uint32_t) slot_color.getZ()) << 16) |
-                                (((uint32_t) slot_color.getY()) << 8) | ((uint32_t) slot_color.getX());
-                        */
-
                         vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, slot_color, (RigSpineModelVertex*)vertex_data_out);
                     }
                 }
