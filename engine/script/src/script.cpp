@@ -1492,7 +1492,6 @@ namespace dmScript
         }
     }
 
-
     bool SetupCallback(LuaCallbackInfo* cbk)
     {
         lua_State* L = cbk->m_L;
@@ -1588,8 +1587,6 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
 
         if (!SetupCallback(cbk)) {
-            // [-1] old instance
-            SetInstance(L);
             return false;
         }
         // [-4] old instance
