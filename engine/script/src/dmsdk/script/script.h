@@ -475,14 +475,13 @@ namespace dmScript
 
 
     /*# callback info struct
-     * callback info struct  struct to hold the relevant info needed
-     * to make a callback into Lua
+     * callback info struct that will hold the relevant info needed to make a callback into Lua
      */
     struct LuaCallbackInfo;
 
-    /** Register a Lua callback. Stores the current Lua state plus references to the
-     * script instance (self) and the callback Expects SetInstance() to have been called
-     * prior to using this method.
+    /** Register a Lua callback.
+     * Stores the current Lua state plus references to the script instance (self) and the callback.
+     * Expects SetInstance() to have been called prior to using this method.
      *
      * The allocated data is created on the Lua stack and references are made against the
      * instances own context table.
@@ -515,10 +514,12 @@ namespace dmScript
 
     /** Setups up the Lua callback prior to a call to dmScript::PCall()
      *  The Lua stack after a successful call:
+     * ```
      *    [-4] old instance
      *    [-3] context table
      *    [-2] callback
      *    [-1] self
+     * ```
      *  In the event of an unsuccessful call, the Lua stack is unchanged
      *
      * @param cbk Lua callback struct
@@ -529,8 +530,10 @@ namespace dmScript
     /** Cleans up the stack after SetupCallback+PCall calls
      * Sets the previous instance
      * Expects Lua stack:
+     * ```
      *    [-2] old instance
      *    [-1] context table
+     * ```
      * Both values are removed from the stack
      */
     void TeardownCallback(LuaCallbackInfo* cbk);
