@@ -1266,7 +1266,7 @@ namespace dmGameObject
                                         bool finished, void* userdata1, void* userdata2)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
-        if (dmScript::IsValidCallback(cbk) && finished)
+        if (dmScript::IsCallbackValid(cbk) && finished)
         {
             dmMessage::URL url;
             url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
@@ -1276,7 +1276,7 @@ namespace dmGameObject
             LuaAnimationStoppedArgs args(url, property_id);
             dmScript::InvokeCallback(cbk, LuaAnimationStoppedCallback, &args);
         }
-        dmScript::DeleteCallback(cbk);
+        dmScript::DestroyCallback(cbk);
     }
 
     /*# animates a named property of the specified game object or component
