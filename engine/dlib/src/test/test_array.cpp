@@ -188,21 +188,21 @@ TEST(dmArray, UserAllocated)
 
 static inline void sum_int(int* value, void* _sum)
 {
-	int* sum = (int*)_sum;
-	*sum += *value;
+    int* sum = (int*)_sum;
+    *sum += *value;
 }
 
 TEST(dmArray, Map)
 {
-	const uint32_t size = 10;
+    const uint32_t size = 10;
     dmArray<int> a;
     a.SetCapacity(size);
     a.SetSize(size);
     uint32_t expected_sum = 0;
     for ( int i = 0; i < size; ++i)
     {
-    	expected_sum += i;
-    	a[i] = i;
+        expected_sum += i;
+        a[i] = i;
     }
 
     uint32_t sum = 0;
