@@ -186,6 +186,31 @@ TEST(dmArray, UserAllocated)
     ASSERT_DEATH(dmArray<uint32_t> c(array, 2, 1), "");
 }
 
+static inline void sum_int(int* value, void* _sum)
+{
+	int* sum = (int*)_sum;
+	*sum += *value;
+}
+
+TEST(dmArray, Map)
+{
+	const uint32_t size = 10;
+    dmArray<int> a;
+    a.SetCapacity(size);
+    a.SetSize(size);
+    uint32_t expected_sum = 0;
+    for ( int i = 0; i < size; ++i)
+    {
+    	expected_sum += i;
+    	a[i] = i;
+    }
+
+    uint32_t sum = 0;
+    array.Map(sum_int, (void*)&sum);
+
+    ASSERT_EQ(expected_sum, sum);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
