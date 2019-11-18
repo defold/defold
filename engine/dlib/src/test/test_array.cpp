@@ -206,7 +206,7 @@ TEST(dmArray, Map)
     }
 
     uint32_t sum = 0;
-    array.Map(sum_int, (void*)&sum);
+    a.Map(sum_int, (void*)&sum);
 
     ASSERT_EQ(expected_sum, sum);
 }
