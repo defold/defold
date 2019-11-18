@@ -302,7 +302,7 @@ public:
      * @param fn function that will be called for each element
      * @param ctx user defined context that will be passed in with each callback
      */
-	void Map(void (*fn)(T* value, void* ctx), void* ctx);
+    void Map(void (*fn)(T* value, void* ctx), void* ctx);
 
 private:
     T *m_Front, *m_End;
@@ -508,10 +508,10 @@ void dmArray<T>::Swap(dmArray<T>& rhs)
 template <typename T>
 void dmArray<T>::Map(void (*fn)(T* value, void* ctx), void* ctx)
 {
-	for (uint32_t i = 0; i < Size(); ++i)
-	{
-		fn(&m_Front[i], ctx);
-	}
+    for (uint32_t i = 0; i < Size(); ++i)
+    {
+        fn(&m_Front[i], ctx);
+    }
 }
 
 #endif // DMSDK_ARRAY_H
