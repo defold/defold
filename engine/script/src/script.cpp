@@ -1438,7 +1438,7 @@ namespace dmScript
         return cbk;
      }
 
-    bool IsValidCallback(LuaCallbackInfo* cbk)
+    bool IsCallbackValid(LuaCallbackInfo* cbk)
     {
         if (cbk == NULL ||
             cbk->m_L == NULL ||
@@ -1451,7 +1451,12 @@ namespace dmScript
         return true;
     }
 
-    void DeleteCallback(LuaCallbackInfo* cbk)
+    lua_State* GetCallbackLuaContext(LuaCallbackInfo* cbk)
+    {
+        return cbk ? cbk->m_L : 0;
+    }
+
+    void DestroyCallback(LuaCallbackInfo* cbk)
     {
         lua_State* L = cbk->m_L;
         DM_LUA_STACK_CHECK(L, 0);
@@ -1487,16 +1492,16 @@ namespace dmScript
         }
     }
 
-    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    bool SetupCallback(LuaCallbackInfo* cbk)
     {
+        lua_State* L = cbk->m_L;
+        int top = lua_gettop(L);
         if(cbk->m_CallbackInfoRef == LUA_NOREF)
         {
             dmLogWarning("Failed to invoke callback (it was not registered)");
+            assert(top == lua_gettop(L));
             return false;
         }
-
-        lua_State* L = cbk->m_L;
-        DM_LUA_STACK_CHECK(L, 0);
 
         GetInstance(L);
         // [-1] old instance
@@ -1508,6 +1513,7 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
+            assert(top == lua_gettop(L));
             return false;
         }
 
@@ -1517,9 +1523,11 @@ namespace dmScript
         // [-3] old instance
         // [-2] context table
         // [-1] callback
+
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             lua_pop(L, 3);
+            assert(top == lua_gettop(L));
             return false;
         }
 
@@ -1528,9 +1536,11 @@ namespace dmScript
         // [-3] context table
         // [-2] callback
         // [-1] self
+
         if (lua_isnil(L, -1))
         {
             lua_pop(L, 4);
+            assert(top == lua_gettop(L));
             return false;
         }
 
@@ -1553,8 +1563,36 @@ namespace dmScript
             // [-1] old instance
 
             SetInstance(L);
+            assert(top == lua_gettop(L));
             return false;
         }
+
+        assert((top + 4) == lua_gettop(L));
+        return true;
+    }
+
+    void TeardownCallback(LuaCallbackInfo* cbk)
+    {
+        lua_State* L = cbk->m_L;
+        // [-2] old instance
+        // [-1] context table
+        lua_pop(L, 1);
+
+        SetInstance(L);
+    }
+
+    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    {
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (!SetupCallback(cbk)) {
+            return false;
+        }
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
 
         int user_args_start = lua_gettop(L);
 
@@ -1573,22 +1611,11 @@ namespace dmScript
             ret = PCall(L, number_of_arguments, 0);
         }
 
-        if (ret != 0) {
-            // [-2] old instance
-            // [-1] context table
-
-            lua_pop(L, 1);
-            // [-1] old instance
-
-            SetInstance(L);
-            return false;
-        }
         // [-2] old instance
         // [-1] context table
-        lua_pop(L, 1);
+        TeardownCallback(cbk);
 
-        SetInstance(L);
-        return true;
+        return ret != 0 ? false : true;
     }
 
     /** Information about a function, in which file and at what line it is defined
