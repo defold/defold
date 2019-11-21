@@ -605,7 +605,7 @@ def codesign(task):
 
     identity = task.env.IDENTITY
     if not identity:
-        identity = 'iPhone Developer'
+        identity = 'Apple Development'
 
     mobileprovision = task.provision
     if not mobileprovision:

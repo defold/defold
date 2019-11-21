@@ -8,8 +8,9 @@ int g_IsReboot = 0;
 
 @implementation AppDelegate
 
+// Yes, these should be cleaned up up as well and not be stored in global variables! /MAWE
+
 UIWindow*           g_ApplicationWindow = 0;
-AppDelegate*        g_AppDelegate = 0;
 
 _GLFWwin            g_Savewin;
 
@@ -76,7 +77,7 @@ char**              g_Argv = 0;
 }
 
 - (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    return [proxy application:application willFinishLaunchingWithOptions:launchOptions];
+    return [AppDelegateProxy application:application willFinishLaunchingWithOptions:launchOptions];
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -92,9 +93,9 @@ char**              g_Argv = 0;
     [window makeKeyAndVisible];
 
     g_ApplicationWindow = window;
-    g_AppDelegate = self;
 
-    proxy = [AppDelegateProxy alloc];
+    // Now, hook in the proxy as the intermediary app delegate
+    AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
 
     return [proxy application:application didFinishLaunchingWithOptions:launchOptions];
 }
@@ -108,23 +109,11 @@ char**              g_Argv = 0;
         _glfwWin.windowFocusCallback(0);
 }
 
-- (void)applicationDidEnterBackground:(UIApplication *)application
-{
-}
-
-- (void)applicationWillEnterForeground:(UIApplication *)application
-{
-}
-
 - (void)applicationDidBecomeActive:(UIApplication *)application
 {
     _glfwWin.iconified = GL_FALSE;
     if(_glfwWin.windowFocusCallback)
         _glfwWin.windowFocusCallback(1);
-}
-
-- (void)applicationWillTerminate:(UIApplication *)application
-{
 }
 
 - (void)dealloc

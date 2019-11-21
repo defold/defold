@@ -346,7 +346,7 @@ namespace dmHttpClient
         k++;
         if (response->m_SSLConnection != 0) {
             int r = 0;
-            while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) <= 0 )
+            while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) < 0 )
             {
                 if (r == MBEDTLS_ERR_SSL_WANT_WRITE ||
                     r == MBEDTLS_ERR_SSL_WANT_READ) {

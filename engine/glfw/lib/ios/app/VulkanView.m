@@ -9,7 +9,7 @@ _GLFWwin          		g_Savewin;
 
 // AppDelegate.m
 extern UIWindow*        g_ApplicationWindow;
-extern AppDelegate*     g_AppDelegate;
+extern AppDelegate*     g_ApplicationDelegate;
 
 static VulkanView* 		g_VulkanView = 0;
 
@@ -78,7 +78,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     g_Savewin.portrait = _glfwWin.portrait;
 
     _glfwWin.pixelFormat = nil;
-    _glfwWin.delegate = g_AppDelegate;
+    _glfwWin.delegate = g_ApplicationDelegate;
 
     _glfwWin.view = g_VulkanView;
     _glfwWin.window = g_ApplicationWindow;

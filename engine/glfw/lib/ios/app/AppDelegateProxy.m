@@ -1,22 +1,25 @@
 #import "AppDelegateProxy.h"
 
+@class AppDelegate;
+
 #include "internal.h"
 
 #define MAX_APP_DELEGATES (32)
 id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
 int g_AppDelegatesCount = 0;
-id<UIApplicationDelegate> g_ApplicationDelegate = 0;
+AppDelegate* g_ApplicationDelegate = 0;
 
 @implementation AppDelegateProxy
 
-- (void)init
+- (AppDelegateProxy*)init
 {
     UIApplication* app = [UIApplication sharedApplication];
-    g_ApplicationDelegate = [app.delegate retain];
+    g_ApplicationDelegate = (AppDelegate*)[app.delegate retain];
     app.delegate = self;
+    return self;
 }
 
-- (BOOL) application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
++ (BOOL) application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     BOOL handled = NO;
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
         if ([g_AppDelegates[i] respondsToSelector: @selector(application:willFinishLaunchingWithOptions:)]) {
@@ -134,8 +137,9 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
 {
+    NSLog(@"Added delegate %@", NSStringFromClass([(id)delegate class]));
     if (g_AppDelegatesCount >= MAX_APP_DELEGATES) {
-        printf("Max UIApplicationDelegates reached (%d)", MAX_APP_DELEGATES);
+        NSLog(@"Max UIApplicationDelegates reached (%d)", MAX_APP_DELEGATES);
     } else {
         g_AppDelegates[g_AppDelegatesCount++] = (id<UIApplicationDelegate>) delegate;
     }
