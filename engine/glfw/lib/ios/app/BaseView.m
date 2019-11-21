@@ -14,7 +14,7 @@ static double               g_AccelerometerFrequency = 1.0 / 60.0;
 
 // AppDelegate.m
 extern UIWindow*            g_ApplicationWindow;
-extern AppDelegate*         g_AppDelegate;
+extern AppDelegate*         g_ApplicationDelegate;
 
 static BaseView*            g_BaseView = 0;
 
@@ -213,7 +213,7 @@ static BaseView*            g_BaseView = 0;
 
     countDown--;
 
-    [g_AppDelegate appUpdate]; // will eventually call glfwSwapBuffers -> swapBuffers
+    [g_ApplicationDelegate appUpdate]; // will eventually call glfwSwapBuffers -> swapBuffers
 }
 
 - (void) setSwapInterval: (int) interval

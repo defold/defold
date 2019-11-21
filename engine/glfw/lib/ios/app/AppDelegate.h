@@ -5,7 +5,6 @@
 {
 @private
     UIWindow* window;
-    AppDelegateProxy* proxy;
 }
 
 - (void)reinit:(UIApplication*)application;

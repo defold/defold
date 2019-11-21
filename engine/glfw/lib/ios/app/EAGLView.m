@@ -33,7 +33,7 @@ EAGLContext*                g_glAuxContext = 0;
 
 // AppDelegate.m
 extern UIWindow*            g_ApplicationWindow;
-extern AppDelegate*         g_AppDelegate;
+extern AppDelegate*         g_ApplicationDelegate;
 
 static EAGLView*            g_EAGLView = 0;
 
@@ -303,7 +303,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     g_Savewin.portrait = _glfwWin.portrait;
 
     _glfwWin.pixelFormat = nil;
-    _glfwWin.delegate = g_AppDelegate;
+    _glfwWin.delegate = g_ApplicationDelegate;
 
     _glfwWin.view = g_EAGLView;
     _glfwWin.window = g_ApplicationWindow;
