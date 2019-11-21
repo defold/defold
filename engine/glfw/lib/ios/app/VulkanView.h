@@ -8,7 +8,6 @@
 
 + (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate;
 - (void)swapBuffers;
-- (void)newFrame;
 - (void)setupView;
 
 @end
