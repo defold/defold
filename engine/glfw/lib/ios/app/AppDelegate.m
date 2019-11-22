@@ -100,6 +100,46 @@ char**              g_Argv = 0;
     return [proxy application:application didFinishLaunchingWithOptions:launchOptions];
 }
 
+static void ShutdownEngine(bool call_exit)
+{
+    int run_action = GLFW_APP_RUN_UPDATE;
+    int exit_code = 0;
+    int argc = 0;
+    char** argv = 0;
+    g_EngineResultFn(g_EngineContext, &run_action, &exit_code, &argc, &argv);
+
+    g_EngineDestroyFn(g_EngineContext);
+    g_EngineContext = 0;
+
+    // Free the old one (if we own it)
+    if (g_WasRebooted)
+    {
+        for (int i = 0; i < g_Argc; ++i)
+        {
+            free(g_Argv[i]);
+        }
+        free(g_Argv);
+    }
+
+    if (run_action == GLFW_APP_RUN_EXIT)
+    {
+        NSLog(@"Exiting app with code %d", exit_code);
+        if (call_exit)
+            exit(exit_code);
+        return;
+    }
+
+    // GLFW_APP_RUN_REBOOT
+    g_Argc = argc;
+    g_Argv = argv;
+    g_WasRebooted = 1;
+}
+
+- (void)applicationWillTerminate:(UIApplication *)application
+{
+    ShutdownEngine(false);
+}
+
 - (void)applicationWillResignActive:(UIApplication *)application
 {
     // We should pause the update loop when this message is sent
@@ -137,35 +177,7 @@ char**              g_Argv = 0;
     int update_code = g_EngineUpdateFn(g_EngineContext);
     if (update_code != 0)
     {
-        int run_action = GLFW_APP_RUN_UPDATE;
-        int exit_code = 0;
-        int argc = 0;
-        char** argv = 0;
-        g_EngineResultFn(g_EngineContext, &run_action, &exit_code, &argc, &argv);
-
-        g_EngineDestroyFn(g_EngineContext);
-        g_EngineContext = 0;
-
-        // Free the old one (if we own it)
-        if (g_WasRebooted)
-        {
-            for (int i = 0; i < g_Argc; ++i)
-            {
-                free(g_Argv[i]);
-            }
-            free(g_Argv);
-        }
-
-        if (run_action == GLFW_APP_RUN_EXIT)
-        {
-            NSLog(@"Exiting app with code %d", exit_code);
-            exit(exit_code);
-        }
-
-        // GLFW_APP_RUN_REBOOT
-        g_Argc = argc;
-        g_Argv = argv;
-        g_WasRebooted = 1;
+        ShutdownEngine(true);
     }
 }
 
