@@ -69,7 +69,11 @@ iOS + OSX:
 
 1. Resolve the address
 
+	# 32 bit
     $ arm-linux-androideabi-addr2line -C -f -e dmengine_1_2_105/lib/armeabi-v7a/libdmengine.so <address>
+
+    # 64 bit
+    $ aarch64-linux-android-addr2line -C -f -e build/default/extension-push/extension-push.apk.symbols/lib/arm64-v8a/libextensionpush.so <address>
 
 
 ### iOS
