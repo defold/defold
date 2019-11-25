@@ -126,6 +126,10 @@ namespace dmThread
 
     void SetThreadName(Thread thread, const char* name)
     {
+        (void)thread;
+        (void)name;
+    // Currently, this crashed mysteriously on Win32, so we'll keep it only for Win64 until we've figured it out
+    #if defined(_WIN64)
         static PfnSetThreadDescription pfn = (PfnSetThreadDescription)GetFunctionPtr("kernel32.dll", "SetThreadDescription");
         if (pfn) {
             size_t wn = mbsrtowcs(NULL, &name, 0, NULL);
@@ -136,6 +140,7 @@ namespace dmThread
 
             free(buf);
         }
+    #endif
     }
     
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
@@ -181,7 +186,7 @@ namespace dmThread
 
     Thread GetCurrentThread()
     {
-        return GetCurrentThread();
+        return ::GetCurrentThread();
     }
 
 #else
