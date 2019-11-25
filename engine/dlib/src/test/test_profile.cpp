@@ -128,6 +128,7 @@ TEST(dmProfile, Profile)
     dmProfile::Finalize();
 }
 
+#if !defined(GITHUB_CI)
 TEST(dmProfile, ProfileSorted)
 {
     dmProfile::Initialize(128, 1024, 0);
@@ -237,6 +238,7 @@ TEST(dmProfile, Nested)
     }
     dmProfile::Finalize();
 }
+#endif
 
 TEST(dmProfile, ProfileOverflow1)
 {

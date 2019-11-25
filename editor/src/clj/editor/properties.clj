@@ -13,7 +13,7 @@
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
-           [javax.vecmath Quat4d Point3d Matrix4d]))
+           [javax.vecmath Matrix4d Point3d Quat4d]))
 
 (set! *warn-on-reflection* true)
 

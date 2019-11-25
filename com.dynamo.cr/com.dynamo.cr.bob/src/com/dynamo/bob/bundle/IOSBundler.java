@@ -5,6 +5,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -353,11 +356,26 @@ public class IOSBundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
+
         // Copy Executable
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
+
+        // Copy debug symbols
+        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.Armv7Darwin.getExtenderPair());
+        File buildSymbols = new File(zipDir, "dmengine.dSYM");
+        if (buildSymbols.exists()) {
+            String symbolsDir = String.format("%s.dSYM", title);
+
+            File bundleSymbols = new File(bundleDir, symbolsDir);
+            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
+            // Also rename the executable
+            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
+            File symbolExe = new File(bundleExeOld.getParent(), destExecutable.getName());
+            bundleExeOld.renameTo(symbolExe);
+        }
 
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
@@ -375,44 +393,56 @@ public class IOSBundler implements IBundler {
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
             String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
+            Boolean overrideEntitlementsProperty = projectProperties.getBooleanValue("ios", "override_entitlements", false);
 
             BundleHelper.throwIfCanceled(canceled);
-            try {
-                XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
-                XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
 
-                decodedProvision.load(textProvisionFile);
-                XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
-                entitlements.append(decodedProvision.configurationAt("Entitlements"));
+            // If an override entitlements has been set, use that custom entitlements file directly instead of trying to merge it.
+            if (overrideEntitlementsProperty) {
+                IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                OutputStream outStream = new FileOutputStream(entitlementOut);
+                byte[] buffer = new byte[is.available()];
+                is.read(buffer);
+                outStream.write(buffer);
+            } else {
+                try {
+                    XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
+                    XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
 
-                if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
-                    IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
-                    if (customEntitlementsResource.exists()) {
-                        InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
-                        customEntitlements.load(is);
+                    decodedProvision.load(textProvisionFile);
+                    XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
+                    entitlements.append(decodedProvision.configurationAt("Entitlements"));
 
-                        Iterator<String> keys = customEntitlements.getKeys();
-                        while (keys.hasNext()) {
-                            String key = keys.next();
+                    if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
+                        IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
+                        if (customEntitlementsResource.exists()) {
+                            InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
+                            customEntitlements.load(is);
 
-                            if (entitlements.getProperty(key) == null) {
-                                logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
-                                throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
+                            Iterator<String> keys = customEntitlements.getKeys();
+                            while (keys.hasNext()) {
+                                String key = keys.next();
+
+                                if (entitlements.getProperty(key) == null) {
+                                    logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
+                                    throw new IOException("Invalid custom iOS entitlements key '" + key + "'.");
+                                }
+                                entitlements.clearProperty(key);
                             }
-                            entitlements.clearProperty(key);
+                            entitlements.append(customEntitlements);
                         }
-                        entitlements.append(customEntitlements);
                     }
-                }
 
-                entitlementOut.deleteOnExit();
-                entitlements.save(entitlementOut);
-            } catch (ConfigurationException e) {
-                logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
-                throw new RuntimeException(e);
+                    entitlementOut.deleteOnExit();
+                    entitlements.save(entitlementOut);
+                } catch (ConfigurationException e) {
+                    logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsProperty +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
+                    throw new RuntimeException(e);
+                }
             }
 
             BundleHelper.throwIfCanceled(canceled);

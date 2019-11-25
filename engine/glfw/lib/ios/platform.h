@@ -136,10 +136,6 @@ struct _GLFWwin_struct {
     id        viewController;
     unsigned int modifierFlags;
     int       frameBuffer;
-
-    // Misc
-    jmp_buf   bailEventLoopBuf;
-    jmp_buf   finishInitBuf;
 };
 
 GLFWGLOBAL _GLFWwin _glfwWin;

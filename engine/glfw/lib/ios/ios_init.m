@@ -99,8 +99,5 @@ int _glfwPlatformTerminate( void )
 {
     glfwCloseWindow();
 
-    [_glfwLibrary.AutoreleasePool release];
-    _glfwLibrary.AutoreleasePool = nil;
-
     return GL_TRUE;
 }

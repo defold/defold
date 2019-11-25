@@ -292,6 +292,9 @@ namespace dmExtension
      *
      * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
      *
+     * @note Note that the delegate needs to be registered before the UIApplicationMain in order to
+     * handle any earlier callbacks.
+     *
      * This function is only available on iOS. [icon:ios]
      *
      * @name RegisteriOSUIApplicationDelegate
@@ -318,12 +321,20 @@ namespace dmExtension
      *
      * @end
      *
-     * void ExtensionAppInitializeiOS(dmExtension::AppParams* params)
+     * struct MyAppDelegateRegister
      * {
-     *     g_MyApplicationDelegate = [[MyApplicationDelegate alloc] init];
-     *     dmExtension::RegisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
-     * }
+     *     MyApplicationDelegate* m_Delegate;
+     *     MyAppDelegateRegister() {
+     *         m_Delegate = [[FacebookAppDelegate alloc] init];
+     *         dmExtension::RegisteriOSUIApplicationDelegate(m_Delegate);
+     *     }
+     *     ~MyAppDelegateRegister() {
+     *         dmExtension::UnregisteriOSUIApplicationDelegate(m_Delegate);
+     *         [m_Delegate release];
+     *     }
+     * };
      *
+     * MyAppDelegateRegister g_FacebookDelegateRegister;
      * ```
      */
     void RegisteriOSUIApplicationDelegate(void* delegate);
@@ -336,16 +347,6 @@ namespace dmExtension
      *
      * @name UnregisteriOSUIApplicationDelegate
      * @param delegate an id<UIApplicationDelegate>
-     * @examples
-     * ```cpp
-     * // myextension_ios.mm
-     * void ExtensionAppFinalizeiOS(dmExtension::AppParams* params)
-     * {
-     *     dmExtension::UnregisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
-     *     [g_MyApplicationDelegate release];
-     *     g_MyApplicationDelegate = 0;
-     * }
-     * ```
      */
     void UnregisteriOSUIApplicationDelegate(void* delegate);
 }

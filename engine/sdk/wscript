@@ -25,41 +25,7 @@ def configure(conf):
 
 
 def build(bld):
-    sdk_path = os.path.join(bld.env.DYNAMO_HOME, 'sdk')
-    sdk_headers = bld.new_task_gen(
-                                 features = 'compile_sdk_headers',
-                                 target = 'sdk.h',
-                                 install_path = os.path.join(sdk_path, 'include', 'dmsdk'),
-                                 sdk_include_path = os.path.join(sdk_path, 'include'),
-                                 always=True)
     bld.add_subdirs('src')
 
 def shutdown():
     waf_dynamo.run_tests(valgrind = True)
-
-@feature('compile_sdk_headers')
-@before('cc')
-def compile_sdk_headers(task):
-    sdk_includes = os.path.join(task.install_path)
-    includes = []
-    for root, dirs, files in os.walk(sdk_includes):
-        for file in files:
-            if file.endswith('.h'):
-                path = os.path.join(root, file)
-                if(file == 'sdk.h'):
-                    continue
-                if('vectormath' in root):
-                    continue
-                includes.append(path)
-
-    # the vector math libraries are so many so we only include the one we want
-    includes.append(os.path.join(sdk_includes, 'vectormath/cpp/vectormath_aos.h'))
-
-    with open(os.path.join(task.install_path, task.target), "w") as f:
-        f.write("#ifndef DMSDK_SDK_H\n")
-        f.write("#define DMSDK_SDK_H\n")
-        f.write("\n")
-        for include in includes:
-            f.write("#include <%s>\n" % os.path.relpath(include, task.sdk_include_path).replace("\\", "/"))
-        f.write("\n")
-        f.write("#endif // DMSDK_SDK_H\n")

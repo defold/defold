@@ -386,21 +386,30 @@ namespace dmDDF
                     for (uint32_t i = 0; i < repeated_field->m_ArrayCount; ++i, ++strings)
                     {
                         uintptr_t offset = *(uintptr_t*)strings;
-                        *strings = (char*)message + offset;
+                        if (offset >= desc->m_Size)
+                            *strings = (char*)message + offset;
+                        else
+                            *strings = 0;
                     }
                 }
                 else
                 {
                     const char** string_field = (const char**)fieldptr;
                     uintptr_t offset = *(uintptr_t*)fieldptr;
-                    *string_field = (const char*)message + offset;
+                    if (offset >= desc->m_Size)
+                        *string_field = (const char*)message + offset;
+                    else
+                        *string_field = 0;
                 }
             }
             else if ((Type) field->m_Type == TYPE_BYTES)
             {
                 const uint8_t** bytes_field = (const uint8_t**)fieldptr;
                 uintptr_t offset = *(uintptr_t*)fieldptr;
-                *bytes_field = (const uint8_t*)message + offset;
+                if (offset >= desc->m_Size)
+                    *bytes_field = (const uint8_t*)message + offset;
+                else
+                    *bytes_field = 0;
             }
 
         }
