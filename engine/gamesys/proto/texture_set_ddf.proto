@@ -45,13 +45,16 @@ message TextureSetAnimation
 // * Indices for a triangle list (i.e. 3 indices per triangle)
 message SpriteGeometry
 {
+    // The width and height of the image this geometry was generated from
+    required uint32 width   = 1;
+    required uint32 height  = 2;
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
     // Each point is relative to the sprite center
-    repeated float  vertices= 1;
+    repeated float  vertices= 3;
     // A list of 2-tuples, corresponding directly to the vertices
-    repeated float  uvs     = 2;
+    repeated float  uvs     = 4;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
-    repeated uint32 indices = 3;
+    repeated uint32 indices = 5;
 }
 
 message TextureSet
@@ -64,6 +67,7 @@ message TextureSet
     // tile_width and tile_height should only be used in tilemap
     optional uint32 tile_width              = 4;
     optional uint32 tile_height             = 5;
+    // This is the number of rects stored before the animation frames (atlas and tile source)
     optional uint32 tile_count              = 6;
 
     repeated float collision_hull_points    = 16;
@@ -74,11 +78,15 @@ message TextureSet
     // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
     // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
     // (See TextureSetGenerator.java)
+    // Only used in the editor now.
     required bytes tex_coords               = 18;
-    // A series of two float pairs of dimensions representing quad texture width and height in texels.
 
+    // A series of two float pairs of dimensions representing quad texture width and height in texels.
     optional bytes tex_dims                 = 19;
 
     // One geometry struct per image
     repeated SpriteGeometry geometries      = 20;
+
+    // Maps animation frames to geometry index
+    repeated uint32 frame_indices           = 21;
 }

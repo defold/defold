@@ -158,43 +158,46 @@ public class TextureSetGenerator {
         }
     }
 
-    // Make sure to pass in an image with correct innerPadding and extrudeBorders!
-    public static SpriteGeometry buildConvexHull(BufferedImage image, int hullVertexCount, int extrudeBorders) {
+    // Pass in the original image (no padding or extrude borders)
+    public static SpriteGeometry buildConvexHull(BufferedImage image, int hullVertexCount) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
         int width = image.getWidth();
         int height = image.getHeight();
 
-        float tileSizeXRecip = 1.0f / (width - 2 * extrudeBorders);
-        float tileSizeYRecip = 1.0f / (height - 2 * extrudeBorders);
+        geometryBuilder.setWidth(width);
+        geometryBuilder.setHeight(height);
+
+        float tileSizeXRecip = 1.0f / width;
+        float tileSizeYRecip = 1.0f / height;
         float halfSizeX = width / 2.0f;
         float halfSizeY = height / 2.0f;
 
-        ConvexHull2D.Point[] points = null;
+        ConvexHull2D.PointF[] points = null;
 
         Raster raster = image.getAlphaRaster();
         if (raster != null && hullVertexCount != 0) {
-            points = TileSetUtil.calculateConvexHulls(raster, hullVertexCount);
-        } else {
-            points = new ConvexHull2D.Point[4];
-            points[0] = new ConvexHull2D.Point(0,0);
-            points[1] = new ConvexHull2D.Point(width,0);
-            points[2] = new ConvexHull2D.Point(width,height);
-            points[3] = new ConvexHull2D.Point(0,height);
+            int dilateCount = 2; // a pixel boundary to avoid filtering issues
+
+            points = TileSetUtil.calculateConvexHull(raster, hullVertexCount, dilateCount);
+
+            // If the hull wasn't valid, let's calculate a tight rect (slightly inflated)
+            if (points == null) {
+                points = TileSetUtil.calculateRect(raster, dilateCount);
+            }
+        }
+
+        // We must respect the upper limit of the vertex hull count
+        if (points == null || points.length > hullVertexCount) {
+            points = new ConvexHull2D.PointF[4];
+            points[0] = new ConvexHull2D.PointF(-0.5,-0.5);
+            points[1] = new ConvexHull2D.PointF( 0.5,-0.5);
+            points[2] = new ConvexHull2D.PointF( 0.5, 0.5);
+            points[3] = new ConvexHull2D.PointF(-0.5, 0.5);
         }
 
         for (int i = 0; i < points.length; ++i) {
-            float x = points[i].getX() - halfSizeX;
-            float y = points[i].getY() - halfSizeY;
-            // To make a point(31,31) in a 32x32 texture map to vtx=(0.5,0.5) and uv=(1.0, 1.0)
-            if (x > 0)
-                ++x;
-            if (y > 0)
-                ++y;
-            x = (x * tileSizeXRecip);
-            y = (y * tileSizeYRecip);
-
-            geometryBuilder.addVertices(x);
-            geometryBuilder.addVertices(y);
+            geometryBuilder.addVertices((float)points[i].getX());
+            geometryBuilder.addVertices((float)points[i].getY());
 
             geometryBuilder.addUvs(0); // need to calculate these later
             geometryBuilder.addUvs(0);
@@ -214,20 +217,22 @@ public class TextureSetGenerator {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
         geometryBuilder.mergeFrom(geometry);
 
-        float subImageWidth = rect.width;
-        float subImageHeight = rect.height;
-        float centerX = (float)rect.x + subImageWidth/2.0f;
-        float centerY = (float)rect.y + subImageHeight/2.0f;
+        int originalRectWidth = rect.width - 2*extrudeBorders;
+        int originalRectHeight = rect.height - 2*extrudeBorders;
+        float centerX = (float)rect.x + rect.width/2.0f;
+        float centerY = (float)rect.y + rect.height/2.0f;
 
         int numPoints = geometry.getVerticesCount() / 2;
         for (int i = 0; i < numPoints; ++i) {
 
             // the points are in object space, where origin is at the center of the sprite image
-            // in units
-            float localX = geometry.getVertices(i * 2 + 0) * (subImageWidth - 2 * extrudeBorders);
-            float localY = geometry.getVertices(i * 2 + 1) * (subImageHeight - 2 * extrudeBorders);
+            // in units [-0.5,0.5]
+            float localU = geometry.getVertices(i * 2 + 0);
+            float localV = geometry.getVertices(i * 2 + 1);
+            float localX = localU * originalRectWidth;
+            float localY = localV * originalRectHeight;
 
-            // Now the localX/Y is in original image space
+            // Now the localX/Y is in original image space [(-width/2, -height/2), (width/2, height/2)]
 
             localY = -localY;
 
@@ -344,6 +349,9 @@ public class TextureSetGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
+
+    private static int imagecounter = 0;
+
     public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<String> paths, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
@@ -351,6 +359,9 @@ public class TextureSetGenerator {
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
+
+            imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
+
             Rect rect = imageRects.get(i);
             if (innerPadding > 0) {
                 image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
@@ -362,13 +373,26 @@ public class TextureSetGenerator {
                 image = rotateImage(image);
             }
             images.set(i, image);
-            imageHulls.add(buildConvexHull(image, imageHullSizes.get(i), extrudeBorders));
         }
 
         TextureSetResult result = calculateLayout(imageRects, imageHulls, iterator,
                                                         margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
         result.image = composite(images, result.layoutResult.layout);
+
+
+// import java.io.*; // DEBUG
+// import java.awt.image.*; // DEBUG
+// import javax.imageio.*; // DEBUG
+        // try {
+        //     File outputfile = new File(String.format("/Users/mathiaswesterdahl/work/defold/image_%d.png", imagecounter));
+        //     imagecounter++;
+        //     ImageIO.write(result.image, "png", outputfile);
+        //     System.out.println(String.format("Wrote %s", outputfile.getAbsolutePath()));
+        // } catch (Exception e) {
+        //     // pass
+        // }
+
         return result;
     }
 
@@ -480,6 +504,7 @@ public class TextureSetGenerator {
 
             uvTransforms.add(genUVTransform(r, oneOverWidth, oneOverHeight));
 
+            textureSet.addFrameIndices(quadIndex);
             ++quadIndex;
         }
 
@@ -489,6 +514,8 @@ public class TextureSetGenerator {
             Integer index = null;
             int startIndex = quadIndex;
             while ((index = iterator.nextFrameIndex()) != null) {
+                textureSet.addFrameIndices(index);
+
                 Rect r = rects.get(index);
                 if (ref == null) {
                     ref = r;
@@ -531,11 +558,6 @@ public class TextureSetGenerator {
         textureSet.setTexDims(ByteString.copyFrom(texDimsBuffer));
 
         return new Pair<TextureSet.Builder, List<UVTransform>>(textureSet, uvTransforms);
-    }
-
-    private static short toShortUV(float fuv) {
-        int uv = (int) (fuv * 65535.0f);
-        return (short) (uv & 0xffff);
     }
 
     private static void putTexCoord(ByteBuffer texCoordsBuffer, float u, float v) {

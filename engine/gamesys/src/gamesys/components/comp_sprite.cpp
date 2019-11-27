@@ -392,9 +392,10 @@ namespace dmGameSystem
 
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
-                const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[component->m_AnimationID];
-
                 uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
+                frame_index = texture_set_ddf->m_FrameIndices[frame_index];
+
+                const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[frame_index];
 
                 const Matrix4& w = component->m_World;
 

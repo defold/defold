@@ -92,7 +92,7 @@
                                  (let [image-resource (workspace/find-resource workspace path)
                                        buffered-image (image-util/read-image image-resource)
                                        hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
-                                   (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count extrude-borders)))
+                                   (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))
                                images)
         result (TextureSetGenerator/calculateLayout
                  rects sprite-geometries anim-iterator margin inner-padding extrude-borders
@@ -193,10 +193,7 @@
         hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
-                                   ;; Use zero for extrude borders here since we're basing
-                                   ;; this on source image data rather than the final
-                                   ;; texture set layout.
-                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count 0)))
+                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
                                image-rects)
         result (TextureSetGenerator/calculateLayout
                  image-rects

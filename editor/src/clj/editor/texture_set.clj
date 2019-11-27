@@ -38,21 +38,28 @@
   (let [offset (* quad-index 4)]
     (mapv #(->uv-vertex (+ offset %) tex-coords) tex-coord-order)))
 
+(defn- ->tex-dim
+  [frame-index tex-dims]
+  (let [offset (* frame-index 2)
+        width (.get tex-dims ^int (+ offset 0))
+        height (.get tex-dims ^int (+ offset 1))]
+    {:width width :height height}))
 
 ;; anim data
 
 (defn- ->anim-frame
-  [frame-index tex-coords tex-coord-order dimensions]
+  [frame-index tex-coords tex-dims tex-coord-order dimensions frame-indices]
   (let [tex-coords-data (->uv-quad frame-index tex-coords tex-coord-order)
-        {:keys [width height]} (nth dimensions frame-index)]
+        {:keys [width height]} (->tex-dim frame-index tex-dims)]
     {:tex-coords tex-coords-data
      :width width
      :height height}))
 
+
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords uv-transforms dimensions]
+  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms dimensions frame-indices]
   (let [tex-coord-order (tex-coord-lookup flip-horizontal flip-vertical)
-        frames (mapv #(->anim-frame % tex-coords tex-coord-order dimensions) (range start end))]
+        frames (mapv #(->anim-frame % tex-coords tex-dims tex-coord-order dimensions frame-indices) (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
      :playback playback
@@ -60,7 +67,7 @@
      :frames frames
      :uv-transforms (subvec uv-transforms start end)}))
 
-(defn- decode-vertices
+#_(defn- decode-vertices
   [texture-set]
   (let [{:keys [vertices uvs indices]} (get-in texture-set [:geometries 0])]
     (mapv (fn [^long index]
@@ -83,13 +90,24 @@
                           (.getShort vs-buf)]))
         (persistent! vs)))))
 
+(defn- get-vertices-from-geometry
+  [geometry]
+  (let [{:keys [width height vertices uvs indices]} geometry]
+    (prn width height uvs)
+    (mapv (fn [^long index]
+            [(* width (vertices (+ 0 (* 2 index))))
+             (* height(vertices (+ 1 (* 2 index))))
+             0.0
+             (short (* Short/MAX_VALUE (uvs (+ 0 (* 2 index)))))
+             (short (* Short/MAX_VALUE (uvs (+ 1 (* 2 index)))))])
+          indices))
+  )
+
 (defn- frame-vertices
   [texture-set]
-  (let [vs (decode-vertices texture-set)]
-    (mapv (fn [start n]
-            (mapv (fn [i] (nth vs i)) (range start (+ start n))))
-          (:vertex-start texture-set)
-          (:vertex-count texture-set))))
+  (let []
+    (mapv get-vertices-from-geometry (get-in texture-set [:geometries]))
+    ))
 
 (defn- mind ^double [^double a ^double b] (Math/min a b))
 (defn- maxd ^double [^double a ^double b] (Math/max a b))
@@ -105,7 +123,8 @@
 
 (defn- frame-dimensions
   [texture-set]
-  (mapv dimension (frame-vertices texture-set)))
+  (let [vs (frame-vertices texture-set)]
+    (mapv dimension vs)))
 
 (defn make-anim-data
   [texture-set uv-transforms]
@@ -113,10 +132,15 @@
                        (.asReadOnlyByteBuffer)
                        (.order ByteOrder/LITTLE_ENDIAN)
                        (.asFloatBuffer))
+        tex-dims (-> ^ByteString (:tex-dims texture-set)
+                       (.asReadOnlyByteBuffer)
+                       (.order ByteOrder/LITTLE_ENDIAN)
+                       (.asFloatBuffer))
         animations (:animations texture-set)
-        frame-dimensions (frame-dimensions texture-set)]
+        frame-dimensions (frame-dimensions texture-set)
+        frame-indices (:frame-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords uv-transforms frame-dimensions)))
+          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-dimensions frame-indices)))
           animations)))
 
 

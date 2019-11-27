@@ -120,6 +120,8 @@ public class TileSetGenerator {
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
+System.out.println("MAWE TileSetGenerator");
+
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
