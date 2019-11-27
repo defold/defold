@@ -218,6 +218,7 @@ public class TileSetUtil {
                 mask = alphaRaster.getPixels(x, y, tileWidth, tileHeight, mask);
                 int index = col + row * tilesPerRow;
                 points[index] = ConvexHull2D.imageConvexHull(mask, tileWidth, tileHeight, hullTargetVertexCount);
+
                 // Check the vertices, and if they're outside of the rectangle, fallback to the tight rect
                 if (!isHullValid(points[index], tileWidth, tileHeight)) {
                     points[index] = calcRect(mask, tileWidth, tileHeight, 0);

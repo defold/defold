@@ -349,9 +349,6 @@ public class TextureSetGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-
-    private static int imagecounter = 0;
-
     public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<String> paths, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
@@ -379,19 +376,6 @@ public class TextureSetGenerator {
                                                         margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
         result.image = composite(images, result.layoutResult.layout);
-
-
-// import java.io.*; // DEBUG
-// import java.awt.image.*; // DEBUG
-// import javax.imageio.*; // DEBUG
-        // try {
-        //     File outputfile = new File(String.format("/Users/mathiaswesterdahl/work/defold/image_%d.png", imagecounter));
-        //     imagecounter++;
-        //     ImageIO.write(result.image, "png", outputfile);
-        //     System.out.println(String.format("Wrote %s", outputfile.getAbsolutePath()));
-        // } catch (Exception e) {
-        //     // pass
-        // }
 
         return result;
     }
