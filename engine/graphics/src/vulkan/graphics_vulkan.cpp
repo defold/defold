@@ -704,27 +704,29 @@ namespace dmGraphics
 
     static void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
     {
-        for (uint32_t i = 0; i < resource_list->Size(); ++i)
+        if (resource_list->Size() > 0)
         {
-            ResourceToDestroy& resource = resource_list->Begin()[i];
-
-            switch(resource.m_ResourceType)
+            for (uint32_t i = 0; i < resource_list->Size(); ++i)
             {
-                case RESOURCE_TYPE_DEVICE_BUFFER:
-                    DestroyDeviceBuffer(vk_device, &resource.m_DeviceBuffer);
-                    break;
-                case RESOURCE_TYPE_TEXTURE:
-                    DestroyTexture(vk_device, &resource.m_Texture);
-                    break;
-                case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
-                    DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
-                default:
-                    assert(0);
-                    break;
+                ResourceToDestroy& resource = resource_list->Begin()[i];
+
+                switch(resource.m_ResourceType)
+                {
+                    case RESOURCE_TYPE_DEVICE_BUFFER:
+                        DestroyDeviceBuffer(vk_device, &resource.m_DeviceBuffer);
+                        break;
+                    case RESOURCE_TYPE_TEXTURE:
+                        DestroyTexture(vk_device, &resource.m_Texture);
+                        break;
+                    case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
+                        DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
+                    default:
+                        assert(0);
+                        break;
+                }
             }
 
-            resource_list->EraseSwap(i);
-            --i;
+            resource_list->SetSize(0);
         }
     }
 
@@ -2115,10 +2117,8 @@ bail:
                 res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
                 res.m_Set                  = ddf->m_Uniforms[i].m_Set;
                 res.m_Type                 = ddf->m_Uniforms[i].m_Type;
-                res.m_Name                 = new char[name_len + 1];
+                res.m_Name                 = strdup(ddf->m_Uniforms[i].m_Name);
                 res.m_NameHash             = 0;
-                memcpy((void*)res.m_Name, (void*)ddf->m_Uniforms[i].m_Name, name_len);
-                res.m_Name[name_len]       = 0;
 
                 assert(res.m_Set <= 1);
                 assert(res.m_Binding >= last_binding);
@@ -2149,14 +2149,11 @@ bail:
 
             for (uint32_t i=0; i < ddf->m_Attributes.m_Count; i++)
             {
-                uint32_t name_len          = strlen(ddf->m_Attributes[i].m_Name);
                 ShaderResourceBinding& res = shader->m_Attributes[i];
                 res.m_Binding              = ddf->m_Attributes[i].m_Binding;
                 res.m_Set                  = ddf->m_Attributes[i].m_Set;
                 res.m_Type                 = ddf->m_Attributes[i].m_Type;
-                res.m_Name                 = new char[name_len + 1];
-                memcpy((void*)res.m_Name, (void*) ddf->m_Attributes[i].m_Name, name_len);
-                res.m_Name[name_len]       = 0;
+                res.m_Name                 = strdup(ddf->m_Attributes[i].m_Name);
                 res.m_NameHash             = dmHashString64(res.m_Name);
 
                 assert(res.m_Binding >= last_binding);
@@ -2370,12 +2367,12 @@ bail:
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
         {
-            delete[] shader->m_Uniforms[i].m_Name;
+            free(shader->m_Uniforms[i].m_Name);
         }
 
         for (uint32_t i=0; i < shader->m_AttributeCount; i++)
         {
-            delete[] shader->m_Attributes[i].m_Name;
+            free(shader->m_Attributes[i].m_Name);
         }
 
         if (shader->m_Attributes)
@@ -2400,7 +2397,7 @@ bail:
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
         {
-            delete[] shader->m_Uniforms[i].m_Name;
+            free(shader->m_Uniforms[i].m_Name);
         }
 
         if (shader->m_Uniforms)
