@@ -254,7 +254,7 @@ namespace dmDeviceOpenSL
 
         res = (*output_mix)->Realize(output_mix, SL_BOOLEAN_FALSE);
         if (CheckAndPrintError(res))
-            goto cleanup_mix;
+            goto cleanup_sl;
 
         SLDataLocator_BufferQueue locator;
         locator.locatorType = SL_DATALOCATOR_BUFFERQUEUE;
@@ -287,24 +287,24 @@ namespace dmDeviceOpenSL
         res = (*engine)->CreateAudioPlayer(engine, &player, &data_source, &sink, sizeof(required_player) / sizeof(required_player[0]), ids_player, required_player);
         if (res != SL_RESULT_SUCCESS) {
             dmLogError("Failed to create player: %d", res);
-            goto cleanup_mix;
+            goto cleanup_sl;
         }
 
         res = (*player)->Realize(player, SL_BOOLEAN_FALSE);
         if (CheckAndPrintError(res))
-            goto cleanup_player;
+            goto cleanup_sl;
 
         res = (*player)->GetInterface(player, SL_IID_PLAY, (void*)&play);
         if (CheckAndPrintError(res))
-            goto cleanup_player;
+            goto cleanup_sl;
 
         res = (*player)->GetInterface(player, SL_IID_BUFFERQUEUE, (void*)&buffer_queue);
         if (CheckAndPrintError(res))
-            goto cleanup_player;
+            goto cleanup_sl;
 
         res = (*player)->GetInterface(player, SL_IID_VOLUME, (void*)&volume);
         if (CheckAndPrintError(res))
-            goto cleanup_player;
+            goto cleanup_sl;
 
         opensl = new OpenSLDevice;
         opensl->m_MixRate = rate;
@@ -342,10 +342,6 @@ namespace dmDeviceOpenSL
 cleanup_device:
         dmMutex::Delete(opensl->m_Mutex);
         delete opensl;
-cleanup_player:
-        (*player)->Destroy(player);
-cleanup_mix:
-        (*output_mix)->Destroy(output_mix);
 cleanup_sl:
         (*sl)->Destroy(sl);
         return dmSound::RESULT_UNKNOWN_ERROR;
@@ -357,22 +353,7 @@ cleanup_sl:
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         dmMutex::Lock(opensl->m_Mutex);
 
-        SLresult res = (*opensl->m_Play)->SetPlayState(opensl->m_Play, SL_PLAYSTATE_STOPPED);
-        CheckAndPrintError(res);
-
-        (*opensl->m_BufferQueue)->Clear(opensl->m_BufferQueue);
-
-        (*opensl->m_Player)->Destroy(opensl->m_Player);
-        (*opensl->m_OutputMix)->Destroy(opensl->m_OutputMix);
         (*opensl->m_SL)->Destroy(opensl->m_SL);
-
-        if (opensl->m_Playing.Size() > 0) {
-            dmLogError("Unexpected buffers playing (%d)", opensl->m_Playing.Size());
-        }
-
-        if (opensl->m_Ready.Size() > 0) {
-            dmLogError("Unexpected ready buffers (%d)", opensl->m_Ready.Size());
-        }
 
         while (opensl->m_Free.Size() > 0) {
             Buffer b = opensl->m_Free.Pop();
