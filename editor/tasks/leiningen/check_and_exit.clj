@@ -17,8 +17,8 @@
   "Check syntax, warn on reflection and then run Platform/exit."
   ([project]
    (let [source-files (map io/file (:source-paths project))
-         nses (remove #{'dev} (b/namespaces-on-classpath :classpath source-files
-                                                         :ignore-unreadable? false))
+         nses (b/namespaces-on-classpath :classpath source-files
+                                         :ignore-unreadable? false)
          action `(let [failures# (atom 0)]
                    (doseq [ns# '~nses]
                      ;; load will add the .clj, so can't use ns/path-for.
