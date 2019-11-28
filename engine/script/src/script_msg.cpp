@@ -488,34 +488,29 @@ namespace dmScript
         DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
-        const dmDDF::Descriptor* desc = 0x0;
-        HContext context = dmScript::GetScriptContext(L);
 
-        if (context != 0)
+        const dmDDF::Descriptor* desc = dmDDF::GetDescriptorFromHash(message_id);
+        if (desc != 0)
         {
-            desc = dmDDF::GetDescriptorFromHash(message_id);
-            if (desc != 0)
+            if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
             {
-                if (top > 2)
-                {
-                    if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
-                    {
-                        return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);
-                    }
-                    luaL_checktype(L, 3, LUA_TTABLE);
-                    lua_pushvalue(L, 3);
-                }
-                else
-                {
-                    lua_newtable(L);
-                }
-                data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, -1);
-                lua_pop(L, 1);
+                return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);
             }
+            if (top > 2)
+            {
+                luaL_checktype(L, 3, LUA_TTABLE);
+                lua_pushvalue(L, 3);
+            }
+            else
+            {
+                lua_newtable(L);
+            }
+            data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, -1);
+            lua_pop(L, 1);
         }
-        if (top > 2)
+        else if (top > 2)
         {
-            if (desc == 0x0 && !lua_isnil(L, 3))
+            if (!lua_isnil(L, 3))
             {
                 data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
             }
