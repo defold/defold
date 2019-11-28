@@ -357,36 +357,13 @@ cleanup_sl:
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         dmMutex::Lock(opensl->m_Mutex);
 
-        SLBufferQueueItf buffer_queue = opensl->m_BufferQueue;
-
-        SLBufferQueueState state;
-        SLresult res = (*buffer_queue)->GetState(buffer_queue, &state);
-        while (state.count > 0) {
-            dmMutex::Unlock(opensl->m_Mutex);
-            dmTime::Sleep(10 * 1000);
-            dmMutex::Lock(opensl->m_Mutex);
-            (*buffer_queue)->GetState(buffer_queue, &state);
-        }
-
-        SLPlayItf play = opensl->m_Play;
-        res = (*play)->SetPlayState(play, SL_PLAYSTATE_STOPPED);
+        SLresult res = (*opensl->m_Play)->SetPlayState(opensl->m_Play, SL_PLAYSTATE_STOPPED);
         CheckAndPrintError(res);
 
-        (*buffer_queue)->Clear(buffer_queue);
-
-        SLObjectItf player = opensl->m_Player;
-        (*player)->Destroy(player);
-
+        (*opensl->m_BufferQueue)->Clear(opensl->m_BufferQueue);
+        (*opensl->m_Player)->Destroy(opensl->m_Player);
         (*opensl->m_OutputMix)->Destroy(opensl->m_OutputMix);
         (*opensl->m_SL)->Destroy(opensl->m_SL);
-
-        if (opensl->m_Playing.Size() > 0) {
-            dmLogError("Unexpected buffers playing (%d)", opensl->m_Playing.Size());
-        }
-
-        if (opensl->m_Ready.Size() > 0) {
-            dmLogError("Unexpected ready buffers (%d)", opensl->m_Ready.Size());
-        }
 
         while (opensl->m_Free.Size() > 0) {
             Buffer b = opensl->m_Free.Pop();
@@ -463,4 +440,3 @@ cleanup_sl:
 
     DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
 }
-
