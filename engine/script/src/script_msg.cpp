@@ -447,7 +447,7 @@ namespace dmScript
      * @name msg.post
      * @param receiver [type:string|url|hash] The receiver must be a string in URL-format, a URL object or a hashed string.
      * @param message_id [type:string|hash] The id must be a string or a hashed string.
-     * @param [message] [type:table] a lua table with message parameters to send.
+     * @param [message] [type:table|nil] a lua table with message parameters to send.
      * @examples
      *
      * Send "enable" to the sprite "my_sprite" in "my_gameobject":
@@ -515,10 +515,7 @@ namespace dmScript
         }
         if (top > 2)
         {
-            if (desc != 0x0)
-            {
-            }
-            else
+            if (desc == 0x0 && !lua_isnil(L, 3))
             {
                 data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
             }
