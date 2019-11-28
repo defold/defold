@@ -463,8 +463,7 @@
   (doto (Label. label)
     (.setTooltip (doto (Tooltip.)
                    (.setText (format "Available as `%s` in editor scripts"
-                                     (string/replace (name key) \- \_)))
-                   (.setShowDuration (Duration/seconds 30))))
+                                     (string/replace (name key) \- \_)))))
     (ui/add-style! "property-label")
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
