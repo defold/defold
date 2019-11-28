@@ -254,7 +254,7 @@ namespace dmDeviceOpenSL
 
         res = (*output_mix)->Realize(output_mix, SL_BOOLEAN_FALSE);
         if (CheckAndPrintError(res))
-            goto cleanup_sl;
+            goto cleanup_mix;
 
         SLDataLocator_BufferQueue locator;
         locator.locatorType = SL_DATALOCATOR_BUFFERQUEUE;
@@ -287,24 +287,24 @@ namespace dmDeviceOpenSL
         res = (*engine)->CreateAudioPlayer(engine, &player, &data_source, &sink, sizeof(required_player) / sizeof(required_player[0]), ids_player, required_player);
         if (res != SL_RESULT_SUCCESS) {
             dmLogError("Failed to create player: %d", res);
-            goto cleanup_sl;
+            goto cleanup_mix;
         }
 
         res = (*player)->Realize(player, SL_BOOLEAN_FALSE);
         if (CheckAndPrintError(res))
-            goto cleanup_sl;
+            goto cleanup_player;
 
         res = (*player)->GetInterface(player, SL_IID_PLAY, (void*)&play);
         if (CheckAndPrintError(res))
-            goto cleanup_sl;
+            goto cleanup_player;
 
         res = (*player)->GetInterface(player, SL_IID_BUFFERQUEUE, (void*)&buffer_queue);
         if (CheckAndPrintError(res))
-            goto cleanup_sl;
+            goto cleanup_player;
 
         res = (*player)->GetInterface(player, SL_IID_VOLUME, (void*)&volume);
         if (CheckAndPrintError(res))
-            goto cleanup_sl;
+            goto cleanup_player;
 
         opensl = new OpenSLDevice;
         opensl->m_MixRate = rate;
@@ -342,6 +342,10 @@ namespace dmDeviceOpenSL
 cleanup_device:
         dmMutex::Delete(opensl->m_Mutex);
         delete opensl;
+cleanup_player:
+        (*player)->Destroy(player);
+cleanup_mix:
+        (*output_mix)->Destroy(output_mix);
 cleanup_sl:
         (*sl)->Destroy(sl);
         return dmSound::RESULT_UNKNOWN_ERROR;
