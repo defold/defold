@@ -23,11 +23,11 @@
                                   (binding [*warn-on-reflection* true]
                                     (require 'editor.bootloader)
                                     (eval '(editor.bootloader/load-synchronous true)))
-                                  (javafx.application.Platform/exit)
-                                  (shutdown-agents)
                                   (catch ExceptionInInitializerError e#
                                     (swap! failures# inc)
                                     (.printStackTrace e#)))
+                                (javafx.application.Platform/exit)
+                                (shutdown-agents)
                                 (if-not (zero? @failures#)
                                   (System/exit @failures#)))))
      (catch clojure.lang.ExceptionInfo e
