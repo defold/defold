@@ -227,7 +227,7 @@ TEST_F(dmSSDPTest, RegisterDevice)
     ASSERT_EQ(dmSSDP::RESULT_OK, r);
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(GITHUB_CI)
 
 TEST_F(dmSSDPTest, Search)
 {
@@ -298,7 +298,8 @@ TEST_F(dmSSDPTest, Expire)
     ASSERT_FALSE(TestDeviceDiscovered());
 }
 
-#ifndef _WIN32
+
+#if !defined(_WIN32) && !defined(GITHUB_CI)
 
 TEST_F(dmSSDPTest, Renew)
 {
@@ -312,7 +313,7 @@ TEST_F(dmSSDPTest, Renew)
 
 #endif
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(GITHUB_CI)
 #include <sys/select.h>
 
 /*
@@ -437,4 +438,3 @@ int main(int argc, char **argv)
     dmSocket::Finalize();
     return ret;
 }
-

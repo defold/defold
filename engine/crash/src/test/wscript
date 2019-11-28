@@ -17,6 +17,8 @@ def build(bld):
                                      source = 'test_crash.cpp')
 
     test_crash.install_path = None
+    if 'win32' in bld.env['PLATFORM']:
+        test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     test_script_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
@@ -28,3 +30,5 @@ def build(bld):
                                      source = 'test_script_crash.cpp test_crash.lua')
 
     test_script_crash.install_path = None
+    if 'win32' in bld.env['PLATFORM']:
+        test_script_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])

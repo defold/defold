@@ -1,3 +1,6 @@
 #!/bin/sh
 DDFC=`dirname $0`/ddfc.py
+
+# NOTE: The output here is parsed later on, so don't print invalid code!
+
 python $DDFC --cxx $@

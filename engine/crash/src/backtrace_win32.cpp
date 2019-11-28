@@ -1,5 +1,7 @@
 #include "crash.h"
 #include "crash_private.h"
+#include <dlib/dlib.h>
+#include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/sys.h>
@@ -14,7 +16,9 @@ namespace dmCrash
 
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
-        // Open the file
+        fflush(stdout);
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
 
         HANDLE hFile = CreateFile( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 
@@ -32,15 +36,20 @@ namespace dmCrash
 
             if( !rv )
             {
-                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", GetLastError() );
+                dmLogError("MiniDumpWriteDump failed. Error: %u \n", GetLastError() );
+            }
+            else
+            {
+                dmLogInfo("Successfully wrote MiniDump to file: %s", path);
             }
 
             CloseHandle( hFile );
         }
         else
         {
-            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() );
+            dmLogError("CreateFile for MiniDump failed: %s. Error: %u \n", path, GetLastError() );
         }
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     void OnCrash()
@@ -48,10 +57,68 @@ namespace dmCrash
         fflush(stdout);
         fflush(stderr);
 
+        HANDLE process = ::GetCurrentProcess();
+
+        ::SymSetOptions(SYMOPT_DEBUG);
+        ::SymInitialize(process, 0, TRUE);
+
         // The API only accepts 62 or less
         uint32_t max = dmMath::Min(AppState::PTRS_MAX, (uint32_t)62);
         g_AppState.m_PtrCount = CaptureStackBackTrace(0, max, &g_AppState.m_Ptr[0], 0);
+
+        // Get a nicer printout as well
+        const int name_length = 1024;
+
+
+        char symbolbuffer[sizeof(SYMBOL_INFO) + name_length * sizeof(char)*2];
+        SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbolbuffer;
+        symbol->MaxNameLen = name_length;
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+        DWORD displacement;
+        IMAGEHLP_LINE64 line;
+        line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+
+        uint32_t offset = 0;
+        for (uint32_t i = 0; i < g_AppState.m_PtrCount; ++i)
+        {
+            DWORD64 address = (DWORD64)(g_AppState.m_Ptr[i]);
+
+            const char* symbolname = "<unknown symbol>";
+            DWORD64 symboladdress = address;
+
+            DWORD64 symoffset = 0;
+
+            if (::SymFromAddr(process, address, &symoffset, symbol))
+            {
+                symbolname = symbol->Name;
+                symboladdress = symbol->Address;
+            }
+
+            const char* filename = "<unknown>";
+            int line_number = 0;
+            if (::SymGetLineFromAddr64(process, address, &displacement, &line))
+            {
+                filename = line.FileName;
+                line_number = line.LineNumber;
+            }
+
+            if (offset < (dmCrash::AppState::EXTRA_MAX - 1))
+            {
+                uint32_t size_left = dmCrash::AppState::EXTRA_MAX - offset;
+                offset += dmSnPrintf(&g_AppState.m_Extra[offset], size_left, "%2d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
+            }
+        }
+        g_AppState.m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
+
+        ::SymCleanup(process);
+
         WriteCrash(g_FilePath, &g_AppState);
+
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     void WriteDump()

@@ -312,11 +312,9 @@ static int convertMacKeyCode( unsigned int macKeyCode )
     return [CAMetalLayer class];
 }
 
--(CALayer*) makeBackingLayer {
-    CALayer* layer      = [self.class.layerClass layer];
-    CGSize viewScale    = [self convertSizeToBacking: CGSizeMake(1.0, 1.0)];
-    layer.contentsScale = MIN(viewScale.width, viewScale.height);
-    return layer;
+-(CALayer*) makeBackingLayer
+{
+    return [self.class.layerClass layer];
 }
 
 - (void)mouseDown:(NSEvent *)event

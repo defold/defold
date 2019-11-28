@@ -1,6 +1,9 @@
-#include "graphics_vulkan.h"
-
 #include <dlib/math.h>
+#include <dlib/array.h>
+
+#include "graphics_vulkan_defines.h"
+#include "../graphics.h"
+#include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
@@ -38,7 +41,7 @@ namespace dmGraphics
         return vk_swap_chain_format;
     }
 
-    static void ResetVkSwapChain(const VkDevice device, const VkSwapchainKHR swapChain, const dmArray<VkImageView>& imageViews)
+    static void DestroyVkSwapChain(const VkDevice device, const VkSwapchainKHR swapChain, const dmArray<VkImageView>& imageViews)
     {
         if (swapChain != VK_NULL_HANDLE)
         {
@@ -57,6 +60,15 @@ namespace dmGraphics
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
         , m_SwapChain(VK_NULL_HANDLE)
     {
+    }
+
+    VkResult SwapChain::Advance(VkSemaphore vk_image_available)
+    {
+        uint32_t image_ix;
+        VkResult res = vkAcquireNextImageKHR(m_LogicalDevice->m_Device, m_SwapChain, UINT64_MAX,
+            vk_image_available, VK_NULL_HANDLE, &image_ix);
+        m_ImageIndex = (uint8_t) image_ix;
+        return res;
     }
 
     VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
@@ -168,7 +180,7 @@ namespace dmGraphics
 
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
-            ResetVkSwapChain(swapChain->m_LogicalDevice->m_Device, vk_old_swap_chain, swapChain->m_ImageViews);
+            DestroyVkSwapChain(swapChain->m_LogicalDevice->m_Device, vk_old_swap_chain, swapChain->m_ImageViews);
         }
 
         vkGetSwapchainImagesKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, &swap_chain_image_count, 0);
@@ -179,6 +191,7 @@ namespace dmGraphics
         vkGetSwapchainImagesKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, &swap_chain_image_count, swapChain->m_Images.Begin());
 
         swapChain->m_ImageExtent = vk_extent;
+        swapChain->m_ImageIndex  = 0;
 
         swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);
@@ -213,10 +226,10 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    void ResetSwapChain(SwapChain* swapChain)
+    void DestroySwapChain(SwapChain* swapChain)
     {
         assert(swapChain);
-        ResetVkSwapChain(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, swapChain->m_ImageViews);
+        DestroyVkSwapChain(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, swapChain->m_ImageViews);
         swapChain->m_SwapChain = VK_NULL_HANDLE;
     }
 

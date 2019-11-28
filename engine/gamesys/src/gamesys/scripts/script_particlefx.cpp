@@ -87,7 +87,7 @@ namespace dmGameSystem
 
         if (data.m_CallbackInfo)
         {
-            if (!dmScript::IsValidCallback(data.m_CallbackInfo))
+            if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
             {
                 return;
             }
@@ -102,7 +102,7 @@ namespace dmGameSystem
             // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
             if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
             {
-                dmScript::DeleteCallback(data.m_CallbackInfo);
+                dmScript::DestroyCallback(data.m_CallbackInfo);
                 data.m_CallbackInfo = 0x0;
             }
         }
