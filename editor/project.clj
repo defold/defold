@@ -180,6 +180,8 @@
                       :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
+                      :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
+                                 :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]

@@ -333,7 +333,7 @@ namespace dmHttpClient
             case MBEDTLS_ERR_NET_RECV_FAILED:
             return dmSocket::RESULT_TRY_AGAIN;
             default:
-                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r);
+                dmLogWarning("Unhandled ssl status code: %d (%c%04X)", r, r < 0 ? '-':' ', r<0?-r:r);
                 // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
                 // and abort the request
                 return dmSocket::RESULT_UNKNOWN;
@@ -346,7 +346,7 @@ namespace dmHttpClient
         k++;
         if (response->m_SSLConnection != 0) {
             int r = 0;
-            while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) <= 0 )
+            while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) < 0 )
             {
                 if (r == MBEDTLS_ERR_SSL_WANT_WRITE ||
                     r == MBEDTLS_ERR_SSL_WANT_READ) {
@@ -641,7 +641,7 @@ if (sock_res != dmSocket::RESULT_OK)\
             }
         }
 
-        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0) {
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
             HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
             char buf[64];
@@ -652,7 +652,7 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n")
 
-        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0)
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0)
         {
             Result post_result = client->m_HttpWrite(response, client->m_Userdata);
             if (post_result != RESULT_OK) {
@@ -996,7 +996,13 @@ bail:
             }
         }
 
-        assert(response.m_TotalReceived == 0);
+        // Removed an assert here, in favor of returning an error instead
+        // which should allow the user to detect this and act accordingly
+        if (response.m_TotalReceived != 0)
+        {
+            dmLogError("Not all bytes were handled during the response (%d bytes left). Method: %s Status: %d", response.m_TotalReceived, method, response.m_Status);
+            r = RESULT_INVALID_RESPONSE;
+        }
 
         if (r == RESULT_OK)
         {

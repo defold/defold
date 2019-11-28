@@ -143,6 +143,10 @@ namespace dmGraphics
         assert(context);
     }
 
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+    }
+
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
@@ -257,6 +261,11 @@ namespace dmGraphics
             for (uint32_t i = 0; i < count; ++i)
                 buffer[i] = stencil;
         }
+    }
+
+    void BeginFrame(HContext context)
+    {
+        // NOP
     }
 
     void Flip(HContext context)
@@ -506,35 +515,38 @@ namespace dmGraphics
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
     {
         const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
-        uint32_t result = ~0;
-        switch (type)
+
+        if (type == dmGraphics::TYPE_BYTE)
         {
-            case dmGraphics::TYPE_BYTE:
-                result = ((char*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_BYTE:
-                result = ((unsigned char*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_SHORT:
-                result = ((short*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_SHORT:
-                result = ((unsigned short*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_INT:
-                result = ((int*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_UNSIGNED_INT:
-                result = ((unsigned int*)index_buffer)[index];
-                break;
-            case dmGraphics::TYPE_FLOAT:
-                result = ((float*)index_buffer)[index];
-                break;
-            default:
-                assert(0);
-                break;
+            return ((char*)index_buffer)[index];
         }
-        return result;
+        else if (type == dmGraphics::TYPE_UNSIGNED_BYTE)
+        {
+            return ((unsigned char*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_SHORT)
+        {
+            return ((short*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return ((unsigned short*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_INT)
+        {
+            return ((int*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_UNSIGNED_INT)
+        {
+            return ((unsigned int*)index_buffer)[index];
+        }
+        else if (type == dmGraphics::TYPE_FLOAT)
+        {
+            return (uint32_t)((float*)index_buffer)[index];
+        }
+
+        assert(0);
+        return ~0;
     }
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -747,7 +759,19 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        // Not supported
+        return 0;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
+        // Not supported
+        return -1;
+    }
+
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -755,6 +779,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        return (uint32_t)strlen(buffer);
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)

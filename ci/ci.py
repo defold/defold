@@ -186,9 +186,11 @@ def main(argv):
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
             elif branch == "editor-dev":
                 build_editor(channel = "editor-alpha", release = True)
-            else:
+            elif branch.startswith("DEFEDIT-"):
                 build_editor(release = False, engine_artifacts = "archived-stable")
-                # build_editor(release = False)
+            else:
+                # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
+                build_editor(release = False, engine_artifacts = "archived")
         elif command == "bob":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)

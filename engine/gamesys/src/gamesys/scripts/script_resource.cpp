@@ -290,11 +290,14 @@ static int GraphicsTextureFormatToImageFormat(int textureformat)
 
 static int GraphicsTextureTypeToImageType(int texturetype)
 {
-    switch(texturetype)
+    if (texturetype == dmGraphics::TEXTURE_TYPE_2D)
     {
-        case dmGraphics::TEXTURE_TYPE_2D:          return dmGraphics::TextureImage::TYPE_2D;
-        case dmGraphics::TEXTURE_TYPE_CUBE_MAP:    return dmGraphics::TextureImage::TYPE_CUBEMAP;
-    };
+        return dmGraphics::TextureImage::TYPE_2D;
+    }
+    else if (texturetype == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+    {
+        return dmGraphics::TextureImage::TYPE_CUBEMAP;
+    }
     assert(false);
     return -1;
 }

@@ -24,4 +24,9 @@
 
 #include <vulkan/vulkan.h>
 
+#define DMGRAPHICS_STATE_WRITE_R (0x1)
+#define DMGRAPHICS_STATE_WRITE_G (0x2)
+#define DMGRAPHICS_STATE_WRITE_B (0x4)
+#define DMGRAPHICS_STATE_WRITE_A (0x8)
+
 #endif /* DMGRAPHICS_VULKAN_DEFINES_H */
