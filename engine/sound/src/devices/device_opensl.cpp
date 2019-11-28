@@ -357,13 +357,12 @@ cleanup_sl:
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         dmMutex::Lock(opensl->m_Mutex);
 
-        SLPlayItf play = opensl->m_Play;
-        res = (*play)->SetPlayState(play, SL_PLAYSTATE_STOPPED);
+        SLresult res = (*opensl->m_Play)->SetPlayState(opensl->m_Play, SL_PLAYSTATE_STOPPED);
         CheckAndPrintError(res);
 
-        SLObjectItf player = opensl->m_Player;
-        (*player)->Destroy(player);
+        (*opensl->m_BufferQueue)->Clear(opensl->m_BufferQueue);
 
+        (*opensl->m_Player)->Destroy(opensl->m_Player);
         (*opensl->m_OutputMix)->Destroy(opensl->m_OutputMix);
         (*opensl->m_SL)->Destroy(opensl->m_SL);
 
@@ -450,4 +449,3 @@ cleanup_sl:
 
     DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
 }
-
