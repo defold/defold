@@ -353,6 +353,12 @@ cleanup_sl:
         OpenSLDevice* opensl = (OpenSLDevice*) device;
         dmMutex::Lock(opensl->m_Mutex);
 
+        SLresult res = (*opensl->m_Play)->SetPlayState(opensl->m_Play, SL_PLAYSTATE_STOPPED);
+        CheckAndPrintError(res);
+
+        (*opensl->m_BufferQueue)->Clear(opensl->m_BufferQueue);
+        (*opensl->m_Player)->Destroy(opensl->m_Player);
+        (*opensl->m_OutputMix)->Destroy(opensl->m_OutputMix);
         (*opensl->m_SL)->Destroy(opensl->m_SL);
 
         while (opensl->m_Free.Size() > 0) {
