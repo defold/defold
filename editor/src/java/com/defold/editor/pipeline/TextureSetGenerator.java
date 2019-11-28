@@ -35,6 +35,11 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 
+// For debugging image output
+// import java.io.IOException;
+// import java.io.File;
+// import javax.imageio.ImageIO;
+
 public class TextureSetGenerator {
 
     private static class Pair<L, R> {
@@ -222,6 +227,11 @@ public class TextureSetGenerator {
         float centerX = (float)rect.x + rect.width/2.0f;
         float centerY = (float)rect.y + rect.height/2.0f;
 
+        // if (debug) {
+        //     System.out.println("createPolygonUVs");
+        //     System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d", centerX, centerY, originalRectWidth, originalRectHeight));
+        // }
+
         int numPoints = geometry.getVerticesCount() / 2;
         for (int i = 0; i < numPoints; ++i) {
 
@@ -255,6 +265,10 @@ public class TextureSetGenerator {
 
             geometryBuilder.setUvs(i * 2 + 0, u);
             geometryBuilder.setUvs(i * 2 + 1, v);
+
+            // if (debug) {
+            //     System.out.println(String.format("  uv: %f, %f   lu/lv: %f, %f  lx/ly: %f, %f  wx/wy: %f, %f", u, v, localU, localV, localX, localY, worldX, worldY));
+            // }
         }
 
         return geometryBuilder;
@@ -274,8 +288,13 @@ public class TextureSetGenerator {
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
+        // Store rectangle order as the AnimIterator interface relies on stable frame indices.
+        for(int i = 0; i < images.size(); i++) {
+            images.get(i).index = i;
+        }
+
         List<Rect> resizedImages = images.stream()
-                .map(i -> new Rect(i.id, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
+                .map(i -> new Rect(i.id, i.index, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
                 .collect(Collectors.toList());
 
         Layout layout;
@@ -285,13 +304,7 @@ public class TextureSetGenerator {
             layout = TextureSetLayout.packedLayout(margin, resizedImages, rotate);
         }
 
-        // Restore rectangle order as the AnimIterator interface relies on stable frame indices.
-        HashMap<Object, Integer> originalOrder = new HashMap<>();
-        for(int i = 0; i < images.size(); i++) {
-            Rect r = images.get(i);
-            originalOrder.put(r.id, i);
-        }
-        layout.getRectangles().sort(Comparator.comparing(o -> originalOrder.get(o.id)));
+        layout.getRectangles().sort(Comparator.comparing(o -> o.index));
 
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
@@ -299,8 +312,7 @@ public class TextureSetGenerator {
 
         if (imageHulls != null) {
             for (Rect rect : layout.getRectangles()) {
-                int index = originalOrder.get(rect.id);
-                SpriteGeometry geometry = imageHulls.get(index);
+                SpriteGeometry geometry = imageHulls.get(rect.index);
                 vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layout.getWidth(), layout.getHeight(), extrudeBorders));
             }
         }
@@ -333,6 +345,8 @@ public class TextureSetGenerator {
         g.dispose();
         return packedImage;
     }
+
+    //static int debugImageCount = 0;
 
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
@@ -376,6 +390,14 @@ public class TextureSetGenerator {
                                                         margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
         result.image = composite(images, result.layoutResult.layout);
+
+        // try {
+        //     File outputfile = new File(String.format("image%d.png", debugImageCount));
+        //     ++debugImageCount;
+        //     ImageIO.write(result.image, "png", outputfile);
+        //     System.out.println(String.format("Wrote image to %s", outputfile.getAbsolutePath()));
+        // } catch (IOException e) {
+        // }
 
         return result;
     }
@@ -423,8 +445,8 @@ public class TextureSetGenerator {
             String path = paths.get(index);
             if (path == null)
                 path = String.format("image%d", image);
+            rectangles.add(new Rect(path, index, image.getWidth(), image.getHeight()));
             index++;
-            rectangles.add(new Rect(path, image.getWidth(), image.getHeight()));
         }
         return rectangles;
     }
@@ -443,7 +465,7 @@ public class TextureSetGenerator {
     private static List<Rect> clipBorders(List<Rect> rects, int borderWidth) {
         List<Rect> result = new ArrayList<Rect>(rects.size());
         for (Rect rect : rects) {
-            Rect r = new Rect(rect.id, rect.width - borderWidth * 2, rect.height - borderWidth * 2);
+            Rect r = new Rect(rect.id, rect.index, rect.width - borderWidth * 2, rect.height - borderWidth * 2);
             r.x = rect.x + borderWidth;
             r.y = rect.y + borderWidth;
             r.rotated = rect.rotated;

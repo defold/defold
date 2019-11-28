@@ -26,11 +26,12 @@
 
 (defn- map->Rect
   [{:keys [path width height]}]
-  (TextureSetLayout$Rect. path (int width) (int height)))
+  (TextureSetLayout$Rect. path -1 (int width) (int height)))
 
 (defn- Rect->map
   [^TextureSetLayout$Rect rect]
   {:path (.id rect)
+  	:index (.index rect)
    :x (.x rect)
    :y (.y rect)
    :width (.width rect)
@@ -126,10 +127,13 @@
 (defn- split-rects
   [{:keys [width height tiles-per-column tiles-per-row] :as tile-source-attributes}]
   (for [tile-y (range tiles-per-column)
-        tile-x (range tiles-per-row)]
-    (TextureSetLayout$Rect. (format "tile%d" (+ tile-x (* tile-y tiles-per-row)))
-                            tile-x
-                            tile-y
+        tile-x (range tiles-per-row)
+        :let [index (+ tile-x (* tile-y tiles-per-row))
+        						name (format "tile%d" index)]]
+    (TextureSetLayout$Rect. name
+    																								index
+                            (* tile-x width)
+                            (* tile-y height)
                             (int width)
                             (int height))))
 

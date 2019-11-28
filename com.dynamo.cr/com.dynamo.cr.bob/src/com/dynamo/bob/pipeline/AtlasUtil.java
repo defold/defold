@@ -5,7 +5,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import javax.imageio.ImageIO;
 
@@ -80,23 +83,42 @@ public class AtlasUtil {
         }
     }
 
+    private static final class AtlasImageSortKey {
+        public final String path;
+        public final SpriteTrimmingMode mode;
+        public AtlasImageSortKey(String path, SpriteTrimmingMode mode) {
+            this.path = path;
+            this.mode = mode;
+        }
+        @Override
+        public int hashCode() {
+            return path.hashCode() + 31 * this.mode.hashCode();
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            AtlasImageSortKey b = (AtlasImageSortKey)o;
+            return this.mode == b.mode && this.path.equals(b.path);
+        }
+    }
+
     public static List<AtlasImage> collectImages(Atlas atlas) {
-        List<String> paths = new ArrayList<String>();
+        Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<AtlasImageSortKey, AtlasImage>();
         List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
-            String p = image.getImage();
-            if (!paths.contains(p)) {
+            AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+            if (!uniqueImages.containsKey(key)) {
+                uniqueImages.put(key, image);
                 images.add(image);
-                paths.add(p);
             }
         }
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             for (AtlasImage image : anim.getImagesList() ) {
-                String p = image.getImage();
-                if (!paths.contains(p)) {
+                AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+                if (!uniqueImages.containsKey(key)) {
+                    uniqueImages.put(key, image);
                     images.add(image);
-                    paths.add(p);
                 }
             }
         }
@@ -151,6 +173,18 @@ public class AtlasUtil {
         return animDescs;
     }
 
+    private static int spriteTrimModeToInt(SpriteTrimmingMode mode) {
+        switch (mode) {
+            case SPRITE_TRIM_MODE_OFF:   return 0;
+            case SPRITE_TRIM_MODE_4:     return 4;
+            case SPRITE_TRIM_MODE_5:     return 5;
+            case SPRITE_TRIM_MODE_6:     return 6;
+            case SPRITE_TRIM_MODE_7:     return 7;
+            case SPRITE_TRIM_MODE_8:     return 8;
+        }
+        return 0;
+    }
+
     public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(atlasResource, builder);
@@ -161,17 +195,7 @@ public class AtlasUtil {
         List<Integer> imageHullSizes = new ArrayList<Integer>();
         for (AtlasImage image : atlasImages) {
             imagePaths.add(image.getImage());
-            SpriteTrimmingMode mode = image.getSpriteTrimMode();
-            switch (mode) {
-                case SPRITE_TRIM_MODE_OFF:   imageHullSizes.add(0); break;
-                case SPRITE_TRIM_MODE_4:     imageHullSizes.add(4); break;
-                case SPRITE_TRIM_MODE_5:     imageHullSizes.add(5); break;
-                case SPRITE_TRIM_MODE_6:     imageHullSizes.add(6); break;
-                case SPRITE_TRIM_MODE_7:     imageHullSizes.add(7); break;
-                case SPRITE_TRIM_MODE_8:     imageHullSizes.add(8); break;
-                default:
-                    throw new CompileExceptionError(atlasResource, -1, "Invalid sprite trim mode: " + mode.toString());
-            }
+            imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
         }
         List<IResource> imageResources = toResources(atlasResource, imagePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);

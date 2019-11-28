@@ -89,8 +89,8 @@ public class TileSetGenerator {
     }
 
     public static TextureSetResult generate(TileSet tileSet, BufferedImage image, BufferedImage collisionImage) {
-        Rect imageRect = image != null ? new Rect(null, image.getWidth(), image.getHeight()) : null;
-        Rect collisionRect = collisionImage != null ? new Rect(null, collisionImage.getWidth(), collisionImage.getHeight()) : null;
+        Rect imageRect = image != null ? new Rect(null, -1, image.getWidth(), image.getHeight()) : null;
+        Rect collisionRect = collisionImage != null ? new Rect(null, -1, collisionImage.getWidth(), collisionImage.getHeight()) : null;
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(imageRect, tileSet.getTileWidth(),
                 tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionRect, 1.0f, 0.0f);
 
@@ -119,8 +119,6 @@ public class TileSetGenerator {
         }
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
-
-System.out.println("MAWE TileSetGenerator");
 
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
