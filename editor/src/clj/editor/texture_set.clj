@@ -93,21 +93,18 @@
 (defn- get-vertices-from-geometry
   [geometry]
   (let [{:keys [width height vertices uvs indices]} geometry]
-    (prn width height uvs)
     (mapv (fn [^long index]
             [(* width (vertices (+ 0 (* 2 index))))
              (* height(vertices (+ 1 (* 2 index))))
              0.0
              (short (* Short/MAX_VALUE (uvs (+ 0 (* 2 index)))))
              (short (* Short/MAX_VALUE (uvs (+ 1 (* 2 index)))))])
-          indices))
-  )
+          indices)))
 
 (defn- frame-vertices
   [texture-set]
   (let []
-    (mapv get-vertices-from-geometry (get-in texture-set [:geometries]))
-    ))
+    (mapv get-vertices-from-geometry (get-in texture-set [:geometries]))))
 
 (defn- mind ^double [^double a ^double b] (Math/min a b))
 (defn- maxd ^double [^double a ^double b] (Math/max a b))
