@@ -147,6 +147,7 @@
  * 
  * 
  * @name math.huge
+ * @variable
  */
 
 /*# compute m* 2^n

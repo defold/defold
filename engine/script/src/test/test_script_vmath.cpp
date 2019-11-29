@@ -41,7 +41,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -117,6 +117,8 @@ TEST_F(ScriptVmathTest, TestVector3Fail)
     ASSERT_FALSE(RunString(L, "local v = vmath.vector3(0,0,0)\nlocal v2 = v - 1"));
     // mul
     ASSERT_FALSE(RunString(L, "local v = vmath.vector3(0,0,0)\nlocal v2 = v * \"hej\""));
+    // div
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector3(0,0,0)\nlocal v2 = v / \"hej\""));
     // Dot
     ASSERT_FALSE(RunString(L, "local s = vmath.dot(vmath.vector3(0,0,0))"));
     ASSERT_FALSE(RunString(L, "local s = vmath.dot(vmath.vector3(0,0,0), 1)"));
@@ -164,10 +166,28 @@ TEST_F(ScriptVmathTest, TestVector4Fail)
     ASSERT_FALSE(RunString(L, "local v = vmath.vector4(0,0,0,0)\nlocal a = v.X"));
     // new index
     ASSERT_FALSE(RunString(L, "local v = vmath.vector4(0,0,0,0)\nv.X = 1"));
+    // add
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector4(0,0,0,0)\nlocal v2 = v + 1"));
+    // add
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector4(0,0,0,0)\nlocal v2 = v - 1"));
+    // mul
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector4(0,0,0,0)\nlocal v2 = v * \"hej\""));
+    // div
+    ASSERT_FALSE(RunString(L, "local v = vmath.vector4(0,0,0,0)\nlocal v2 = v / \"hej\""));
+    // Dot
+    ASSERT_FALSE(RunString(L, "local s = vmath.dot(vmath.vector4(0,0,0,0))"));
+    ASSERT_FALSE(RunString(L, "local s = vmath.dot(vmath.vector4(0,0,0,0), 1)"));
 
+    ASSERT_FALSE(RunString(L, "local s = vmath.cross(vmath.vector4(0,0,0,0), 1)"));
+    // Lerp
+    ASSERT_FALSE(RunString(L, "local v = vmath.lerp(0, vmath.vector4(0,0,0,0), 1)"));
+    // Slerp
+    ASSERT_FALSE(RunString(L, "local v = vmath.slerp(0, vmath.vector4(0,0,0,0), 1)"));
     // Mul per elem
     ASSERT_FALSE(RunString(L, "local s = vmath.mul_per_elem(vmath.vector4(1,2,3,4))"));
     ASSERT_FALSE(RunString(L, "local s = vmath.mul_per_elem(vmath.vector4(1,2,3,4), 1)"));
+    ASSERT_FALSE(RunString(L, "local s = vmath.mul_per_elem(1, 1)"));
+
 }
 
 TEST_F(ScriptVmathTest, TestQuat)
@@ -301,6 +321,8 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4()\nm.a = 1"));
     // mul
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
+    // translation
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_translation()"));
 }
 
 

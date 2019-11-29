@@ -493,6 +493,13 @@ namespace dmPhysics
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags);
 
     /**
+     * Enable or disable a grid shape (layer)
+     * @param shape_index index of the collision shape
+     * @param enable true if the layer should be enabled
+     */
+    void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable);
+
+    /**
      * Set group and mask for collision object
      * @param collision_object collsion object
      * @param shape shape index.
@@ -1247,6 +1254,9 @@ namespace dmPhysics
     void DeleteJoint2D(HWorld2D world, HJoint joint);
     bool GetJointReactionForce2D(HWorld2D world, HJoint joint, Vectormath::Aos::Vector3& force, float inv_dt);
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
+    void FlipH2D(HCollisionObject2D collision_object);
+    void FlipV2D(HCollisionObject2D collision_object);
+
 }
 
 #endif // PHYSICS_H

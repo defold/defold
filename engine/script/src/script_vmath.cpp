@@ -22,8 +22,7 @@ namespace dmScript
      * Functions for mathematical operations on vectors, matrices and quaternions.
      *
      * - The vector types (`vmath.vector3` and `vmath.vector4`) supports addition and subtraction
-     *   with vectors of the same type. Vectors can be negated and multiplied with numbers
-     *   (scaled).
+     *   with vectors of the same type. Vectors can be negated and multiplied (scaled) or divided by numbers.
      * - The quaternion type (`vmath.quat`) supports multiplication with other quaternions.
      * - The matrix type (`vmath.matrix4`) can be multiplied with numbers, other matrices
      *   and `vmath.vector4` values.
@@ -269,6 +268,14 @@ namespace dmScript
         return 1;
     }
 
+    static int Vector3_div(lua_State *L)
+    {
+        Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+        float s = (float) luaL_checknumber(L, 2);
+        PushVector3(L, *v / s);
+        return 1;
+    }
+
     static int Vector3_unm(lua_State *L)
     {
         Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)lua_touserdata(L, 1);
@@ -282,7 +289,7 @@ namespace dmScript
         Vectormath::Aos::Vector3* v = CheckVector3(L, 2);
         size_t size = 48 + strlen(s);
         char* buffer = new char[size];
-        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f]", s, v->getX(), v->getY(), v->getZ());
+        dmSnPrintf(buffer, size, "%s[%f, %f, %f]", s, v->getX(), v->getY(), v->getZ());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -308,6 +315,7 @@ namespace dmScript
         {"__add", Vector3_add},
         {"__sub", Vector3_sub},
         {"__mul", Vector3_mul},
+        {"__div", Vector3_div},
         {"__unm", Vector3_unm},
         {"__concat", Vector3_concat},
         {"__eq", Vector3_eq},
@@ -423,6 +431,14 @@ namespace dmScript
         return 1;
     }
 
+    static int Vector4_div(lua_State *L)
+    {
+        Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+        float s = (float) luaL_checknumber(L, 2);
+        PushVector4(L, *v / s);
+        return 1;
+    }
+
     static int Vector4_unm(lua_State *L)
     {
         Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)lua_touserdata(L, 1);
@@ -436,7 +452,7 @@ namespace dmScript
         Vectormath::Aos::Vector4* v = CheckVector4(L, 2);
         size_t size = 64 + strlen(s);
         char* buffer = new char[size];
-        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, v->getX(), v->getY(), v->getZ(), v->getW());
+        dmSnPrintf(buffer, size, "%s[%f, %f, %f, %f]", s, v->getX(), v->getY(), v->getZ(), v->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -462,6 +478,7 @@ namespace dmScript
         {"__add",       Vector4_add},
         {"__sub",       Vector4_sub},
         {"__mul",       Vector4_mul},
+        {"__div",       Vector4_div},
         {"__unm",       Vector4_unm},
         {"__concat",    Vector4_concat},
         {"__eq",        Vector4_eq},
@@ -554,7 +571,7 @@ namespace dmScript
         Vectormath::Aos::Quat* q = CheckQuat(L, 2);
         size_t size = 64 + strlen(s);
         char* buffer = new char[size];
-        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f]", s, q->getX(), q->getY(), q->getZ(), q->getW());
+        dmSnPrintf(buffer, size, "%s[%f, %f, %f, %f]", s, q->getX(), q->getY(), q->getZ(), q->getW());
         lua_pushstring(L, buffer);
         delete [] buffer;
         return 1;
@@ -695,7 +712,7 @@ namespace dmScript
         Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 2);
         size_t size = 256 + strlen(s);
         char* buffer = new char[size];
-        DM_SNPRINTF(buffer, size, "%s[%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f]", s,
+        dmSnPrintf(buffer, size, "%s[%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f]", s,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
@@ -1552,6 +1569,45 @@ namespace dmScript
         return 1;
     }
 
+    /*# creates a translation matrix from a position vector
+     * The resulting matrix describes a translation of a point
+     * in euclidean space.
+     *
+     * @name vmath.matrix4_translation
+     * @param position [type:vector3|type:vector4] position vector to create matrix from
+     * @return m [type:matrix4] matrix from the supplied position vector
+     * @examples
+     *
+     * ```lua
+     * -- Set camera view from custom view and translation matrices
+     * local mat_trans = vmath.matrix4_translation(vmath.vector3(0, 10, 100))
+     * local mat_view  = vmath.matrix4_rotation_y(-3.141592/4)
+     * render.set_view(mat_view * mat_trans)
+     * ```
+     */
+    static int Matrix4_Translation(lua_State* L)
+    {
+        const ScriptUserType v_type = GetType(L, 1);
+
+        if (v_type == SCRIPT_TYPE_VECTOR3)
+        {
+            const Vectormath::Aos::Vector3* t1 = CheckVector3(L, 1);
+            PushMatrix4(L, Vectormath::Aos::Matrix4::translation(*t1));
+        }
+        else if (v_type == SCRIPT_TYPE_VECTOR4)
+        {
+            const Vectormath::Aos::Vector4* t1 = CheckVector4(L, 1);
+            PushMatrix4(L, Vectormath::Aos::Matrix4::translation(t1->getXYZ()));
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "matrix4_translation",
+                SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+        }
+
+        return 1;
+    }
+
     /*# calculates the inverse matrix.
      * The resulting matrix is the inverse of the supplied matrix.
      *
@@ -2219,6 +2275,7 @@ namespace dmScript
         {"matrix4_rotation_x", Matrix4_RotationX},
         {"matrix4_rotation_y", Matrix4_RotationY},
         {"matrix4_rotation_z", Matrix4_RotationZ},
+        {"matrix4_translation", Matrix4_Translation},
         {"dot", Dot},
         {"length_sqr", LengthSqr},
         {"length", Length},

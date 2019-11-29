@@ -63,36 +63,38 @@
                      [com.sun.xml.bind/jaxb-core "2.3.0"]
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
-                     [cljfx "1.3.4"]
+                     [org.luaj/luaj-jse "3.0.1"]
 
-                     [org.openjfx/javafx-base "13-ea+11"]
-                     [org.openjfx/javafx-base "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-base "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-base "13-ea+11" :classifier "win"]
-                     [org.openjfx/javafx-controls "13-ea+11"]
-                     [org.openjfx/javafx-controls "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-controls "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-controls "13-ea+11" :classifier "win"]
-                     [org.openjfx/javafx-graphics "13-ea+11"]
-                     [org.openjfx/javafx-graphics "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-graphics "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-graphics "13-ea+11" :classifier "win"]
-                     [org.openjfx/javafx-media "13-ea+11"]
-                     [org.openjfx/javafx-media "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-media "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-media "13-ea+11" :classifier "win"]
-                     [org.openjfx/javafx-web "13-ea+11"]
-                     [org.openjfx/javafx-web "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-web "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-web "13-ea+11" :classifier "win"]
-                     [org.openjfx/javafx-fxml "13-ea+11"]
-                     [org.openjfx/javafx-fxml "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-fxml "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-fxml "13-ea+11" :classifier "win"]
-                     [org.openjfx/javafx-swing "13-ea+11"]
-                     [org.openjfx/javafx-swing "13-ea+11" :classifier "linux"]
-                     [org.openjfx/javafx-swing "13-ea+11" :classifier "mac"]
-                     [org.openjfx/javafx-swing "13-ea+11" :classifier "win"]
+                     [cljfx "1.5.0"]
+
+                     [org.openjfx/javafx-base "14-ea+1"]
+                     [org.openjfx/javafx-base "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-base "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-base "14-ea+1" :classifier "win"]
+                     [org.openjfx/javafx-controls "14-ea+1"]
+                     [org.openjfx/javafx-controls "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-controls "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-controls "14-ea+1" :classifier "win"]
+                     [org.openjfx/javafx-graphics "14-ea+1"]
+                     [org.openjfx/javafx-graphics "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-graphics "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-graphics "14-ea+1" :classifier "win"]
+                     [org.openjfx/javafx-media "14-ea+1"]
+                     [org.openjfx/javafx-media "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-media "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-media "14-ea+1" :classifier "win"]
+                     [org.openjfx/javafx-web "14-ea+1"]
+                     [org.openjfx/javafx-web "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-web "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-web "14-ea+1" :classifier "win"]
+                     [org.openjfx/javafx-fxml "14-ea+1"]
+                     [org.openjfx/javafx-fxml "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-fxml "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-fxml "14-ea+1" :classifier "win"]
+                     [org.openjfx/javafx-swing "14-ea+1"]
+                     [org.openjfx/javafx-swing "14-ea+1" :classifier "linux"]
+                     [org.openjfx/javafx-swing "14-ea+1" :classifier "mac"]
+                     [org.openjfx/javafx-swing "14-ea+1" :classifier "win"]
 
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
                      [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
@@ -155,6 +157,7 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
+                      "-Dfile.encoding=UTF-8"
                       "--illegal-access=warn"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -174,10 +177,11 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
-                      :local-repl {:injections [(future (editor/-main))]
-                                   :repl-options {:init-ns editor}
+                      :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
+                      :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
+                                 :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
@@ -203,3 +207,4 @@
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
                                                     "-XX:+DebugNonSafepoints"]}})     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
+

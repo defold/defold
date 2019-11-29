@@ -1,10 +1,71 @@
 .sync-dialog {
-  #message {
-    -fx-border-color: $dark-grey-border;
-    -fx-prompt-text-fill: $tree-view-icon;
+  .list-view {
+    -fx-background-color: $dark-grey-light;
+    -fx-padding: 0px;
   }
-  .description {
-    -fx-fill: $defold-white;
+
+  Text {
+    -fx-fill: $bright-grey-light;
     -fx-font-smoothing-type: lcd;
+  }
+
+  .text-area {
+    -fx-border-color: $input-border;
+    -fx-border-width: 1px;
+    -fx-highlight-fill: $input-background;
+    -fx-highlight-text-fill: $defold-white;
+    -fx-prompt-text-fill: $tree-view-icon;
+    -fx-text-fill: $defold-white;
+
+    .content {
+      -fx-background-color: $input-background;
+    }
+
+    &:focused {
+      -fx-highlight-fill: -fx-accent;
+      -fx-highlight-text-fill: $defold-white;
+      -fx-prompt-text-fill: transparent;
+
+      .content {
+        -fx-background-color: $root-background;
+      }
+    }
+  }
+
+  .text-field {
+    -fx-prompt-text-fill: $tree-view-icon;
+
+    &:focused {
+      -fx-prompt-text-fill: transparent;
+    }
+  }
+
+  .text-area, .text-field {
+    &.error { -fx-border-color: $error-severity-fatal; }
+    &.warning { -fx-border-color: $error-severity-warning; }
+    &.info { -fx-border-color: $error-severity-info; }
+  }
+
+  #pull-info-box, #push-info-box {
+    -fx-padding: 60px 110px 0px 110px;
+  }
+
+  #pull-start-box {
+    -fx-padding: 30px 110px 0px 110px;
+
+    Label {
+      -fx-padding: 18px 0px 4px 0px;
+    }
+
+    .check-box {
+      -fx-padding: 4px 0px 32px 0px;
+    }
+
+    .hyperlink:disabled {
+      -fx-cursor: default;
+      -fx-opacity: 1.0;
+      -fx-text-fill: $bright-grey-light;
+      -fx-underline: false;
+    }
   }
 }

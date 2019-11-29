@@ -79,6 +79,14 @@ public class Win32Bundler implements IBundler {
         FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
         FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
+        // Copy debug symbols if they were generated
+        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        File bundlePdb = new File(zipDir, "dmengine.pdb");
+        if (bundlePdb.exists()) {
+            File pdbOut = new File(appDir, "dmengine.pdb");
+            FileUtils.copyFile(bundlePdb, pdbOut);
+        }
+
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into bundle directory

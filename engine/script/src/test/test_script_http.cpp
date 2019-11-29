@@ -148,7 +148,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -197,7 +197,7 @@ TEST_F(ScriptHttpTest, TestPost)
     ASSERT_TRUE(RunFile(L, "test_http.luac"));
 
     char buf[1024];
-    DM_SNPRINTF(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
+    dmSnPrintf(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
     RunString(L, buf);
 
     lua_getglobal(L, "functions");
@@ -242,7 +242,7 @@ TEST_F(ScriptHttpTest, TestPost)
         uint64_t now = dmTime::GetTime();
         uint64_t elapsed = now - start;
 
-        if (elapsed / 1000000 > 4) {
+        if (elapsed / 1000000 > 8) {
             dmLogError("The test timed out\n");
             ASSERT_TRUE(0);
         }
@@ -272,7 +272,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
     ASSERT_TRUE(RunFile(L, "test_http_timeout.luac"));
 
     char buf[1024];
-    DM_SNPRINTF(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
+    dmSnPrintf(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
     RunString(L, buf);
 
     lua_getglobal(L, "functions");
@@ -330,7 +330,7 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
     ASSERT_TRUE(RunFile(L, "test_http.luac"));
 
     char buf[1024];
-    DM_SNPRINTF(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
+    dmSnPrintf(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
     RunString(L, buf);
 
     lua_getglobal(L, "functions");

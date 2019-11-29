@@ -4,7 +4,7 @@
 #include "../resource_archive.h"
 #include "../resource_archive_private.h"
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>
@@ -14,6 +14,11 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+
+template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmResource::Result r) {
+    return buffer + JC_TEST_SNPRINTF(buffer, buffer_len, "%s", dmResource::ResultToString(r));
+}
 
 // new file format, generated test data
 extern unsigned char RESOURCES_ARCI[];
@@ -138,7 +143,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
 
             cursor_hash = (uint8_t*)((uintptr_t)cursor_hash + DMRESOURCE_MAX_HASH);
             cursor_entry = (uint8_t*)((uintptr_t)cursor_entry + sizeof(dmResourceArchive::EntryData));
-            
+
         }
     }
     dmResourceArchive::ArchiveIndex* ai = (dmResourceArchive::ArchiveIndex*)arci_data;
@@ -221,7 +226,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(entry.m_ResourceSize, resource->m_Count);
-    
+
     free(resource->m_Header);
     free(resource);
     dmResourceArchive::Delete(archive);
@@ -242,7 +247,7 @@ TEST(dmResourceArchive, NewArchiveIndexFromCopy)
     dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 0);
     ASSERT_EQ(496U, dmResourceArchive::GetEntryDataOffset(dst_archive));
     dmResourceArchive::Delete(dst_archive);
-    
+
     // Allocate space for 3 extra entries
     dst_archive = 0;
     dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 3);
@@ -324,7 +329,7 @@ TEST(dmResourceArchive, ManifestHeader)
     delete manifest;
 }
 
-void PrintHash(const uint8_t* hash, uint32_t len)
+static void PrintHash(const uint8_t* hash, uint32_t len)
 {
     char* buf = new char[len*2+1];
     buf[len] = '\0';
@@ -336,19 +341,55 @@ void PrintHash(const uint8_t* hash, uint32_t len)
     delete[] buf;
 }
 
-// DE 20190122: Disabled this test since it keeps failing on linux-32 bit, see jira DEF-3461
-#if 0
+static void PrintArray(uint8_t* a, uint32_t size)
+{
+    uint32_t left = size;
+    uint32_t stride = 32;
+    while (left > 0) {
+        if (left > 8) {
+            for (int i = 0; i < 8; ++i, ++a) {
+                printf("%02X ", *a);
+            }
+            left -= 8;
+            printf(" ");
+        } else {
+            for (int i = 0; i < left; ++i, ++a) {
+                printf("%02X ", *a);
+            }
+            left  = 0;
+        }
+        stride -= 8;
+        if (stride == 0) {
+            printf("\n");
+            stride = 32;
+        }
+    }
+}
+
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
+    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
-    char* hex_digest = 0x0;
+    // We have an intermittent fail here, so let's output the info so we can start investigating it.
+    // We always print these so that we can compare the failed build with a successful one
+    {
+        printf("\nPUBLIC KEY (sz: %u):\n\n", RESOURCES_PUBLIC_SIZE);
+        PrintArray(RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
+        printf("\n");
+
+        uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+        printf("\nMANIFEST SIGNATURE (sz: %u):\n\n", signature_len);
+        PrintArray(signature, signature_len);
+        printf("\n");
+    }
+    uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
     // debug prints to determine cause of intermittent test fail on linux 32-bit
     printf("Expected digest (%u bytes):\n", expected_digest_len);
@@ -364,7 +405,6 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
-#endif
 
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
@@ -372,13 +412,13 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
+    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
-    char* hex_digest = 0x0;
+    uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
@@ -392,13 +432,13 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
+    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
 
-    char* hex_digest = 0x0;
+    uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
     memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
 
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
@@ -414,9 +454,9 @@ TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
     resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
-    char* hex_digest = 0x0;
+    uint8_t* hex_digest = 0x0;
     uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
 
     free(hex_digest);
     free(resources_public_wrong);

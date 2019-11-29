@@ -6,7 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
-#include <dlib/md5.h>
+#include <dlib/crypt.h>
 #include "script_private.h"
 
 extern "C"
@@ -53,7 +53,7 @@ namespace dmScript
      * end
      * ```
      */
-    int Script_Hash(lua_State* L)
+    static int Script_Hash(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -88,35 +88,31 @@ namespace dmScript
      * print(hexstr) --> a2bc06d97f580aab
      * ```
      */
-    int Script_HashToHex(lua_State* L)
+    static int Script_HashToHex(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmhash_t hash = dmScript::CheckHash(L, 1);
         char buf[17];
-        DM_SNPRINTF(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
+        dmSnPrintf(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
         lua_pushstring(L, buf);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
-    int Script_HashMD5(lua_State* L)
+    static int Script_HashMD5(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        dmMD5::State s;
-        dmMD5::Init(&s);
-
         size_t len;
         const char* str = luaL_checklstring(L, 1, &len);
-        dmMD5::Update(&s, str, len);
-        dmMD5::Digest digest;
-        dmMD5::Final(&s, &digest);
-        uint8_t* d = &digest.m_Digest[0];
 
-        char md5[DM_MD5_SIZE * 2 + 1]; // We need a terminal zero for snprintf
-        DM_SNPRINTF(md5, sizeof(md5), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+        uint8_t d[16];
+        dmCrypt::HashMd5((const uint8_t*)str, len, d);
+
+        char md5[16 * 2 + 1]; // We need a terminal zero for snprintf
+        dmSnPrintf(md5, sizeof(md5), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                     d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
         lua_pushstring(L, md5);
 
@@ -231,21 +227,21 @@ namespace dmScript
             const char* s = (const char*)dmHashReverse64(*hash, 0);
             if (s)
             {
-                DM_SNPRINTF(buffer, bufferlength, "%s", s);
+                dmSnPrintf(buffer, bufferlength, "%s", s);
             }
             else
             {
-                DM_SNPRINTF(buffer, bufferlength, "%llu", (unsigned long long)*hash);
+                dmSnPrintf(buffer, bufferlength, "%llu", (unsigned long long)*hash);
             }
         }
         else
         {
-            DM_SNPRINTF(buffer, bufferlength, "%s", "<unknown>");
+            dmSnPrintf(buffer, bufferlength, "%s", "<unknown>");
         }
         return buffer;
     }
 
-    int Script_eq(lua_State* L)
+    static int Script_eq(lua_State* L)
     {
         void* userdata_1 = lua_touserdata(L, 1);
         void* userdata_2 = lua_touserdata(L, 2);
@@ -263,11 +259,11 @@ namespace dmScript
         const char* reverse = (const char*) dmHashReverse64(hash, 0);
         if (reverse != 0x0)
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
+            dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
         }
         else
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
+            dmSnPrintf(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
         }
         lua_pushstring(L, buffer);
         return 1;
@@ -286,12 +282,12 @@ namespace dmScript
             {
                 size_t size = strlen(reverse) + 3;
                 s = (char*)malloc(size);
-                DM_SNPRINTF(s, size, "[%s]", reverse);
+                dmSnPrintf(s, size, "[%s]", reverse);
             }
             else
             {
                 s = (char*)malloc(64);
-                DM_SNPRINTF(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
+                dmSnPrintf(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
             }
             return s;
         }

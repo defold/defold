@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.build :as build]
             [editor.fs :as fs]
             [editor.git :as git]
             [editor.defold-project :as project]
@@ -83,15 +84,6 @@
     (-> git (.commit) (.setMessage "init repo") (.call))
     git))
 
-(defn- path->file [workspace ^String path]
-  (File. ^File (workspace/project-path workspace) path))
-
-(defn- rename! [workspace ^String from ^String to]
-  (let [from-file (path->file workspace from)
-        to-file (path->file workspace to)]
-    (fs/move-file! from-file to-file)
-    (workspace/resource-sync! workspace [[from-file to-file]])))
-
 (defn- edit-and-save! [workspace atlas margin]
   (g/set-property! atlas :margin margin)
   (let [save-data (g/node-value atlas :save-data)]
@@ -102,7 +94,7 @@
   (let [status (git/unified-status git)
         moved-files (->> status
                       (filter #(= (:change-type %) :rename))
-                      (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %)))))]
+                      (mapv #(vector (test-util/file workspace (:new-path %)) (test-util/file workspace (:old-path %)))))]
     (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) status))
     (workspace/resource-sync! workspace moved-files)))
 
@@ -120,7 +112,7 @@
           git (init-git proj-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
-      (rename! workspace atlas-path atlas-path2)
+      (test-util/move-file! workspace atlas-path atlas-path2)
       (is (= atlas-res2 (g/node-value app-view :active-resource)))
       (revert-all! workspace git)
       (is (= atlas-res (g/node-value app-view :active-resource)))
@@ -143,7 +135,7 @@
       (is main-dir)
       (let [evaluation-context (g/make-evaluation-context)
             old-artifact-map (workspace/artifact-map workspace)
-            build-results (project/build! project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
         (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
@@ -152,7 +144,7 @@
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
-            build-results (project/build! project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))

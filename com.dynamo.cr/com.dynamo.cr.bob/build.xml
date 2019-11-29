@@ -163,11 +163,8 @@
             </tarfileset>
         </copy>
 
-        <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
-             specifically vecmath.jar on OSX -->
         <javac srcdir="generated"
                destdir="${classes.dir}"
-               extdirs="foo"
                includeantruntime="false"
                encoding="UTF-8">
             <classpath>
@@ -177,7 +174,6 @@
         </javac>
 
         <javac destdir="${classes.dir}"
-               extdirs="foo"
                includeantruntime="false"
                debug="true"
                encoding="UTF-8">
@@ -286,6 +282,9 @@
               <include name="openmali.jar"/>
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
+              <include name="jaxb-api-2.3.0.jar"/>
+              <include name="jaxb-core-2.3.0.jar"/>
+              <include name="jaxb-impl-2.3.0.jar"/>
             </zipgroupfileset>
          </jar>
 

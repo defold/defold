@@ -16,10 +16,11 @@
     #include <emscripten/emscripten.h>
 #endif
 
+#include "graphics_opengl_defines.h"
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "async/job_queue.h"
-#include "graphics_opengl.h"
+#include "graphics_opengl_private.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -118,6 +119,12 @@ PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
 PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
 PFNGLUNIFORM1IPROC glUniform1i = NULL;
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+PFNGLGETSTRINGIPROC glGetStringi = NULL;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+#endif
 
 #elif defined(__EMSCRIPTEN__)
 #include <GL/glext.h>
@@ -280,8 +287,9 @@ static void LogFrameBufferError(GLenum status)
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
-        m_ModificationVersion = 1;
-        m_VerifyGraphicsCalls = params.m_VerifyGraphicsCalls;
+        m_ModificationVersion     = 1;
+        m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         // Formats supported on all platforms
@@ -361,6 +369,8 @@ static void LogFrameBufferError(GLenum status)
 
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
+        assert(extension && extensions);
+
         // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
         const GLubyte *start;
 
@@ -510,6 +520,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        }
+#endif
+
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
@@ -582,6 +602,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
         GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
+            GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
+            GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
+        }
+#endif
 
 #undef GET_PROC_ADDRESS
 #endif
@@ -631,8 +659,49 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             (void) SetFrontProcess( &psn );
 #endif
 
-        // Extension support
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        char* extensions_ptr = 0;
+        if (context->m_RenderDocSupport)
+        {
+            GLint n;
+            glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+            if (n > 0)
+            {
+                int max_len = 0;
+                int cursor = 0;
+
+                for (GLint i = 0; i < n; i++)
+                {
+                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                    max_len += (int) strlen((const char*)ext) + 1;
+                }
+
+                extensions_ptr = (char*) malloc(max_len);
+
+                for (GLint i = 0; i < n; i++)
+                {
+                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                    int str_len = (int) strlen((const char*)ext);
+
+                    strcpy(extensions_ptr + cursor, ext);
+
+                    cursor += str_len;
+                    extensions_ptr[cursor] = ' ';
+
+                    cursor += 1;
+                }
+            }
+        }
+        else
+        {
+            extensions_ptr = (char*) glGetString(GL_EXTENSIONS);
+        }
+
+        const GLubyte* extensions = (const GLubyte*) extensions_ptr;
+#else
+        // Check texture format support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+#endif
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
 
@@ -722,6 +791,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 JobQueueFinalize();
             }
         }
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            if (extensions_ptr)
+            {
+                free(extensions_ptr);
+            }
+
+            GLuint vao;
+            glGenVertexArrays(1, &vao);
+            glBindVertexArray(vao);
+        }
+#endif
+
         return WINDOW_RESULT_OK;
     }
 
@@ -749,6 +833,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             glfwIconifyWindow();
         }
+    }
+
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
+#endif
     }
 
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
@@ -870,6 +961,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glClear(flags);
         CHECK_GL_ERROR
+    }
+
+    void BeginFrame(HContext context)
+    {
+        // NOP
     }
 
     void Flip(HContext context)
@@ -1000,32 +1096,23 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return context->m_MaxElementIndices;
     }
 
-    static uint32_t GetTypeSize(Type type)
+    static uint32_t GetTypeSize(dmGraphics::Type type)
     {
-        uint32_t size = 0;
-        switch (type)
+        if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)
         {
-            case TYPE_BYTE:
-            case TYPE_UNSIGNED_BYTE:
-                size = 1;
-                break;
-
-            case TYPE_SHORT:
-            case TYPE_UNSIGNED_SHORT:
-                size = 2;
-                break;
-
-            case TYPE_INT:
-            case TYPE_UNSIGNED_INT:
-            case TYPE_FLOAT:
-                size = 4;
-                break;
-
-            default:
-                assert(0);
-                break;
+            return 1;
         }
-        return size;
+        else if (type == dmGraphics::TYPE_SHORT || type == dmGraphics::TYPE_UNSIGNED_SHORT)
+        {
+            return 2;
+        }
+        else if (type == dmGraphics::TYPE_INT || type == dmGraphics::TYPE_UNSIGNED_INT || type == dmGraphics::TYPE_FLOAT)
+        {
+             return 4;
+        }
+
+        assert(0);
+        return 0;
     }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
@@ -1228,18 +1315,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return s;
     }
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-
-        return CreateShader(GL_VERTEX_SHADER, program, program_size);
+        assert(ddf);
+        return CreateShader(GL_VERTEX_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-
-        return CreateShader(GL_FRAGMENT_SHADER, program, program_size);
+        assert(ddf);
+        return CreateShader(GL_FRAGMENT_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1317,19 +1402,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        GLint size = program_size;
+        assert(prog);
+        assert(ddf);
 
         GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
-        bool success = TryCompileShader(tmp_shader, program, size);
+        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR
 
         if (success)
         {
-            glShaderSource(prog, 1, (const GLchar**) &program, &size);
+            glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
             CHECK_GL_ERROR
             glCompileShader(prog);
             CHECK_GL_ERROR
@@ -1338,19 +1423,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return success;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
-        assert(program);
-        GLint size = program_size;
+        assert(prog);
+        assert(ddf);
 
         GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
-        bool success = TryCompileShader(tmp_shader, program, size);
+        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR
 
         if (success)
         {
-            glShaderSource(prog, 1, (const GLchar**) &program, &size);
+            glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
             CHECK_GL_ERROR
             glCompileShader(prog);
             CHECK_GL_ERROR
@@ -1442,13 +1527,27 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
+    {
+        // Not supported
+        return 0;
+    }
+
+    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
+    {
+        // Not supported
+        return -1;
+    }
+
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
         GLenum uniform_type;
-        glGetActiveUniform(prog, index, buffer_size, 0, &uniform_size, &uniform_type, buffer);
+        GLsizei uniform_name_length;
+        glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = (Type) uniform_type;
         CHECK_GL_ERROR
+        return (uint32_t)uniform_name_length;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
@@ -1935,7 +2034,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         GLenum gl_format;
-        GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
+        GLenum gl_type = dmGraphics::TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format = -1;
         switch (params.m_Format)
@@ -2000,7 +2099,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             break;
         case TEXTURE_FORMAT_RGB32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
             break;
@@ -2010,7 +2109,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
@@ -2020,7 +2119,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_R32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
@@ -2030,7 +2129,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_RG32F:
-            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
@@ -2207,7 +2306,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         assert(texture);
 
-#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (!context->m_RenderDocSupport)
+        {
+            glEnable(GL_TEXTURE_2D);
+            CHECK_GL_ERROR
+        }
+#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -2224,7 +2329,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
 
-#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (!context->m_RenderDocSupport)
+        {
+            glEnable(GL_TEXTURE_2D);
+            CHECK_GL_ERROR
+        }
+#elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -2249,6 +2360,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     void EnableState(HContext context, State state)
     {
         assert(context);
+    #if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport && state == STATE_ALPHA_TEST)
+        {
+            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
+            return;
+        }
+    #endif
         glEnable(state);
         CHECK_GL_ERROR
     }
@@ -2256,6 +2374,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     void DisableState(HContext context, State state)
     {
         assert(context);
+    #if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport && state == STATE_ALPHA_TEST)
+        {
+            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in Renderdoc mode.");
+            return;
+        }
+    #endif
         glDisable(state);
         CHECK_GL_ERROR
     }

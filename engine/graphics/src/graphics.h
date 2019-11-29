@@ -8,12 +8,6 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#if defined(__AVM2__)
-#include "flash/graphics_flash_defines.h"
-#else
-#include "opengl/graphics_opengl_defines.h"
-#endif
-
 namespace dmGraphics
 {
     typedef uintptr_t                 HVertexProgram;
@@ -51,59 +45,52 @@ namespace dmGraphics
      */
     typedef int32_t (*WindowIsRunning)(void* user_data);
 
+    // See documentation in engine.h
+    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef void (*EngineDestroy)(void* engine);
+    typedef int (*EngineUpdate)(void* engine);
+    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
     // primitive type
-    enum PrimitiveType
-    {
-        PRIMITIVE_POINTS            = DMGRAPHICS_PRIMITIVE_POINTS,
-        PRIMITIVE_LINES             = DMGRAPHICS_PRIMITIVE_LINES,
-        PRIMITIVE_LINE_LOOP         = DMGRAPHICS_PRIMITIVE_LINE_LOOP,
-        PRIMITIVE_LINE_STRIP        = DMGRAPHICS_PRIMITIVE_LINE_STRIP,
-        PRIMITIVE_TRIANGLES         = DMGRAPHICS_PRIMITIVE_TRIANGLES,
-        PRIMITIVE_TRIANGLE_STRIP    = DMGRAPHICS_PRIMITIVE_TRIANGLE_STRIP,
-        PRIMITIVE_TRIANGLE_FAN      = DMGRAPHICS_PRIMITIVE_TRIANGLE_FAN,
-    };
+    typedef uint32_t PrimitiveType;
+    extern const PrimitiveType PRIMITIVE_LINES;
+    extern const PrimitiveType PRIMITIVE_TRIANGLES;
+    extern const PrimitiveType PRIMITIVE_TRIANGLE_STRIP;
 
     // buffer clear types, each value is guaranteed to be separate bits
-    enum BufferType
-    {
-        BUFFER_TYPE_COLOR_BIT       = DMGRAPHICS_BUFFER_TYPE_COLOR_BIT,
-        BUFFER_TYPE_DEPTH_BIT       = DMGRAPHICS_BUFFER_TYPE_DEPTH_BIT,
-        BUFFER_TYPE_STENCIL_BIT     = DMGRAPHICS_BUFFER_TYPE_STENCIL_BIT,
-        MAX_BUFFER_TYPE_COUNT   = 3
-    };
+    typedef uint32_t BufferType;
+    extern const BufferType BUFFER_TYPE_COLOR_BIT;
+    extern const BufferType BUFFER_TYPE_DEPTH_BIT;
+    extern const BufferType BUFFER_TYPE_STENCIL_BIT;
+    static const BufferType MAX_BUFFER_TYPE_COUNT = 3;
 
-    // states
-    enum State
-    {
-        STATE_DEPTH_TEST            = DMGRAPHICS_STATE_DEPTH_TEST,
-        STATE_SCISSOR_TEST          = DMGRAPHICS_STATE_SCISSOR_TEST,
-        STATE_STENCIL_TEST          = DMGRAPHICS_STATE_STENCIL_TEST,
-#ifndef GL_ES_VERSION_2_0
-        STATE_ALPHA_TEST            = DMGRAPHICS_STATE_ALPHA_TEST,
-#endif
-        STATE_BLEND                 = DMGRAPHICS_STATE_BLEND,
-        STATE_CULL_FACE             = DMGRAPHICS_STATE_CULL_FACE,
-        STATE_POLYGON_OFFSET_FILL   = DMGRAPHICS_STATE_POLYGON_OFFSET_FILL,
-    };
+    // render states
+    typedef uint32_t State;
+    extern const State STATE_DEPTH_TEST;
+    extern const State STATE_SCISSOR_TEST;
+    extern const State STATE_STENCIL_TEST;
+    extern const State STATE_ALPHA_TEST;
+    extern const State STATE_BLEND;
+    extern const State STATE_CULL_FACE;
+    extern const State STATE_POLYGON_OFFSET_FILL;
+    extern const bool  STATE_ALPHA_TEST_SUPPORTED;
 
-    // Types
-    enum Type
-    {
-        TYPE_BYTE           = DMGRAPHICS_TYPE_BYTE,
-        TYPE_UNSIGNED_BYTE  = DMGRAPHICS_TYPE_UNSIGNED_BYTE,
-        TYPE_SHORT          = DMGRAPHICS_TYPE_SHORT,
-        TYPE_UNSIGNED_SHORT = DMGRAPHICS_TYPE_UNSIGNED_SHORT,
-        TYPE_INT            = DMGRAPHICS_TYPE_INT,
-        TYPE_UNSIGNED_INT   = DMGRAPHICS_TYPE_UNSIGNED_INT,
-        TYPE_FLOAT          = DMGRAPHICS_TYPE_FLOAT,
-        TYPE_FLOAT_VEC4     = DMGRAPHICS_TYPE_FLOAT_VEC4,
-        TYPE_FLOAT_MAT4     = DMGRAPHICS_TYPE_FLOAT_MAT4,
-        TYPE_SAMPLER_2D     = DMGRAPHICS_TYPE_SAMPLER_2D,
-        TYPE_SAMPLER_CUBE   = DMGRAPHICS_TYPE_SAMPLER_CUBE,
-    };
+    // data types
+    typedef uint32_t Type;
+    extern const Type TYPE_BYTE;
+    extern const Type TYPE_UNSIGNED_BYTE;
+    extern const Type TYPE_SHORT;
+    extern const Type TYPE_UNSIGNED_SHORT;
+    extern const Type TYPE_INT;
+    extern const Type TYPE_UNSIGNED_INT;
+    extern const Type TYPE_FLOAT;
+    extern const Type TYPE_FLOAT_VEC4;
+    extern const Type TYPE_FLOAT_MAT4;
+    extern const Type TYPE_SAMPLER_2D;
+    extern const Type TYPE_SAMPLER_CUBE;
 
     // Index buffer format
     enum IndexBufferFormat
@@ -161,98 +148,84 @@ namespace dmGraphics
     };
 
     // Texture type
-    enum TextureType
-    {
-        TEXTURE_TYPE_2D = DMGRAPHICS_TEXTURE_TYPE_2D,
-        TEXTURE_TYPE_CUBE_MAP = DMGRAPHICS_TEXTURE_TYPE_CUBE_MAP,
-    };
+    typedef uint32_t TextureType;
+    extern const TextureType TEXTURE_TYPE_2D;
+    extern const TextureType TEXTURE_TYPE_CUBE_MAP;
 
-    // Texture format
-    enum TextureFilter
-    {
-        TEXTURE_FILTER_DEFAULT                  = 0,
-        TEXTURE_FILTER_NEAREST                  = DMGRAPHICS_TEXTURE_FILTER_NEAREST,
-        TEXTURE_FILTER_LINEAR                   = DMGRAPHICS_TEXTURE_FILTER_LINEAR,
-        TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST   = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
-        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR    = DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR,
-        TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST    = DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
-        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR     = DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR,
-    };
+    // Texture filter
+    typedef uint32_t TextureFilter;
+    extern const TextureFilter TEXTURE_FILTER_DEFAULT;
+    extern const TextureFilter TEXTURE_FILTER_NEAREST;
+    extern const TextureFilter TEXTURE_FILTER_LINEAR;
+    extern const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+    extern const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+    extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+    extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
 
-    // Texture format
-    enum TextureWrap
-    {
-        TEXTURE_WRAP_CLAMP_TO_BORDER    = DMGRAPHICS_TEXTURE_WRAP_CLAMP_TO_BORDER,
-        TEXTURE_WRAP_CLAMP_TO_EDGE      = DMGRAPHICS_TEXTURE_WRAP_CLAMP_TO_EDGE,
-        TEXTURE_WRAP_MIRRORED_REPEAT    = DMGRAPHICS_TEXTURE_WRAP_MIRRORED_REPEAT,
-        TEXTURE_WRAP_REPEAT             = DMGRAPHICS_TEXTURE_WRAP_REPEAT
-    };
+    // Texture wrap
+    typedef uint32_t TextureWrap;
+    extern const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER;
+    extern const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE;
+    extern const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT;
+    extern const TextureWrap TEXTURE_WRAP_REPEAT;
 
     // Blend factor
-    enum BlendFactor
-    {
-        BLEND_FACTOR_ZERO                       = DMGRAPHICS_BLEND_FACTOR_ZERO,
-        BLEND_FACTOR_ONE                        = DMGRAPHICS_BLEND_FACTOR_ONE,
-        BLEND_FACTOR_SRC_COLOR                  = DMGRAPHICS_BLEND_FACTOR_SRC_COLOR,
-        BLEND_FACTOR_ONE_MINUS_SRC_COLOR        = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-        BLEND_FACTOR_DST_COLOR                  = DMGRAPHICS_BLEND_FACTOR_DST_COLOR,
-        BLEND_FACTOR_ONE_MINUS_DST_COLOR        = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
-        BLEND_FACTOR_SRC_ALPHA                  = DMGRAPHICS_BLEND_FACTOR_SRC_ALPHA,
-        BLEND_FACTOR_ONE_MINUS_SRC_ALPHA        = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        BLEND_FACTOR_DST_ALPHA                  = DMGRAPHICS_BLEND_FACTOR_DST_ALPHA,
-        BLEND_FACTOR_ONE_MINUS_DST_ALPHA        = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-        BLEND_FACTOR_SRC_ALPHA_SATURATE         = DMGRAPHICS_BLEND_FACTOR_SRC_ALPHA_SATURATE,
-        BLEND_FACTOR_CONSTANT_COLOR             = DMGRAPHICS_BLEND_FACTOR_CONSTANT_COLOR,
-        BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
-        BLEND_FACTOR_CONSTANT_ALPHA             = DMGRAPHICS_BLEND_FACTOR_CONSTANT_ALPHA,
-        BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
-    };
+    typedef uint32_t BlendFactor;
+    extern const BlendFactor BLEND_FACTOR_ZERO;
+    extern const BlendFactor BLEND_FACTOR_ONE;
+    extern const BlendFactor BLEND_FACTOR_SRC_COLOR;
+    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    extern const BlendFactor BLEND_FACTOR_DST_COLOR;
+    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    extern const BlendFactor BLEND_FACTOR_SRC_ALPHA;
+    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    extern const BlendFactor BLEND_FACTOR_DST_ALPHA;
+    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+    extern const BlendFactor BLEND_FACTOR_SRC_ALPHA_SATURATE;
+    extern const BlendFactor BLEND_FACTOR_CONSTANT_COLOR;
+    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+    extern const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA;
+    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 
     // Compare func
-    enum CompareFunc
-    {
-        COMPARE_FUNC_NEVER      = DMGRAPHICS_COMPARE_FUNC_NEVER,
-        COMPARE_FUNC_LESS       = DMGRAPHICS_COMPARE_FUNC_LESS,
-        COMPARE_FUNC_LEQUAL     = DMGRAPHICS_COMPARE_FUNC_LEQUAL,
-        COMPARE_FUNC_GREATER    = DMGRAPHICS_COMPARE_FUNC_GREATER,
-        COMPARE_FUNC_GEQUAL     = DMGRAPHICS_COMPARE_FUNC_GEQUAL,
-        COMPARE_FUNC_EQUAL      = DMGRAPHICS_COMPARE_FUNC_EQUAL,
-        COMPARE_FUNC_NOTEQUAL   = DMGRAPHICS_COMPARE_FUNC_NOTEQUAL,
-        COMPARE_FUNC_ALWAYS     = DMGRAPHICS_COMPARE_FUNC_ALWAYS,
-    };
+    typedef uint32_t CompareFunc;
+    extern const CompareFunc COMPARE_FUNC_NEVER;
+    extern const CompareFunc COMPARE_FUNC_LESS;
+    extern const CompareFunc COMPARE_FUNC_LEQUAL;
+    extern const CompareFunc COMPARE_FUNC_GREATER;
+    extern const CompareFunc COMPARE_FUNC_GEQUAL;
+    extern const CompareFunc COMPARE_FUNC_EQUAL;
+    extern const CompareFunc COMPARE_FUNC_NOTEQUAL;
+    extern const CompareFunc COMPARE_FUNC_ALWAYS;
 
     // Stencil operation
-    enum StencilOp
-    {
-        STENCIL_OP_KEEP         = DMGRAPHICS_STENCIL_OP_KEEP,
-        STENCIL_OP_ZERO         = DMGRAPHICS_STENCIL_OP_ZERO,
-        STENCIL_OP_REPLACE      = DMGRAPHICS_STENCIL_OP_REPLACE,
-        STENCIL_OP_INCR         = DMGRAPHICS_STENCIL_OP_INCR,
-        STENCIL_OP_INCR_WRAP    = DMGRAPHICS_STENCIL_OP_INCR_WRAP,
-        STENCIL_OP_DECR         = DMGRAPHICS_STENCIL_OP_DECR,
-        STENCIL_OP_DECR_WRAP    = DMGRAPHICS_STENCIL_OP_DECR_WRAP,
-        STENCIL_OP_INVERT       = DMGRAPHICS_STENCIL_OP_INVERT,
-    };
+    typedef uint32_t StencilOp;
+    extern const StencilOp STENCIL_OP_KEEP;
+    extern const StencilOp STENCIL_OP_ZERO;
+    extern const StencilOp STENCIL_OP_REPLACE;
+    extern const StencilOp STENCIL_OP_INCR;
+    extern const StencilOp STENCIL_OP_INCR_WRAP;
+    extern const StencilOp STENCIL_OP_DECR;
+    extern const StencilOp STENCIL_OP_DECR_WRAP;
+    extern const StencilOp STENCIL_OP_INVERT;
 
-    enum BufferUsage
-    {
-        BUFFER_USAGE_STREAM_DRAW    = DMGRAPHICS_BUFFER_USAGE_STREAM_DRAW,
-        BUFFER_USAGE_STREAM_READ    = DMGRAPHICS_BUFFER_USAGE_STREAM_READ,
-        BUFFER_USAGE_STREAM_COPY    = DMGRAPHICS_BUFFER_USAGE_STREAM_COPY,
-        BUFFER_USAGE_DYNAMIC_DRAW   = DMGRAPHICS_BUFFER_USAGE_DYNAMIC_DRAW,
-        BUFFER_USAGE_DYNAMIC_READ   = DMGRAPHICS_BUFFER_USAGE_DYNAMIC_READ,
-        BUFFER_USAGE_DYNAMIC_COPY   = DMGRAPHICS_BUFFER_USAGE_DYNAMIC_COPY,
-        BUFFER_USAGE_STATIC_DRAW    = DMGRAPHICS_BUFFER_USAGE_STATIC_DRAW,
-        BUFFER_USAGE_STATIC_READ    = DMGRAPHICS_BUFFER_USAGE_STATIC_READ,
-        BUFFER_USAGE_STATIC_COPY    = DMGRAPHICS_BUFFER_USAGE_STATIC_COPY,
-    };
+    // Buffer usage
+    typedef uint32_t BufferUsage;
+    extern const BufferUsage BUFFER_USAGE_STREAM_DRAW;
+    extern const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW;
+    extern const BufferUsage BUFFER_USAGE_STATIC_DRAW;
 
-    enum BufferAccess
-    {
-        BUFFER_ACCESS_READ_ONLY     = DMGRAPHICS_BUFFER_ACCESS_READ_ONLY,
-        BUFFER_ACCESS_WRITE_ONLY    = DMGRAPHICS_BUFFER_ACCESS_WRITE_ONLY,
-        BUFFER_ACCESS_READ_WRITE    = DMGRAPHICS_BUFFER_ACCESS_READ_WRITE,
-    };
+    // Buffer access
+    typedef uint32_t BufferAccess;
+    extern const BufferAccess BUFFER_ACCESS_READ_ONLY;
+    extern const BufferAccess BUFFER_ACCESS_WRITE_ONLY;
+    extern const BufferAccess BUFFER_ACCESS_READ_WRITE;
+
+    // Face type
+    typedef uint32_t FaceType;
+    extern const FaceType FACE_TYPE_FRONT;
+    extern const FaceType FACE_TYPE_BACK;
+    extern const FaceType FACE_TYPE_FRONT_AND_BACK;
 
     enum MemoryType
     {
@@ -261,46 +234,39 @@ namespace dmGraphics
 
     enum WindowState
     {
-        WINDOW_STATE_OPENED             = DMGRAPHICS_WINDOW_STATE_OPENED,
-        WINDOW_STATE_ACTIVE             = DMGRAPHICS_WINDOW_STATE_ACTIVE,
-        WINDOW_STATE_ICONIFIED          = DMGRAPHICS_WINDOW_STATE_ICONIFIED,
-        WINDOW_STATE_ACCELERATED        = DMGRAPHICS_WINDOW_STATE_ACCELERATED,
-        WINDOW_STATE_RED_BITS           = DMGRAPHICS_WINDOW_STATE_RED_BITS,
-        WINDOW_STATE_GREEN_BITS         = DMGRAPHICS_WINDOW_STATE_GREEN_BITS,
-        WINDOW_STATE_BLUE_BITS          = DMGRAPHICS_WINDOW_STATE_BLUE_BITS,
-        WINDOW_STATE_ALPHA_BITS         = DMGRAPHICS_WINDOW_STATE_ALPHA_BITS,
-        WINDOW_STATE_DEPTH_BITS         = DMGRAPHICS_WINDOW_STATE_DEPTH_BITS,
-        WINDOW_STATE_STENCIL_BITS       = DMGRAPHICS_WINDOW_STATE_STENCIL_BITS,
-        WINDOW_STATE_REFRESH_RATE       = DMGRAPHICS_WINDOW_STATE_REFRESH_RATE,
-        WINDOW_STATE_ACCUM_RED_BITS     = DMGRAPHICS_WINDOW_STATE_ACCUM_RED_BITS,
-        WINDOW_STATE_ACCUM_GREEN_BITS   = DMGRAPHICS_WINDOW_STATE_ACCUM_GREEN_BITS,
-        WINDOW_STATE_ACCUM_BLUE_BITS    = DMGRAPHICS_WINDOW_STATE_ACCUM_BLUE_BITS,
-        WINDOW_STATE_ACCUM_ALPHA_BITS   = DMGRAPHICS_WINDOW_STATE_ACCUM_ALPHA_BITS,
-        WINDOW_STATE_AUX_BUFFERS        = DMGRAPHICS_WINDOW_STATE_AUX_BUFFERS,
-        WINDOW_STATE_STEREO             = DMGRAPHICS_WINDOW_STATE_STEREO,
-        WINDOW_STATE_WINDOW_NO_RESIZE   = DMGRAPHICS_WINDOW_STATE_WINDOW_NO_RESIZE,
-        WINDOW_STATE_FSAA_SAMPLES       = DMGRAPHICS_WINDOW_STATE_FSAA_SAMPLES
-    };
-
-    enum FaceType
-    {
-        FACE_TYPE_FRONT           = DMGRAPHICS_FACE_TYPE_FRONT,
-        FACE_TYPE_BACK            = DMGRAPHICS_FACE_TYPE_BACK,
-        FACE_TYPE_FRONT_AND_BACK  = DMGRAPHICS_FACE_TYPE_FRONT_AND_BACK
+        WINDOW_STATE_OPENED             = 0x00020001,
+        WINDOW_STATE_ACTIVE             = 0x00020002,
+        WINDOW_STATE_ICONIFIED          = 0x00020003,
+        WINDOW_STATE_ACCELERATED        = 0x00020004,
+        WINDOW_STATE_RED_BITS           = 0x00020005,
+        WINDOW_STATE_GREEN_BITS         = 0x00020006,
+        WINDOW_STATE_BLUE_BITS          = 0x00020007,
+        WINDOW_STATE_ALPHA_BITS         = 0x00020008,
+        WINDOW_STATE_DEPTH_BITS         = 0x00020009,
+        WINDOW_STATE_STENCIL_BITS       = 0x0002000A,
+        WINDOW_STATE_REFRESH_RATE       = 0x0002000B,
+        WINDOW_STATE_ACCUM_RED_BITS     = 0x0002000C,
+        WINDOW_STATE_ACCUM_GREEN_BITS   = 0x0002000D,
+        WINDOW_STATE_ACCUM_BLUE_BITS    = 0x0002000E,
+        WINDOW_STATE_ACCUM_ALPHA_BITS   = 0x0002000F,
+        WINDOW_STATE_AUX_BUFFERS        = 0x00020010,
+        WINDOW_STATE_STEREO             = 0x00020011,
+        WINDOW_STATE_WINDOW_NO_RESIZE   = 0x00020012,
+        WINDOW_STATE_FSAA_SAMPLES       = 0x00020013
     };
 
     enum WindowResult
     {
-        WINDOW_RESULT_ALREADY_OPENED = 1,
-        WINDOW_RESULT_OK = 0,
+        WINDOW_RESULT_ALREADY_OPENED    = 1,
+        WINDOW_RESULT_OK                = 0,
         WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
-        WINDOW_RESULT_UNKNOWN_ERROR = -1000,
+        WINDOW_RESULT_UNKNOWN_ERROR     = -1000,
     };
 
     enum TextureStatusFlags
     {
-        TEXTURE_STATUS_OK =             0,
-        TEXTURE_STATUS_DATA_PENDING =   (1 << 0),
+        TEXTURE_STATUS_OK           = 0,
+        TEXTURE_STATUS_DATA_PENDING = (1 << 0),
     };
 
     struct VertexElement
@@ -322,11 +288,11 @@ namespace dmGraphics
             m_OriginalHeight(0)
         {}
 
-        TextureType   m_Type;
-        uint16_t m_Width;
-        uint16_t m_Height;
-        uint16_t m_OriginalWidth;
-        uint16_t m_OriginalHeight;
+        TextureType m_Type;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_OriginalWidth;
+        uint16_t    m_OriginalHeight;
     };
 
     struct TextureParams
@@ -404,7 +370,9 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
-        bool          m_VerifyGraphicsCalls;
+        uint8_t       m_VerifyGraphicsCalls : 1;
+        uint8_t       m_RenderDocSupport : 1;
+        uint8_t       : 6;
     };
 
     /** Creates a graphics context
@@ -427,6 +395,11 @@ namespace dmGraphics
      * Finalize graphics system
      */
     void Finalize();
+
+    /**
+     * Starts the app that needs to control the update loop (e.g iOS)
+     */
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 
     /**
      * Get the window refresh rate
@@ -528,6 +501,13 @@ namespace dmGraphics
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
 
     /**
+     * Begin frame rendering.
+     *
+     * @param context Graphics context handle
+     */
+    void BeginFrame(HContext context);
+
+    /**
      * Flip screen buffers.
      *
      * @param context Graphics context handle
@@ -586,25 +566,27 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size);
-    HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size);
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void DeleteProgram(HContext context, HProgram program);
 
-    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
-    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
+    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
 
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
+    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type);
     uint32_t GetUniformCount(HProgram prog);
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
-    int32_t GetUniformLocation(HProgram prog, const char* name);
+    int32_t  GetUniformLocation(HProgram prog, const char* name);
+    int32_t  GetUniformLocation(HProgram prog, dmhash_t name);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
@@ -684,24 +666,26 @@ namespace dmGraphics
 
     const char* GetBufferTypeLiteral(BufferType buffer_type)
     {
-        switch (buffer_type)
-        {
-            case BUFFER_TYPE_COLOR_BIT: return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_DEPTH_BIT: return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default: return "<unknown buffer type>";
-        }
+        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
+            return "BUFFER_TYPE_COLOR_BIT";
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+            return "BUFFER_TYPE_DEPTH_BIT";
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+            return "BUFFER_TYPE_STENCIL_BIT";
+        else
+            return "<unknown buffer type>";
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
-        switch (buffer_type)
-        {
-            case BUFFER_TYPE_COLOR_BIT: return 0;
-            case BUFFER_TYPE_DEPTH_BIT: return 1;
-            case BUFFER_TYPE_STENCIL_BIT: return 2;
-            default: return ~0u;
-        }
+        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
+            return 0;
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+            return 1;
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+            return 2;
+        else
+            return ~0u;
     }
 
     /**

@@ -41,6 +41,7 @@ extern "C" {
 #else
     typedef void* Window;
     typedef void* GLXContext;
+    typedef void* Display;
 #endif
 
 #if defined(__EMSCRIPTEN__)
@@ -62,6 +63,7 @@ GLFWAPI id glfwGetiOSEAGLContext(void);
 GLFWAPI id glfwGetOSXNSWindow(void);
 GLFWAPI id glfwGetOSXNSView(void);
 GLFWAPI id glfwGetOSXNSOpenGLContext(void);
+GLFWAPI id glfwGetOSXCALayer(void);
 
 GLFWAPI HWND glfwGetWindowsHWND(void);
 GLFWAPI HGLRC glfwGetWindowsHGLRC(void);
@@ -76,8 +78,30 @@ GLFWAPI struct android_app* glfwGetAndroidApp(void);
 GLFWAPI android_app* glfwGetAndroidApp(void);
 #endif
 
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+
+    // See documentation in engine.h
+    typedef void* (*EngineCreate)(int argc, char** argv);
+    typedef void (*EngineDestroy)(void* engine);
+    typedef int (*EngineUpdate)(void* engine);
+
+    // See engine_private.h
+    enum glfwAppRunAction
+    {
+        GLFW_APP_RUN_UPDATE = 0,
+        GLFW_APP_RUN_EXIT = -1,
+        GLFW_APP_RUN_REBOOT = 1,
+    };
+    // In case of a non zero return value from the update function, call this to get the result of the engine update
+    // Gets a copy of the argument list, use free(argv[i]) for each afterwards
+    typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+    void glfwAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+#endif
+
 GLFWAPI Window glfwGetX11Window(void);
 GLFWAPI GLXContext glfwGetX11GLXContext(void);
+GLFWAPI Display* glfwGetX11Display(void);
 
 #ifdef __cplusplus
 }

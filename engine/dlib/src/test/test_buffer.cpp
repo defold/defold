@@ -136,7 +136,7 @@ TEST_F(BufferTest, ValidAllocation)
     // Declaration of 2 streams, with 4 elements
     dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 2, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_NE(0, buffer);
+    ASSERT_NE(0u, buffer);
     dmBuffer::Destroy(buffer);
     buffer = 0;
 
@@ -218,12 +218,12 @@ TEST_F(GetDataTest, GetStreamType)
     r = GetStreamType(buffer, dmHashString64("position"), &type, &typecount);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
-    ASSERT_EQ(3, typecount);
+    ASSERT_EQ(3u, typecount);
 
     r = GetStreamType(buffer, dmHashString64("texcoord"), &type, &typecount);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT16, type);
-    ASSERT_EQ(2, typecount);
+    ASSERT_EQ(2u, typecount);
 
     r = GetStreamType(buffer, dmHashString64("foobar"), &type, &typecount);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_MISSING, r);
@@ -310,10 +310,10 @@ TEST_F(GetDataTest, ValidGetData)
     ASSERT_EQ(stride/sizeof(uint16_t), out_stride);
 
     uint16_t* ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < out_count; ++i)
+    for (uint32_t i = 0; i < out_count; ++i)
     {
-        ptr[0] = i;
-        ptr[1] = i;
+        ptr[0] = (uint16_t)i;
+        ptr[1] = (uint16_t)i;
         ptr += out_stride;
     }
 
@@ -328,10 +328,10 @@ TEST_F(GetDataTest, ValidGetData)
 
     // Verify the previously written data
     ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < out_count; ++i)
+    for (uint32_t i = 0; i < out_count; ++i)
     {
-        ASSERT_EQ(i, ptr[0]);
-        ASSERT_EQ(i, ptr[1]);
+        ASSERT_EQ(i, (uint32_t)ptr[0]);
+        ASSERT_EQ(i, (uint32_t)ptr[1]);
         ptr += out_stride;
     }
 }
@@ -366,7 +366,7 @@ TEST_F(GetDataTest, ValidGetBytes)
 
     // Verify the previously written data
     ptr = (uint8_t*)out_stream;
-    for (int i = 0; i < datasize; ++i)
+    for (uint32_t i = 0; i < datasize; ++i)
     {
         ASSERT_EQ( (uint8_t)(i & 0xFF), ptr[0]);
         ++ptr;
@@ -386,10 +386,10 @@ TEST_F(GetDataTest, WriteOutsideStream)
 
     // Write past the number of elements
     uint16_t* ptr = (uint16_t*)out_stream;
-    for (int i = 0; i < out_count+1; ++i)
+    for (uint32_t i = 0; i < out_count+1; ++i)
     {
-        ptr[0] = i;
-        ptr[1] = i;
+        ptr[0] = (uint16_t)i;
+        ptr[1] = (uint16_t)i;
         ptr += out_stride;
     }
 
@@ -428,7 +428,7 @@ TEST_F(GetDataTest, CheckOverwrite)
 
     // Write magic number to texcoord stream
     uint16_t* ptr_u16 = (uint16_t*)out_stream;
-    for (int i = 0; i < out_count; ++i)
+    for (uint32_t i = 0; i < out_count; ++i)
     {
         ptr_u16[0] = magic_number;
         ptr_u16[1] = magic_number;
@@ -442,7 +442,7 @@ TEST_F(GetDataTest, CheckOverwrite)
 
     // Write different data to position stream
     float* ptr_f32 = (float*)out_stream;
-    for (int i = 0; i < out_count; ++i)
+    for (uint32_t i = 0; i < out_count; ++i)
     {
         ptr_f32[0] = 1.0f;
         ptr_f32[1] = 2.0f;
@@ -457,7 +457,7 @@ TEST_F(GetDataTest, CheckOverwrite)
 
     // Write magic number to texcoord stream
     ptr_u16 = (uint16_t*)out_stream;
-    for (int i = 0; i < out_count; ++i)
+    for (uint32_t i = 0; i < out_count; ++i)
     {
         ASSERT_EQ(magic_number, ptr_u16[0]);
         ASSERT_EQ(magic_number, ptr_u16[1]);
@@ -472,7 +472,7 @@ TEST_P(AlignmentTest, CheckAlignment)
 
     dmBuffer::Result r = dmBuffer::Create(p.count, p.streams_decl, p.streams_decl_count, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
-    ASSERT_EQ(0, ((uintptr_t)buffer) % 16);
+    ASSERT_EQ(0u, ((uintptr_t)buffer) % 16);
 
     ASSERT_EQ(p.expected_size, dmBuffer::GetStructSize(buffer));
 

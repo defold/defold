@@ -94,7 +94,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -541,7 +541,7 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     int top = lua_gettop(L);
 
     dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, -1);
-    ASSERT_TRUE(IsValidCallback(cbk));
+    ASSERT_TRUE(dmScript::IsCallbackValid(cbk));
 
     dmScript::InvokeCallback(cbk, 0, 0); // no custom arguments, means the callback gets called with nil args
 
@@ -556,9 +556,9 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     ASSERT_TRUE(RunString(L, "assert(_a == hash(\"hello\"))"));
     ASSERT_TRUE(RunString(L, "assert(_b == 42)"));
 
-    ASSERT_TRUE(IsValidCallback(cbk));
-    dmScript::DeleteCallback(cbk);
-    ASSERT_FALSE(IsValidCallback(cbk));
+    ASSERT_TRUE(dmScript::IsCallbackValid(cbk));
+    dmScript::DestroyCallback(cbk);
+    ASSERT_FALSE(dmScript::IsCallbackValid(cbk));
 
     char* test_string = (char*)lua_newuserdata(L, strlen("test_ref_data") + 1);
     strcpy(test_string, "test_ref_data");
@@ -821,7 +821,7 @@ TEST_F(ScriptTest, ScriptExtension)
 {
     dmScript::HContext context = dmScript::NewContext(0x0, 0, true);
 
-    static dmScript::ScriptExtension extension = 
+    static dmScript::ScriptExtension extension =
     {
         TestScriptExtensionInitialize,
         TestScriptExtensionUpdate,

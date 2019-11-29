@@ -35,6 +35,7 @@ var LibraryGLFW = {
     closeFunc: null,
     refreshFunc: null,
     focusFunc: null,
+    touchFunc: null,
     params: null,
     initTime: null,
     wheelPos: 0,
@@ -52,6 +53,7 @@ var LibraryGLFW = {
     prevNonFSHeight: 0,
     isFullscreen: false,
     dpi: 1,
+    mouseTouchId:null,
 
 /*******************************************************************************
  * DOM EVENT CALLBACKS
@@ -266,13 +268,30 @@ var LibraryGLFW = {
       Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
     },
 
-    onTouchEnd: function(event) {
+    fillTouch: function(id, x, y, phase) {
+      if (GLFW.touchFunc) {
+        Runtime.dynCall('viiii', GLFW.touchFunc, [id, x, y, phase]);
+      }
+    },
+
+    touchWasFinished: function(event, phase) {
         if (!GLFW.isCanvasActive(event)) { return; }
+
+        for(var i = 0; i < event.changedTouches.length; ++i) {
+          var touch = event.changedTouches[i];
+          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          var canvasX = coord[0];
+          var canvasY = coord[1];
+          GLFW.fillTouch(touch.identifier, canvasX, canvasY, phase);
+          if (touch.identifier == GLFW.mouseTouchId) {
+              GLFW.mouseTouchId = null;
+              GLFW.buttons &= ~(1 << 0);
+            }
+        }
 
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
-
         // Audio is blocked by default in some browsers until a user performs an interaction,
         // so we need to try to resume it here (on mouse button up and touch end).
         // We must also check that the sound device is not null since it could have been stripped
@@ -281,6 +300,14 @@ var LibraryGLFW = {
         }
 
         event.preventDefault();
+    },
+
+    onTouchEnd: function(event) {
+      GLFW.touchWasFinished(event, GLFW.GLFW_PHASE_ENDED);
+    },
+
+    onTouchCancel: function(event) {
+      GLFW.touchWasFinished(event, GLFW.GLFW_PHASE_CANCELLED);
     },
 
     convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
@@ -303,14 +330,20 @@ var LibraryGLFW = {
         if (!GLFW.isCanvasActive(event)) { return; }
 
         var e = event;
+        var touch;
+        var coord;
+        var canvasX;
+        var canvasY
         for(var i = 0; i < e.changedTouches.length; ++i) {
-          var touch = e.changedTouches[i];
-          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
-          var canvasX = coord[0];
-          var canvasY = coord[1];
-          Browser.mouseX = canvasX;
-          Browser.mouseY = canvasY;
-          break;
+          touch = e.changedTouches[i];
+          coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          canvasX = coord[0];
+          canvasY = coord[1];
+          if (touch.identifier == GLFW.mouseTouchId) {
+            Browser.mouseX = canvasX;
+            Browser.mouseY = canvasY;
+          }
+          GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_MOVED);
         }
 
         event.preventDefault();
@@ -322,15 +355,22 @@ var LibraryGLFW = {
         if (event.target != Module["canvas"]) { return; }
 
         var e = event;
+        var touch;
+        var coord;
+        var canvasX;
+        var canvasY
         for(var i = 0; i < e.changedTouches.length; ++i) {
-          var touch = e.changedTouches[i];
-          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
-          var canvasX = coord[0];
-          var canvasY = coord[1];
-          GLFW.buttons |= (1 << 0);
-          Browser.mouseX = canvasX;
-          Browser.mouseY = canvasY;
-          break;
+          touch = e.changedTouches[i];
+          coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          canvasX = coord[0];
+          canvasY = coord[1];
+          if (i == 0 && GLFW.mouseTouchId == null) {
+            GLFW.mouseTouchId = touch.identifier;
+            GLFW.buttons |= (1 << 0);
+            Browser.mouseX = canvasX;
+            Browser.mouseY = canvasY;
+          }
+          GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_BEGAN);
         }
 
         event.preventDefault();
@@ -379,26 +419,16 @@ var LibraryGLFW = {
     },
 
     onFullScreenEventChange: function(event) {
-      var width;
-      var height;
       GLFW.isFullscreen = document["fullScreen"] || document["mozFullScreen"] || document["webkitIsFullScreen"] || document["msIsFullScreen"];
-      if (GLFW.isFullscreen) {
-        // size multiplied in glfwSwapBuffers() function.
-        // if we don't divide here size will be x2 every time when we exit fullscreen
-        GLFW.prevNonFSWidth = GLFW.prevWidth / GLFW.dpi;
-        GLFW.prevNonFSHeight = GLFW.prevHeight / GLFW.dpi;
-        width = window.innerWidth;
-        height = window.innerHeight;
-      } else {
-        width = GLFW.prevNonFSWidth;
-        height = GLFW.prevNonFSHeight;
+      if (!GLFW.isFullscreen) {
         document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
         document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
       }
-      Module["canvas"].width = width;
-      Module["canvas"].height = height;
+      //reset previous values for updating size in glfwSwapBuffers()
+      GLFW.prevWidth = 0;
+      GLFW.prevHeight = 0;
     },
 
     requestFullScreen: function() {
@@ -491,7 +521,7 @@ var LibraryGLFW = {
  ******************************************************************************/
 
   /* GLFW initialization, termination and version querying */
-  glfwInit: function() {
+  glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
@@ -506,7 +536,7 @@ var LibraryGLFW = {
     GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
     GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.addEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
 
     __ATEXIT__.push({ func: function() {
@@ -569,6 +599,11 @@ var LibraryGLFW = {
     GLFW.params[0x00020019] = 0; // GLFW_WINDOW_HIGH_DPI
 
     GLFW.keys = new Array();
+
+    GLFW.GLFW_PHASE_BEGAN = 0;
+    GLFW.GLFW_PHASE_MOVED = 1;
+    GLFW.GLFW_PHASE_ENDED = 3;
+    GLFW.GLFW_PHASE_CANCELLED = 4;
 
     return 1; // GL_TRUE
   },
@@ -665,17 +700,13 @@ var LibraryGLFW = {
     var width = Module['canvas'].width;
     var height = Module['canvas'].height;
 
-    if (GLFW.isFullscreen) {
-      // We don't want to call _glfwSetWindowSize every frame, 
-      // that's why for the fullscreen mode we take into account dpi separately
-      width = window.innerWidth * GLFW.dpi;
-      height = window.innerHeight * GLFW.dpi;
-    }
-
     if (GLFW.prevWidth != width || GLFW.prevHeight != height) {
-      if (!GLFW.isFullscreen) {
-        width = width * GLFW.dpi;
-        height = height * GLFW.dpi;
+      if (GLFW.isFullscreen) {
+        width = Math.floor(window.innerWidth * GLFW.dpi);
+        height = Math.floor(window.innerHeight * GLFW.dpi);
+      } else {
+        width = Math.floor(width * GLFW.dpi);
+        height = Math.floor(height * GLFW.dpi);
       }
       GLFW.prevWidth = width;
       GLFW.prevHeight = height;
@@ -939,13 +970,11 @@ var LibraryGLFW = {
   },
 
   glfwSetTouchCallback: function(cbfun) {
+    GLFW.touchFunc = cbfun;
+    return 1;
   },
 
   glfwGetAcceleration: function(x, y, z) {
-      return 0;
-  },
-
-  glfwGetTouch: function(touch, count, out_count) {
       return 0;
   },
 

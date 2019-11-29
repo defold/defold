@@ -24,11 +24,10 @@
             [editor.scene-picking :as scene-picking]
             [editor.tile-map-grid :as tile-map-grid]
             [editor.tile-source :as tile-source]
-            [editor.ui :as ui]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
@@ -158,10 +157,25 @@
   (let [pass (:pass render-args)]
     (condp = pass
       pass/transparent
-      (let [{:keys [selected ^Matrix4d world-transform user-data]}  (first renderables)
+      (let [{:keys [selected ^Matrix4d world-transform user-data]} (first renderables)
             {:keys [node-id vbuf shader gpu-texture blend-mode]} user-data]
         (when vbuf
-          (let [vertex-binding (vtx/use-with node-id vbuf shader)]
+          (let [render-args (merge render-args
+                                   (math/derive-render-transforms
+                                     world-transform
+                                     (:view render-args)
+                                     (:projection render-args)
+                                     (:texture render-args)))
+                ;; In the runtime, vertices are in world space. In the editor we
+                ;; prefer to keep the vertices in local space in order to avoid
+                ;; unnecessary buffer updates. As a workaround, we trick the
+                ;; shader by supplying a world-view-projection matrix for the
+                ;; view-projection matrix. If this turns out to be a problem, we
+                ;; need to produce world-space buffers here in the render
+                ;; function, seeing as we don't have the final world-transform
+                ;; until the scene has been flattened.
+                render-args (assoc render-args :view-proj (:world-view-proj render-args))
+                vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
               (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
@@ -169,7 +183,7 @@
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
               (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
-              (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
+              (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
@@ -229,10 +243,26 @@
 (g/defnk produce-layer-scene
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
-    (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
+    (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)
+          transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
+
+          ;; The visibility-aabb is used to determine the scene extents. We use
+          ;; it to adjust the camera near and far clip planes to encompass the
+          ;; scene. When editing, layers that do not yet have any tiles on them
+          ;; will produce an empty aabb which will not expand the scene extents.
+          ;; To ensure empty layers will push the scene extents and not be
+          ;; outside the camera clip planes, we give them a small bounding box.
+          ;; This makes the brush for yet-to-be-painted tiles visible.
+          visibility-aabb
+          (if (geom/empty-aabb? aabb)
+            (geom/make-aabb (Point3d. 0.0 0.0 0.0)
+                            (Point3d. 0.001 0.001 0.0))
+            aabb)]
       {:node-id _node-id
        :node-outline-key id
+       :transform transform
        :aabb aabb
+       :visibility-aabb visibility-aabb
        :renderable {:render-fn render-layer
                     :tags #{:tilemap}
                     :user-data {:node-id _node-id
@@ -240,7 +270,6 @@
                                 :gpu-texture gpu-texture
                                 :shader shader
                                 :blend-mode blend-mode}
-                    :index z
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
@@ -508,7 +537,9 @@
 
 (defn render-brush-outline
   [^GL2 gl render-args renderables count]
-  (let [user-data (:user-data (first renderables))
+  (let [renderable (first renderables)
+        world-transform (:world-transform renderable)
+        user-data (:user-data renderable)
         [x y] (:cell user-data)
         {:keys [width height]} (:brush user-data)
         [tile-width tile-height] (:tile-dimensions user-data)]
@@ -519,14 +550,16 @@
             y1 (+ y0 (* height tile-height))
             z 0.0
             c (double-array (map #(/ % 255.0) [255 255 255]))]
-        (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-        (.glBegin gl GL2/GL_LINE_LOOP)
-        (.glVertex3d gl x0 y0 z)
-        (.glVertex3d gl x1 y0 z)
-        (.glVertex3d gl x1 y1 z)
-        (.glVertex3d gl x0 y1 z)
-        (.glEnd gl)))))
-
+        (.glMatrixMode gl GL2/GL_MODELVIEW)
+        (gl/gl-push-matrix gl
+          (gl/gl-mult-matrix-4d gl world-transform)
+          (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
+          (.glBegin gl GL2/GL_LINE_LOOP)
+          (.glVertex3d gl x0 y0 z)
+          (.glVertex3d gl x1 y0 z)
+          (.glVertex3d gl x1 y1 z)
+          (.glVertex3d gl x0 y1 z)
+          (.glEnd gl))))))
 
 (defn conj-brush-quad!
   [vbuf {:keys [tile h-flip v-flip]} uvs w h x y]
@@ -571,14 +604,17 @@
         [w h] (:tile-dimensions user-data)
         vbuf (gen-brush-vbuf brush uvs w h)
         vb (vtx/use-with ::brush vbuf tex-shader)
-        brush-transform (doto (Matrix4d. geom/Identity4d)
-                          (.set (Vector3d. (* x w) (* y h) 0)))]
+        ^Matrix4d layer-transform (:world-transform renderable)
+        local-transform (doto (Matrix4d. geom/Identity4d)
+                          (.set (Vector3d. (* x w) (* y h) 0)))
+        brush-transform (doto (Matrix4d. local-transform)
+                          (.mul layer-transform))]
     (.glMatrixMode gl GL2/GL_MODELVIEW)
     (gl/gl-push-matrix gl
-                       (gl/gl-mult-matrix-4d gl brush-transform)
-                       (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
-                         (shader/set-uniform tex-shader gl "texture_sampler" 0)
-                         (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+      (gl/gl-mult-matrix-4d gl brush-transform)
+      (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
+        (shader/set-uniform tex-shader gl "texture_sampler" 0)
+        (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 
 ;; palette
@@ -802,15 +838,16 @@
     (render-palette-background gl viewport)
     (.glMatrixMode gl GL2/GL_MODELVIEW)
     (gl/gl-push-matrix gl
-                       (gl/gl-mult-matrix-4d gl palette-transform)
-                       (render-palette-tiles gl render-args tile-source-attributes texture-set-data gpu-texture)
-                       (render-palette-grid gl render-args tile-source-attributes)
-                       (render-palette-active gl render-args tile-source-attributes palette-tile))))
-
+      (gl/gl-mult-matrix-4d gl palette-transform)
+      (render-palette-tiles gl render-args tile-source-attributes texture-set-data gpu-texture)
+      (render-palette-grid gl render-args tile-source-attributes)
+      (render-palette-active gl render-args tile-source-attributes palette-tile))))
 
 (defn render-editor-select-outline
   [^GL2 gl render-args renderables count]
-  (let [user-data (:user-data (first renderables))
+  (let [renderable (first renderables)
+        world-transform (:world-transform renderable)
+        user-data (:user-data renderable)
         [sx sy] (:start user-data)
         [ex ey] (:end user-data)
         [tile-width tile-height] (:tile-dimensions user-data)]
@@ -821,13 +858,16 @@
             y1 (* tile-height (inc (max-l sy ey)))
             z 0.0
             c (double-array (map #(/ % 255.0) [255 255 255]))]
-        (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-        (.glBegin gl GL2/GL_LINE_LOOP)
-        (.glVertex3d gl x0 y0 z)
-        (.glVertex3d gl x1 y0 z)
-        (.glVertex3d gl x1 y1 z)
-        (.glVertex3d gl x0 y1 z)
-        (.glEnd gl)))))
+        (.glMatrixMode gl GL2/GL_MODELVIEW)
+        (gl/gl-push-matrix gl
+          (gl/gl-mult-matrix-4d gl world-transform)
+          (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
+          (.glBegin gl GL2/GL_LINE_LOOP)
+          (.glVertex3d gl x0 y0 z)
+          (.glVertex3d gl x1 y0 z)
+          (.glVertex3d gl x1 y1 z)
+          (.glVertex3d gl x0 y1 z)
+          (.glEnd gl))))))
 
 (defn render-editor-select
   [^GL2 gl render-args renderables n]
@@ -858,14 +898,14 @@
                               :palette-tile palette-tile}}]})
 
 (g/defnk produce-editor-renderables
-  [active-layer op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture]
-  (when active-layer
+  [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture]
+  (when active-layer-renderable
     {pass/transparent (cond
                         (= :select op)
                         []
 
                         current-tile
-                        [{:world-transform (Matrix4d. geom/Identity4d)
+                        [{:world-transform (:world-transform active-layer-renderable)
                           :render-fn render-editor
                           :user-data {:cell current-tile
                                       :brush brush
@@ -873,13 +913,13 @@
                                       :texture-set-data texture-set-data
                                       :gpu-texture gpu-texture}}])
      pass/outline     (cond
-                        (= :select op) [{:world-transform (Matrix4d. geom/Identity4d)
+                        (= :select op) [{:world-transform (:world-transform active-layer-renderable)
                                          :render-fn render-editor-select
                                          :user-data {:start op-select-start
                                                      :end op-select-end
                                                      :tile-dimensions tile-dimensions}}]
                         current-tile
-                        [{:world-transform (Matrix4d. geom/Identity4d)
+                        [{:world-transform (:world-transform active-layer-renderable)
                           :render-fn render-editor
                           :user-data {:cell current-tile
                                       :brush brush
@@ -1055,11 +1095,14 @@
   (input tile-dimensions g/Any)
 
   (output active-layer g/Any
+          (g/fnk [active-layer-renderable]
+            (:node-id active-layer-renderable)))
+
+  (output active-layer-renderable g/Any
           (g/fnk [selected-renderables]
             (->> selected-renderables
                  (filter #(g/node-instance? LayerNode (:node-id %)))
-                 single
-                 :node-id)))
+                 single)))
 
   (output current-tile g/Any
           (g/fnk [cursor-world-pos tile-dimensions]
@@ -1177,11 +1220,11 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
-(ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:label   "Select Tile..."
-                  :command :show-palette}
-                 {:label   "Select Eraser"
-                  :command :erase-tool}])
+(handler/register-menu! ::menubar :editor.app-view/edit-end
+  [{:label "Select Tile..."
+    :command :show-palette}
+   {:label "Select Eraser"
+    :command :erase-tool}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

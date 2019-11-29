@@ -1119,7 +1119,7 @@ namespace dmScript
         lua_insert(L, -2);
         // [-2] value
         // [-1] instance context table
-        
+
         lua_pop(L, 1);
         // [-1] value
     }
@@ -1132,7 +1132,7 @@ namespace dmScript
         GetInstanceContextTable(L);
         // [-2] value
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             // [-2] value
@@ -1162,7 +1162,7 @@ namespace dmScript
 
         GetInstanceContextTable(L);
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             // [-1] LUA_NIL
@@ -1184,7 +1184,7 @@ namespace dmScript
 
         GetInstanceContextTable(L);
         // [-1] instance context table or LUA_NIL
-        
+
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 1);
@@ -1360,7 +1360,7 @@ namespace dmScript
         int        m_Callback;
         int        m_Self;
     };
-    
+
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {
         luaL_checktype(L, callback_stack_index, LUA_TFUNCTION);
@@ -1413,7 +1413,7 @@ namespace dmScript
 
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
-        
+
         // For the callback ref (that can actually outlive the script instance)
         // we want to add to the lua debug count
         cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -1438,7 +1438,7 @@ namespace dmScript
         return cbk;
      }
 
-    bool IsValidCallback(LuaCallbackInfo* cbk)
+    bool IsCallbackValid(LuaCallbackInfo* cbk)
     {
         if (cbk == NULL ||
             cbk->m_L == NULL ||
@@ -1451,7 +1451,12 @@ namespace dmScript
         return true;
     }
 
-    void DeleteCallback(LuaCallbackInfo* cbk)
+    lua_State* GetCallbackLuaContext(LuaCallbackInfo* cbk)
+    {
+        return cbk ? cbk->m_L : 0;
+    }
+
+    void DestroyCallback(LuaCallbackInfo* cbk)
     {
         lua_State* L = cbk->m_L;
         DM_LUA_STACK_CHECK(L, 0);
@@ -1487,16 +1492,16 @@ namespace dmScript
         }
     }
 
-    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    bool SetupCallback(LuaCallbackInfo* cbk)
     {
+        lua_State* L = cbk->m_L;
+        int top = lua_gettop(L);
         if(cbk->m_CallbackInfoRef == LUA_NOREF)
         {
             dmLogWarning("Failed to invoke callback (it was not registered)");
+            assert(top == lua_gettop(L));
             return false;
         }
-
-        lua_State* L = cbk->m_L;
-        DM_LUA_STACK_CHECK(L, 0);
 
         GetInstance(L);
         // [-1] old instance
@@ -1508,6 +1513,7 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
+            assert(top == lua_gettop(L));
             return false;
         }
 
@@ -1517,9 +1523,11 @@ namespace dmScript
         // [-3] old instance
         // [-2] context table
         // [-1] callback
+
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             lua_pop(L, 3);
+            assert(top == lua_gettop(L));
             return false;
         }
 
@@ -1528,9 +1536,11 @@ namespace dmScript
         // [-3] context table
         // [-2] callback
         // [-1] self
+
         if (lua_isnil(L, -1))
         {
             lua_pop(L, 4);
+            assert(top == lua_gettop(L));
             return false;
         }
 
@@ -1553,8 +1563,36 @@ namespace dmScript
             // [-1] old instance
 
             SetInstance(L);
+            assert(top == lua_gettop(L));
             return false;
         }
+
+        assert((top + 4) == lua_gettop(L));
+        return true;
+    }
+
+    void TeardownCallback(LuaCallbackInfo* cbk)
+    {
+        lua_State* L = cbk->m_L;
+        // [-2] old instance
+        // [-1] context table
+        lua_pop(L, 1);
+
+        SetInstance(L);
+    }
+
+    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    {
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (!SetupCallback(cbk)) {
+            return false;
+        }
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
 
         int user_args_start = lua_gettop(L);
 
@@ -1573,22 +1611,11 @@ namespace dmScript
             ret = PCall(L, number_of_arguments, 0);
         }
 
-        if (ret != 0) {
-            // [-2] old instance
-            // [-1] context table
-
-            lua_pop(L, 1);
-            // [-1] old instance
-
-            SetInstance(L);
-            return false;
-        }
         // [-2] old instance
         // [-1] context table
-        lua_pop(L, 1);
+        TeardownCallback(cbk);
 
-        SetInstance(L);
-        return true;
+        return ret != 0 ? false : true;
     }
 
     /** Information about a function, in which file and at what line it is defined
@@ -1635,8 +1662,8 @@ namespace dmScript
     }
 
     /**
-    * To reduce the overhead of the profiler when calling lua functions we avoid using DM_SNPRINTF.
-    * DM_SNPRINTF uses vsnprintf with variable number of arguments but we only need string concatenation for
+    * To reduce the overhead of the profiler when calling lua functions we avoid using dmSnPrintf.
+    * dmSnPrintf uses vsnprintf with variable number of arguments but we only need string concatenation for
     * the most part. Also, we use our knownledge when building the string to get the string length directly
     * without resorting to strlen.
     * Building this string is particularly expensive on low end devices and using this more optimal way reduces
@@ -1666,7 +1693,7 @@ namespace dmScript
                     else
                     {
                         char function_line_number_buffer[16];
-                        DM_SNPRINTF(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
+                        dmSnPrintf(function_line_number_buffer, sizeof(function_line_number_buffer), "l(%d)", fi.m_LineNumber);
                         w_ptr = ConcatString(w_ptr, w_ptr_end, function_line_number_buffer);
                     }
                 }
@@ -1674,7 +1701,7 @@ namespace dmScript
                 {
                     w_ptr = ConcatString(w_ptr, w_ptr_end, "<unknown>");
                 }
-                
+
             }
             else
             {

@@ -63,7 +63,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -247,12 +247,12 @@ TEST_F(PropsTest, PropsRelativeURL)
     dmResource::Release(m_Factory, collection);
 }
 
-TEST_F(PropsTest, PropsFailDefInInit)
+TEST_F(PropsTest, PropsNopDefInInit)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_def_in_init.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_nop_def_in_init.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool result = dmGameObject::Init(m_Collection);
-    ASSERT_FALSE(result);
+    ASSERT_TRUE(result);
     dmGameObject::Delete(m_Collection, go, false);
 }
 

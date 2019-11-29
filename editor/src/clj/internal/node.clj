@@ -435,6 +435,9 @@
 
 (defn- prop-type->schema [prop-type]
   (cond
+    (util/protocol? prop-type)
+    (s/protocol prop-type)
+
     (util/schema? prop-type)
     prop-type
 
@@ -886,7 +889,7 @@
        (assert-symbol "inherits" form)
        (let [typeref (util/vgr form)]
          (assert (node-type-resolve typeref)
-                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ".)"))
+                 (str "Cannot inherit from " form " it cannot be resolved in this context (from namespace " *ns* ")."))
          typeref)))})
 
 (defmethod process-as 'display-order [[_ decl]]
@@ -1547,28 +1550,54 @@
         (let [beh (behavior type output)
               props ((:fn beh) this output evaluation-context)
               original (gt/node-by-id-at basis original-id)
-              orig-props (:properties (gt/produce-value original output evaluation-context))]
+              orig-props (:properties (gt/produce-value original output evaluation-context))
+              declared? (partial contains? (all-properties type))]
           (when-not (:dry-run evaluation-context)
-            (let [static-props (all-properties type)
-                  props (reduce-kv (fn [p k v]
-                                     (if (and (not (contains? static-props k))
-                                              (= original-id (:node-id v)))
-                                       (assoc-in p [:properties k :value] (:value v))
-                                       p))
-                                   props orig-props)]
-              (reduce (fn [props [k v]]
-                        (let [prop-type (get-in props [:properties k :type])]
-                          (if (nil? (s/check (prop-type->schema prop-type) v))
-                            (cond-> props
-                                    (and (= :_properties output)
-                                         (not (contains? static-props k)))
-                                    (assoc-in [:properties k :value] v)
+            (let [;; Values for undeclared properties must be manually propagated from the original.
+                  props-with-inherited-override-values
+                  (if (= :_declared-properties output)
+                    (:properties props)
+                    (reduce-kv (fn [props prop-kw orig-prop]
+                                 (if (and (::propagate? orig-prop)
+                                          (= original-id (:node-id orig-prop))
+                                          (not (declared? prop-kw)))
+                                   (update props prop-kw assoc :value (:value orig-prop) ::propagate? true)
+                                   props))
+                               (:properties props)
+                               orig-props))
 
-                                    (contains? orig-props k)
-                                    (assoc-in [:properties k :original-value]
-                                              (get-in orig-props [k :value])))
-                            props)))
-                      props properties))))
+                  ;; Overrides of undeclared properties must be manually applied.
+                  props-with-override-values
+                  (if (= :_declared-properties output)
+                    props-with-inherited-override-values
+                    (reduce-kv (fn [props prop-kw override-value]
+                                 (if (declared? prop-kw)
+                                   props
+                                   (let [prop-type (get-in props [prop-kw :type])
+                                         prop-schema (prop-type->schema prop-type)
+                                         compatible-value? (comp nil? (partial s/check prop-schema))]
+                                     (if (compatible-value? override-value)
+                                       (update props prop-kw assoc :value override-value ::propagate? true)
+                                       props))))
+                               props-with-inherited-override-values
+                               properties))
+
+                  ;; Assoc :original-value from original property entries.
+                  ;; If your produced property does not make use of the
+                  ;; properties map of the node you're evaluating :_properties
+                  ;; on, it must set :assoc-original-value? to true in the
+                  ;; produced property to set the :original-value here.
+                  props-with-overrides-and-original-values
+                  (reduce-kv (fn [props prop-kw orig-prop]
+                               (let [original-value (:value orig-prop)]
+                                 (if (or (contains? properties prop-kw)
+                                         (and (not (declared? prop-kw))
+                                              (get-in props [prop-kw :assoc-original-value?])))
+                                   (update props prop-kw assoc :original-value original-value)
+                                   props)))
+                             props-with-override-values
+                             orig-props)]
+              (assoc props :properties props-with-overrides-and-original-values))))
 
         (or (has-output? type output)
             (has-input? type output))

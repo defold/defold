@@ -1,0 +1,23 @@
+name: CI - Engine nightly
+
+on:
+  schedule:
+    # nightly at 03:00
+    - cron: 0 3 * * *
+
+jobs:
+  build-engine-darwin-64:
+    runs-on: macOS-latest
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=x86_64-darwin --branch=dev --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine' }]
+
+  build-engine-linux-64:
+    runs-on: ubuntu-18.04
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      { name: 'Build engine', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --platform=x86_64-linux --branch=dev --with-valgrind --skip-builtins --skip-docs engine' }]

@@ -172,7 +172,7 @@ public class ProjectBuildTest {
         checkProjectSetting(outputProps, "osx", "infoplist", "/builtins/manifests/osx/Info.plist");
 
         // Check so that empty defaults are not included
-        checkProjectSetting(outputProps, "tracking", "app_id", null);
+        checkProjectSetting(outputProps, "resource", "uri", null);
 
         // Check so empty custom properties are included as empty strings
         checkProjectSetting(outputProps, "custom", "should_be_empty", "");

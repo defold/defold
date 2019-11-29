@@ -1,6 +1,7 @@
 #include "dns.h"
 #include "dns_private.h"
 #include "socket.h"
+#include "dstrings.h"
 
 #include "time.h"
 #include "atomic.h"
@@ -9,7 +10,7 @@
 #include <ares.h>
 #include <assert.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__)
     #include <netdb.h>
 #endif
 
@@ -29,6 +30,12 @@ namespace dmDNS
         int32_atomic_t  m_Running;
     };
 
+    // These servers will be used if ares can't find any dns servers
+    // in the system configuration, or if we get the default loopback address.
+    // Please note that ares won't accept server strings with spaces after the comma,
+    // i.e "server1, server2", instead it has to be "server1,server2".
+    static const char* DEFAULT_DNS_SERVERS = "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844";
+
     static inline Result AresStatusToDNSResult(uint32_t ares_status)
     {
         Result res;
@@ -47,6 +54,7 @@ namespace dmDNS
             case ARES_ENOTFOUND:
             case ARES_ENOTIMP:
             case ARES_EREFUSED:
+            case ARES_ECONNREFUSED:
             case ARES_ETIMEOUT:
                 res = RESULT_HOST_NOT_FOUND;
                 break;
@@ -71,7 +79,7 @@ namespace dmDNS
             // so that we can attempt to make a connection anyway.
             req->m_Status = ARES_SUCCESS;
         }
-        else if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
+        else if (status != ARES_ECANCELLED && status != ARES_EDESTRUCTION)
         {
             // we cannot guarantee that the request data is still alive if the
             // request is either cancelled or destroyed. If so, we don't touch
@@ -107,7 +115,7 @@ namespace dmDNS
         RequestInfo* req = (RequestInfo*) arg;
 
         // Same as ares_gethost_callback, we need to trust the req pointer.
-        if (status != ARES_ECANCELLED || status != ARES_EDESTRUCTION)
+        if (status != ARES_ECANCELLED && status != ARES_EDESTRUCTION)
         {
             req->m_Status = (uint32_t) status;
         }
@@ -174,6 +182,46 @@ namespace dmDNS
         ares_freeaddrinfo(info);
     }
 
+    static void ConfigureChannel(Channel* channel)
+    {
+        struct ares_addr_port_node* servers = 0;
+        ares_get_servers_ports(channel->m_Handle, &servers);
+
+        if (servers)
+        {
+            uint16_t server_count = 1;
+            struct ares_addr_port_node* next = servers->next;
+            struct in_addr ch_addr = servers->addr.addr4;
+
+            while(next)
+            {
+                server_count++;
+                next = next->next;
+            }
+
+            // Check if we got the default configuration, i.e no servers found
+            // when ares configured the channel. We can't send in default channels
+            // as option when initializing the channel since in that case ares
+            // won't look for system dns severs on certain platforms..
+            //
+            // These options are specified in init_by_defaults(..) in ares_init.c
+            if (server_count      == 1 &&
+                servers->family   == AF_INET &&
+                ch_addr.s_addr    == htonl(INADDR_LOOPBACK) &&
+                servers->udp_port == 0 &&
+                servers->tcp_port == 0)
+            {
+                ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
+            }
+
+            ares_free_data(servers);
+        }
+        else
+        {
+            ares_set_servers_csv(channel->m_Handle, DEFAULT_DNS_SERVERS);
+        }
+    }
+
     Result Initialize()
     {
         if (ares_library_init(ARES_LIB_INIT_ALL) != ARES_SUCCESS)
@@ -199,13 +247,15 @@ namespace dmDNS
 
     Result NewChannel(HChannel* channel)
     {
-        Channel* dns_channel = new Channel();
-
-        if (ares_init(&dns_channel->m_Handle) != ARES_SUCCESS)
+        ares_channel handle;
+        if (ares_init(&handle) != ARES_SUCCESS)
         {
-            delete dns_channel;
             return RESULT_INIT_ERROR;
         }
+
+        Channel* dns_channel = new Channel();
+        dns_channel->m_Handle = handle;
+        ConfigureChannel(dns_channel);
 
         dns_channel->m_Running = 1;
         *channel = dns_channel;
@@ -230,6 +280,18 @@ namespace dmDNS
             ares_destroy(dns_channel->m_Handle);
             delete dns_channel;
         }
+    }
+
+    Result RefreshChannel(HChannel channel)
+    {
+        Channel* dns_channel = (Channel*)channel;
+        if (channel && ares_init(&dns_channel->m_Handle) == ARES_SUCCESS)
+        {
+            ConfigureChannel(dns_channel);
+            return RESULT_OK;
+        }
+
+        return RESULT_INIT_ERROR;
     }
 
     // Note: This function should ultimately replace the dmSocket::GetHostByName, but there's a few places
@@ -349,4 +411,21 @@ namespace dmDNS
 
         return AresStatusToDNSResult(req.m_Status);
     }
+
+    #define DM_DNS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_DNS_RESULT_TO_STRING_CASE(OK);
+            DM_DNS_RESULT_TO_STRING_CASE(INIT_ERROR);
+            DM_DNS_RESULT_TO_STRING_CASE(HOST_NOT_FOUND);
+            DM_DNS_RESULT_TO_STRING_CASE(CANCELLED);
+            DM_DNS_RESULT_TO_STRING_CASE(UNKNOWN_ERROR);
+            default:
+                break;
+        }
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_DNS_RESULT_TO_STRING_CASE
 }

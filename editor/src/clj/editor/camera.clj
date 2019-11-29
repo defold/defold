@@ -350,7 +350,7 @@
         offset-distance (if (pos? delta)
                           (max 0.01 (* delta distance-to-focus-point))
                           (min -0.01 (* delta distance-to-focus-point)))]
-    (update camera :position math/offset-scaled forward offset-distance)))
+    (update camera :position math/offset-scaled forward (- offset-distance))))
 
 (defn dolly [camera delta]
   (case (:type camera)
@@ -574,8 +574,8 @@
         (recur (next corners)
                (min distance near)
                (max distance far)))
-      [(max 1.0 (- near 0.0001))
-       (max 10.0 (+ far 0.0001))])))
+      [(max 1.0 (- near 0.001))
+       (max 10.0 (+ far 0.001))])))
 
 (g/defnk produce-camera [_node-id local-camera scene-aabb viewport]
   (let [filter-fn (or (:filter-fn local-camera) identity)

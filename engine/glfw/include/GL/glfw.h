@@ -172,13 +172,6 @@ extern "C" {
 #elif defined(ANDROID)
 #include <EGL/egl.h>
 #include <GLES/gl.h>
-#elif defined(__AVM2__)
-
-// Minimal GL compatibility (no GL in flash)
-#define GL_FALSE                                0x0
-#define GL_TRUE                                 0x1
-typedef unsigned char   GLubyte;
-
 #else
  #include <GL/gl.h>
  #ifndef GLFW_NO_GLU
@@ -470,6 +463,7 @@ typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
 typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
+typedef void (GLFWCALL * GLFWtouchfun)(int,int,int,int);
 
 
 /*************************************************************************
@@ -522,6 +516,7 @@ GLFWAPI int  GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun )
 GLFWAPI int  GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count);
+GLFWAPI int  GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
 

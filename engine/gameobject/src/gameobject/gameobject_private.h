@@ -64,8 +64,10 @@ namespace dmGameObject
             PropertySet     m_PropertySet;
         };
 
-        Component*  m_Components;
-        uint32_t    m_ComponentCount;
+        Component*     m_Components;
+        uint32_t       m_ComponentCount;
+        // Resources referenced through property overrides inside the prototype
+        dmArray<void*> m_PropertyResources;
     };
 
     // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
@@ -235,6 +237,9 @@ namespace dmGameObject
 
         // Index pool for mapping Instance::m_Index to m_Instances
         dmIndexPool16            m_InstanceIndices;
+
+        // Resources referenced through property overrides inside the collection
+        dmArray<void*>         m_PropertyResources;
 
         // Array of dynamically allocated index arrays, one for each level
         // Used for calculating transforms in scene-graph

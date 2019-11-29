@@ -5,7 +5,7 @@
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 #include <arpa/inet.h>
 #endif
 
@@ -15,7 +15,7 @@
 #include <jc_test/jc_test.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
-    return buffer + DM_SNPRINTF(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
+    return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
 const uint16_t CONST_TEST_PORT = 8008;
@@ -846,7 +846,7 @@ TEST(Socket, GetHostByName_IPv4_External)
 {
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
-    const char* hostname = "prod-cr-909202183.eu-west-1.elb.amazonaws.com";
+    const char* hostname = "build.defold.com";
 
     result = dmSocket::GetHostByName(hostname, &address, true, false);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -905,7 +905,7 @@ TEST(Socket, ServerSocketIPv4)
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress, true, false);
@@ -927,7 +927,7 @@ TEST(Socket, ServerSocketIPv6)
     dmSocket::Result r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);
@@ -952,7 +952,7 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
     r = dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket2);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress1;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress1, true, false);
@@ -985,7 +985,7 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
     r = dmSocket::New(dmSocket::DOMAIN_IPV6, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket2);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress1;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress1, false, true);
@@ -1017,7 +1017,7 @@ TEST(Socket, ServerSocketIPv4_Accept)
     r = dmSocket::SetBlocking(socket, false);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV4, &bindaddress, true, false);
@@ -1047,7 +1047,7 @@ TEST(Socket, ServerSocketIPv6_Accept)
     r = dmSocket::SetBlocking(socket, false);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    const int port = 9000;
+    const int port = 9003;
 
     dmSocket::Address bindaddress;
     r = dmSocket::GetHostByName(DM_UNIVERSAL_BIND_ADDRESS_IPV6, &bindaddress, false, true);

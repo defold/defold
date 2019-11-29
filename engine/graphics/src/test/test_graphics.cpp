@@ -116,7 +116,7 @@ TEST_F(dmGraphicsTest, CloseOpenWindow)
 
 TEST_F(dmGraphicsTest, TestWindowState)
 {
-    ASSERT_TRUE((bool) dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED) ? true : false);
     dmGraphics::CloseWindow(m_Context);
     ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
@@ -314,6 +314,15 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexDeclaration(vd);
 }
 
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+{
+    dmGraphics::ShaderDesc::Shader ddf;
+    memset(&ddf,0,sizeof(ddf));
+    ddf.m_Source.m_Data  = (uint8_t*)data;
+    ddf.m_Source.m_Count = count;
+    return ddf;
+}
+
 TEST_F(dmGraphicsTest, TestProgram)
 {
     const char* vertex_data = ""
@@ -345,8 +354,12 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    lowp vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);\n"
             "    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, strlen(vertex_data));
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, strlen(fragment_data));
+
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(vertex_data, (uint32_t) strlen(vertex_data));
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(fragment_data, (uint32_t) strlen(fragment_data));
+
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
@@ -378,11 +391,13 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::SetConstantM4(m_Context, matrix, 4);
     char* program_data = new char[1024];
     *program_data = 0;
-    dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
+    vs_shader = MakeDDFShader(program_data, 1024);
+    dmGraphics::ReloadVertexProgram(vp, &vs_shader);
     delete [] program_data;
     program_data = new char[1024];
     *program_data = 0;
-    dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
+    fs_shader = MakeDDFShader(program_data, 1024);
+    dmGraphics::ReloadFragmentProgram(fp, &fs_shader);
     delete [] program_data;
     dmGraphics::DisableProgram(m_Context);
     dmGraphics::DeleteProgram(m_Context, program);
@@ -647,7 +662,7 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     // Request close
     m_Context->m_RequestWindowClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_TRUE((bool) dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED) ? true : false);
     // Accept close
     m_CloseData.m_ShouldClose = 1;
     dmGraphics::Flip(m_Context);

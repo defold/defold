@@ -1,5 +1,6 @@
 (ns editor.code.script
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
@@ -7,6 +8,7 @@
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.image :as image]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.luajit :as luajit]
@@ -14,7 +16,10 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
-            [editor.workspace :as workspace])
+            [editor.validation :as validation]
+            [editor.workspace :as workspace]
+            [internal.util :as util]
+            [schema.core :as s])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
 
@@ -84,15 +89,43 @@
               {:match #"\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)"
                :name "keyword.operator.lua"}]})
 
-(def ^:private lua-code-opts {:code {:grammar lua-grammar}})
-(def go-prop-type->property-types
-  {:property-type-number  g/Num
-   :property-type-hash    g/Str
-   :property-type-url     g/Str
-   :property-type-vector3 t/Vec3
-   :property-type-vector4 t/Vec4
-   :property-type-quat    t/Vec3
-   :property-type-boolean g/Bool})
+(def lua-code-opts {:code {:grammar lua-grammar}})
+
+(defn script-property-type->property-type
+  "Controls how script property values are represented in the graph and edited."
+  [script-property-type]
+  (case script-property-type
+    :script-property-type-number   g/Num
+    :script-property-type-hash     g/Str
+    :script-property-type-url      g/Str
+    :script-property-type-vector3  t/Vec3
+    :script-property-type-vector4  t/Vec4
+    :script-property-type-quat     t/Vec3
+    :script-property-type-boolean  g/Bool
+    :script-property-type-resource resource/Resource))
+
+(defn script-property-type->go-prop-type
+  "Controls how script property values are represented in the file formats."
+  [script-property-type]
+  (case script-property-type
+    :script-property-type-number   :property-type-number
+    :script-property-type-hash     :property-type-hash
+    :script-property-type-url      :property-type-url
+    :script-property-type-vector3  :property-type-vector3
+    :script-property-type-vector4  :property-type-vector4
+    :script-property-type-quat     :property-type-quat
+    :script-property-type-boolean  :property-type-boolean
+    :script-property-type-resource :property-type-hash))
+
+(g/deftype ScriptPropertyType
+  (s/enum :script-property-type-number
+          :script-property-type-hash
+          :script-property-type-url
+          :script-property-type-vector3
+          :script-property-type-vector4
+          :script-property-type-quat
+          :script-property-type-boolean
+          :script-property-type-resource))
 
 (def script-defs [{:ext "script"
                    :label "Script"
@@ -128,14 +161,263 @@
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
-(g/defnk produce-properties [_declared-properties user-properties]
-  ;; TODO - fix this when corresponding graph issue has been fixed
+(def resource-kind->ext
+  "Declares which file extensions are valid for different kinds of resource
+  properties. This affects the Property Editor, but is also used for validation."
+  {"atlas"       ["atlas" "tilesource"]
+   "font"        "font"
+   "material"    "material"
+   "texture"     (conj image/exts "cubemap")
+   "tile_source" "tilesource"})
+
+(def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
+
+(defn- script-property-edit-type [prop-type resource-kind]
+  (if (= resource/Resource prop-type)
+    {:type prop-type :ext (resource-kind->ext resource-kind)}
+    {:type prop-type}))
+
+(defn- resource-assignment-error [node-id prop-kw prop-name resource expected-ext]
+  (when (some? resource)
+    (let [resource-ext (resource/ext resource)
+          ext-match? (if (coll? expected-ext)
+                       (some? (some (partial = resource-ext) expected-ext))
+                       (= expected-ext resource-ext))]
+      (cond
+        (not ext-match?)
+        (g/->error node-id prop-kw :fatal resource
+                   (format "%s '%s' is not of type %s"
+                           (validation/format-name prop-name)
+                           (resource/proj-path resource)
+                           (validation/format-ext expected-ext)))
+
+        (not (resource/exists? resource))
+        (g/->error node-id prop-kw :fatal resource
+                   (format "%s '%s' could not be found"
+                           (validation/format-name prop-name)
+                           (resource/proj-path resource)))))))
+
+(defn- validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
+  (when (= resource/Resource (:type edit-type))
+    (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
+
+(g/defnk produce-script-property-entries [_basis _node-id deleted? name resource-kind type value]
+  (when-not deleted?
+    (let [prop-kw (properties/user-name->key name)
+          prop-type (script-property-type->property-type type)
+          edit-type (script-property-edit-type prop-type resource-kind)
+          error (validate-value-against-edit-type _node-id :value name value edit-type)
+          go-prop-type (script-property-type->go-prop-type type)
+          overridden? (g/property-overridden? _basis _node-id :value)
+          read-only? (nil? (g/override-original _basis _node-id))
+          visible? (not deleted?)]
+      ;; NOTE: :assoc-original-value? here tells the node internals that it
+      ;; needs to assoc in the :original-value from the overridden node when
+      ;; evaluating :_properties or :_declared-properties. This happens
+      ;; automatically when the overridden property is in the properties map of
+      ;; the OverrideNode, but in our case the ScriptNode is presenting a
+      ;; property that resides on the ScriptPropertyNode, so there won't be an
+      ;; entry in the properties map of the ScriptNode OverrideNode.
+      {prop-kw {:assoc-original-value? overridden?
+                :edit-type edit-type
+                :error error
+                :go-prop-type go-prop-type
+                :node-id _node-id
+                :prop-kw :value
+                :read-only? read-only?
+                :type prop-type
+                :value value
+                :visible visible?}})))
+
+(g/deftype NameNodeIDPair [(s/one s/Str "name") (s/one s/Int "node-id")])
+
+(g/deftype NameNodeIDMap {s/Str s/Int})
+
+(g/deftype ResourceKind (apply s/enum (keys resource-kind->ext)))
+
+(g/deftype ScriptPropertyEntries
+  {s/Keyword {:node-id s/Int
+              :go-prop-type properties/TGoPropType
+              :type s/Any
+              :value s/Any
+              s/Keyword s/Any}})
+
+;; Every declared `go.property("name", 0.0)` in the script code gets a
+;; corresponding ScriptPropertyNode. This started as a workaround for the fact
+;; that dynamic properties couldn't host the property setter required for
+;; resource properties, but it turns out to have other benefits. Like the fact
+;; you can edit a property name in the script and have the rename propagate to
+;; all usages of the script.
+(g/defnode ScriptPropertyNode
+  ;; The deleted? property is used instead of deleting the ScriptPropertyNode so
+  ;; that overrides in collections and game objects survive cut-paste operations
+  ;; on the go.property declarations in the script code.
+  (property deleted? g/Bool)
+  (property edit-type g/Any)
+  (property name g/Str)
+  (property resource-kind ResourceKind)
+  (property type ScriptPropertyType)
+  (property value g/Any
+            (value (g/fnk [type resource value]
+                     ;; For resource properties we use the Resource from the
+                     ;; connected ResourceNode in order to track renames, etc.
+                     (case type
+                       :script-property-type-resource resource
+                       value)))
+            (set (fn [evaluation-context self _old-value new-value]
+                   ;; When assigning a resource property, we must make sure the
+                   ;; assigned resource is built and included in the game.
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (g/disconnect-sources basis self :resource)
+                       (g/disconnect-sources basis self :resource-build-targets)
+                       (when (resource/resource? new-value)
+                         (:tx-data (project/connect-resource-node
+                                     evaluation-context project new-value self
+                                     [[:resource :resource]
+                                      [:build-targets :resource-build-targets]]))))))))
+
+  (input resource resource/Resource)
+  (input resource-build-targets g/Any)
+
+  (output build-targets g/Any (g/fnk [deleted? resource-build-targets type]
+                                (when (and (not deleted?)
+                                           (= :script-property-type-resource type))
+                                  resource-build-targets)))
+  (output name+node-id NameNodeIDPair (g/fnk [_node-id name] [name _node-id]))
+  (output property-entries ScriptPropertyEntries :cached produce-script-property-entries))
+
+(defmethod g/node-key ::ScriptPropertyNode [node-id evaluation-context]
+  ;; By implementing this multi-method, overridden property values will be
+  ;; restored on OverrideNode ScriptPropertyNodes when a script is reloaded from
+  ;; disk during resource-sync. The node-key must be unique within the script.
+  (g/node-value node-id :name evaluation-context))
+
+(defn- detect-edits [old-info-by-name new-info-by-name]
+  (into {}
+        (filter (fn [[name new-info]]
+                  (when-some [old-info (old-info-by-name name)]
+                    (not= old-info new-info))))
+        new-info-by-name))
+
+(defn- detect-renames [old-info-by-removed-name new-info-by-added-name]
+  (let [added-name-by-new-info (into {} (map (juxt val key)) new-info-by-added-name)]
+    (into {}
+          (keep (fn [[old-name old-info]]
+                  (when-some [renamed-name (added-name-by-new-info old-info)]
+                    [old-name renamed-name])))
+          old-info-by-removed-name)))
+
+(def ^:private xform-to-name-info-pairs (map (juxt :name #(dissoc % :name))))
+
+(defn- edit-script-property [node-id type resource-kind value]
+  (g/set-property node-id :type type :resource-kind resource-kind :value value))
+
+(defn- create-script-property [script-node-id name type resource-kind value]
+  (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
+                (edit-script-property node-id type resource-kind value)
+                (g/connect node-id :_node-id script-node-id :nodes)
+                (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
+                (g/connect node-id :name+node-id script-node-id :script-property-name+node-ids)
+                (g/connect node-id :property-entries script-node-id :script-property-entries)))
+
+(defn- update-script-properties [evaluation-context script-node-id old-value new-value]
+  (assert (or (nil? old-value) (vector? old-value)))
+  (assert (or (nil? new-value) (vector? new-value)))
+  (let [old-info-by-name (into {} xform-to-name-info-pairs old-value)
+        new-info-by-name (into {} xform-to-name-info-pairs new-value)
+        old-info-by-removed-name (into {} (remove (comp (partial contains? new-info-by-name) key)) old-info-by-name)
+        new-info-by-added-name (into {} (remove (comp (partial contains? old-info-by-name) key)) new-info-by-name)
+        renamed-name-by-old-name (detect-renames old-info-by-removed-name new-info-by-added-name)
+        removed-names (into #{} (remove renamed-name-by-old-name) (keys old-info-by-removed-name))
+        added-info-by-name (apply dissoc new-info-by-added-name (vals renamed-name-by-old-name))
+        edited-info-by-name (detect-edits old-info-by-name new-info-by-name)
+        node-ids-by-name (g/node-value script-node-id :script-property-node-ids-by-name evaluation-context)]
+    (concat
+      ;; Renamed properties.
+      (for [[old-name new-name] renamed-name-by-old-name
+            :let [node-id (node-ids-by-name old-name)]]
+        (g/set-property node-id :name new-name))
+
+      ;; Added properties.
+      (for [[name {:keys [resource-kind type value]}] added-info-by-name]
+        (if-some [node-id (node-ids-by-name name)]
+          (concat
+            (g/set-property node-id :deleted? false)
+            (edit-script-property node-id type resource-kind value))
+          (create-script-property script-node-id name type resource-kind value)))
+
+      ;; Edited properties (i.e. the default value or property type changed).
+      (for [[name {:keys [resource-kind type value]}] edited-info-by-name
+            :let [node-id (node-ids-by-name name)]]
+        (edit-script-property node-id type resource-kind value))
+
+      ;; Removed properties.
+      (for [name removed-names
+            :let [node-id (node-ids-by-name name)]]
+        (g/set-property node-id :deleted? true)))))
+
+(defn- lift-error [node-id [prop-kw {:keys [error] :as prop} :as property-entry]]
+  (if (nil? error)
+    property-entry
+    (let [lifted-error (g/error-aggregate [error] :_node-id node-id :_label prop-kw :message (:message error) :value (:value error))]
+      [prop-kw (assoc prop :error lifted-error)])))
+
+(g/defnk produce-properties [_declared-properties _node-id script-properties script-property-entries]
   (cond
     (g/error? _declared-properties) _declared-properties
-    (g/error? user-properties) user-properties
+    (g/error? script-property-entries) script-property-entries
     :else (-> _declared-properties
-              (update :properties into (:properties user-properties))
-              (update :display-order into (:display-order user-properties)))))
+              (update :properties into (map (partial lift-error _node-id)) script-property-entries)
+              (update :display-order into (map prop->key) script-properties))))
+
+(defn- go-property-declaration-cursor-ranges
+  "Find the CursorRanges that encompass each `go.property('name', ...)`
+  declaration among the specified lines. These will be replaced with whitespace
+  before the script is compiled for the engine."
+  [lines]
+  (loop [cursor-ranges (transient [])
+         tokens (lua-parser/tokens (data/lines-reader lines))
+         paren-count 0
+         consumed []]
+    (if-some [[text :as token] (first tokens)]
+      (case (count consumed)
+        0 (recur cursor-ranges (next tokens) 0 (case text "go" (conj consumed token) []))
+        1 (recur cursor-ranges (next tokens) 0 (case text "." (conj consumed token) []))
+        2 (recur cursor-ranges (next tokens) 0 (case text "property" (conj consumed token) []))
+        3 (case text
+            "(" (recur cursor-ranges (next tokens) (inc paren-count) consumed)
+            ")" (let [paren-count (dec paren-count)]
+                  (assert (not (neg? paren-count)))
+                  (if (pos? paren-count)
+                    (recur cursor-ranges (next tokens) paren-count consumed)
+                    (let [[_ start-row start-col] (first consumed)
+                          [_ end-row end-col] token
+                          end-col (+ ^long end-col (count text))
+                          start-cursor (data/->Cursor start-row start-col)
+                          end-cursor (data/->Cursor end-row end-col)
+                          cursor-range (data/->CursorRange start-cursor end-cursor)]
+                      (recur (conj! cursor-ranges cursor-range)
+                             (next tokens)
+                             0
+                             []))))
+            (recur cursor-ranges (next tokens) paren-count consumed)))
+      (persistent! cursor-ranges))))
+
+(defn- line->whitespace [line]
+  (string/join (repeat (count line) \space)))
+
+(defn- cursor-range->whitespace-lines [lines cursor-range]
+  (let [{:keys [first-line middle-lines last-line]} (data/cursor-range-subsequence lines cursor-range)]
+    (cond-> (into [(line->whitespace first-line)]
+                  (map line->whitespace)
+                  middle-lines)
+            (some? last-line) (conj (line->whitespace last-line)))))
+
+(defn- strip-go-property-declarations [lines]
+  (data/splice-lines lines (map (juxt identity (partial cursor-range->whitespace-lines lines))
+                                (go-property-declaration-cursor-ranges lines))))
 
 (defn- script->bytecode [lines proj-path arch]
   (try
@@ -144,7 +426,7 @@
       (let [{:keys [filename line message]} (ex-data e)
             cursor-range (some-> line data/line-number->CursorRange)]
         (g/map->error
-          {:_label :lines
+          {:_label :modified-lines
            :message (.getMessage e)
            :severity :fatal
            :user-data (cond-> {:filename filename
@@ -153,67 +435,72 @@
                               (some? cursor-range)
                               (assoc :cursor-range cursor-range))})))))
 
-(defn- build-script [resource _dep-resources user-data]
-  (let [user-properties (:user-properties user-data)
-        properties      (mapv (fn [[k v]] (let [type (:go-prop-type v)]
-                                            {:id    (properties/key->user-name k)
-                                             :value (properties/go-prop->str (:value v) type)
-                                             :type  type}))
-                              (:properties user-properties))
-        modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data) :32-bit)
-        bytecode-64     (script->bytecode (:lines user-data) (:proj-path user-data) :64-bit)]
+(defn- build-script [resource dep-resources user-data]
+  ;; We always compile the full source code in order to find syntax errors.
+  ;; We then strip go.property() declarations and recompile if needed.
+  (let [lines (:lines user-data)
+        proj-path (:proj-path user-data)
+        bytecode-or-error (script->bytecode lines proj-path :32-bit)]
     (g/precluding-errors
-      [bytecode]
-      {:resource resource
-       :content  (protobuf/map->bytes Lua$LuaModule
-                                      {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
-                                                    :filename (resource/proj-path (:resource resource))
-                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)
-                                                    :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
-                                       :modules    modules
-                                       :resources  (mapv lua/lua-module->build-path modules)
-                                       :properties (properties/properties->decls properties true)})})))
+      [bytecode-or-error]
+      (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
+            modules (:modules user-data)
+            cleaned-lines (strip-go-property-declarations lines)
+            bytecode (if (identical? lines cleaned-lines)
+                       bytecode-or-error
+                       (script->bytecode cleaned-lines proj-path :32-bit))
+            bytecode-64 (script->bytecode cleaned-lines proj-path :64-bit)]
+        (assert (not (g/error? bytecode)))
+        (assert (not (g/error? bytecode-64)))
+        {:resource resource
+         :content (protobuf/map->bytes
+                    Lua$LuaModule
+                    {:source {:script (ByteString/copyFromUtf8
+                                        (slurp (data/lines-reader cleaned-lines)))
+                              :filename (resource/proj-path (:resource resource))
+                              :bytecode (ByteString/copyFrom ^bytes bytecode)
+                              :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
+                     :modules modules
+                     :resources (mapv lua/lua-module->build-path modules)
+                     :properties (properties/go-props->decls go-props true)
+                     :property-resources (into (sorted-set)
+                                               (keep properties/try-get-go-prop-proj-path)
+                                               go-props)})}))))
 
-(defn clean-user-properties [user-properties]
-  (-> user-properties
-      (update :properties
-              (fn [properties]
-                (into {}
-                      (map (fn [[prop-kw prop-data]]
-                             [prop-kw (select-keys prop-data [:go-prop-type :value])])
-                           properties))))))
+(g/defnk produce-build-targets [_node-id resource lines script-properties modules module-build-targets original-resource-property-build-targets]
+  (if-some [errors
+            (not-empty
+              (keep (fn [{:keys [name resource-kind type value]}]
+                      (let [prop-type (script-property-type->property-type type)
+                            edit-type (script-property-edit-type prop-type resource-kind)]
+                        (validate-value-against-edit-type _node-id :lines name value edit-type)))
+                    script-properties))]
+    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+    (let [go-props-with-source-resources
+          (map (fn [{:keys [name type value]}]
+                 (let [go-prop-type (script-property-type->go-prop-type type)
+                       go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                   {:id name
+                    :type go-prop-type
+                    :value go-prop-value
+                    :clj-value value}))
+               script-properties)
 
-(g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
-  [(bt/with-content-hash
-     {:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-script
-      ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
-      :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
-      :deps dep-build-targets})])
+          [go-props go-prop-dep-build-targets]
+          (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
+      ;; NOTE: The :user-data must not contain any overridden data. If it does,
+      ;; the build targets won't be fused and the script will be recompiled
+      ;; for every instance of the script component. The :go-props here describe
+      ;; the original property values from the script, never overridden values.
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-script
+          :user-data {:lines lines :go-props go-props :modules modules :proj-path (resource/proj-path resource)}
+          :deps (into go-prop-dep-build-targets module-build-targets)})])))
 
 (g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
   (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
-
-(g/defnk produce-user-properties [_node-id script-properties]
-  (let [display-order (mapv prop->key script-properties)
-        read-only? (nil? (g/override-original _node-id))
-        props (into {}
-                    (map (fn [key prop]
-                           (let [type (:type prop)
-                                 prop (-> (select-keys prop [:value])
-                                          (assoc :node-id _node-id
-                                                 :type (go-prop-type->property-types type)
-                                                 :error (status-errors (:status prop))
-                                                 :edit-type {:type (go-prop-type->property-types type)}
-                                                 :go-prop-type type
-                                                 :read-only? read-only?))]
-                             [key prop]))
-                         display-order
-                         script-properties))]
-    {:properties props
-     :display-order display-order}))
 
 (g/defnk produce-breakpoints [resource regions]
   (into []
@@ -226,10 +513,15 @@
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
-  (input dep-build-targets g/Any :array)
+  (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
-
   (input script-intelligence-completions si/ScriptCompletions)
+  (input script-property-name+node-ids NameNodeIDPair :array)
+  (input script-property-entries ScriptPropertyEntries :array)
+
+  (input resource-property-resources resource/Resource :array)
+  (input resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
+  (input original-resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
 
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
@@ -237,12 +529,15 @@
   (property modified-lines r/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [lua-info (lua-parser/lua-info (data/lines-reader new-value))
-                         resource (g/node-value self :resource evaluation-context)
+                   (let [resource (g/node-value self :resource evaluation-context)
+                         lua-info (lua-parser/lua-info (resource/workspace resource) valid-resource-kind? (data/lines-reader new-value))
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
                          modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))
-                         script-properties (filterv #(= :ok (:status %)) (:script-properties completion-info))]
+                         script-properties (into []
+                                                 (comp (filter #(= :ok (:status %)))
+                                                       (util/distinct-by :name))
+                                                 (:script-properties completion-info))]
                      (concat
                        (g/set-property self :completion-info completion-info)
                        (g/set-property self :modules modules)
@@ -255,17 +550,29 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)]
                      (concat
-                       (gu/disconnect-all basis self :dep-build-targets)
-                       (gu/disconnect-all basis self :module-completion-infos)
+                       (g/disconnect-sources basis self :module-build-targets)
+                       (g/disconnect-sources basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
-                           (:tx-data (project/connect-resource-node evaluation-context project path self
-                                                                    [[:build-targets :dep-build-targets]
-                                                                     [:completion-info :module-completion-infos]])))))))))
+                           (:tx-data (project/connect-resource-node
+                                       evaluation-context project path self
+                                       [[:build-targets :module-build-targets]
+                                        [:completion-info :module-completion-infos]])))))))))
 
   (property script-properties g/Any
             (default [])
-            (dynamic visible (g/constantly false)))
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (update-script-properties evaluation-context self old-value new-value)
+                       (g/disconnect-sources basis self :original-resource-property-build-targets)
+                       (for [{:keys [type value]} new-value
+                             :when (and (= :script-property-type-resource type) (some? value))]
+                         (:tx-data (project/connect-resource-node
+                                     evaluation-context project value self
+                                     [[:build-targets :original-resource-property-build-targets]]))))))))
 
   ;; Breakpoints output only consumed by project (array input of all code files)
   ;; and already cached there. Changing breakpoints and pulling project breakpoints
@@ -276,7 +583,9 @@
   (output _properties g/Properties :cached produce-properties)
   (output build-targets g/Any :cached produce-build-targets)
   (output completions g/Any :cached produce-completions)
-  (output user-properties g/Properties produce-user-properties))
+  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
+  (output script-property-entries ScriptPropertyEntries (g/fnk [script-property-entries] (reduce into {} script-property-entries)))
+  (output script-property-node-ids-by-name NameNodeIDMap (g/fnk [script-property-name+node-ids] (into {} script-property-name+node-ids))))
 
 (defn- additional-load-fn
   [project self resource]

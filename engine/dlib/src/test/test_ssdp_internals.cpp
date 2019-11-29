@@ -43,12 +43,12 @@ namespace
     {
         char deviceId[9] = { 0 };
         CreateRandomNumberString(deviceId, 9);
-        DM_SNPRINTF(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", deviceId);
+        dmSnPrintf(string, size, "uuid:%s-3d4f-339c-8c4d-f7c6da6771c8", deviceId);
     }
 
     void CreateDeviceDescriptionXML(char* string, const char* udn, unsigned int size)
     {
-        DM_SNPRINTF(string, size, DEVICE_DESC, udn);
+        dmSnPrintf(string, size, DEVICE_DESC, udn);
     }
 
     void CreateDeviceDescription(dmSSDP::DeviceDesc* deviceDesc)

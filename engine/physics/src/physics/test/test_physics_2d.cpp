@@ -1557,6 +1557,44 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
+// Linker checks
+TYPED_TEST(PhysicsTest, SetGridShapeEnable)
+{
+    int32_t rows = 4;
+    int32_t columns = 10;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = 0;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    data.m_Restitution = 0.0f;
+
+    const float hull_vertices[] = {  // 1x1 around origo
+                                    -0.5f, -0.5f,
+                                     0.5f, -0.5f,
+                                     0.5f,  0.5f,
+                                    -0.5f,  0.5f,
+
+                                     // 1x0.5 with top aligned to x-axis
+                                    -0.5f, -0.5f,
+                                     0.5f, -0.5f,
+                                     0.5f,  0.0f,
+                                    -0.5f,  0.0f };
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {4, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 8, hulls, 2);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    dmPhysics::SetGridShapeEnable(grid_co, 0, 1);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

@@ -1,5 +1,6 @@
 (ns internal.graph.error-values
-  (:require [internal.graph.types :as gt]))
+  (:require [clojure.string :as string]
+            [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
@@ -16,9 +17,9 @@
 
 (defn error-value
   ([severity message]
-    (error-value severity message nil))
+   (error-value severity message nil))
   ([severity message user-data]
-    (map->ErrorValue {:severity severity :message message :user-data user-data})))
+   (map->ErrorValue {:severity severity :message message :user-data user-data})))
 
 (def error-info    (partial error-value :info))
 (def error-warning (partial error-value :warning))
@@ -33,7 +34,7 @@
 
 (defn ->error
   ([node-id label severity value message]
-    (->error node-id label severity value message nil))
+   (->error node-id label severity value message nil))
   ([node-id label severity value message user-data]
    (->ErrorValue node-id label severity value message nil user-data)))
 
@@ -61,6 +62,15 @@
 (def error-info?    (partial severity? :info))
 (def error-warning? (partial severity? :warning))
 (def error-fatal?   (partial severity? :fatal))
+
+(defn- error-seq [e]
+  (tree-seq :causes :causes e))
+
+(defn- error-messages [e]
+  (distinct (keep :message (error-seq e))))
+
+(defn error-message [e]
+  (string/join "\n" (error-messages e)))
 
 (defn error-aggregate
   ([es]

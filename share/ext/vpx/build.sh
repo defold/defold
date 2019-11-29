@@ -82,7 +82,7 @@ case $CONF_TARGET in
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=generic-gnu"
 		;;
 	x86_64-darwin)
-		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-darwin15-gcc"
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-darwin15-gcc --extra-cflags=-mmacosx-version-min=${OSX_MIN_SDK_VERSION} --extra-cxxflags=-mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 		;;
 	x86_64-linux)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-linux-gcc"

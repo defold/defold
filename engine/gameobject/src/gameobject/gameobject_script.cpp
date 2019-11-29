@@ -368,7 +368,7 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
-        if (lua_gettop(L) == instance_arg) {
+        if (lua_gettop(L) == instance_arg && !lua_isnil(L, instance_arg)) {
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
             if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
@@ -735,7 +735,7 @@ namespace dmGameObject
     }
 
     /*# gets the rotation of the game object instance
-     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
+     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world rotation.
      *
      * @name go.get_rotation
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
@@ -1266,7 +1266,7 @@ namespace dmGameObject
                                         bool finished, void* userdata1, void* userdata2)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
-        if (dmScript::IsValidCallback(cbk) && finished)
+        if (dmScript::IsCallbackValid(cbk) && finished)
         {
             dmMessage::URL url;
             url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
@@ -1276,7 +1276,7 @@ namespace dmGameObject
             LuaAnimationStoppedArgs args(url, property_id);
             dmScript::InvokeCallback(cbk, LuaAnimationStoppedCallback, &args);
         }
-        dmScript::DeleteCallback(cbk);
+        dmScript::DestroyCallback(cbk);
     }
 
     /*# animates a named property of the specified game object or component
@@ -1774,7 +1774,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed
+     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.

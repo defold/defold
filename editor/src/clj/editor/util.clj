@@ -107,3 +107,36 @@
                   (when (pred x)
                     idx))
                 coll))
+
+(defn join-words
+  "Returns a string joining the elements in coll together in such a way that
+  they form valid english syntax. Examples:
+  (join-words ', ' ' or ' []) => ''
+  (join-words ', ' ' or ' ['a']) => 'a'
+  (join-words ', ' ' or ' ['a' 'b']) => 'a or b'
+  (join-words ', ' ' or ' ['a' 'b' 'c']) => 'a, b or c'"
+  ^String [separator final-separator coll]
+  (string/join final-separator
+               (concat
+                 (some->> coll
+                          butlast
+                          not-empty
+                          (string/join separator)
+                          list)
+                 (some->> coll
+                          last
+                          list))))
+
+(defn dissoc-in
+  "Dissociates an entry from a nested associative structure returning a new
+  nested structure. k & ks is a sequence of keys. Any empty maps that result
+  will not be present in the new structure."
+  [m [k & ks]]
+  (if ks
+    (if-let [child (get m k)]
+      (let [new-child (dissoc-in child ks)]
+        (if (zero? (count new-child))
+          (dissoc m k)
+          (assoc m k new-child)))
+      m)
+    (dissoc m k)))

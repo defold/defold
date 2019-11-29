@@ -3,10 +3,11 @@
             [clojure.string :as string]
             [editor.code.syntax :as syntax]
             [editor.code.util :as util])
-  (:import (java.io IOException Reader Writer)
-           (java.nio CharBuffer)
-           (java.util Collections)
-           (java.util.regex MatchResult Pattern)))
+  (:import [java.io IOException Reader Writer InputStream]
+           [java.nio CharBuffer]
+           [java.util Collections]
+           [java.util.regex MatchResult Pattern]
+           [org.apache.commons.io.input ReaderInputStream]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -317,6 +318,9 @@
                                      (+ dest-offset num-copied)))))))))
            @*num-read))))))
 
+(defn lines-input-stream ^InputStream [lines]
+  (ReaderInputStream. (lines-reader lines)))
+
 (defrecord Rect [^double x ^double y ^double w ^double h])
 
 (defn rect-contains? [^Rect r ^double x ^double y]
@@ -430,6 +434,7 @@
   (let [scroll-tab-size (scroll-tab-size document-size canvas-size)
         document-range (- document-size canvas-size)
         scroll-range (- canvas-size scroll-tab-size)]
+    ;; FIXME can throw divide by zero if canvas height is the same as scroll tab height
     (/ document-range scroll-range)))
 
 (defn max-line-width
@@ -493,21 +498,29 @@
   (let [max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))]
     [(+ gutter-margin max-line-number-width gutter-margin) gutter-margin]))
 
+(defn- limit-scroll
+  ^double [^double scroll-limit ^double scroll]
+  (min 0.0 (max scroll scroll-limit)))
+
 (defn layout-info
   ^LayoutInfo [canvas-width canvas-height document-width scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?]
   (let [^double line-height (line-height glyph-metrics)
-        dropped-line-count (long (/ ^double scroll-y (- line-height)))
-        scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
-        drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
-        line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
         excluding-gutter-width (- ^double canvas-width ^double gutter-width)
         minimap-width (if visible-minimap? (min (Math/ceil (/ excluding-gutter-width 9.0)) 150.0) 0.0)
+        canvas-rect-width (- excluding-gutter-width minimap-width)
+        line-count (count lines)
+        scroll-x (limit-scroll (- canvas-rect-width ^double document-width) scroll-x)
+        scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count)) scroll-y)
+        dropped-line-count (long (/ scroll-y (- line-height)))
+        scroll-y-remainder (double (mod scroll-y (- line-height)))
+        drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
+        line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
         minimap-left (- ^double canvas-width minimap-width)
         minimap-rect (->Rect minimap-left 0.0 minimap-width canvas-height)
-        canvas-rect (->Rect ^double gutter-width 0.0 (- excluding-gutter-width minimap-width) canvas-height)
+        canvas-rect (->Rect ^double gutter-width 0.0 canvas-rect-width canvas-height)
         tab-stops (tab-stops glyph-metrics tab-spaces)
         scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
-        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height (count lines) dropped-line-count scroll-y-remainder)]
+        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height line-count dropped-line-count scroll-y-remainder)]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
                   minimap-rect
@@ -967,10 +980,6 @@
         canvas-height (.h ^Rect (.canvas layout))]
     (- canvas-height document-height)))
 
-(defn- limit-scroll
-  ^double [^double scroll-limit ^double scroll]
-  (min 0.0 (max scroll scroll-limit)))
-
 (defn limit-scroll-x
   ^double [^LayoutInfo layout ^double scroll-x]
   (limit-scroll (scroll-x-limit layout) scroll-x))
@@ -1372,7 +1381,7 @@
     :navigation move-cursors
     :selection extend-selection))
 
-(defn- splice-lines [lines ascending-cursor-ranges-and-replacements]
+(defn splice-lines [lines ascending-cursor-ranges-and-replacements]
   (into []
         cat
         (loop [start (->Cursor 0 0)
@@ -2214,22 +2223,19 @@
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)})
 
-      ;; Move cursor and prepare for box selection.
-      (and alt-key? (not shift-key?) (= 1 click-count))
-      (begin-box-selection lines layout button click-count x y)
-
       ;; Move cursor and prepare for drag-selection.
-      (and (not alt-key?) (not shift-key?) (>= 3 ^long click-count))
+      (and (not shift-key?) (>= 3 ^long click-count))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (case (long click-count)
                            1 (Cursor->CursorRange mouse-cursor)
                            2 (word-cursor-range-at-cursor lines mouse-cursor)
-                           3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))]
-        {:cursor-ranges (if shortcut-key?
-                          (concat-cursor-ranges cursor-ranges [cursor-range])
-                          [cursor-range])
+                           3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))
+            dragged-cursor-range (assoc cursor-range :dragged true)]
+        {:cursor-ranges (if alt-key?
+                          (concat-cursor-ranges cursor-ranges [dragged-cursor-range])
+                          [dragged-cursor-range])
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
-                                      :reference-cursor-range cursor-range)}))
+                                      :reference-cursor-range dragged-cursor-range)}))
 
     :middle
     (cond
@@ -2353,7 +2359,11 @@
                                (assoc reference-cursor-range
                                  :from (cursor-range-start reference-cursor-range)
                                  :to (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
-            new-cursor-ranges [cursor-range]]
+            new-cursor-ranges (merge-cursor-ranges
+                                (sort
+                                  (into [cursor-range]
+                                        (remove :dragged)
+                                        cursor-ranges)))]
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges
                   :hovered-element nil}
@@ -2414,9 +2424,10 @@
     (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
     (mouse-hover lines visible-regions layout minimap-layout hovered-element x y)))
 
-(defn mouse-released [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
     (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation x y)
+      :cursor-ranges (mapv #(dissoc % :dragged) cursor-ranges)
       :gesture-start nil)))
 
 (defn mouse-exited [^GestureInfo gesture-start hovered-element]

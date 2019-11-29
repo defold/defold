@@ -15,7 +15,6 @@ function usage() {
     echo " * i586-mingw32msvc"
     echo " * js-web"
     echo " * wasm-web"
-    echo " * as3-web"
     echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
     exit $1

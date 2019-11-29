@@ -427,6 +427,7 @@ public class Bob {
 
     public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileException, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
+        System.setProperty("file.encoding", "UTF-8");
         String cwd = new File(".").getAbsolutePath();
 
         CommandLine cmd = parse(args);
