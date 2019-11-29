@@ -464,7 +464,8 @@
     (.setTooltip (doto (Tooltip.)
                    (.setText (format "Available as `%s` in editor scripts"
                                      (string/replace (name key) \- \_)))
-                   (.setHideDelay (Duration/seconds 30))))
+                   (.setHideDelay Duration/ZERO)
+                   (.setShowDuration (Duration/seconds 30))))
     (ui/add-style! "property-label")
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
