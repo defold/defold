@@ -222,14 +222,14 @@ public class TextureSetGenerator {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
         geometryBuilder.mergeFrom(geometry);
 
-        int originalRectWidth = rect.width - 2*extrudeBorders;
-        int originalRectHeight = rect.height - 2*extrudeBorders;
+        int originalRectWidth = rect.rotated ? rect.height : rect.width - 2*extrudeBorders;
+        int originalRectHeight = rect.rotated ? rect.width : rect.height - 2*extrudeBorders;
         float centerX = (float)rect.x + rect.width/2.0f;
         float centerY = (float)rect.y + rect.height/2.0f;
 
         // if (debug) {
-        //     System.out.println("createPolygonUVs");
-        //     System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d", centerX, centerY, originalRectWidth, originalRectHeight));
+             // System.out.println(String.format("createPolygonUVs  - %s", rect.id));
+             // System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d  numPoints: %d", centerX, centerY, originalRectWidth, originalRectHeight, geometry.getVerticesCount() / 2));
         // }
 
         int numPoints = geometry.getVerticesCount() / 2;
@@ -306,6 +306,7 @@ public class TextureSetGenerator {
 
         layout.getRectangles().sort(Comparator.comparing(o -> o.index));
 
+        // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout.getWidth(), layout.getHeight(), rects, iterator);
@@ -346,7 +347,7 @@ public class TextureSetGenerator {
         return packedImage;
     }
 
-    //static int debugImageCount = 0;
+    // static int debugImageCount = 0;
 
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
@@ -370,10 +371,17 @@ public class TextureSetGenerator {
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
-
             imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
+        }
 
-            Rect rect = imageRects.get(i);
+        // The layout step will expand the rect, and possibly rotate them
+        TextureSetResult result = calculateLayout(imageRects, imageHulls, iterator,
+                                                        margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
+
+        for (int i = 0; i < images.size(); ++i) {
+            BufferedImage image = images.get(i);
+            Rect rect = result.layoutResult.layout.getRectangles().get(i);
+
             if (innerPadding > 0) {
                 image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
             }
@@ -385,9 +393,6 @@ public class TextureSetGenerator {
             }
             images.set(i, image);
         }
-
-        TextureSetResult result = calculateLayout(imageRects, imageHulls, iterator,
-                                                        margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
         result.image = composite(images, result.layoutResult.layout);
 
@@ -443,8 +448,6 @@ public class TextureSetGenerator {
         int index = 0;
         for (BufferedImage image : images) {
             String path = paths.get(index);
-            if (path == null)
-                path = String.format("image%d", image);
             rectangles.add(new Rect(path, index, image.getWidth(), image.getHeight()));
             index++;
         }
