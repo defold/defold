@@ -60,7 +60,7 @@
 
 (s/defn make-image :- Image
   [nm :- s/Any contents :- BufferedImage]
-  (Image. nm contents (.getWidth contents) (.getHeight contents) :sprite-trim-mode-6))
+  (Image. nm contents (.getWidth contents) (.getHeight contents) :sprite-trim-mode-off))
 
 (s/defn blank-image :- BufferedImage
   ([space :- Rect]

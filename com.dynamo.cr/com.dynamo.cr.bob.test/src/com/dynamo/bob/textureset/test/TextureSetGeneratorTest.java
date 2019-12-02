@@ -135,11 +135,7 @@ public class TextureSetGeneratorTest {
         TextureSet textureSet = result.builder.setTexture("").build();
 
         assertThat(textureSet.getAnimationsCount(), is(2));
-        // NOTE: We currently assume 6 vertices per frame
-        // and vertex-format described below
-        int vertex_size = 4 * 4; // x, y, z, u, v (3 * float + 2 * short)
-        int vertices_per_frame = 6; // two triangles
-        assertThat(textureSet.getVertices().size(), is(vertex_size * vertices_per_frame * (4 + 3 + 2)));
+        assertThat(textureSet.getTexDims().size(), is(2 * 2)); // frame count * 2 floats (x, y)
     }
 
     @Test

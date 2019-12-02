@@ -493,8 +493,6 @@ public class TextureSetGenerator {
         }
         iterator.rewind();
 
-        int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
-
         final int numTexCoordsPerQuad = 8;
         ByteBuffer texCoordsBuffer = newBuffer(numTexCoordsPerQuad * 4 * quadCount);
         final int numTexDimsPerQuad = 2;

@@ -42,8 +42,6 @@ public class TileSetGeneratorTest {
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
 
-        int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
-
         ByteString vertices = textureSet.getVertices();
         List<Integer> verticesCount = textureSet.getVertexCountList();
 
