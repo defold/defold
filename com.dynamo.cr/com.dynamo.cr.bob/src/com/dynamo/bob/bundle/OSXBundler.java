@@ -128,9 +128,12 @@ public class OSXBundler implements IBundler {
         // Strip executable
         if( strip_executable )
         {
-            Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
-            if (stripResult.ret != 0) {
-                logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+            // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+            if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+                Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
+                if (stripResult.ret != 0) {
+                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+                }
             }
         }
     }
