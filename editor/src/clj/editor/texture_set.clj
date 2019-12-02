@@ -39,7 +39,7 @@
     (mapv #(->uv-vertex (+ offset %) tex-coords) tex-coord-order)))
 
 (defn- ->tex-dim
-  [frame-index tex-dims]
+  [frame-index ^FloatBuffer tex-dims]
   (let [offset (* frame-index 2)
         width (.get tex-dims ^int (+ offset 0))
         height (.get tex-dims ^int (+ offset 1))]
