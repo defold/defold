@@ -5,16 +5,16 @@
   (:import [com.defold.editor.pipeline
             ConvexHull
             TextureSetGenerator
-            TextureSetGenerator$AnimIterator
             TextureSetGenerator$AnimDesc
+            TextureSetGenerator$AnimIterator
             TextureSetGenerator$TextureSetResult
-            TextureSetLayout$Rect
             TextureSetLayout$Grid
+            TextureSetLayout$Rect
             TextureUtil
             TileSetUtil
             TileSetUtil$Metrics]
-           [com.dynamo.tile.proto Tile$Playback Tile$ConvexHull]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet$Builder]
+           [com.dynamo.tile.proto Tile$ConvexHull Tile$Playback]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -26,12 +26,13 @@
 
 (defn- map->Rect
   [{:keys [path width height]}]
+  ;; NOTE: The other attributes do not matter for our use case.
   (TextureSetLayout$Rect. path -1 (int width) (int height)))
 
 (defn- Rect->map
   [^TextureSetLayout$Rect rect]
   {:path (.id rect)
-  	:index (.index rect)
+   :index (.index rect)
    :x (.x rect)
    :y (.y rect)
    :width (.width rect)
@@ -129,9 +130,9 @@
   (for [tile-y (range tiles-per-column)
         tile-x (range tiles-per-row)
         :let [index (+ tile-x (* tile-y tiles-per-row))
-        						name (format "tile%d" index)]]
+              name (format "tile%d" index)]]
     (TextureSetLayout$Rect. name
-    																								index
+                            index
                             (* tile-x width)
                             (* tile-y height)
                             (int width)
@@ -140,7 +141,7 @@
 (defn- tile-anim->AnimDesc [anim]
   (when anim
     (TextureSetGenerator$AnimDesc. (:id anim) (protobuf/val->pb-enum Tile$Playback (:playback anim)) (:fps anim)
-               (not= 0 (:flip-horizontal anim)) (not= 0 (:flip-vertical anim)))))
+                                   (not= 0 (:flip-horizontal anim)) (not= 0 (:flip-vertical anim)))))
 
 
 (defn calculate-convex-hulls
@@ -215,7 +216,6 @@
       ;; TODO: check what that means and if it's true
       (.setTexture "unknown"))
     (TextureSetResult->result result)))
-
 
 (defn layout-tile-source
   [layout-result ^BufferedImage image tile-source-attributes]

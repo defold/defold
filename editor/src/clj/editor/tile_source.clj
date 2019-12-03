@@ -590,7 +590,7 @@
 
   (property material-tag g/Str (default "tile") (dynamic visible (g/constantly false)))
   (property original-convex-hulls g/Any (dynamic visible (g/constantly false)))
-  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-6)
+  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-off)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
 
   (property tile->collision-group-node g/Any (dynamic visible (g/constantly false)))

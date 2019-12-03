@@ -22,6 +22,7 @@
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -30,10 +31,9 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [schema.core :as s]
-            [util.digestable :as digestable]
             [internal.util :as util]
-            [editor.protobuf :as protobuf])
+            [schema.core :as s]
+            [util.digestable :as digestable])
   (:import [com.dynamo.atlas.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.tile.proto Tile$Playback Tile$SpriteTrimmingMode]
@@ -169,7 +169,7 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
 
-  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-6)
+  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-off)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
 
   (property image resource/Resource
@@ -624,11 +624,13 @@
   (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
     (make-image-nodes-in-atlas atlas-node image-msgs)))
 
-(defn- resolve-image-msgs [workspace image-msgs]
+(defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
   (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
     (into []
           (comp (remove (comp empty? :image))
-                (util/distinct-by :image)
+                (if remove-duplicates
+                  (util/distinct-by :image)
+                  identity)
                 (map (fn [atlas-image-msg]
                        (update atlas-image-msg :image resolve-workspace-resource))))
           image-msgs)))
@@ -637,7 +639,7 @@
   (let [graph-id (g/node-id->graph-id atlas-node)
         project (project/get-project atlas-node)
         workspace (project/workspace project)
-        image-msgs (resolve-image-msgs workspace (:images anim))]
+        image-msgs (resolve-image-msgs workspace (:images anim) false)]
     (g/make-nodes
       graph-id
       [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
@@ -655,7 +657,7 @@
 
 (defn load-atlas [project self resource atlas]
   (let [workspace (project/workspace project)
-        image-msgs (resolve-image-msgs workspace (:images atlas))]
+        image-msgs (resolve-image-msgs workspace (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)

@@ -1,19 +1,13 @@
 (ns editor.texture-set
-  (:require
-   [dynamo.graph :as g]
-   [editor.camera :as camera]
-   [editor.colors :as colors]
-   [editor.gl :as gl]
-   [editor.gl.pass :as pass]
-   [editor.gl.shader :as shader]
-   [editor.gl.vertex :as vtx]
-   [editor.scene :as scene]
-   [editor.types :as types])
-  (:import
-   (java.nio ByteBuffer ByteOrder FloatBuffer)
-   (javax.vecmath Point3d Vector3d Matrix4d)
-   (com.google.protobuf ByteString)
-   (com.jogamp.opengl GL2)))
+  (:require [editor.camera :as camera]
+            [editor.colors :as colors]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx])
+  (:import [com.google.protobuf ByteString]
+           [com.jogamp.opengl GL2]
+           [java.nio ByteOrder FloatBuffer]
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -74,9 +68,9 @@
                        (.order ByteOrder/LITTLE_ENDIAN)
                        (.asFloatBuffer))
         tex-dims (-> ^ByteString (:tex-dims texture-set)
-                       (.asReadOnlyByteBuffer)
-                       (.order ByteOrder/LITTLE_ENDIAN)
-                       (.asFloatBuffer))
+                     (.asReadOnlyByteBuffer)
+                     (.order ByteOrder/LITTLE_ENDIAN)
+                     (.asFloatBuffer))
         animations (:animations texture-set)
         frame-indices (:frame-indices texture-set)]
     (into {}
