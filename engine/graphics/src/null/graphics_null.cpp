@@ -7,9 +7,9 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
-#include "../graphics.h"
+#include "../graphics_private.h"
 #include "../graphics_native.h"
-#include "graphics_null.h"
+#include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
 using namespace Vectormath::Aos;
@@ -759,18 +759,6 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
-    {
-        // Not supported
-        return 0;
-    }
-
-    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
-    {
-        // Not supported
-        return -1;
-    }
-
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
@@ -993,13 +981,6 @@ namespace dmGraphics
 
     uint8_t* GetTextureData(HTexture texture) {
         return 0x0;
-    }
-
-    uint32_t GetTextureFormatBPP(TextureFormat format)
-    {
-        static TextureFormatToBPP g_TextureFormatToBPP;
-        assert(format < TEXTURE_FORMAT_COUNT);
-        return g_TextureFormatToBPP.m_FormatToBPP[format];
     }
 
     uint32_t GetTextureResourceSize(HTexture texture)

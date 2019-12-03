@@ -17,7 +17,7 @@
 #endif
 
 #include "graphics_opengl_defines.h"
-#include "../graphics.h"
+#include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
@@ -1527,18 +1527,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
-    {
-        // Not supported
-        return 0;
-    }
-
-    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
-    {
-        // Not supported
-        return -1;
-    }
-
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
@@ -1967,13 +1955,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         *out_handle = &texture->m_Texture;
 
         return HANDLE_RESULT_OK;
-    }
-
-    static inline uint32_t GetTextureFormatBPP(TextureFormat format)
-    {
-        static TextureFormatToBPP g_TextureFormatToBPP;
-        assert(format < TEXTURE_FORMAT_COUNT);
-        return g_TextureFormatToBPP.m_FormatToBPP[format];
     }
 
     void SetTexture(HTexture texture, const TextureParams& params)

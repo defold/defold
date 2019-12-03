@@ -26,15 +26,15 @@ namespace dmRender
     struct Sampler
     {
         dmhash_t m_NameHash;
-        int16_t  m_Location;
-        int16_t  m_Unit;
+        int32_t  m_Location : 24;
+        int32_t  m_Unit     : 8;
 
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
         dmGraphics::TextureWrap m_UWrap;
         dmGraphics::TextureWrap m_VWrap;
 
-        Sampler(int16_t unit)
+        Sampler(int32_t unit)
             : m_NameHash(0)
             , m_Location(-1)
             , m_Unit(unit)

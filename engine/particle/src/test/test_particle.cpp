@@ -68,21 +68,21 @@ struct EmitterStateChangedCallbackTestData
 void ParticleTest::VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas)
 {
     float* tc = &tex_coords[tile * 8];
-    uint16_t u0;
-    uint16_t v0;
-    uint16_t u1;
-    uint16_t v1;
+    float u0;
+    float v0;
+    float u1;
+    float v1;
 
     if (rotated_on_atlas) {
-        u0 = tc[0] * 65535.0f;
-        v0 = tc[1] * 65535.0f;
-        u1 = tc[2] * 65535.0f;
-        v1 = tc[5] * 65535.0f;
+        u0 = tc[0];
+        v0 = tc[1];
+        u1 = tc[2];
+        v1 = tc[5];
     } else {
-        u0 = tc[0] * 65535.0f;
-        v0 = tc[3] * 65535.0f;
-        u1 = tc[4] * 65535.0f;
-        v1 = tc[7] * 65535.0f;
+        u0 = tc[0];
+        v0 = tc[3];
+        u1 = tc[4];
+        v1 = tc[7];
     }
 
     // The particle vertices are emitted in the following order:
