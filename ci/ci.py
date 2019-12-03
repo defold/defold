@@ -175,6 +175,8 @@ def main(argv):
         channel = None
         release = False
 
+    print("Using branch={} channel={} release={}".format(branch, channel, release)
+          
     # execute commands
     for command in args.commands:
         if command == "engine":
