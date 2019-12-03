@@ -2474,9 +2474,7 @@ bail:
         ShaderResourceBinding* res = &module->m_Uniforms[index];
         *type = shaderDataTypeToGraphicsType(res->m_Type);
 
-        dmStrlCpy(buffer, res->m_Name, buffer_size);
-
-        return strlen(res->m_Name);
+        return dmStrlCpy(buffer, res->m_Name, buffer_size);
     }
 
     // In OpenGL, there is a single global resource identifier between
