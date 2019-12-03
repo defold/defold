@@ -7,6 +7,7 @@ import os
 from argparse import ArgumentParser
 
 def call(args):
+    print(args)
     ret = os.system(args)
     if ret != 0:
         exit(1)
