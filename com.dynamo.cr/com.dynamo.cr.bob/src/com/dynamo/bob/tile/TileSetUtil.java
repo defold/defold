@@ -100,7 +100,7 @@ public class TileSetUtil {
         points[0] = new ConvexHull2D.Point(minX, minY);
         points[1] = new ConvexHull2D.Point(minX, maxY);
         points[2] = new ConvexHull2D.Point(maxX, maxY);
-        points[3] = new ConvexHull2D.Point(minX, minY);
+        points[3] = new ConvexHull2D.Point(maxX, minY);
         return points;
     }
 
