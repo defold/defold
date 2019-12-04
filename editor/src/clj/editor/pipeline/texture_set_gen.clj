@@ -90,12 +90,17 @@
                           (reset! anims-atom animations)
                           (reset! anim-imgs-atom [])))
         rects (map map->Rect images)
-        sprite-geometries (map (fn [{:keys [path sprite-trim-mode] :as _image}]
-                                 (let [image-resource (workspace/find-resource workspace path)
-                                       buffered-image (image-util/read-image image-resource)
-                                       hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
-                                   (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))
-                               images)
+        sum-hull-vertex-count (reduce + (map (fn [{:keys [sprite-trim-mode] :as _image}]
+                                               (sprite-trim-mode->hull-vertex-count sprite-trim-mode))
+                                             images))
+        sprite-geometries (if (= sum-hull-vertex-count 0)
+                            nil
+                            (map (fn [{:keys [path sprite-trim-mode] :as _image}]
+                                   (let [image-resource (workspace/find-resource workspace path)
+                                         buffered-image (image-util/read-image image-resource)
+                                         hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
+                                     (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))
+                                 images))
         result (TextureSetGenerator/calculateLayout
                  rects sprite-geometries anim-iterator margin inner-padding extrude-borders
                  true false nil)]
@@ -196,10 +201,12 @@
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
         buffered-image (image-util/read-image image-resource)
         hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
-        sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
-                                 (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
-                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
-                               image-rects)
+        sprite-geometries (if (= hull-vertex-count 0)
+                            nil
+                            (map (fn [^TextureSetLayout$Rect image-rect]
+                                   (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
+                                     (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
+                                 image-rects))
         result (TextureSetGenerator/calculateLayout
                  image-rects
                  sprite-geometries
