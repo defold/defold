@@ -381,6 +381,7 @@ namespace dmDNS
             if (selector.m_Nfds == 0)
             {
                 ares_cancel(dns_channel->m_Handle);
+                req.m_Status = ARES_ECANCELLED;
                 break;
             }
             else
