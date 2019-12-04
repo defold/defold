@@ -222,8 +222,8 @@ public class TextureSetGenerator {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
         geometryBuilder.mergeFrom(geometry);
 
-        int originalRectWidth = rect.rotated ? rect.height : rect.width - 2*extrudeBorders;
-        int originalRectHeight = rect.rotated ? rect.width : rect.height - 2*extrudeBorders;
+        int originalRectWidth = (rect.rotated ? rect.height : rect.width) - 2*extrudeBorders;
+        int originalRectHeight = (rect.rotated ? rect.width : rect.height) - 2*extrudeBorders;
         float centerX = (float)rect.x + rect.width/2.0f;
         float centerY = (float)rect.y + rect.height/2.0f;
 
