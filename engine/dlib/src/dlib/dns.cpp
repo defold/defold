@@ -312,7 +312,7 @@ namespace dmDNS
         Channel* dns_channel = (Channel*) channel;
 
         RequestInfo req;
-        req.m_Status  = ARES_SUCCESS;
+        req.m_Status  = ARES_ECANCELLED;
         req.m_Ipv4    = ipv4;
         req.m_Ipv6    = ipv6;
 
@@ -381,7 +381,6 @@ namespace dmDNS
             if (selector.m_Nfds == 0)
             {
                 ares_cancel(dns_channel->m_Handle);
-                req.m_Status = ARES_ECANCELLED;
                 break;
             }
             else
