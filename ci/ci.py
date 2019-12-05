@@ -157,8 +157,11 @@ def main(argv):
 
     platform = args.platform
     branch = args.branch
+    print("args.branch is {}".format(args.branch))
     if branch:
         branch = branch.replace("refs/heads/", "")
+
+    # configure channel and release based on branch
     if branch == "master":
         channel = "stable"
         release = False
@@ -176,7 +179,8 @@ def main(argv):
         release = False
 
     print("Using branch={} channel={} release={}".format(branch, channel, release))
-          
+
+    exit(1)
     # execute commands
     for command in args.commands:
         if command == "engine":
