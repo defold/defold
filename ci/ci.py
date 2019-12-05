@@ -121,8 +121,6 @@ def build_bob(branch = None, channel = None, release = False):
     if release:
         args.append("release")
 
-    args.append("--")
-
     if branch:
         args.append("--branch=" + branch)
 
