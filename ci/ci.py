@@ -180,7 +180,6 @@ def main(argv):
 
     print("Using branch={} channel={} release={}".format(branch, channel, release))
 
-    exit(1)
     # execute commands
     for command in args.commands:
         if command == "engine":
