@@ -32,7 +32,7 @@ Here are some commands to help out with the process:
 
     # Supported: macosx,linux,windows
     PLATFORM=macosx
-    # The sdkmanager tool is provided in the Android SDK Tools package (25.2.3 and higher) and is located in android_sdk/tools/bin/ https://developer.android.com/studio/command-line/sdkmanager . 
+    # The sdkmanager tool is provided in the Android SDK Tools package (25.2.3 and higher) and is located in android_sdk/tools/bin/ https://developer.android.com/studio/command-line/sdkmanager .
     TOOL_VERSION=25.2.3
     wget https://dl.google.com/android/repository/tools_r$TOOL_VERSION-$PLATFORM.zip
     tar xvf tools_r$TOOL_VERSION-$PLATFORM.zip
@@ -122,7 +122,7 @@ For interactive shell run "adb shell"
 
 ### Caveats
 
-If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new
+If the app is started programmatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new
 create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
 
 ### Android debugging
@@ -262,11 +262,6 @@ Some relevant links:
 - http://developer.android.com/guide/topics/manifest/uses-sdk-element.html
 - http://developer.android.com/about/versions/marshmallow/android-6.0-changes.html
 - http://developer.android.com/tools/support-library/index.html
-
-You can also contact the Platform Partnerships team which are our internal Google Play contacts:
-
-- https://kingfluence.com/pages/viewpage.action?spaceKey=K&title=Google+Play+Requirements
-- https://kingfluence.com/display/K/Google
 
 ### AAPT Binaries
 
