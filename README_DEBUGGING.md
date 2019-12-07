@@ -70,7 +70,7 @@ iOS + OSX:
 1. Resolve the address
 
 ```
-	# 32 bit
+    # 32 bit
     $ arm-linux-androideabi-addr2line -C -f -e dmengine_1_2_105/lib/armeabi-v7a/libdmengine.so <address>
 
     # 64 bit
