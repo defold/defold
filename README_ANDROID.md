@@ -191,7 +191,7 @@ NDK uses a separate thread which runs the game, separate from the Android UI thr
 
 The main life cycle (LC) of an android app is controlled by the following events, received on the game thread:
 
-* _glfwPreMain(struct* android_app), corresponds to create
+* `_glfwPreMain(struct* android_app)`, corresponds to create
 * APP_CMD_START, (visible)
 * APP_CMD_RESUME
 * APP_CMD_GAINED_FOCUS
@@ -221,23 +221,23 @@ The graphics resources used are divided into Context and Surface:
 
 GLFW functions called by the engine are:
 
-* _glfwPlatformInit (Context creation)
-* _glfwPlatformOpenWindow (Surface creation)
-* _glfwPlatformCloseWindow (Surface destruction)
-* _glfwPlatformTerminate (implicit Context destruction)
+* `_glfwPlatformInit` (Context creation)
+* `_glfwPlatformOpenWindow` (Surface creation)
+* `_glfwPlatformCloseWindow` (Surface destruction)
+* `_glfwPlatformTerminate` (implicit Context destruction)
 
 Some implementation details to note:
 
-* _glfwPreMain pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
+* `_glfwPreMain` pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
   This should be possible to streamline so that content loading can start faster.
 * The engine continues to pump the LC commands as a part of polling for input (glfw)
 * OpenWindow is the first time when the window dimensions are known, which controls screen orientation.
-* The glfw window is considered open (_glfwWin.opened) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
-* The glfw window is considered iconified (_glfwWin.iconified) when not visible to user, which stops buffer swapping and controls poll timeouts
+* The glfw window is considered open (`_glfwWin.opened`) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
+* The glfw window is considered iconified (`_glfwWin.iconified`) when not visible to user, which stops buffer swapping and controls poll timeouts
 * Between CloseWindow and OpenWindow the GL context is temp-stored in memory (ordinary struct is memset to 0 by glfw in CloseWindow)
 * When rebooting the engine (when using the dev app), essentially means CloseWindow followed by OpenWindow.
-* APP_CMD_TERM_WINDOW might do Context destruction before _glfwPlatformTerminate, depending on which happens first
-* _glfwPlatformTerminate pumps the LC commands until the Context has been destroyed
+* APP_CMD_TERM_WINDOW might do Context destruction before `_glfwPlatformTerminate`, depending on which happens first
+* `_glfwPlatformTerminate` pumps the LC commands until the Context has been destroyed
 
 ### Pulling APKs from device
 
@@ -300,3 +300,7 @@ Copy the android.jar to the bob path:
     $ ./scripts/build.py distclean
     $ ./scripts/build.py install_ext
     $ b-android.sh
+
+## Energy Consumption
+
+      adb shell dumpsys cpuinfo
