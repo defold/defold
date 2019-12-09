@@ -1166,7 +1166,7 @@ namespace dmGameSystem
                     float y = point[1] * scaleY + 0.5f;
 
                     Vector4 p = w * Point3(x, y, 0.0f);
-                    BoxVertex v(p, uv[0], uv[1], bcolor);
+                    BoxVertex v(p, uv[0], uv[1], pm_color);
                     gui_world->m_ClientVertexBuffer.Push(v);
                 }
 

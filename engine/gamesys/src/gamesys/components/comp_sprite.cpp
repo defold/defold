@@ -370,15 +370,6 @@ namespace dmGameSystem
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteVertex** vb_where, uint8_t** ib_where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Sprite, "CreateVertexData");
-        static int tex_coord_order[] = {
-            0,1,2,2,3,0,
-            3,2,1,1,0,3,    //h
-            1,0,3,3,2,1,    //v
-            2,3,0,0,1,2     //hv
-        };
-
-        uint16_t texture_width = dmGraphics::GetOriginalTextureWidth(texture_set->m_Texture);
-        uint16_t texture_height = dmGraphics::GetOriginalTextureHeight(texture_set->m_Texture);
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmGameSystemDDF::TextureSetAnimation* animations = texture_set_ddf->m_Animations.m_Data;
