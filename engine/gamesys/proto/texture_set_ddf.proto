@@ -7,11 +7,6 @@ import "tile_ddf.proto";
 option java_package = "com.dynamo.textureset.proto";
 option java_outer_classname = "TextureSetProto";
 
-enum Constants
-{
-    VERTEX_SIZE = 16; // 3 * 4 + 4
-}
-
 message TextureSetAnimation
 {
     required string id              = 1;
@@ -26,18 +21,22 @@ message TextureSetAnimation
     optional uint32 is_animation    = 10 [default = 0]; // Deprecated
 }
 
-/*
-  Vertex format:
-
-  struct Vertex
-  {
-      // Offset 0
-      float x, y, z;
-      // Offset 12
-      uint16_t u, v;
-      // Offset 16
-  };
- */
+// * Vertices are relative to the center of the sprite
+// * Polygon may be concave
+// * Indices for a triangle list (i.e. 3 indices per triangle)
+message SpriteGeometry
+{
+    // The width and height of the image this geometry was generated from
+    required uint32 width   = 1;
+    required uint32 height  = 2;
+    // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
+    // Each point is relative to the sprite center
+    repeated float  vertices= 3;
+    // A list of 2-tuples, corresponding directly to the vertices
+    repeated float  uvs     = 4;
+    // list of 3-tuples, each defining a triangle in the vertex/uv list
+    repeated uint32 indices = 5;
+}
 
 message TextureSet
 {
@@ -49,22 +48,10 @@ message TextureSet
     // tile_width and tile_height should only be used in tilemap
     optional uint32 tile_width              = 4;
     optional uint32 tile_height             = 5;
+    // This is the number of rects stored before the animation frames (atlas and tile source)
     optional uint32 tile_count              = 6;
 
-    required bytes vertices                 = 7;
-    repeated uint32 vertex_start            = 8;
-    repeated uint32 vertex_count            = 9;
-
-    // Used to preview atlases, allowing for rotation of image components.
-    required bytes atlas_vertices           = 10;
-    repeated uint32 atlas_vertex_start      = 11;
-    repeated uint32 atlas_vertex_count      = 12;
-
-    required bytes outline_vertices         = 13;
-    repeated uint32 outline_vertex_start    = 14;
-    repeated uint32 outline_vertex_count    = 15;
-
-    repeated float convex_hull_points       = 16;
+    repeated float collision_hull_points    = 16;
     repeated string collision_groups        = 17;
 
     // A series of four float pairs of UV coords, representing quad texture coordinates and
@@ -72,8 +59,15 @@ message TextureSet
     // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
     // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
     // (See TextureSetGenerator.java)
+    // Only used in the editor now.
     required bytes tex_coords               = 18;
+
     // A series of two float pairs of dimensions representing quad texture width and height in texels.
-    // Unused for tilemap
     optional bytes tex_dims                 = 19;
+
+    // One geometry struct per image
+    repeated SpriteGeometry geometries      = 20;
+
+    // Maps animation frames to geometry index
+    repeated uint32 frame_indices           = 21;
 }

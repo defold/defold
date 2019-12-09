@@ -55,7 +55,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         for(Page page : pages) {
             ArrayList<Rect> rects = new ArrayList<Rect>(page.outputRects.size());
             for(RectNode node : page.outputRects) {
-                Rect finalRect = new Rect(node.rect.id, node.rect.x, node.rect.y, node.rect.width - settings.paddingX, node.rect.height - settings.paddingY);
+                Rect finalRect = new Rect(node.rect.id, node.rect.index, node.rect.x, node.rect.y, node.rect.width - settings.paddingX, node.rect.height - settings.paddingY);
                 finalRect.rotated = node.rect.rotated;
                 rects.add(finalRect);
             }
@@ -146,7 +146,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     /** @param fully If true, the only results that pack all rects will be considered. If false, all results are considered, not all
      *           rects may be packed.
      **/
-    private Page packAtSize (boolean fully, int width, int height, ArrayList<RectNode> inputRects) {
+    private Page packAtSize(boolean fully, int width, int height, ArrayList<RectNode> inputRects) {
         Page bestResult = null;
         for (int i = 0, n = methods.length; i < n; i++) {
             maxRects.init(width, height);
@@ -272,7 +272,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
             usedRectangles.clear();
             freeRectangles.clear();
-            RectNode n = new RectNode(new Rect(null, 0, 0, width, height));
+            RectNode n = new RectNode(new Rect(null, 0, 0, 0, width, height));
             freeRectangles.add(n);
         }
 
@@ -297,6 +297,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             bestNode.score2 = newNode.score2;
             bestNode.rect = new Rect(newNode.rect);
             bestNode.rect.id = rect.rect.id;
+            bestNode.rect.index = rect.rect.index;
 
             usedRectangles.add(bestNode);
             return bestNode;
@@ -307,7 +308,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             rects = new ArrayList<RectNode>(rects);
             while (rects.size() > 0) {
                 int bestRectIndex = -1;
-                RectNode bestNode = new RectNode(new Rect(null, 0, 0, 0, 0));
+                RectNode bestNode = new RectNode(new Rect(null, 0, 0, 0, 0, 0));
                 bestNode.score1 = Integer.MAX_VALUE;
                 bestNode.score2 = Integer.MAX_VALUE;
 
@@ -414,7 +415,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
         private RectNode findPositionForNewNodeBottomLeft (int width, int height, int rotatedWidth, int rotatedHeight, boolean rotate) {
             RectNode bestNode = new RectNode();
-            bestNode.rect = new Rect(null, 0,0,0,0);
+            bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = Integer.MAX_VALUE; // best y, score2 is best x
 
             for (int i = 0; i < freeRectangles.size(); i++) {
@@ -423,7 +424,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 if (currentNode.rect.width >= width && currentNode.rect.height >= height) {
                     int topSideY = currentNode.rect.y + height;
                     if (topSideY < bestNode.score1 || (topSideY == bestNode.score1 && currentNode.rect.x < bestNode.score2)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, width, height);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, width, height);
                         bestNode.score1 = topSideY;
                         bestNode.score2 = currentNode.rect.x;
                     }
@@ -431,7 +432,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 if (rotate && currentNode.rect.width >= rotatedWidth && currentNode.rect.height >= rotatedHeight) {
                     int topSideY = currentNode.rect.y + rotatedHeight;
                     if (topSideY < bestNode.score1 || (topSideY == bestNode.score1 && currentNode.rect.x < bestNode.score2)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
                         bestNode.score1 = topSideY;
                         bestNode.score2 = currentNode.rect.x;
                         bestNode.rect.rotated = true;
@@ -444,7 +445,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         private RectNode findPositionForNewNodeBestShortSideFit (int width, int height, int rotatedWidth, int rotatedHeight,
             boolean rotate) {
             RectNode bestNode = new RectNode();
-            bestNode.rect = new Rect(null, 0,0,0,0);
+            bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = Integer.MAX_VALUE;
 
             for (int i = 0; i < freeRectangles.size(); i++) {
@@ -457,7 +458,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     int longSideFit = Math.max(leftoverHoriz, leftoverVert);
 
                     if (shortSideFit < bestNode.score1 || (shortSideFit == bestNode.score1 && longSideFit < bestNode.score2)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, width, height);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, width, height);
                         bestNode.score1 = shortSideFit;
                         bestNode.score2 = longSideFit;
                     }
@@ -471,7 +472,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
                     if (flippedShortSideFit < bestNode.score1
                         || (flippedShortSideFit == bestNode.score1 && flippedLongSideFit < bestNode.score2)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
                         bestNode.score1 = flippedShortSideFit;
                         bestNode.score2 = flippedLongSideFit;
                         bestNode.rect.rotated = true;
@@ -485,7 +486,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         private RectNode findPositionForNewNodeBestLongSideFit (int width, int height, int rotatedWidth, int rotatedHeight,
             boolean rotate) {
             RectNode bestNode = new RectNode();
-            bestNode.rect = new Rect(null, 0,0,0,0);
+            bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score2 = Integer.MAX_VALUE;
 
             for (int i = 0; i < freeRectangles.size(); i++) {
@@ -498,7 +499,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     int longSideFit = Math.max(leftoverHoriz, leftoverVert);
 
                     if (longSideFit < bestNode.score2 || (longSideFit == bestNode.score2 && shortSideFit < bestNode.score1)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, width, height);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, width, height);
                         bestNode.rect.rotated = currentNode.rect.rotated;
                         bestNode.score1 = shortSideFit;
                         bestNode.score2 = longSideFit;
@@ -512,7 +513,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     int longSideFit = Math.max(leftoverHoriz, leftoverVert);
 
                     if (longSideFit < bestNode.score2 || (longSideFit == bestNode.score2 && shortSideFit < bestNode.score1)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
                         bestNode.score1 = shortSideFit;
                         bestNode.score2 = longSideFit;
                         bestNode.rect.rotated = true;
@@ -524,7 +525,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
         private RectNode findPositionForNewNodeBestAreaFit (int width, int height, int rotatedWidth, int rotatedHeight, boolean rotate) {
             RectNode bestNode = new RectNode();
-            bestNode.rect = new Rect(null, 0,0,0,0);
+            bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = Integer.MAX_VALUE; // best area fit, score2 is best short side fit
 
             for (int i = 0; i < freeRectangles.size(); i++) {
@@ -538,7 +539,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     int shortSideFit = Math.min(leftoverHoriz, leftoverVert);
 
                     if (areaFit < bestNode.score1 || (areaFit == bestNode.score1 && shortSideFit < bestNode.score2)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, width, height);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, width, height);
                         bestNode.score2 = shortSideFit;
                         bestNode.score1 = areaFit;
                     }
@@ -550,7 +551,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     int shortSideFit = Math.min(leftoverHoriz, leftoverVert);
 
                     if (areaFit < bestNode.score1 || (areaFit == bestNode.score1 && shortSideFit < bestNode.score2)) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
                         bestNode.score2 = shortSideFit;
                         bestNode.score1 = areaFit;
                         bestNode.rect.rotated = true;
@@ -586,7 +587,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
         private RectNode findPositionForNewNodeContactPoint (int width, int height, int rotatedWidth, int rotatedHeight, boolean rotate) {
             RectNode bestNode = new RectNode();
-            bestNode.rect = new Rect(null, 0,0,0,0);
+            bestNode.rect = new Rect(null, 0,0,0,0,0);
             bestNode.score1 = -1; // best contact score
 
             for (int i = 0; i < freeRectangles.size(); i++) {
@@ -595,7 +596,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 if (currentNode.rect.width >= width && currentNode.rect.height >= height) {
                     int score = contactPointScoreNode(currentNode.rect.x, currentNode.rect.y, width, height);
                     if (score > bestNode.score1) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, width, height);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, width, height);
                         bestNode.score1 = score;
                     }
                 }
@@ -603,7 +604,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                     // This was width,height -- bug fixed?
                     int score = contactPointScoreNode(currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
                     if (score > bestNode.score1) {
-                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
+                        bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.index, currentNode.rect.x, currentNode.rect.y, rotatedWidth, rotatedHeight);
                         bestNode.score1 = score;
                         bestNode.rect.rotated = true;
                     }

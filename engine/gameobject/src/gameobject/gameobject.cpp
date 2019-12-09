@@ -2307,7 +2307,6 @@ namespace dmGameObject
         if (!Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler)))
         {
             UpdateEulerToRotation(instance);
-            prev_euler = euler;
         }
     }
 

@@ -1096,6 +1096,10 @@ namespace dmGameSystem
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
         }
 
+        dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, first_node);
+        dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
+        bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
+
         // 9-slice values are specified with reference to the original graphics and not by
         // the possibly stretched texture.
         float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
@@ -1110,7 +1114,6 @@ namespace dmGameSystem
             if (dmGui::GetNodeIsBone(scene, node)) {
                 continue;
             }
-            rendered_vert_count += verts_per_node;
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
@@ -1118,6 +1121,60 @@ namespace dmGameSystem
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             Point3 size = dmGui::GetNodeSize(scene, node);
+
+            bool use_slice_nine = sum(slice9) != 0;
+
+            // we skip sprite trimming on slice 9 nodes
+            if (!use_slice_nine && use_geometries)
+            {
+                int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
+                frame_index = texture_set_ddf->m_FrameIndices[frame_index];
+
+                const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
+
+                const Matrix4& w = node_transforms[i];
+
+                // NOTE: The original rendering code is from the comp_sprite.cpp.
+                // Compare with that one if you do any changes to either.
+                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
+
+                const float* points = geometry->m_Vertices.m_Data;
+                const float* uvs = geometry->m_Uvs.m_Data;
+
+                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
+                // to respect face winding (and backface culling)
+
+                bool flip_u, flip_v;
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+
+                int reverse = (int)flip_u ^ (int)flip_v;
+
+                float scaleX = flip_u ? -1 : 1;
+                float scaleY = flip_v ? -1 : 1;
+
+                // Since we don't use an index buffer, we duplicate the vertices manually
+                uint32_t index_count = geometry->m_Indices.m_Count;
+                for (uint32_t index = 0; index < index_count; ++index)
+                {
+                    uint32_t i = geometry->m_Indices.m_Data[index];
+                    i = reverse ? (num_points - i - 1) : i;
+
+                    const float* point = &points[i * 2];
+                    const float* uv = &uvs[i * 2];
+                    // COnvert from range [-0.5,+0.5] to [0.0, 1.0]
+                    float x = point[0] * scaleX + 0.5f;
+                    float y = point[1] * scaleY + 0.5f;
+
+                    Vector4 p = w * Point3(x, y, 0.0f);
+                    BoxVertex v(p, uv[0], uv[1], bcolor);
+                    gui_world->m_ClientVertexBuffer.Push(v);
+                }
+
+                rendered_vert_count += index_count;
+                continue;
+            }
+
+            rendered_vert_count += verts_per_node;
 
             // disable slice9 computation below a certain dimension
             // (avoid div by zero)
@@ -1657,7 +1714,7 @@ namespace dmGameSystem
         uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
         if (anim_index)
         {
-            if (texture_set_res->m_TextureSet->m_TexCoords.m_Count == 0)
+            if (texture_set->m_TexCoords.m_Count == 0)
             {
                 return dmGui::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
@@ -1666,7 +1723,7 @@ namespace dmGameSystem
             if(playback_index >= dmGui::PLAYBACK_COUNT)
                 return dmGui::FETCH_ANIMATION_INVALID_PLAYBACK;
 
-            out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
+            out_data->m_TexCoords = (const float*) texture_set->m_TexCoords.m_Data;
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
             out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
@@ -1675,6 +1732,7 @@ namespace dmGameSystem
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
+            out_data->m_TextureSet = (void*)texture_set;
             return dmGui::FETCH_ANIMATION_OK;
         }
         else

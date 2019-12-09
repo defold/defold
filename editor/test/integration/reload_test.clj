@@ -194,47 +194,47 @@
                   (is (no-undo? project)))))))))))
 
 (deftest external-file
- (with-clean-system
-   (let [[workspace project] (setup-scratch world)
-         atlas-node-id (project/get-resource-node project "/atlas/empty.atlas")
-         img-path "/test_img.png"
-         anim-id (FilenameUtils/getBaseName img-path)]
-     (is (not (nil? atlas-node-id)))
-     (testing "Add external file, cleared history"
-       (add-img workspace img-path 64 64)
-       (let [initial-node (project/get-resource-node project img-path)]
-         (is (some? initial-node))
-         (is (no-undo? project))
-         (testing "Reference it, node added and linked"
-           (g/transact
-             (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
-           (is (has-undo? project))
-           (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
-                 anim-data (g/node-value atlas-node-id :anim-data)
-                 anim (get anim-data anim-id)]
-             (is (and (= 64 (:width anim)) (= 64 (:height anim))))
-             (testing "Modify image, anim data updated"
-               (add-img workspace img-path 128 128)
-               ;; undo count should be unchanged as this is a modification of an external (non-loadable) resource
-               ;; which should only invalidate the outputs of the resource node
-               (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
-               (let [changed-node (project/get-resource-node project img-path)
-                     anim-data (g/node-value atlas-node-id :anim-data)
-                     anim (get anim-data anim-id)]
-                 (is (= initial-node changed-node))
-                 (is (and (= 128 (:width anim)) (= 128 (:height anim))))
-                 (testing "Delete it, errors produced"
-                   (delete-file workspace img-path)
-                   (let [node (project/get-resource-node project img-path)
-                         invalidated-node ((g/node-value project :nodes-by-resource-path) img-path)]
-                     (is (nil? node))
-                     (is (= initial-node invalidated-node))
-                     (is (= nil (g/node-value invalidated-node :_output-jammers)))
-                     ;; as above, undo count should be unchanged - just invalidate the outputs of the resource node
-                     (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
-                     ;; TODO - fix node pollution
-                     (log/without-logging
-                       (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          atlas-node-id (project/get-resource-node project "/atlas/empty.atlas")
+          img-path "/test_img.png"
+          anim-id (FilenameUtils/getBaseName img-path)]
+      (is (not (nil? atlas-node-id)))
+      (testing "Add external file, cleared history"
+        (add-img workspace img-path 64 64)
+        (let [initial-node (project/get-resource-node project img-path)]
+          (is (some? initial-node))
+          (is (no-undo? project))
+          (testing "Reference it, node added and linked"
+            (g/transact
+              (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
+            (is (has-undo? project))
+            (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
+                  anim-data (g/node-value atlas-node-id :anim-data)
+                  anim (get anim-data anim-id)]
+              (is (and (= 64.0 (:width anim)) (= 64.0 (:height anim))))
+              (testing "Modify image, anim data updated"
+                (add-img workspace img-path 128 128)
+                ;; undo count should be unchanged as this is a modification of an external (non-loadable) resource
+                ;; which should only invalidate the outputs of the resource node
+                (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                (let [changed-node (project/get-resource-node project img-path)
+                      anim-data (g/node-value atlas-node-id :anim-data)
+                      anim (get anim-data anim-id)]
+                  (is (= initial-node changed-node))
+                  (is (and (= 128.0 (:width anim)) (= 128.0 (:height anim))))
+                  (testing "Delete it, errors produced"
+                    (delete-file workspace img-path)
+                    (let [node (project/get-resource-node project img-path)
+                          invalidated-node ((g/node-value project :nodes-by-resource-path) img-path)]
+                      (is (nil? node))
+                      (is (= initial-node invalidated-node))
+                      (is (= nil (g/node-value invalidated-node :_output-jammers)))
+                      ;; as above, undo count should be unchanged - just invalidate the outputs of the resource node
+                      (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                      ;; TODO - fix node pollution
+                      (log/without-logging
+                        (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
 
 (deftest save-no-reload
   (with-clean-system
