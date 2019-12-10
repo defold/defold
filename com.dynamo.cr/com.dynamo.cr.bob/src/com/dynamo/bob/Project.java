@@ -396,7 +396,7 @@ public class Project {
         return properties;
     }
 
-    public void loadProjectFile() throws IOException, ParseException {
+    public void loadProjectFile() throws IOException {
         IResource gameProject = getGameProjectResource();
         if (gameProject.exists()) {
             projectProperties = Project.loadProperties(gameProject, this.getPropertyFiles());
