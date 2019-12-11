@@ -1319,10 +1319,6 @@ instructions.configure=\
                 padding: 40px 15px;
                 text-align: center;
             }
-            #eula-text{
-                height: 400px;
-                overflow: scroll;
-            }
         </style>
 
     </head>
@@ -1343,17 +1339,6 @@ instructions.configure=\
         <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
         <script src="//d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
         <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
-
-        <div id="eula" class="container">
-            <div class="well well-large">
-                <div id="eula-text"></div>
-            </div>
-            <div id="eula-form" class="alert alert-success">
-                <input type="checkbox" id="accept">
-                <b>Check to verify that you have read and accepted the "Defold Terms of Service" above.</b>
-            </div>
-        </div>
-
         <script id="templ-releases" type="text/html">
             <h2>{{release.channel}} {{release.version}}</h2>
             {{#release.editor}}
@@ -1397,29 +1382,8 @@ instructions.configure=\
 
         <script>
             var model = %(model)s
-            if(document.cookie.match(/^eula-accepted.*/)) {
-                // Eula accepted
-                $("#eula").html('');
-                var output = Mustache.render($('#templ-releases').html(), model);
-                $("#releases").html(output);
-            } else {
-                // Show eula
-                var xhttp = new XMLHttpRequest();
-                xhttp.onreadystatechange = function() {
-                    if (this.readyState == 4 && this.status == 200) {
-                        $("#eula-text").html(this.responseText);
-                    }
-                };
-                xhttp.open("GET", "https://www.defold.com/terms-and-conditions/", true);
-                xhttp.send();
-                $("#accept").change(function() {
-                    if(this.checked) {
-                        alert('Thank you for accepting the Defold Terms of Service. You may now download Defold software.');
-                        document.cookie = 'eula-accepted=yes; expires=Fri, 31 Dec 9999 23:59:59 GMT';
-                        location.reload();
-                    }
-                });
-            }
+            var output = Mustache.render($('#templ-releases').html(), model);
+            $("#releases").html(output);
         </script>
       </body>
 </html>
