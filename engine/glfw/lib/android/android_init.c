@@ -237,6 +237,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         computeIconifiedState();
         if(_glfwWin.windowFocusCallback)
             _glfwWin.windowFocusCallback(1);
+        if(_glfwWin.windowIconifyCallback)
+            _glfwWin.windowIconifyCallback(0);
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:

@@ -82,11 +82,15 @@
 - (void)windowDidMiniaturize:(NSNotification *)notification
 {
     _glfwWin.iconified = GL_TRUE;
+    if(_glfwWin.windowIconifyCallback)
+        _glfwWin.windowIconifyCallback(1);
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)notification
 {
     _glfwWin.iconified = GL_FALSE;
+    if(_glfwWin.windowIconifyCallback)
+        _glfwWin.windowIconifyCallback(0);
 }
 
 - (void)windowDidBecomeKey:(NSNotification *)notification

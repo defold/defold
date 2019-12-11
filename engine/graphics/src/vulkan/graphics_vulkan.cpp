@@ -84,6 +84,8 @@ namespace dmGraphics
         void*                           m_WindowCloseCallbackUserData;
         WindowFocusCallback             m_WindowFocusCallback;
         void*                           m_WindowFocusCallbackUserData;
+        WindowIconifyCallback           m_WindowIconifyCallback;
+        void*                           m_WindowIconifyCallbackUserData;
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
         dmArray<VkCommandBuffer>        m_MainCommandBuffers;
@@ -1030,17 +1032,19 @@ bail:
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
 
-        context->m_WindowOpened                 = 1;
-        context->m_Width                        = params->m_Width;
-        context->m_Height                       = params->m_Height;
-        context->m_WindowWidth                  = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight                 = context->m_SwapChain->m_ImageExtent.height;
-        context->m_WindowResizeCallback         = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback          = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback          = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
+        context->m_WindowOpened                  = 1;
+        context->m_Width                         = params->m_Width;
+        context->m_Height                        = params->m_Height;
+        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
+        context->m_WindowResizeCallback          = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback           = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData   = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback           = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
+        context->m_WindowIconifyCallback         = params->m_IconifyCallback;
+        context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
 
         return WINDOW_RESULT_OK;
     }
