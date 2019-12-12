@@ -486,12 +486,12 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X portrait launch image (.png)",
+   :help "iPhone X and XS portrait launch image (.png)",
    :path ["ios" "launch_image_1125x2436"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X landscape launch image (.png)",
+   :help "iPhone X and XSlandscape launch image (.png)",
    :path ["ios" "launch_image_2436x1125"]}
   {:type :resource,
    :filter "png",
