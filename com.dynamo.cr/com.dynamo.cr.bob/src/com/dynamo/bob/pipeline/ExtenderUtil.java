@@ -1,6 +1,8 @@
 package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -83,12 +85,12 @@ public class ExtenderUtil {
         }
     }
 
-    public static class JavaRExtenderResource implements ExtenderResource {
+    public static class FileExtenderResource implements ExtenderResource {
 
-        private File javaFile;
+        private File file;
         private String path;
-        public JavaRExtenderResource(File javaFile, String path) {
-            this.javaFile = javaFile;
+        public FileExtenderResource(File file, String path) {
+            this.file = file;
             this.path = path;
         }
 
@@ -120,7 +122,7 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            File f = javaFile;
+            File f = file;
             if (!f.exists())
                 return null;
 
@@ -136,7 +138,7 @@ public class ExtenderUtil {
 
         @Override
         public long getLastModified() {
-            return javaFile.lastModified();
+            return file.lastModified();
         }
 
         @Override
@@ -341,6 +343,17 @@ public class ExtenderUtil {
         return resources;
     }
 
+    public static List<ExtenderResource> listFilesRecursive(File baseDir, File subDir) {
+        List<File> files = new ArrayList(FileUtils.listFiles(subDir, new RegexFileFilter(".*"), DirectoryFileFilter.DIRECTORY));
+
+        List<ExtenderResource> resources = new ArrayList<>();
+        for (File file : files) {
+            String relative = baseDir.toURI().relativize(file.toURI()).getPath();
+            resources.add(new FileExtenderResource(file, relative));
+        }
+        return resources;
+    }
+
     private static List<String> trimExcludePaths(List<String> excludes) {
         List<String> trimmedExcludes = new ArrayList<String>();
         for (String path : excludes) {
@@ -479,6 +492,7 @@ public class ExtenderUtil {
             for (String platformAlt : platformFolderAlternatives) {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
+                sources.addAll( listFilesRecursive( project, extension + "/res/" + platformAlt + "/") );
             }
         }
 
@@ -665,8 +679,6 @@ public class ExtenderUtil {
             File outputFile = new File(targetDirectory, relativePath);
             if (!outputFile.getParentFile().exists()) {
                 outputFile.getParentFile().mkdirs();
-            } else if (outputFile.exists()) {
-                throw new CompileExceptionError(r, 0, "The resource already exists in another extension: " + relativePath);
             }
             try {
                 byte[] data = r.getContent();

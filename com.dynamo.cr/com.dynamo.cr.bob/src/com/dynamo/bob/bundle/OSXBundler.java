@@ -74,7 +74,7 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 

@@ -256,51 +256,17 @@ public class IOSBundler implements IBundler {
             throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
         }
 
-        List<String> applicationQueriesSchemes = new ArrayList<String>();
-        List<String> urlSchemes = new ArrayList<String>();
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
-        if (bundleId != null) {
-            urlSchemes.add(bundleId);
-        }
-
-        Map<String, Object> properties = new HashMap<String, Object>();
-        properties.put("exe-name", exeName);
-        properties.put("url-schemes", urlSchemes);
-        properties.put("application-queries-schemes", applicationQueriesSchemes);
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        List<String> orientationSupport = new ArrayList<String>();
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
-            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                orientationSupport.add("LandscapeRight");
-            } else {
-                orientationSupport.add("Portrait");
-            }
-        } else {
-            orientationSupport.add("Portrait");
-            orientationSupport.add("PortraitUpsideDown");
-            orientationSupport.add("LandscapeLeft");
-            orientationSupport.add("LandscapeRight");
-        }
-        properties.put("orientation-support", orientationSupport);
-
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app", variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
         try {
             helper.copyIosIcons();
 
+            Map<String, Object> properties = helper.createIOSManifestProperties(exeName);
             File manifestFile = new File(appDir, "Info.plist");
             IResource sourceManifestFile = helper.getResource("ios", "infoplist");
             helper.mergeManifests(properties, sourceManifestFile, manifestFile);
         } catch (IOException e) {
             throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
         }
-
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder

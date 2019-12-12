@@ -152,7 +152,7 @@ public class AndroidBundler implements IBundler {
         }
 
         Platform targetPlatform = Platform.Armv7Android;
-        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "", variant);
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, variant);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
@@ -160,7 +160,7 @@ public class AndroidBundler implements IBundler {
         File manifestFile = new File(appDir, "AndroidManifest.xml"); // the final, merged manifest
         IResource sourceManifestFile = helper.getResource("android", "manifest");
 
-        Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
+        Map<String, Object> properties = helper.createAndroidManifestProperties(exeName);
         try {
             helper.mergeManifests(properties, sourceManifestFile, manifestFile);
         } catch (CompileExceptionError e) {
