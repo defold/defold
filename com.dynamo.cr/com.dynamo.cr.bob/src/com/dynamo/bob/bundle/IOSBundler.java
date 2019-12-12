@@ -262,8 +262,8 @@ public class IOSBundler implements IBundler {
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1792x828", "Default-Landscape-896h@2x.png");
 
             // iPhone XS Max (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2688", "Default-Portrait-1242h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2688x1242", "Default-Landscape-1242h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2688", "Default-Portrait-896h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2688x1242", "Default-Landscape-896h@3x.png");
         } catch (Exception e) {
             throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
         }
