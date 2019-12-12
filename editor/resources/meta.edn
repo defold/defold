@@ -491,7 +491,7 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X and XSlandscape launch image (.png)",
+   :help "iPhone X and XS landscape launch image (.png)",
    :path ["ios" "launch_image_2436x1125"]}
   {:type :resource,
    :filter "png",
