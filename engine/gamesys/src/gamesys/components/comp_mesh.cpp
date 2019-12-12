@@ -323,7 +323,7 @@ namespace dmGameSystem
         }
     }
 
-    template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_vector, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)
+    template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_point, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)
     {
         // Offset dst_data_ptr if stream isn't first!
         uint32_t ptr_offset = (uint8_t*)src_stream_data - (uint8_t*)raw_data;
@@ -335,7 +335,7 @@ namespace dmGameSystem
             v[0] = src_stream_data[0];
             v[1] = src_stream_data[1];
             v[2] = src_stream_data[2];
-            v[3] = !is_vector;
+            v[3] = !is_point;
             v = matrix * v;
             dst_data_ptr[0] = v[0];
             dst_data_ptr[1] = v[1];
@@ -347,7 +347,7 @@ namespace dmGameSystem
         }
     }
 
-    static inline void FillAndApplyStream(const BufferResource* buffer_resource, const Matrix4& matrix, dmhash_t stream_id, dmBufferDDF::ValueType value_type, void* raw_data, void* dst_data_ptr)
+    static inline void FillAndApplyStream(const BufferResource* buffer_resource, bool is_point, const Matrix4& matrix, dmhash_t stream_id, dmBufferDDF::ValueType value_type, void* raw_data, void* dst_data_ptr)
     {
         // Get position stream to figure out offset and stride etc
         void* stream_data = 0x0;
@@ -368,28 +368,28 @@ namespace dmGameSystem
         switch (value_type)
         {
             case dmBufferDDF::VALUE_TYPE_UINT8:
-            FillAndApply<uint8_t>(matrix, 0, count, stride, (uint8_t*)raw_data, (uint8_t*)stream_data, (uint8_t*)dst_data_ptr);
+            FillAndApply<uint8_t>(matrix, is_point, count, stride, (uint8_t*)raw_data, (uint8_t*)stream_data, (uint8_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_UINT16:
-            FillAndApply<uint16_t>(matrix, 0, count, stride, (uint16_t*)raw_data, (uint16_t*)stream_data, (uint16_t*)dst_data_ptr);
+            FillAndApply<uint16_t>(matrix, is_point, count, stride, (uint16_t*)raw_data, (uint16_t*)stream_data, (uint16_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_UINT32:
-            FillAndApply<uint32_t>(matrix, 0, count, stride, (uint32_t*)raw_data, (uint32_t*)stream_data, (uint32_t*)dst_data_ptr);
+            FillAndApply<uint32_t>(matrix, is_point, count, stride, (uint32_t*)raw_data, (uint32_t*)stream_data, (uint32_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_INT8:
-            FillAndApply<int8_t>(matrix, 0, count, stride, (int8_t*)raw_data, (int8_t*)stream_data, (int8_t*)dst_data_ptr);
+            FillAndApply<int8_t>(matrix, is_point, count, stride, (int8_t*)raw_data, (int8_t*)stream_data, (int8_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_INT16:
-            FillAndApply<int16_t>(matrix, 0, count, stride, (int16_t*)raw_data, (int16_t*)stream_data, (int16_t*)dst_data_ptr);
+            FillAndApply<int16_t>(matrix, is_point, count, stride, (int16_t*)raw_data, (int16_t*)stream_data, (int16_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_INT32:
-            FillAndApply<int32_t>(matrix, 0, count, stride, (int32_t*)raw_data, (int32_t*)stream_data, (int32_t*)dst_data_ptr);
+            FillAndApply<int32_t>(matrix, is_point, count, stride, (int32_t*)raw_data, (int32_t*)stream_data, (int32_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_FLOAT32:
-            FillAndApply<float>(matrix, 0, count, stride, (float*)raw_data, (float*)stream_data, (float*)dst_data_ptr);
+            FillAndApply<float>(matrix, is_point, count, stride, (float*)raw_data, (float*)stream_data, (float*)dst_data_ptr);
                 break;
             default:
-                assert(false && "Stream type not supported.");
+                dmLogError("Stream type (%d) for %s is not supported.", value_type, dmHashReverseSafe64(stream_id));
                 break;
         }
     }
@@ -459,11 +459,13 @@ namespace dmGameSystem
         // Allocate a larger scratch buffer if vert count * vert size is larger than current buffer.
         if (world->m_WorldVertexDataSize < vert_size * element_count)
         {
-            if (world->m_WorldVertexData) {
-                free(world->m_WorldVertexData);
-            }
             world->m_WorldVertexDataSize = vert_size * element_count;
-            world->m_WorldVertexData = malloc(world->m_WorldVertexDataSize);
+
+            if (world->m_WorldVertexData) {
+                realloc(world->m_WorldVertexData, world->m_WorldVertexDataSize);
+            } else {
+                world->m_WorldVertexData = malloc(world->m_WorldVertexDataSize);
+            }
         }
 
         // Fill scratch buffer with data
@@ -492,14 +494,14 @@ namespace dmGameSystem
 
             // Modify position stream, if specified
             if (mr->m_PositionStreamId) {
-                FillAndApplyStream(br, component->m_World, mr->m_PositionStreamId, mr->m_PositionStreamType, raw_data, dst_data_ptr);
+                FillAndApplyStream(br, true, component->m_World, mr->m_PositionStreamId, mr->m_PositionStreamType, raw_data, dst_data_ptr);
             }
 
             // Modify normal stream, if specified
             if (mr->m_NormalStreamId) {
                 Matrix4 normal_matrix = affineInverse(component->m_World);
                 normal_matrix = transpose(normal_matrix);
-                FillAndApplyStream(br, normal_matrix, mr->m_NormalStreamId, mr->m_NormalStreamType, raw_data, dst_data_ptr);
+                FillAndApplyStream(br, false, normal_matrix, mr->m_NormalStreamId, mr->m_NormalStreamType, raw_data, dst_data_ptr);
             }
 
             dst_data_ptr = (void*)((uint8_t*)dst_data_ptr + size);
@@ -539,12 +541,6 @@ namespace dmGameSystem
                 vert_size = component->m_VertSize;
                 elem_count = component->m_ElementCount;
                 vert_buf = GetFreeVertexBuffer(world, render_context);
-            }
-
-            // Cannot render with null vertex buffer.
-            // Possibly due to buffer resource having zero elements.
-            if (vert_buf == 0x0) {
-                continue;
             }
 
             uint8_t* bytes = 0x0;
@@ -752,17 +748,19 @@ namespace dmGameSystem
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.
                 if (HasCustomVerticesBuffer(component, component->m_Resource) && component->m_BufferResource != prev_buffer_resource) {
 
-                    // Delete old vertex declaration
-                    if (component->m_VertexDeclaration) {
-                        dmGraphics::DeleteVertexDeclaration(component->m_VertexDeclaration);
-                        component->m_VertexDeclaration = 0x0;
-                    }
-
-                    bool r = dmGameSystem::BuildVertexDeclaration(component->m_BufferResource, &component->m_VertexDeclaration, &component->m_ElementCount, &component->m_VertSize);
+                    dmGraphics::HVertexDeclaration new_vert_decl;
+                    bool r = dmGameSystem::BuildVertexDeclaration(component->m_BufferResource, &new_vert_decl, &component->m_ElementCount, &component->m_VertSize);
                     if (!r) {
                         dmLogError("Error while building vertex declaration from new resource.");
                         return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
                     }
+
+                    // Delete old vertex declaration
+                    if (component->m_VertexDeclaration) {
+                        dmGraphics::DeleteVertexDeclaration(component->m_VertexDeclaration);
+                    }
+
+                    component->m_VertexDeclaration = new_vert_decl;
                 }
             }
 

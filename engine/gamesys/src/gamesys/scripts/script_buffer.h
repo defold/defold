@@ -8,7 +8,6 @@
 
 namespace dmGameSystem
 {
-    // void InitializeBuffer(lua_State* L);
     void ScriptBufferRegister(const ScriptLibContext& context);
 }
 

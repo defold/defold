@@ -11,6 +11,15 @@ namespace dmGameSystem
 {
     static dmGraphics::HContext g_GraphicsContext = 0x0;
 
+    static bool IsSupportedGraphicsType(dmBufferDDF::ValueType value_type) {
+        if (value_type == dmBufferDDF::VALUE_TYPE_UINT64 ||
+            value_type == dmBufferDDF::VALUE_TYPE_INT64) {
+            return false;
+        }
+
+        return true;
+    }
+
     static dmGraphics::Type StreamTypeToGraphicsType(dmBufferDDF::ValueType value_type)
     {
         switch (value_type)
@@ -40,7 +49,6 @@ namespace dmGameSystem
             // case dmBufferDDF::VALUE_TYPE_UINT64:
             // case dmBufferDDF::VALUE_TYPE_INT64:
             default:
-                assert(false && "Unknown value type!");
                 return dmGraphics::TYPE_BYTE;
         }
     }
@@ -74,7 +82,6 @@ namespace dmGameSystem
             // case dmBufferDDF::VALUE_TYPE_UINT64:
             // case dmBufferDDF::VALUE_TYPE_INT64:
             default:
-                assert(false && "Unknown value type!");
                 return 0;
         }
     }
@@ -113,6 +120,13 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+
+            if (!IsSupportedGraphicsType(ddf_stream.m_ValueType)) {
+                dmLogError("Value type for stream %s is not supported.", ddf_stream.m_Name);
+                free(vert_decls);
+                return false;
+            }
+
             dmGraphics::VertexElement& vert_decl = vert_decls[i];
             vert_decl.m_Name = ddf_stream.m_Name;
             vert_decl.m_Stream = i;
@@ -123,8 +137,11 @@ namespace dmGameSystem
             vert_size += StreamTypeToSize(ddf_stream.m_ValueType) * ddf_stream.m_ValueCount;
         }
 
+        // Get correct "struct stride/size", since dmBuffer might align the structs etc.
+        uint32_t stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
+
         // Init vertex declaration
-        *out_vert_decl = dmGraphics::NewVertexDeclaration(g_GraphicsContext, vert_decls, stream_count);
+        *out_vert_decl = dmGraphics::NewVertexDeclaration(g_GraphicsContext, vert_decls, stream_count, stride);
         free(vert_decls);
 
         // Update vertex declaration with exact offsets (since streams in buffers can be aligned).
@@ -136,14 +153,6 @@ namespace dmGameSystem
 
             bool b2 = dmGraphics::SetStreamOffset(*out_vert_decl, i, offset);
             assert(b2);
-        }
-
-        // Set correct "struct stride/size", since dmBuffer might align the structs etc.
-        uint32_t stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
-        bool vert_stride_res = dmGraphics::SetVertexStride(*out_vert_decl, stride);
-        if (!vert_stride_res) {
-            dmLogError("Could not get vertex element size for vertex buffer.");
-            return false;
         }
 
         // We need to keep track of the exact vertex size (ie the "struct" size according to dmBuffer)

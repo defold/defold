@@ -22,8 +22,11 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-static uint32_t SCRIPT_BUFFER_TYPE_HASH = 0;
-static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
+namespace dmScript
+{
+    static uint32_t SCRIPT_BUFFER_TYPE_HASH = 0;
+    static uint32_t SCRIPT_BUFFERSTREAM_TYPE_HASH = 0;
+}
 
 namespace dmGameSystem
 {
@@ -118,7 +121,7 @@ namespace dmGameSystem
 
     static bool IsStream(lua_State *L, int index)
     {
-        return dmScript::GetUserType(L, index) == SCRIPT_BUFFERSTREAM_TYPE_HASH;
+        return dmScript::GetUserType(L, index) == dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH;
     }
 
     template<typename T>
@@ -222,7 +225,7 @@ namespace dmGameSystem
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)dmScript::ToUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH);
+            BufferStream* stream = (BufferStream*)dmScript::ToUserType(L, index, dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH);
             if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
             {
                 return stream;
@@ -235,7 +238,7 @@ namespace dmGameSystem
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
-            BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
+            BufferStream* stream = (BufferStream*)dmScript::CheckUserType(L, index, dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH, 0);
             if (stream && dmBuffer::IsBufferValid(stream->m_Buffer))
             {
                 return stream;
@@ -888,7 +891,6 @@ namespace dmGameSystem
         uint32_t* m_TypeHash;
     };
 
-    // void InitializeBuffer(lua_State* L)
     void ScriptBufferRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
@@ -898,8 +900,8 @@ namespace dmGameSystem
         const uint32_t type_count = 2;
         BufferTypeStruct types[type_count] =
         {
-            {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta, &SCRIPT_BUFFER_TYPE_HASH},
-            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta, &SCRIPT_BUFFERSTREAM_TYPE_HASH},
+            {SCRIPT_TYPE_NAME_BUFFER, Buffer_methods, Buffer_meta, &dmScript::SCRIPT_BUFFER_TYPE_HASH},
+            {SCRIPT_TYPE_NAME_BUFFERSTREAM, Stream_methods, Stream_meta, &dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH},
         };
 
         for (uint32_t i = 0; i < type_count; ++i)
@@ -930,9 +932,9 @@ namespace dmGameSystem
 
 }
 
-// TODO(andsve): Move this back to script/script_buffer.cpp instead?
 namespace dmScript
 {
+
     bool IsBuffer(lua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == SCRIPT_BUFFER_TYPE_HASH;

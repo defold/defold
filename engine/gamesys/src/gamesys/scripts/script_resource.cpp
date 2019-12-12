@@ -438,7 +438,7 @@ static int GetBuffer(lua_State* L)
     int top = lua_gettop(L);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
-    dmResource::SResourceDescriptor* rd = dmResource::GetByHash(g_ResourceModule.m_Factory, path_hash);
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
         return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
     }
@@ -477,7 +477,7 @@ static int SetBuffer(lua_State* L)
         src_buffer = ((BufferResource*)luabuf->m_BufferRes)->m_Buffer;
     }
 
-    dmResource::SResourceDescriptor* rd = dmResource::GetByHash(g_ResourceModule.m_Factory, path_hash);
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
         return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
     }
@@ -498,6 +498,8 @@ static int SetBuffer(lua_State* L)
     dmBuffer::HBuffer dst_buffer = buffer_resource->m_Buffer;
 
     // Make sure the destination buffer has enough size (otherwise, resize it).
+    // TODO: Check if incoming buffer size is smaller than current size -> don't allocate new dmbuffer,
+    //       but copy smaller data and change "size".
     uint32_t dst_count = 0;
     dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
     if (br != dmBuffer::RESULT_OK) {

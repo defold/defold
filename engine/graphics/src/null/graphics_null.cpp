@@ -452,11 +452,6 @@ namespace dmGraphics
         return true;
     }
 
-    bool SetVertexStride(HVertexDeclaration vertex_declaration, uint16_t stride)
-    {
-        return true;
-    }
-
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete vertex_declaration;

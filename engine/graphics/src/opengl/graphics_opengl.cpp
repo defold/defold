@@ -1148,12 +1148,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    bool SetVertexStride(HVertexDeclaration vertex_declaration, uint16_t stride)
-    {
-        vertex_declaration->m_Stride = stride;
-        return true;
-    }
-
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete vertex_declaration;
@@ -1275,8 +1269,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
             dmHashUpdateBuffer32(state, stream.m_Name, strlen(stream.m_Name));
             dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
-            // TODO(andsve): might not need this in the case of comp_mesh since this can be updated mid frame?
-            // dmHashUpdateBuffer32(state, &stream.m_PhysicalIndex, sizeof(stream.m_PhysicalIndex));
             dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
             dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
             dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));

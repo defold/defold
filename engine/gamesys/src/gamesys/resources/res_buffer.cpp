@@ -171,12 +171,15 @@ namespace dmGameSystem
                         break;
 
                     default:
-                        assert(false && "Could not build stream data of unknown type.");
-                        break;
+                        dmLogError("Could not build stream data of unknown type.");
+                        free(streams_decl);
+                        return false;
                 }
 
             } else {
-                assert(false && "Could not get raw bytes from buffer resource.");
+                dmLogError("Could not get raw bytes from buffer resource.");
+                free(streams_decl);
+                return false;
             }
         }
 

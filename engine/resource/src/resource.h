@@ -396,12 +396,12 @@ namespace dmResource
     Result Get(HFactory factory, const char* name, void** resource);
 
     /**
-     * Get a resource by a canonical path hash.
+     * Find a resource by a canonical path hash.
      * @param factory Factory handle
      * @param path_hash Resource path hash
      * @return SResourceDescriptor* pointer to the resource descriptor
      */
-    SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
+    SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.

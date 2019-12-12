@@ -16,10 +16,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.mesh.proto.MeshProto.MeshDesc;
 import com.google.protobuf.TextFormat;
 
-
 @BuilderParams(name="Mesh", inExts=".mesh", outExt=".meshc")
 public class MeshBuilder extends Builder<Void> {
-
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -67,7 +65,3 @@ public class MeshBuilder extends Builder<Void> {
         task.output(0).setContent(out.toByteArray());
     }
 }
-
-
-
-
