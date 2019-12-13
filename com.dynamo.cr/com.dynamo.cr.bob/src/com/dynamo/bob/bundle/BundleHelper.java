@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -236,13 +237,13 @@ public class BundleHelper {
             properties = createIOSManifestProperties(exeName);
         } else if (platform == Platform.X86_64Darwin) {
             mainManifest = getResource("osx", "infoplist");
-//TODO: properties
+            properties = createOSXManifestProperties(exeName);
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             mainManifest = getResource("android", "manifest");
             properties = createAndroidManifestProperties(exeName);
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             mainManifest = getResource("html5", "htmlfile");
-//TODO: properties
+            properties = createHtml5ManifestProperties(exeName);
         } else {
             return resolvedManifests;
         }
@@ -700,6 +701,13 @@ public class BundleHelper {
         }
         return properties;
     }
+
+    public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("exe-name", exeName);
+        return properties;
+    }
+
     public Map<String, Object> createIOSManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
 
@@ -730,6 +738,65 @@ public class BundleHelper {
             orientationSupport.add("LandscapeRight");
         }
         properties.put("orientation-support", orientationSupport);
+        return properties;
+    }
+
+
+    public Map<String, Object> createHtml5ManifestProperties(String exeName) throws IOException {
+        Map<String, Object> properties = new HashMap<>();
+
+        IResource customCSS = getResource("html5", "cssfile");
+        properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
+
+        properties.put("exe-name", exeName);
+
+        // Same value as engine is compiled with; 268435456
+        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+
+        {// Deprecated method of setting the heap size. For backwards compatibility
+            if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
+                Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
+                if (null != size) {
+                    customHeapSize = size.intValue();
+                }
+            }
+        }
+        properties.put("DEFOLD_HEAP_SIZE", customHeapSize);
+
+        String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
+        if (splashImage != null) {
+            properties.put("DEFOLD_SPLASH_IMAGE", new File(project.getRootDirectory(), splashImage).getName());
+        } else {
+            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
+            // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
+            properties.put("DEFOLD_SPLASH_IMAGE", false);
+        }
+
+        // Check if game has configured a Facebook App ID
+        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
+        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
+
+        String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
+        List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
+
+        properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
+        properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
+        properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
+
+        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
+        properties.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
+
+        /// Legacy properties for backwards compatibility
+        {
+            properties.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
+            properties.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
+
+            String version = projectProperties.getStringValue("project", "version", "0.0");
+            properties.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
+
+            properties.put("DEFOLD_BINARY_PREFIX", exeName);
+        }
+
         return properties;
     }
 
