@@ -139,7 +139,8 @@ public class HTML5Bundler implements IBundler {
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         BundleHelper.throwIfCanceled(canceled);
-        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+
+        Platform platform = Platform.JsWeb;
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
@@ -229,26 +230,9 @@ public class HTML5Bundler implements IBundler {
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
-        BundleHelper helper = new BundleHelper(project, Platform.JsWeb, appDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
 
-        Map<String, Object> properties = helper.createHtml5ManifestProperties(enginePrefix);
-
-        // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        if (localLaunch) {
-            String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
-            List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
-
-            properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
-            properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
-            properties.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
-
-            engineArguments.add("--verify-graphics-calls=false");
-            properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
-        }
-
-        File manifestFile = new File(appDir, "index.html");
-        IResource sourceManifestFile = helper.getResource("html5", "htmlfile");
-        helper.mergeManifests(properties, sourceManifestFile, manifestFile);
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
 

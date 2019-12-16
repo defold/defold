@@ -202,7 +202,6 @@ public class Project {
             boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.ManifestMergeTool")) ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
             if (!skip) {
                 try {
@@ -672,16 +671,19 @@ public class Project {
             BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
 
             allSource.addAll(helper.writeExtensionResources(platform));
-            allSource.addAll(helper.writeManifestFiles(platform, new File(getBuildDirectory(), "manifests")));
+            allSource.addAll(helper.writeManifestFiles(platform, helper.getTargetManifestDir()));
 
 
-            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            File zip = BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile);
+            try {
+                ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+                File zip = BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile);
 
-            cleanEngine(platform, buildDir);
+                cleanEngine(platform, buildDir);
 
-            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
-
+                BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+            } catch (ConnectException e) {
+                throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+            }
             m.worked(1);
         }
 

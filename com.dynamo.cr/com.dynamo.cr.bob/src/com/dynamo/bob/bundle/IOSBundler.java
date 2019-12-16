@@ -142,6 +142,8 @@ public class IOSBundler implements IBundler {
         }
 
         // If a custom engine was built we need to copy it
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        File extenderPlatformDir = new File(project.getBuildDirectory(), architectures.get(0).getExtenderPair());
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         // Loop over all architectures needed for bundling
@@ -195,18 +197,11 @@ public class IOSBundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 
-        final boolean useArchive = true;
-
         BundleHelper.throwIfCanceled(canceled);
-        if (useArchive) {
-            // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
-                FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
-            }
-        } else {
-            FileUtils.copyDirectory(buildDir, appDir);
-            new File(buildDir, "game.arci").delete();
-            new File(buildDir, "game.arcd").delete();
+
+        // Copy archive and game.projectc
+        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
+            FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -257,16 +252,9 @@ public class IOSBundler implements IBundler {
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
-        try {
-            helper.copyIosIcons();
 
-            Map<String, Object> properties = helper.createIOSManifestProperties(exeName);
-            File manifestFile = new File(appDir, "Info.plist");
-            IResource sourceManifestFile = helper.getResource("ios", "infoplist");
-            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
-        } catch (IOException e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
-        }
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
+        helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder

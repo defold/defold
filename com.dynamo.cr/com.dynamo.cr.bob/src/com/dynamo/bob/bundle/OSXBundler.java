@@ -95,9 +95,7 @@ public class OSXBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        Map<String, Object> properties = helper.createOSXManifestProperties(exeName);
-        IResource sourceManifestFile = helper.getResource("osx", "infoplist");
-        helper.format(properties, sourceManifestFile, new File(contentsDir, "Info.plist"));
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 

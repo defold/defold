@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
+import java.net.ConnectException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -224,6 +225,11 @@ public class BundleHelper {
         return null;
     }
 
+    public File getTargetManifestDir(){
+        return new File(project.getBuildDirectory(), "manifests");
+    }
+
+    // This is used in the step prior to upload all sources (and manifests) to the extender server
     public List<ExtenderResource> writeManifestFiles(Platform platform, File manifestDir) throws CompileExceptionError, IOException {
         List<ExtenderResource> resolvedManifests = new ArrayList<>();
 
@@ -273,61 +279,103 @@ public class BundleHelper {
         return resolvedManifests;
     }
 
-    public void mergeManifests(Map<String, Object> properties, IResource mainManifest, File outManifest) throws CompileExceptionError, IOException {
-        String name;
+    public File getAppManifestFile(Platform platform, File appDir) {
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
-            name = BundleHelper.MANIFEST_NAME_IOS;
+            return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
-            name = BundleHelper.MANIFEST_NAME_OSX;
+            return new File(appDir, "Info.plist");
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            name = BundleHelper.MANIFEST_NAME_ANDROID;
+            return new File(appDir, "AndroidManifest.xml");
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            name = BundleHelper.MANIFEST_NAME_HTML5;
-        } else {
-            throw new CompileExceptionError(mainManifest, -1, "Unsupported ManifestMergeTool platform: " + platform.toString());
+            return new File(appDir, "index.html");
         }
+        return null;
+    }
 
-        // First, list all manifests
-        List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, name);
-        // Put the main manifest in front
-        sourceManifests.add(0, mainManifest);
-
-        // Resolve all properties in each manifest
-        File manifestDir = Files.createTempDirectory("manifests").toFile();
-        List<File> resolvedManifests = formatAll(sourceManifests, manifestDir, properties);
-        File resolvedMainManifest = resolvedManifests.get(0);
-        // Remove the main manifest again
-        resolvedManifests.remove(0);
-
-        if (resolvedManifests.size() == 0) {
-            // No need to merge a single file
-            Files.copy(resolvedMainManifest.toPath(), outManifest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+    // either copies the merged manifest or writes a new resolved manifest from single source file
+    public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
+        File sourceManifest;
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+            sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
+        } else if (platform == Platform.X86_64Darwin) {
+            sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
+            sourceManifest = new File(projectProperties.getStringValue("android", "manifest"));
+        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            sourceManifest = new File(projectProperties.getStringValue("html5", "htmlfile"));
+        } else {
             return;
         }
 
-        ManifestMergeTool.Platform manifestPlatform;
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
-            manifestPlatform = ManifestMergeTool.Platform.IOS;
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            manifestPlatform = ManifestMergeTool.Platform.ANDROID;
-        } else if (platform == Platform.X86_64Darwin) {
-            manifestPlatform = ManifestMergeTool.Platform.OSX;
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            manifestPlatform = ManifestMergeTool.Platform.HTML5;
-        } else {
-            throw new CompileExceptionError(mainManifest, -1, "Merging manifests for platform unsupported: " + platform.toString());
-        }
+        File targetManifest = getAppManifestFile(platform, appDir);
 
-        // Now merge these manifests in order (the main manifest is first)
-        try {
-            ManifestMergeTool.merge(manifestPlatform, resolvedMainManifest, outManifest, resolvedManifests);
-        } catch (RuntimeException e) {
-            throw new CompileExceptionError(mainManifest, -1, "Failed merging manifests: " + e.toString());
+        File extenderPlatformDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair());
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+
+        File manifestFile;
+        if (!hasExtensions) {
+            // Write a resolved manifest to this directory
+            writeManifestFiles(platform, getTargetManifestDir());
+            // it has the same name as the source manifest
+            manifestFile = new File(getTargetManifestDir(), sourceManifest.getName());
+        } else {
+            manifestFile = new File(extenderPlatformDir, sourceManifest.getName()); // the merged manifest
         }
-        FileUtils.deleteDirectory(manifestDir);
+        FileUtils.copyFile(manifestFile, targetManifest);
     }
 
     private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
+
+    // Extra packages are specified in the extensions nowadays
+    private void aaptMakePackageInternal(File resourceDir, File manifestFile, File apk) throws CompileExceptionError {
+        try {
+            Map<String, String> aaptEnv = new HashMap<String, String>();
+            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+            }
+
+            List<String> args = new ArrayList<String>();
+            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
+            args.add("package");
+            args.add("-f");
+            args.add("-m");
+            args.add("--auto-add-overlay");
+            args.add("-M"); args.add(manifestFile.getAbsolutePath());
+            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
+            args.add("-F"); args.add(apk.getAbsolutePath());
+
+            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
+            if (debuggable) {
+                args.add("--debug-mode");
+            }
+
+            // All resources are already in the app directory
+            args.add("-S"); args.add(resourceDir.getAbsolutePath());
+
+            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
+
+            if (res.ret != 0) {
+                String msg = new String(res.stdOutErr);
+
+                // Try our best to visualize the error from aapt
+                Matcher m = aaptResourceErrorRe.matcher(msg);
+                if (m.matches()) {
+                    String path = m.group(1);
+                    if (path.startsWith(project.getRootDirectory())) {
+                        path = path.substring(project.getRootDirectory().length());
+                    }
+                    IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
+                    if (r != null) {
+                        throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
+                    }
+                }
+                throw new IOException(msg);
+            }
+
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
+        }
+    }
 
     private List<ExtenderResource> generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File apk, File outputDirectory) throws CompileExceptionError {
 
@@ -397,18 +445,20 @@ public class BundleHelper {
         List<ExtenderResource> extraSource = new ArrayList<ExtenderResource>();
 
         // Collect all *.java files from aapt output
-        Collection<File> javaFiles = FileUtils.listFiles(
-                outputDirectory,
-                new RegexFileFilter(".+\\.java"),
-                DirectoryFileFilter.DIRECTORY
-        );
+        if (outputDirectory != null) {
+            Collection<File> javaFiles = FileUtils.listFiles(
+                    outputDirectory,
+                    new RegexFileFilter(".+\\.java"),
+                    DirectoryFileFilter.DIRECTORY
+            );
 
-        // Add outputs as _app/rjava/ sources
-        String rootRJavaPath = "_app/rjava/";
-        for (File javaFile : javaFiles) {
-            String relative = outputDirectory.toURI().relativize(javaFile.toURI()).getPath();
-            String outputPath = rootRJavaPath + relative;
-            extraSource.add(new FileExtenderResource(javaFile, outputPath));
+            // Add outputs as _app/rjava/ sources
+            String rootRJavaPath = "_app/rjava/";
+            for (File javaFile : javaFiles) {
+                String relative = outputDirectory.toURI().relativize(javaFile.toURI()).getPath();
+                String outputPath = rootRJavaPath + relative;
+                extraSource.add(new FileExtenderResource(javaFile, outputPath));
+            }
         }
         return extraSource;
     }
@@ -421,6 +471,34 @@ public class BundleHelper {
         FileUtils.forceMkdir(new File(dir, "drawable-xhdpi"));
         FileUtils.forceMkdir(new File(dir, "drawable-xxhdpi"));
         FileUtils.forceMkdir(new File(dir, "drawable-xxxhdpi"));
+    }
+
+    private File getAndroidResourceDir(File appDir) {
+        return new File(appDir, "res");
+    }
+
+    public void copyAndroidResources(Platform platform, File appDir) throws IOException {
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+
+        File targetResDir = getAndroidResourceDir(appDir);
+        if (hasExtensions) {
+            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/res");
+            Collection<File> files = FileUtils.listFiles(packagesDir, null, true);
+            for (File srcFile : files) {
+                String relative = packagesDir.toURI().relativize(srcFile.toURI()).getPath();
+                File targetFile = new File(targetResDir, relative);
+                FileUtils.copyFile(srcFile, targetFile);
+            }
+        } else {
+            BundleHelper.createAndroidResourceFolders(targetResDir);
+            copyAndroidIcons(targetResDir);
+        }
+    }
+
+    public void aaptMakePackage(File appDir, File apk) throws CompileExceptionError {
+        File resDir = getAndroidResourceDir(appDir);
+        File manifestFile = getAppManifestFile(platform, appDir);
+        aaptMakePackageInternal(resDir, manifestFile, apk);
     }
 
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
@@ -500,7 +578,7 @@ public class BundleHelper {
         }
     }
 
-    public List<ExtenderResource> generateAndroidResources(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError {
+    public List<ExtenderResource> generateAndroidResourcesOLD(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError {
 
         // Get all Android specific resources needed to create R.java files
         try {
@@ -797,6 +875,17 @@ public class BundleHelper {
             properties.put("DEFOLD_BINARY_PREFIX", exeName);
         }
 
+        // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
+        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+        if (localLaunch) {
+            properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
+            properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
+            properties.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
+
+            engineArguments.add("--verify-graphics-calls=false");
+            properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
+        }
+
         return properties;
     }
 
@@ -1031,7 +1120,7 @@ public class BundleHelper {
         }
     }
 
-    public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -1044,6 +1133,10 @@ public class BundleHelper {
         try {
             extender.build(platform, sdkVersion, allSource, zipFile, logFile);
         } catch (ExtenderClientException e) {
+            if (e.getCause() instanceof ConnectException) {
+                throw (ConnectException)e.getCause();
+            }
+
             String buildError = "<no log file>";
             if (logFile != null) {
                 try {
