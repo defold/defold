@@ -34,8 +34,6 @@ Catalina comes with both 64-bit Python 2.7.16 and Easy Install installed. For ol
 
 Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
 
-Note: During the build of the 32 bit version of Defold, a python script needs to load a shared Defold library (texc). This will not work using a 64 bit python. Building the 64 bit version of Defold begins with building a set of 32 bit libraries.
-
 [Follow the instructions](https://setuptools.readthedocs.io/en/latest/easy_install.html#installing-easy-install) to install Easy Install.
 
 #### Linux
@@ -82,9 +80,9 @@ Download and install using `apt-get`:
 
 ### Windows
 
-#### Visual C++ 2015 Community
+#### Visual C++ 2019 Community
 
-We only use Visual Studio 2015. [Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
+[Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
 
 #### MSYS/MinGW
 
