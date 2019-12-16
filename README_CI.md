@@ -1,6 +1,6 @@
 # Continuous Integration
 
-CI is based on [GitHub Actions](https://github.com/features/actions) and running and old jobs can be seen on the [Actions page](https://github.com/defold/defold/actions) of the main Defold repository.
+CI is based on [GitHub Actions](https://github.com/features/actions). Current and old jobs can be seen on the [Actions page](https://github.com/defold/defold/actions) of the main Defold repository.
 
 The Defold CI jobs are divided into three main categories, each represented by a separate GitHub Actions Workflow:
 
