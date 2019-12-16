@@ -5,19 +5,13 @@ Repository for the Defold engine, editor and command line tools.
 
 ## Folder Structure
 
-**ci** - Continuous integration related files
-
-**com.dynamo.cr** - Bob
-
-**engine** - Engine
-
-**editor** - Editor
-
-**packages** - External packages
-
-**scripts** - Build and utility scripts
-
-**share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
+* **ci** - Continuous integration related files
+* **com.dynamo.cr** - Bob
+* **engine** - Engine
+* **editor** - Editor
+* **packages** - External packages
+* **scripts** - Build and utility scripts
+* **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
 
 
 ## Setup and Build

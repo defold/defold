@@ -1,66 +1,77 @@
 # Build Engine
 
+Defold uses the Python based build system [Waf](https://waf.io/). Most of the interaction is done through the `build.py` script but it is also possible to use Waf directly.
+
+## Standard workflow
+
+The standard workflow when working on the engine is the following:
+
+1. Setup platform specific environment
+2. Install platform specific dependencies
+3. (Re)Build the engine
+4. Develop a feature
+5. Test
+6. Repeat steps 3-5 until done. Start from 1 when switching platform.
+
+### Platforms
+
 *In the instructions below, the `--platform` argument to `build.py` will default to the host platform if not specified.*
 
-## Windows
+The following platforms are supported:
 
-Start msys by running `C:\MinGW\msys\1.0\msys.bat`. You should now have a bash prompt. Verify that:
+* `x86_64-linux`
+* `x86_64-darwin`
+* `win32`
+* `x86_64-win32`
+* `x86_64-ios`
+* `armv7-darwin`
+* `arm64-darwin`
+* `armv7-android`
+* `arm64-android`
+* `js-web`
+* `wasm-web`
 
-- `which git` points to the git from the windows installation instructions above
-- `which javac` points to the `javac.exe` in the JDK directory
-- `which python` points to `/c/Python27/python.exe`
+### Setup environment
 
-Note that your C: drive is mounted to /c under MinGW/MSYS.
-
-Next, `cd` your way to the directory you cloned Defold into.
-
-    $ cd /c/Users/erik.angelin/Documents/src/defold
-
-Setup the build environment. The `--platform` argument is needed for instance to find the version of `go` relevant for the target platform.
-
-	$ ./scripts/build.py shell --platform=x86_64-win32
-
-This will start a new shell and land you in your msys home (for instance `/usr/home/Erik.Angelin`) so `cd` back to Defold.
-
-    $ cd /c/Users/erik.angelin/Documents/src/defold
-
-Install external packages. This step is required whenever you switch target platform, as different packages are installed.
-
-	$ ./scripts/build.py install_ext --platform=x86_64-win32
-
-Now, you should be able to build the engine.
-
-	$ ./scripts/build.py build_engine --platform=x86_64-win32 --skip-tests -- --skip-build-tests
-
-When the initial build is complete the workflow is to use waf directly.
-
-    $ cd engine/dlib
-    $ waf
-
-## OS X/Linux
-
-Setup the build environment. The `--platform` argument is needed for instance to find the version of `go` relevant for the target platform..
+Start by setting up the build environment:
 
     $ ./scripts/build.py shell --platform=...
 
-Install external packages. This step is required whenever you switch target platform, as different packages are installed.
+This will start a new shell with all of the required environment variables set (DYNAMO_HOME etc). This step is required whenever you switch target platform.
+
+### Install packages and SDKs
+
+Next step is to install external packages (from `./packages`) and download required platform SDKs:
 
     $ ./scripts/build.py install_ext --platform=...
 
-Build engine for target platform.
+Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The external packages and downloaded SDKs will be put in `./tmp/dynamo_home/ext`. This step is required whenever you switch target platform, as different packages are installed.
 
-    $ ./scripts/build.py build_engine --skip-tests --platform=...
+### Build the engine
 
-Build at least once with 64 bit support (to support the particle editor, i.e. allowing opening collections).
+With these two steps done you're ready to build the engine:
 
-    $ ./scripts/build.py build_engine --skip-tests --platform=x86_64-darwin
+    $ ./scripts/build.py build_engine --platform=...
 
-When the initial build is complete the workflow is to use waf directly:
+This will build the engine and run all unit tests. In order to speed up the process you can skip running the tests:
+
+    $ ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
+
+Anything after `--` is passed directly as arguments to Waf. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
+
+### Rebuilding the engine
+
+When you are working on a specific part of the engine there is no need to rebuild the whole thing to test your changes. You can use Waf directly to build and test your changes (see Unit tests below for more information about running tests):
 
     $ cd engine/dlib
     $ waf
 
-# Unit tests
+You can also use rebuild a specific part of the engine and create a new executable:
+
+    # Rebuild dlib and sound modules and create a new executable
+    $ ./scripts/submodule.sh x86_64-darwin dlib sound
+
+## Unit tests
 
 Unit tests are run automatically when invoking waf if not --skip-tests is specified. A typically workflow when working on a single test is to run:
 
