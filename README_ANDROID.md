@@ -289,7 +289,7 @@ Update the reference to the tar ball in `<defold>/scripts/build.py`
 
     PACKAGES_ANDROID="... android-23 ...".split()
 
-###
+### Copy android.jar
 
 Copy the android.jar to the bob path:
 
