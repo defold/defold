@@ -75,7 +75,7 @@ Assets loaded with dmResource are cached locally. A non-standard batch-oriented 
 
 ## Engine Extensions
 
-Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the extension library and set "exported_symbols" in the wscript, see note below.
+Script extensions can be created using a simple extensions mechanism. To add a new extension to the engine the only required step is to link with the extension library and set "exported_symbols" in the wscript, see note below.
 
 *NOTE:* In order to avoid a dead-stripping bug with static libraries on macOS/iOS a constructor symbol must be explicitly exported with "exported_symbols" in the wscript-target. See extension-test.
 
