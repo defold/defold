@@ -37,7 +37,7 @@ Start by setting up the build environment:
 
     $ ./scripts/build.py shell --platform=...
 
-This will start a new shell with all of the required environment variables set (DYNAMO_HOME etc). This step is required whenever you switch target platform.
+This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc). This step is required whenever you switch target platform.
 
 ### Install packages and SDKs
 
@@ -73,8 +73,8 @@ You can also use rebuild a specific part of the engine and create a new executab
 
 ## Unit tests
 
-Unit tests are run automatically when invoking waf if not --skip-tests is specified. A typically workflow when working on a single test is to run:
+Unit tests are run automatically when invoking waf if not `--skip-tests` is specified. A typically workflow when working on a single test is to run:
 
     $ waf --skip-tests && ./build/default/.../test_xxx
 
-With the flag `--gtest_filter=` it's possible to run a single test in the suite, see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/AdvancedGuide#Running_a_Subset_of_the_Tests)
+With the flag `--test-filter=` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
