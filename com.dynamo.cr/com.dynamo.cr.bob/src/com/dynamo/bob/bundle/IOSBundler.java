@@ -249,9 +249,21 @@ public class IOSBundler implements IBundler {
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
-            // iPhone X (portrait+landscape)
+            // iPad pro (11")
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2388", "Default-Portrait-1194h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2388x1668", "Default-Landscape-1194h@2x.png");
+
+            // iPhone X, XS (portrait+landscape)
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+
+            // iPhone XR (portrait+landscape
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_828x1792", "Default-Portrait-896h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1792x828", "Default-Landscape-896h@2x.png");
+
+            // iPhone XS Max (portrait+landscape)
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2688", "Default-Portrait-896h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2688x1242", "Default-Landscape-896h@3x.png");
         } catch (Exception e) {
             throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
         }
