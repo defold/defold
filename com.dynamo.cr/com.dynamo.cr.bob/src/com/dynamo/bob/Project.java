@@ -202,7 +202,6 @@ public class Project {
             boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.ManifestMergeTool")) ||
                     (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
             if (!skip) {
                 try {
@@ -652,7 +651,6 @@ public class Project {
         final String variant = appmanifestOptions.get("baseVariant");
 
         // Build all skews of platform
-        boolean androidResourcesGenerated = false;
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
@@ -670,60 +668,22 @@ public class Project {
 
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
-            File tmpDir = null;
+            BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
 
-            if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-                // NOTE:
-                // We previously only generated and sent Android resources for at most one arch,
-                // to avoid sending and building these twice.
-                // However the server will run proguard for both of these architectures which means
-                // for the second arch it will not find R attributes and fail.
-                // if (!androidResourcesGenerated)
-                {
-                    androidResourcesGenerated = true;
+            allSource.addAll(helper.writeExtensionResources(platform));
+            allSource.addAll(helper.writeManifestFiles(platform, helper.getTargetManifestDir()));
 
-                    Bob.initAndroid(); // extract resources
 
-                    List<String> resDirs = new ArrayList<>();
-                    List<String> extraPackages = new ArrayList<>();
+            try {
+                ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+                File zip = BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile);
 
-                    // Create temp files and directories needed to run aapt and output R.java files
-                    tmpDir = Files.createTempDirectory("bob_bundle_tmp").toFile();
-                    tmpDir.mkdirs();
+                cleanEngine(platform, buildDir);
 
-                    // <tmpDir>/res - Where to collect all resources needed for aapt
-                    File resDir = new File(tmpDir, "res");
-                    resDir.mkdir();
-
-                    String title = projectProperties.getStringValue("project", "title", "Unnamed");
-                    String exeName = BundleHelper.projectNameToBinaryName(title);
-
-                    BundleHelper helper = new BundleHelper(this, platform, tmpDir, "", variant);
-
-                    File manifestFile = new File(tmpDir, "AndroidManifest.xml"); // the final, merged manifest
-                    IResource sourceManifestFile = helper.getResource("android", "manifest");
-
-                    Map<String, Object> properties = helper.createAndroidManifestProperties(this.getRootDirectory(), resDir, exeName);
-                    helper.mergeManifests(properties, sourceManifestFile, manifestFile);
-
-                    BundleHelper.throwIfCanceled(monitor);
-
-                    List<ExtenderResource> extraSource = helper.generateAndroidResources(this, resDir, manifestFile, null, tmpDir);
-                    allSource.addAll(extraSource);
-                }
+                BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+            } catch (ConnectException e) {
+                throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
             }
-
-            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            File zip = BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile);
-
-            cleanEngine(platform, buildDir);
-
-            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
-
-            if (tmpDir != null) {
-                FileUtils.deleteDirectory(tmpDir);
-            }
-
             m.worked(1);
         }
 

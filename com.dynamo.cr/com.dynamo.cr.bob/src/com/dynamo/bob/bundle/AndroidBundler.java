@@ -152,28 +152,17 @@ public class AndroidBundler implements IBundler {
         }
 
         Platform targetPlatform = Platform.Armv7Android;
-        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "", variant);
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, variant);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
 
-        File manifestFile = new File(appDir, "AndroidManifest.xml"); // the final, merged manifest
-        IResource sourceManifestFile = helper.getResource("android", "manifest");
-
-        Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
-        try {
-            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
-        } catch (CompileExceptionError e) {
-            // Pass along
-            throw e;
-        } catch (Exception e) {
-            throw new CompileExceptionError(sourceManifestFile, -1, e);
-        }
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Create properties and output icon resources (if available)
-        helper.generateAndroidResources(project, resDir, manifestFile, ap1, tmpResourceDir);
+        helper.copyAndroidResources(architectures.get(0), appDir);
+        helper.aaptMakePackage(appDir, ap1);
 
         BundleHelper.throwIfCanceled(canceled);
 
