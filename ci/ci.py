@@ -231,16 +231,15 @@ def main(argv):
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
         elif command == "editor":
-            call('python ci/foo.py')
-            # if branch == "master" or branch == "beta" or branch == "dev":
-            #     build_editor(channel = channel, release = True, engine_artifacts = "archived")
-            # elif branch == "editor-dev":
-            #     build_editor(channel = "editor-alpha", release = True)
-            # elif branch.startswith("DEFEDIT-"):
-            #     build_editor(release = False, engine_artifacts = "archived-stable")
-            # else:
-            #     # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
-            #     build_editor(release = False, engine_artifacts = "archived")
+            if branch == "master" or branch == "beta" or branch == "dev":
+                build_editor(channel = channel, release = True, engine_artifacts = "archived")
+            elif branch == "editor-dev":
+                build_editor(channel = "editor-alpha", release = True)
+            elif branch.startswith("DEFEDIT-"):
+                build_editor(release = False, engine_artifacts = "archived-stable")
+            else:
+                # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
+                build_editor(release = False, engine_artifacts = "archived")
         elif command == "bob":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)
