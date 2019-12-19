@@ -55,49 +55,51 @@ public class BufferBuilder extends Builder<Void> {
         }
     }
 
-    static void fillUint(StreamDesc.Builder builder, JsonNode dataNode) {
+    static Integer[] fillIntArray(StreamDesc.Builder builder, JsonNode dataNode) {
         int dataCount = dataNode.size();
         Integer[] out = new Integer[dataCount];
         for (int i = 0; i < dataCount; ++i) {
             out[i] = (int)dataNode.get(i).asDouble();
         }
-        builder.addAllUi(Arrays.asList(out));
+        return out;
     }
 
-    static void fillInt(StreamDesc.Builder builder, JsonNode dataNode) {
-        int dataCount = dataNode.size();
-        Integer[] out = new Integer[dataCount];
-        for (int i = 0; i < dataCount; ++i) {
-            out[i] = (int)dataNode.get(i).asDouble();
-        }
-        builder.addAllI(Arrays.asList(out));
-    }
-
-    static void fillUlong(StreamDesc.Builder builder, JsonNode dataNode) {
+    static Long[] fillLongArray(StreamDesc.Builder builder, JsonNode dataNode) {
         int dataCount = dataNode.size();
         Long[] out = new Long[dataCount];
         for (int i = 0; i < dataCount; ++i) {
             out[i] = (long)dataNode.get(i).asDouble();
         }
-        builder.addAllUi64(Arrays.asList(out));
+        return out;
     }
 
-    static void fillLong(StreamDesc.Builder builder, JsonNode dataNode) {
-        int dataCount = dataNode.size();
-        Long[] out = new Long[dataCount];
-        for (int i = 0; i < dataCount; ++i) {
-            out[i] = (long)dataNode.get(i).asDouble();
-        }
-        builder.addAllI64(Arrays.asList(out));
-    }
-
-    static void fillFloat(StreamDesc.Builder builder, JsonNode dataNode) {
+    static Float[] fillFloatArray(StreamDesc.Builder builder, JsonNode dataNode) {
         int dataCount = dataNode.size();
         Float[] out = new Float[dataCount];
         for (int i = 0; i < dataCount; ++i) {
             out[i] = (float)dataNode.get(i).asDouble();
         }
-        builder.addAllF(Arrays.asList(out));
+        return out;
+    }
+
+    static void fillUint(StreamDesc.Builder builder, JsonNode dataNode) {
+        builder.addAllUi(Arrays.asList(fillIntArray(builder, dataNode)));
+    }
+
+    static void fillInt(StreamDesc.Builder builder, JsonNode dataNode) {
+        builder.addAllI(Arrays.asList(fillIntArray(builder, dataNode)));
+    }
+
+    static void fillUlong(StreamDesc.Builder builder, JsonNode dataNode) {
+        builder.addAllUi64(Arrays.asList(fillLongArray(builder, dataNode)));
+    }
+
+    static void fillLong(StreamDesc.Builder builder, JsonNode dataNode) {
+        builder.addAllI64(Arrays.asList(fillLongArray(builder, dataNode)));
+    }
+
+    static void fillFloat(StreamDesc.Builder builder, JsonNode dataNode) {
+        builder.addAllF(Arrays.asList(fillFloatArray(builder, dataNode)));
     }
 
     static void fillData(StreamDesc.Builder builder, JsonNode dataNode, ValueType type)

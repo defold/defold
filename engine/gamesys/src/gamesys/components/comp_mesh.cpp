@@ -47,7 +47,6 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_ElementCount;
         uint32_t                        m_VertSize;
-        // dmGraphics::HVertexBuffer       m_VertexBuffer;
 
         uint16_t                    m_ComponentIndex;
         /// Component enablement
@@ -323,27 +322,47 @@ namespace dmGameSystem
         }
     }
 
-    template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_point, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)
+    template<typename T> static void FillAndApply(const Matrix4& matrix, bool is_point, uint8_t component_count, uint32_t count, uint32_t stride, T* raw_data, T* src_stream_data, T* dst_data_ptr)
     {
         // Offset dst_data_ptr if stream isn't first!
         uint32_t ptr_offset = (uint8_t*)src_stream_data - (uint8_t*)raw_data;
         dst_data_ptr = (T*)((uint8_t*)dst_data_ptr + ptr_offset);
 
         Vector4 v(0.0f);
-        for (int pi = 0; pi < count; ++pi)
-        {
-            v[0] = src_stream_data[0];
-            v[1] = src_stream_data[1];
-            v[2] = src_stream_data[2];
-            v[3] = !is_point;
-            v = matrix * v;
-            dst_data_ptr[0] = v[0];
-            dst_data_ptr[1] = v[1];
-            dst_data_ptr[2] = v[2];
+        float w = !is_point;
 
-            // Update in/out-ptrs with stride (they will point to next entry in T "list").
-            src_stream_data += stride;
-            dst_data_ptr += stride;
+        if (component_count == 2) {
+            for (int pi = 0; pi < count; ++pi)
+            {
+                v[0] = src_stream_data[0];
+                v[1] = src_stream_data[1];
+                v[2] = 0.0f;
+                v[3] = w;
+                v = matrix * v;
+                dst_data_ptr[0] = v[0];
+                dst_data_ptr[1] = v[1];
+                dst_data_ptr[2] = v[2];
+
+                // Update in/out-ptrs with stride (they will point to next entry in T "list").
+                src_stream_data += stride;
+                dst_data_ptr += stride;
+            }
+        } else {
+            for (int pi = 0; pi < count; ++pi)
+            {
+                v[0] = src_stream_data[0];
+                v[1] = src_stream_data[1];
+                v[2] = src_stream_data[2];
+                v[3] = w;
+                v = matrix * v;
+                dst_data_ptr[0] = v[0];
+                dst_data_ptr[1] = v[1];
+                dst_data_ptr[2] = v[2];
+
+                // Update in/out-ptrs with stride (they will point to next entry in T "list").
+                src_stream_data += stride;
+                dst_data_ptr += stride;
+            }
         }
     }
 
@@ -360,33 +379,33 @@ namespace dmGameSystem
             return;
         }
 
-        if (components != 3) {
-            dmLogError("Rendering mesh components in world space is only supported for streams with 3 components, %s has %d components.", dmHashReverseSafe64(stream_id), components);
+        if (components != 3 || components != 2) {
+            dmLogError("Rendering mesh components in world space is only supported for streams with 3 or 2 components, %s has %d components.", dmHashReverseSafe64(stream_id), components);
             return;
         }
 
         switch (value_type)
         {
             case dmBufferDDF::VALUE_TYPE_UINT8:
-            FillAndApply<uint8_t>(matrix, is_point, count, stride, (uint8_t*)raw_data, (uint8_t*)stream_data, (uint8_t*)dst_data_ptr);
+            FillAndApply<uint8_t>(matrix, is_point, components, count, stride, (uint8_t*)raw_data, (uint8_t*)stream_data, (uint8_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_UINT16:
-            FillAndApply<uint16_t>(matrix, is_point, count, stride, (uint16_t*)raw_data, (uint16_t*)stream_data, (uint16_t*)dst_data_ptr);
+            FillAndApply<uint16_t>(matrix, is_point, components, count, stride, (uint16_t*)raw_data, (uint16_t*)stream_data, (uint16_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_UINT32:
-            FillAndApply<uint32_t>(matrix, is_point, count, stride, (uint32_t*)raw_data, (uint32_t*)stream_data, (uint32_t*)dst_data_ptr);
+            FillAndApply<uint32_t>(matrix, is_point, components, count, stride, (uint32_t*)raw_data, (uint32_t*)stream_data, (uint32_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_INT8:
-            FillAndApply<int8_t>(matrix, is_point, count, stride, (int8_t*)raw_data, (int8_t*)stream_data, (int8_t*)dst_data_ptr);
+            FillAndApply<int8_t>(matrix, is_point, components, count, stride, (int8_t*)raw_data, (int8_t*)stream_data, (int8_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_INT16:
-            FillAndApply<int16_t>(matrix, is_point, count, stride, (int16_t*)raw_data, (int16_t*)stream_data, (int16_t*)dst_data_ptr);
+            FillAndApply<int16_t>(matrix, is_point, components, count, stride, (int16_t*)raw_data, (int16_t*)stream_data, (int16_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_INT32:
-            FillAndApply<int32_t>(matrix, is_point, count, stride, (int32_t*)raw_data, (int32_t*)stream_data, (int32_t*)dst_data_ptr);
+            FillAndApply<int32_t>(matrix, is_point, components, count, stride, (int32_t*)raw_data, (int32_t*)stream_data, (int32_t*)dst_data_ptr);
                 break;
             case dmBufferDDF::VALUE_TYPE_FLOAT32:
-            FillAndApply<float>(matrix, is_point, count, stride, (float*)raw_data, (float*)stream_data, (float*)dst_data_ptr);
+            FillAndApply<float>(matrix, is_point, components, count, stride, (float*)raw_data, (float*)stream_data, (float*)dst_data_ptr);
                 break;
             default:
                 dmLogError("Stream type (%d) for %s is not supported.", value_type, dmHashReverseSafe64(stream_id));
