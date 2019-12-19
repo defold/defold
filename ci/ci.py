@@ -4,6 +4,7 @@ import sys
 import subprocess
 import platform
 import os
+import base64
 from argparse import ArgumentParser
 
 def call(args):
@@ -25,7 +26,45 @@ def mingwget(package):
     call("mingw-get install " + package)
 
 
-def install():
+def setup_keychain(args):
+    keychain_pass = "foobar"
+    keychain_name = "defold.keychain"
+
+    # create new keychain
+    print("Creating keychain")
+    # call("security delete-keychain {}".format(keychain_name))
+    call("security create-keychain -p {} {}".format(keychain_pass, keychain_name))
+
+    # set the new keychain as the default keychain
+    print("Setting keychain as default")
+    call("security default-keychain -s {}".format(keychain_name))
+
+    # unlock the keychain
+    print("Unlock keychain")
+    call("security unlock-keychain -p {} {}".format(keychain_pass, keychain_name))
+    # prevent the keychain from auto-locking
+    # you can pass -t <seconds> to set timeout
+    # you can pass -l to lock when computer  sleeps
+    call("security set-keychain-settings {}".format(keychain_name))
+
+    # add the keychain to the keychain search list
+    call("security list-keychains -d user -s {}".format(keychain_name))
+
+    # import cert to keychain
+    print("Decoding certificate")
+    cert_path = os.path.join("ci", "cert.p12")
+    cert_pass = args.keychain_cert_pass
+    with open(cert_path, "wb") as file:
+        file.write(base64.decodestring(args.keychain_cert))
+
+    print("Importing certificate")
+    call("security import {} -k {} -P {}".format(cert_path, keychain_name, cert_pass))
+
+    os.remove(cert_path)
+    print("Done with keychain setup")
+
+
+def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
@@ -50,6 +89,10 @@ def install():
         aptget("silversearcher-ag")
         aptget("valgrind")
         aptget("lib32z1") # aapt: error while loading shared libraries: libz.so.1: cannot open shared object file: No such file or directory
+    elif system == "Darwin":
+        if args.keychain_cert:
+            setup_keychain(args)
+
 
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
     args = 'python scripts/build.py distclean install_ext'.split()
@@ -151,6 +194,8 @@ def main(argv):
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
+    parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
+    parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     args = parser.parse_args()
 
     platform = args.platform
@@ -205,7 +250,7 @@ def main(argv):
         elif command == "smoke":
             smoke_test()
         elif command == "install":
-            install()
+            install(args)
         else:
             print("Unknown command {0}".format(command))
 
