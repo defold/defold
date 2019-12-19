@@ -481,8 +481,8 @@ public class Bob {
             for (String filepath : cmd.getOptionValues("settings")) {
                 project.addPropertyFile(filepath);
             }
-            project.loadProjectFile();
         }
+        project.loadProjectFile();
 
         // resolves libraries and finds all sources
         setupProject(project, shouldResolveLibs, sourceDirectory);
