@@ -182,6 +182,53 @@ def smoke_test():
     call('python scripts/build.py distclean install_ext smoke_test')
 
 
+
+
+
+def exec_command(args):
+    print('[EXEC] %s' % args)
+    process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = False)
+
+    output = ''
+    while True:
+        line = process.stdout.readline()
+        if line != '':
+            output += line
+            print line.rstrip()
+            sys.stdout.flush()
+            sys.stderr.flush()
+        else:
+            break
+
+    if process.wait() != 0:
+        sys.exit(process.returncode)
+
+    return output
+
+def mac_certificate():
+    print("mac_certificate()")
+    # This certificate must be installed on the computer performing the operation
+    certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
+    if exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0:
+        return certificate
+    else:
+        return None
+
+def sign_files(bundle_dir):
+    print("sign_files()")
+    certificate = mac_certificate()
+    print("sign_files() certificate", certificate)
+    if certificate == None:
+        print("Warning: Codesigning certificate not found, files will not be signed")
+    else:
+        print("sign_files() calling codesign")
+        exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
+        print("sign_files() codesign done")
+
+
+
+
+
 def main(argv):
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute")
@@ -231,15 +278,16 @@ def main(argv):
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
         elif command == "editor":
-            if branch == "master" or branch == "beta" or branch == "dev":
-                build_editor(channel = channel, release = True, engine_artifacts = "archived")
-            elif branch == "editor-dev":
-                build_editor(channel = "editor-alpha", release = True)
-            elif branch.startswith("DEFEDIT-"):
-                build_editor(release = False, engine_artifacts = "archived-stable")
-            else:
-                # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
-                build_editor(release = False, engine_artifacts = "archived")
+            sign_files("foo")
+            # if branch == "master" or branch == "beta" or branch == "dev":
+            #     build_editor(channel = channel, release = True, engine_artifacts = "archived")
+            # elif branch == "editor-dev":
+            #     build_editor(channel = "editor-alpha", release = True)
+            # elif branch.startswith("DEFEDIT-"):
+            #     build_editor(release = False, engine_artifacts = "archived-stable")
+            # else:
+            #     # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
+            #     build_editor(release = False, engine_artifacts = "archived")
         elif command == "bob":
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_bob(branch = branch, channel = channel, release = release)
