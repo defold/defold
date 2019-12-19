@@ -378,92 +378,6 @@ public class BundleHelper {
         }
     }
 
-    private List<ExtenderResource> generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File apk, File outputDirectory) throws CompileExceptionError {
-
-        try {
-            Map<String, String> aaptEnv = new HashMap<String, String>();
-            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
-                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
-            }
-
-            // Run aapt to generate R.java files
-            List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
-            args.add("package");
-            args.add("-f");
-            if (!extraPackages.isEmpty()) {
-                args.add("--extra-packages");
-                args.add(StringUtils.join(extraPackages, ":"));
-            }
-            args.add("-m");
-            args.add("--auto-add-overlay");
-            args.add("-M"); args.add(manifestFile.getAbsolutePath());
-            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
-
-            // Creates one or more R.java
-            // rjava/com/foo/app/R.java
-            if (outputDirectory != null) {
-                args.add("-J"); args.add(outputDirectory.getAbsolutePath());
-            }
-            if (apk != null) {
-                args.add("-F"); args.add(apk.getAbsolutePath());
-            }
-
-            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
-            if (debuggable) {
-                args.add("--debug-mode");
-            }
-
-            for( String s : resourceDirectories )
-            {
-                args.add("-S"); args.add(s);
-            }
-
-            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
-
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-
-                // Try our best to visualize the error from aapt
-                Matcher m = aaptResourceErrorRe.matcher(msg);
-                if (m.matches()) {
-                    String path = m.group(1);
-                    if (path.startsWith(project.getRootDirectory())) {
-                        path = path.substring(project.getRootDirectory().length());
-                    }
-                    IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
-                    if (r != null) {
-                        throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
-                    }
-                }
-                throw new IOException(msg);
-            }
-
-        } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
-        }
-
-        List<ExtenderResource> extraSource = new ArrayList<ExtenderResource>();
-
-        // Collect all *.java files from aapt output
-        if (outputDirectory != null) {
-            Collection<File> javaFiles = FileUtils.listFiles(
-                    outputDirectory,
-                    new RegexFileFilter(".+\\.java"),
-                    DirectoryFileFilter.DIRECTORY
-            );
-
-            // Add outputs as _app/rjava/ sources
-            String rootRJavaPath = "_app/rjava/";
-            for (File javaFile : javaFiles) {
-                String relative = outputDirectory.toURI().relativize(javaFile.toURI()).getPath();
-                String outputPath = rootRJavaPath + relative;
-                extraSource.add(new FileExtenderResource(javaFile, outputPath));
-            }
-        }
-        return extraSource;
-    }
-
     public static void createAndroidResourceFolders(File dir) throws IOException {
         FileUtils.forceMkdir(new File(dir, "drawable"));
         FileUtils.forceMkdir(new File(dir, "drawable-ldpi"));
@@ -579,72 +493,6 @@ public class BundleHelper {
         }
     }
 
-    public List<ExtenderResource> generateAndroidResourcesOLD(Project project, File resDir, File manifestFile, File apk, File tmpDir) throws CompileExceptionError {
-
-        // Get all Android specific resources needed to create R.java files
-        try {
-            BundleHelper.createAndroidResourceFolders(resDir);
-            copyAndroidIcons(resDir);
-        } catch (Exception e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
-        }
-
-        // We store the extensions' resources in a separate folder, because they otherwise failed on the Android naming convention.
-        // I.e. resDir contains asset directories, extensionsDir contains package directories that contain asset directiores
-        File extensionsDir = new File(tmpDir, "extensions");
-        extensionsDir.mkdir();
-
-        Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        ExtenderUtil.storeResources(extensionsDir, resources);
-
-        // Run aapt to generate R.java files
-        //     <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
-        File javaROutput = null;
-        if (apk == null) {
-            javaROutput = new File(tmpDir, "rjava");
-            javaROutput.mkdir();
-        }
-
-        Map<String, Object> bundleContext = null;
-
-        // Only if we're generating the R.java files
-        if (javaROutput != null) {
-            Map<String, Object> extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, "android");
-            bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
-            if (bundleContext == null) {
-                extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, Platform.Arm64Android.getPair());
-                bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
-            }
-            if (bundleContext == null) {
-                extensionContext = ExtenderUtil.getPlatformSettingsFromExtensions(project, Platform.Armv7Android.getPair());
-                bundleContext = (Map<String, Object>)extensionContext.getOrDefault("bundle", null);
-            }
-        }
-
-        List<String> resourceDirectories = new ArrayList<>();
-        findAndroidAssetDirs(extensionsDir, resourceDirectories);
-        resourceDirectories.add(resDir.getAbsolutePath());
-
-        List<String> extraPackages = new ArrayList<>();
-
-        if (bundleContext != null) {
-            List<String> excludePackages = (List<String>)bundleContext.getOrDefault("aaptExcludePackages", new ArrayList<String>());
-            List<String> excludeResourceDirs = (List<String>)bundleContext.getOrDefault("aaptExcludeResourceDirs", new ArrayList<String>());
-
-            extraPackages = excludeItems(extraPackages, excludePackages);
-            resourceDirectories = excludeItems(resourceDirectories, excludeResourceDirs);
-
-            extraPackages.addAll((List<String>)bundleContext.getOrDefault("aaptExtraPackages", new ArrayList<String>()));
-        }
-
-        return generateRJava(resourceDirectories, extraPackages, manifestFile, apk, javaROutput);
-    }
-
-    public BundleHelper copyBuilt(String name) throws IOException {
-        FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
-        return this;
-    }
-
     private BufferedImage resizeImage(BufferedImage originalImage, int size) {
         BufferedImage resizedImage = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = resizedImage.createGraphics();
@@ -656,7 +504,6 @@ public class BundleHelper {
         g.drawImage(originalImage, 0, 0, size, size, null);
         g.dispose();
         g.setComposite(AlphaComposite.Src);
-
 
         return resizedImage;
     }
