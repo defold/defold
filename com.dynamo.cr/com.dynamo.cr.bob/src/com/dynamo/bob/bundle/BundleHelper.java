@@ -315,10 +315,15 @@ public class BundleHelper {
 
         File manifestFile;
         if (!hasExtensions) {
-            // Write a resolved manifest to this directory
-            writeManifestFiles(platform, getTargetManifestDir());
-            // it has the same name as the source manifest
-            manifestFile = new File(getTargetManifestDir(), sourceManifest.getName());
+            // Write a resolved manifest to this directory (should only be one)
+            List<ExtenderResource> manifests = writeManifestFiles(platform, getTargetManifestDir());
+
+            ExtenderResource resource = manifests.get(0);
+            if (resource instanceof FileExtenderResource) {
+                manifestFile = ((FileExtenderResource)resource).getFile();
+            } else {
+                throw new IOException("Manifest file is of wrong type");
+            }
         } else {
             manifestFile = new File(extenderPlatformDir, sourceManifest.getName()); // the merged manifest
         }
