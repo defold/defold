@@ -357,7 +357,6 @@ public class BundleHelper {
 
             File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
-            System.out.printf("packagesDir: %s\n", packagesDir.getAbsolutePath());
             File[] directories = packagesDir.listFiles(File::isDirectory);
 
             for (File dir : directories) {
