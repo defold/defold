@@ -42,6 +42,17 @@ def setup_keychain(args):
     # unlock the keychain
     print("Unlock keychain")
     call("security unlock-keychain -p {} {}".format(keychain_pass, keychain_name))
+
+    # decode and import cert to keychain
+    print("Decoding certificate")
+    cert_path = os.path.join("ci", "cert.p12")
+    cert_pass = args.keychain_cert_pass
+    with open(cert_path, "wb") as file:
+        file.write(base64.decodestring(args.keychain_cert))
+    print("Importing certificate")
+    call("security import {} -k {} -P {}".format(cert_path, keychain_name, cert_pass))
+    os.remove(cert_path)
+
     # required since macOS Sierra https://stackoverflow.com/a/40039594
     call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {}".format(keychain_pass, keychain_name))
     # prevent the keychain from auto-locking
@@ -50,17 +61,6 @@ def setup_keychain(args):
     # add the keychain to the keychain search list
     call("security list-keychains -d user -s {}".format(keychain_name))
 
-    # import cert to keychain
-    print("Decoding certificate")
-    cert_path = os.path.join("ci", "cert.p12")
-    cert_pass = args.keychain_cert_pass
-    with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.keychain_cert))
-
-    print("Importing certificate")
-    call("security import {} -k {} -P {}".format(cert_path, keychain_name, cert_pass))
-
-    os.remove(cert_path)
     print("Done with keychain setup")
 
 
