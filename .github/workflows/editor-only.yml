@@ -12,7 +12,7 @@ jobs:
   build-and-test-editor:
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 3 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       {
         name: 'Build editor',
