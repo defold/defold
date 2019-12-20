@@ -328,7 +328,7 @@ public class BundleHelper {
     private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
 
     // Extra packages are specified in the extensions nowadays
-    private void aaptMakePackageInternal(File resourceDir, File manifestFile, File apk) throws CompileExceptionError {
+    private void aaptMakePackageInternal(Platform platform, File manifestFile, File apk) throws CompileExceptionError {
         try {
             Map<String, String> aaptEnv = new HashMap<String, String>();
             if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
@@ -350,8 +350,17 @@ public class BundleHelper {
                 args.add("--debug-mode");
             }
 
-            // All resources are already in the app directory
-            args.add("-S"); args.add(resourceDir.getAbsolutePath());
+            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+
+            System.out.printf("packagesDir: %s\n", packagesDir.getAbsolutePath());
+            File[] directories = packagesDir.listFiles(File::isDirectory);
+
+            for (File dir : directories) {
+                File resDir = new File(dir, "res");
+                if (!resDir.isDirectory())
+                    continue;
+                args.add("-S"); args.add(resDir.getAbsolutePath());
+            }
 
             Result res = Exec.execResultWithEnvironment(aaptEnv, args);
 
@@ -374,7 +383,7 @@ public class BundleHelper {
             }
 
         } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
+            throw new CompileExceptionError(null, -1, "Failed building Android resources to apk: " + e.getMessage());
         }
     }
 
@@ -397,23 +406,22 @@ public class BundleHelper {
 
         File targetResDir = getAndroidResourceDir(appDir);
         if (hasExtensions) {
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/res");
-            Collection<File> files = FileUtils.listFiles(packagesDir, null, true);
-            for (File srcFile : files) {
-                String relative = packagesDir.toURI().relativize(srcFile.toURI()).getPath();
-                File targetFile = new File(targetResDir, relative);
-                FileUtils.copyFile(srcFile, targetFile);
-            }
+            // pass
         } else {
-            BundleHelper.createAndroidResourceFolders(targetResDir);
-            copyAndroidIcons(targetResDir);
+            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+            packagesDir.mkdir();
+
+            File resDir = new File(packagesDir, "com.defold.android/res");
+            resDir.mkdirs();
+
+            BundleHelper.createAndroidResourceFolders(resDir);
+            copyAndroidIcons(resDir);
         }
     }
 
-    public void aaptMakePackage(File appDir, File apk) throws CompileExceptionError {
-        File resDir = getAndroidResourceDir(appDir);
+    public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {
         File manifestFile = getAppManifestFile(platform, appDir);
-        aaptMakePackageInternal(resDir, manifestFile, apk);
+        aaptMakePackageInternal(platform, manifestFile, apk);
     }
 
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
@@ -423,7 +431,7 @@ public class BundleHelper {
             File packagesDir = new File(buildDir, "packages");
             packagesDir.mkdir();
 
-            File resDir = new File(packagesDir, "defold/res");
+            File resDir = new File(packagesDir, "com.defold.android/res");
             resDir.mkdirs();
 
             BundleHelper.createAndroidResourceFolders(resDir);
