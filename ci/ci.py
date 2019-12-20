@@ -50,12 +50,12 @@ def setup_keychain(args):
     with open(cert_path, "wb") as file:
         file.write(base64.decodestring(args.keychain_cert))
     print("Importing certificate")
-    call("security import {} -k {} -P {}".format(cert_path, keychain_name, cert_pass))
+    call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
     os.remove(cert_path)
 
     # required since macOS Sierra https://stackoverflow.com/a/40039594
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
-    call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {} -A".format(keychain_pass, keychain_name))
+    call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {}".format(keychain_pass, keychain_name))
     # prevent the keychain from auto-locking
     call("security set-keychain-settings {}".format(keychain_name))
 
