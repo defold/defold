@@ -43,7 +43,7 @@ def setup_keychain(args):
     print("Unlock keychain")
     call("security unlock-keychain -p {} {}".format(keychain_pass, keychain_name))
     # required since macOS Sierra https://stackoverflow.com/a/40039594
-	call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {}".format(keychain_pass, keychain_name))
+    call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {}".format(keychain_pass, keychain_name))
     # prevent the keychain from auto-locking
     call("security set-keychain-settings {}".format(keychain_name))
 
