@@ -54,7 +54,8 @@ def setup_keychain(args):
     os.remove(cert_path)
 
     # required since macOS Sierra https://stackoverflow.com/a/40039594
-    call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {}".format(keychain_pass, keychain_name))
+    # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
+    call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {} -A".format(keychain_pass, keychain_name))
     # prevent the keychain from auto-locking
     call("security set-keychain-settings {}".format(keychain_name))
 
