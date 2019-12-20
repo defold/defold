@@ -162,7 +162,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         helper.copyAndroidResources(architectures.get(0), appDir);
-        helper.aaptMakePackage(appDir, ap1);
+        helper.aaptMakePackage(architectures.get(0), appDir, ap1);
 
         BundleHelper.throwIfCanceled(canceled);
 

@@ -145,6 +145,10 @@ public class ExtenderUtil {
         public String toString() {
             return getPath();
         }
+
+        public File getFile() {
+            return file;
+        }
     }
 
     private static class EmptyResource implements IResource {
