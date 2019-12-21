@@ -51,11 +51,11 @@ def setup_keychain(args):
     with open(cert_path, "wb") as file:
         file.write(base64.decodestring(args.keychain_cert))
     print("Importing certificate")
+    # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
     os.remove(cert_path)
 
     # required since macOS Sierra https://stackoverflow.com/a/40039594
-    # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k {} {}".format(keychain_pass, keychain_name))
     # prevent the keychain from auto-locking
     call("security set-keychain-settings {}".format(keychain_name))
@@ -233,14 +233,12 @@ def main(argv):
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
         elif command == "editor":
-            print("command = editor")
             if branch == "master" or branch == "beta" or branch == "dev":
                 build_editor(channel = channel, release = True, engine_artifacts = "archived")
             elif branch == "editor-dev":
                 build_editor(channel = "editor-alpha", release = True)
             elif branch.startswith("DEFEDIT-"):
-                build_editor(channel = "editor-alpha", release = True)
-                # build_editor(release = False, engine_artifacts = "archived-stable")
+                build_editor(release = False, engine_artifacts = "archived-stable")
             else:
                 # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
                 build_editor(release = False, engine_artifacts = "archived")

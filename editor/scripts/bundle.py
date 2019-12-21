@@ -127,7 +127,6 @@ def rmtree(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
 def mac_certificate():
-    print("mac_certificate()")
     # This certificate must be installed on the computer performing the operation
     certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
     if exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0:
@@ -136,15 +135,11 @@ def mac_certificate():
         return None
 
 def sign_files(bundle_dir):
-    print("sign_files()")
     certificate = mac_certificate()
-    print("sign_files() certificate", certificate)
     if certificate == None:
         print("Warning: Codesigning certificate not found, files will not be signed")
     else:
-        print("sign_files() calling codesign")
         exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
-        print("sign_files() codesign done")
 
 def create_dmg(dmg_dir, dmg_file):
     exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
