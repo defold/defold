@@ -68,24 +68,18 @@ def exec_command(args):
 
     output = ''
     while True:
-        print("process.stdout.readline()")
         line = process.stdout.readline()
         if line != '':
-            print("process.stdout.readline() got a line")
             output += line
             print line.rstrip()
             sys.stdout.flush()
             sys.stderr.flush()
         else:
-            print("process.stdout.readline() no more lines")
             break
 
-    print("process.wait()")
     if process.wait() != 0:
-        print("process.wait() non zero")
         sys.exit(process.returncode)
 
-    print("process.wait() ok!")
     return output
 
 def ziptree(path, outfile, directory = None):

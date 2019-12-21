@@ -27,6 +27,7 @@ def mingwget(package):
 
 
 def setup_keychain(args):
+    print("Setting up keychain")
     keychain_pass = "foobar"
     keychain_name = "defold.keychain"
 
