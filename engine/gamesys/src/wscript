@@ -9,7 +9,6 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
-    bld.install_files('${PREFIX}/lib/python/colladaImEx', 'colladaImEx/*.py')
 
     if 'android' in bld.env['PLATFORM']:
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
