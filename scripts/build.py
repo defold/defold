@@ -1213,6 +1213,7 @@ instructions.configure=\
         env = self._form_env()
         res = ""
         for key in env:
+            key = key.replace('(','_').replace(')','_') # illegal chars in bash environment variables
             res = res + ("export %s='%s'\n" % (key, env[key]))
         with open(self.save_env_path, "w") as f:
             f.write(res)
