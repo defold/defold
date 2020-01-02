@@ -139,7 +139,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
 
 
 def build_editor(channel = None, release = False, engine_artifacts = None):
-    args = 'python scripts/build.py distclean install_ext build_editor2 archive_editor2'.split()
+    args = 'python scripts/build.py distclean install_ext build_editor2 notarize_editor2 archive_editor2'.split()
 
     if release:
         args.append('release_editor2')
