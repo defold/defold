@@ -1142,7 +1142,7 @@ class Configuration(object):
             elif status == "invalid":
                 self._log("Notarization failed")
                 sys.exit(1)
-            time.sleep(5)
+            time.sleep(15)
 
         # staple approval
         self._log('Stapling notarization approval to application')
