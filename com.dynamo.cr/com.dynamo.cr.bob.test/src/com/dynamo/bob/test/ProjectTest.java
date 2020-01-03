@@ -52,7 +52,6 @@ public class ProjectTest {
 
     private MockFileSystem fileSystem;
     private Project project;
-    //private Bundle bundle;
     private Server httpServer;
     private ArrayList<URL> libraryUrls = new ArrayList<URL>();
 
@@ -88,7 +87,6 @@ public class ProjectTest {
         libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
         libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
 
-        //bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
         project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
         project.setOption("email", EMAIL);

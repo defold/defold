@@ -115,7 +115,7 @@ public class TileSetGeneratorTest {
         }
     }
 
-    //@Test
+    @Test
     public void testSplitStrip() {
         BufferedImage image = newImage(1, 16);
         int tileWidth = 1;
@@ -135,7 +135,7 @@ public class TileSetGeneratorTest {
         assertQuadTexCoords(uv, 0.0f, 1.0f, 1.0f, 0.0f, false);
     }
 
-    //@Test
+    @Test
     public void testSplitStripExtrude() throws IOException {
         BufferedImage image = newImage(1, 16);
 
@@ -157,7 +157,7 @@ public class TileSetGeneratorTest {
         assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f - 1.0f / 32, 0.5f - 1.0f / 32, false);
     }
 
-    //@Test
+    @Test
     public void textIndexedAnimIterator() throws Exception {
         List<IndexedAnimDesc> anims = new ArrayList<IndexedAnimDesc>(1);
         anims.add(new IndexedAnimDesc(newAnim("test", 3, 1).build()));

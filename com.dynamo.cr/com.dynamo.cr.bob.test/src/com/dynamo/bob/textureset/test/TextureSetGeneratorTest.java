@@ -116,7 +116,7 @@ public class TextureSetGeneratorTest {
         assertThat(getIndexCount(textureSet, "anim2", 0), is(6));
     }
 
-    //@Test
+    @Test
     public void testAtlasGenerator() throws Exception {
         List<BufferedImage> images = Arrays.asList(newImage(16, 16), newImage(16, 16), newImage(16, 16),
                 newImage(16, 16));
@@ -143,7 +143,7 @@ public class TextureSetGeneratorTest {
         assertThat(textureSet.getTexDims().size() / sizeOfFloat, is(numFrames * 2)); // frame count * 2 floats (x, y)
     }
 
-    //@Test
+    @Test
     public void testAtlasGeneratorMaxRectMargin() throws Exception {
         // These are 11x11 and with 5x5 padding added during generation, the output should be 64x16
         List<BufferedImage> images = Arrays.asList(newImage(11, 11), newImage(11, 11), newImage(11, 11),
@@ -171,7 +171,7 @@ public class TextureSetGeneratorTest {
         }
     }
 
-    //@Test
+    @Test
     public void testRotatedAnimations() {
         List<BufferedImage> images = Arrays.asList(newImage(64,32), newImage(64,32), newImage(32,64), newImage(32,64));
 
@@ -194,7 +194,7 @@ public class TextureSetGeneratorTest {
         assertUVTransform(0.5f, 0.5f, 0.5f, -0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim2", 1));
     }
 
-    //@Test
+    @Test
     public void testUvTransforms() throws Exception {
         List<BufferedImage> images = Arrays.asList(newImage(16, 16), newImage(16, 16), newImage(16, 16),
                 newImage(16, 16));

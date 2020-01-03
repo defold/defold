@@ -988,15 +988,20 @@ class Configuration(object):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                              cwd = cwd, shell = True, env = env)
+
+        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
+        ant_args = []
+        if not self.skip_tests:
+            env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+            ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        args = [ant, 'clean', 'install'] + ant_args
+        self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
         if not self.skip_tests:
             cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-            args =[join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'test-clean', 'test']
-            if not self.no_colors:
-                env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % cwd
-                args.extend(['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger'])
+            args = [ant, 'test-clean', 'test'] + ant_args
             self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
 

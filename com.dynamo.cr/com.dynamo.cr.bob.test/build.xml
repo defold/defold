@@ -2,7 +2,6 @@
     <import file="../com.dynamo.cr.bob/build.xml"/>
 
     <property environment="env"/>
-    <property name="bob.dir" value="../com.dynamo.cr.bob/"/>
     <property name="test.dir" value="../com.dynamo.cr.bob.test/"/>
     <property name="test.classes.dir" value="${test.dir}/build"/>
     <property name="test.tmp.dir" value="${test.dir}/tmp"/>
