@@ -1060,10 +1060,6 @@ class Configuration(object):
 
 
     def get_notarization_uuid(self):
-        # find uuid
-        # Date                      RequestUUID                          Status  Status Code Status Message
-        # ------------------------- ------------------------------------ ------- ----------- ----------------
-        # 2019-10-10 14:15:12 +0000 6c8d88ce-f67d-45c1-bce9-6da583416ba9 success 0           Package Approved
         args = [
             'xcrun',
             'altool',
@@ -1076,9 +1072,15 @@ class Configuration(object):
 
         res = self._exec_command(args)
 
+        #
+        # Notarization History - page 0
+        #
+        # Date                      RequestUUID                          Status  Status Code Status Message
+        # ------------------------- ------------------------------------ ------- ----------- ----------------
+        # 2019-10-10 14:15:12 +0000 6c8d88ce-f67d-45c1-bce9-6da583416ba9 success 0           Package Approved
         lines = res.splitlines()
-        request = lines.pop(5) # previous lines are headers
-        pattern = r"^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \+\d\d\d\d (........-....-....-....-............) (\w*?) .*$"
+        request = lines.pop(5)
+        pattern = r"^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \+\d\d\d\d (\w\w\w\w\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w\w\w\w\w\w\w\w\w) (\w*?) .*$"
         match = re.search(pattern, request)
         if not match:
             return None
