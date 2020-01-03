@@ -201,12 +201,13 @@ platforms:
 
   armv7-android:
     env:
-        PROGUARD:           "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:         "{{env.ANDROID_LIBRARYJAR}}"
-        NDK_PATH:           "{{env.ANDROID_NDK20_PATH}}"
-        SYSROOT:            "{{env.ANDROID_NDK20_SYSROOT}}"
-        NDK_VERSION:        "{{env.ANDROID_NDK20_API_VERSION}}"
-        STL_LIB:            "{{env.ANDROID_NDK20_STL_LIB}}"
+        PROGUARD:               "{{env.ANDROID_PROGUARD}}"
+        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
+        NDK_PATH:               "{{env.ANDROID_NDK20_PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK20_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_NDK20_API_VERSION}}"
+        STL_LIB:                "{{env.ANDROID_NDK20_STL_LIB}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind", "cares"]
@@ -239,15 +240,18 @@ platforms:
     dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --main-dex-list={{mainDexList}} --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
+    rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --auto-add-overlay -M {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   arm64-android:
     env:
-        PROGUARD:    "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:  "{{env.ANDROID_LIBRARYJAR}}"
-        NDK_PATH:    "{{env.ANDROID_NDK20_PATH}}"
-        SYSROOT:     "{{env.ANDROID_NDK20_SYSROOT}}"
-        NDK_VERSION: "{{env.ANDROID_64_NDK20_API_VERSION}}"
-        STL_LIB:     "{{env.ANDROID_64_NDK20_STL_LIB}}"
+        PROGUARD:               "{{env.ANDROID_PROGUARD}}"
+        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
+        NDK_PATH:               "{{env.ANDROID_NDK20_PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK20_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_64_NDK20_API_VERSION}}"
+        STL_LIB:                "{{env.ANDROID_64_NDK20_STL_LIB}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "openal_soft", "tremolo", "liveupdate", "unwind", "cares"]
@@ -280,6 +284,8 @@ platforms:
     dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --main-dex-list={{mainDexList}} --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
+    rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --auto-add-overlay -M {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   web:
     # It's here to whitelist this as a platform, currently used for general settings

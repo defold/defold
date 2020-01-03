@@ -74,7 +74,7 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -95,10 +95,7 @@ public class OSXBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("exe-name", exeName);
-        IResource sourceManifestFile = helper.getResource("osx", "infoplist");
-        helper.format(infoData, sourceManifestFile, new File(contentsDir, "Info.plist"));
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
