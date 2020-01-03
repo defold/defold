@@ -11,8 +11,6 @@ import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
 import org.junit.Test;
-import org.osgi.framework.Bundle;
-import org.osgi.framework.FrameworkUtil;
 
 import static org.junit.Assert.assertTrue;
 
@@ -33,36 +31,9 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         return false;
     }
 
-
-    private void addFiles() {
-        Bundle bundle = FrameworkUtil.getBundle(getClass());
-        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
-        if (entries != null) {
-            while (entries.hasMoreElements()) {
-                final URL url = entries.nextElement();
-                IPath path = new Path(url.getPath()).removeFirstSegments(1);
-                // Make sure to only add files and not directory entries.
-                if (path.toString().lastIndexOf('/') != path.toString().length() - 1) {
-                    InputStream is = null;
-                    try {
-                        is = url.openStream();
-                        ByteArrayOutputStream os = new ByteArrayOutputStream();
-                        IOUtils.copy(is, os);
-                        String p = "/" + path.toString();
-                        addFile(p, os.toByteArray());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    } finally {
-                        IOUtils.closeQuietly(is);
-                    }
-                }
-            }
-        }
-    }
-
     @Test
     public void testSpineGui() throws Exception {
-        addFiles();
+        addTestFiles();
 
         StringBuilder src = new StringBuilder();
         src.append("script: \"\"\n");
@@ -97,7 +68,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testTemplatedSpineGui() throws Exception {
-        addFiles();
+        addTestFiles();
 
         StringBuilder src = new StringBuilder();
         src.append("script: \"\"");

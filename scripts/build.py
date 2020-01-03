@@ -991,6 +991,15 @@ class Configuration(object):
         self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = cwd, shell = True, env = env)
 
+        if not self.skip_tests:
+            cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+            args =[join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'test-clean', 'test']
+            if not self.no_colors:
+                env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % cwd
+                args.extend(['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger'])
+            self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+
+
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
 

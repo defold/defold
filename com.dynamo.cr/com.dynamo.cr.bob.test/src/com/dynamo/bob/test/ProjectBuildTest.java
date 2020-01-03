@@ -18,16 +18,14 @@ import javax.imageio.ImageIO;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
-import org.eclipse.swt.widgets.Display;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
-import com.dynamo.bob.OsgiScanner;
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -46,12 +44,6 @@ public class ProjectBuildTest {
         contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
         createFile(contentRoot, "game.project", "[display]\nwidth=640\nheight=480\n");
 
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
-
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_4BYTE_ABGR);
         ImageIO.write(image, "png", new File(contentRoot, "test.png"));
     }
@@ -65,7 +57,7 @@ public class ProjectBuildTest {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 

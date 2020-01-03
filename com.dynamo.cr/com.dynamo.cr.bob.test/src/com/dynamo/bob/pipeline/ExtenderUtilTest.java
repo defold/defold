@@ -15,24 +15,14 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipFile;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.codec.binary.Base64;
-import org.eclipse.core.runtime.Platform;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.bio.SocketConnector;
-import org.eclipse.jetty.server.handler.HandlerList;
-import org.eclipse.jetty.server.handler.ResourceHandler;
-import org.eclipse.jetty.util.resource.Resource;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.osgi.framework.Bundle;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -43,7 +33,6 @@ public class ExtenderUtilTest {
     private MockFileSystem fileSystem;
     private Project project;
     private File tmpDir;
-    private Bundle bundle;
 
     private void createDirs(MockFileSystem fileSystem, String path) {
         if (!path.isEmpty()) {
@@ -86,8 +75,6 @@ public class ExtenderUtilTest {
         createFile(fileSystem, "extension3/res/android/res/com.bar.org/values/values.xml", "<xml>/<xml>".getBytes());
 
         createDirs(fileSystem, "notextension/res/android/res/bla");
-
-        bundle = Platform.getBundle("com.dynamo.cr.bob");
 
         project = new Project(fileSystem, tmpDir.getAbsolutePath(), "build/default");
     }
