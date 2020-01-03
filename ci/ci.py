@@ -137,7 +137,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor(channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_username = None, notarization_itc_provider = None):
+def build_editor(channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     args = 'python scripts/build.py distclean install_ext build_editor2'.split()
     opts = []
 
