@@ -45,11 +45,11 @@ public class OSXBundlerTest {
     }
 
     private void assertPList() {
-        assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/Info.plist")).isFile());
+        assertTrue(new File(concat(outputDir, "unnamed.app/Contents/Info.plist")).isFile());
     }
 
     private void assertExe() throws IOException {
-        assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/Unnamed")).isFile());
+        assertTrue(new File(concat(outputDir, "unnamed.app/Contents/MacOS/Unnamed")).isFile());
     }
 
     protected void createBuiltins() throws IOException {
@@ -111,7 +111,7 @@ public void listDirectory(File dir, int level) {
         listDirectory(new File(contentRoot), 0);
 
         build();
-        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
+        assertEquals("test_icon", readFile(concat(outputDir, "unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
         assertExe();
         assertPList();
     }
