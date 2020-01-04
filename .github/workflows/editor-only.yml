@@ -12,8 +12,20 @@ jobs:
   build-and-test-editor:
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1 } },
+      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 3 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build editor', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF install editor' }
+      {
+        name: 'Build editor',
+        env: {
+            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+            MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
+            MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}',
+            NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
+            NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
+            NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}'
+        },
+        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install editor'
+      }
       # ,{ name: 'Smoke test editor', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'python ci/ci.sh --branch=$GITHUB_REF install smoke' }
-      ]
+    ]

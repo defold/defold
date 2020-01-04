@@ -196,7 +196,10 @@ class Configuration(object):
                  eclipse_version = None,
                  engine_artifacts = None,
                  waf_options = [],
-                 save_env_path = None):
+                 save_env_path = None,
+                 notarization_username = None,
+                 notarization_password = None,
+                 notarization_itc_provider = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -236,6 +239,10 @@ class Configuration(object):
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
         self.save_env_path = save_env_path
+        self.notarization_username = notarization_username
+        self.notarization_password = notarization_password
+        self.notarization_itc_provider = notarization_itc_provider
+
 
         self.thread_pool = None
         self.s3buckets = {}
@@ -1038,103 +1045,6 @@ class Configuration(object):
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
-    def test_cr(self):
-        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-Declipse-version=%s' % self.eclipse_version],
-                              cwd = cwd)
-
-    def _get_cr_builddir(self, product):
-        return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
-
-    def build_server(self):
-        cwd = join(self.defold_root, 'server')
-        self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
-
-    def build_editor(self):
-        import xml.etree.ElementTree as ET
-
-        self.build_bob_light()
-
-        sha1 = self._git_sha1()
-
-        if self.channel != 'stable':
-            qualified_version = self.version + ".qualifier"
-        else:
-            qualified_version = self.version
-
-        icon_path = '/icons/%s' % self.channel
-
-        tree = ET.parse('com.dynamo.cr/com.dynamo.cr.editor-product/template/cr.product')
-        root = tree.getroot()
-
-        root.attrib['version'] = qualified_version
-        for n in root.find('launcher'):
-            if n.tag == 'win':
-                icon = n.find('ico')
-                name = os.path.basename(icon.attrib['path'])
-                icon.attrib['path'] = 'icons/%s/%s' % (self.channel, name)
-            elif 'icon' in n.attrib:
-                name = os.path.basename(n.attrib['icon'])
-                n.attrib['icon'] = 'icons/%s/%s' % (self.channel, name)
-
-        for n in root.find('configurations').findall('property'):
-            if n.tag == 'property':
-                name = n.attrib['name']
-                if name == 'defold.version':
-                    n.attrib['value'] = self.version
-                elif name == 'defold.sha1':
-                    n.attrib['value'] = sha1
-                elif name == 'defold.channel':
-                    n.attrib['value'] = options.channel
-
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'wb') as f:
-            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-            f.write('<?pde version="3.5"?>\n')
-            f.write('\n')
-            tree.write(f, encoding='utf-8')
-
-        p2 = """
-instructions.configure=\
-  addRepository(type:0,location:http${#58}//d.defold.com/%(channel)s/update/);\
-  addRepository(type:1,location:http${#58}//d.defold.com/%(channel)s/update/);
-"""
-
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'wb') as f:
-            f.write(p2 % { 'channel': self.channel })
-
-        self._build_cr('editor')
-
-    def _archive_cr(self, product, build_dir):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, self.channel, product).replace('\\', '/') + '/'
-        host, path = full_archive_path.split(':', 1)
-        for p in glob(join(build_dir, 'target/products/*.zip')):
-            self.upload_file(p, full_archive_path)
-
-        repo_dir = join(build_dir, 'target/repository')
-        for root,dirs,files in os.walk(repo_dir):
-            for f in files:
-                p = join(root, f)
-                u = join(full_archive_path, "repository", os.path.relpath(p, repo_dir))
-                self.upload_file(p, u)
-
-    def archive_editor(self):
-        build_dir = self._get_cr_builddir('editor')
-        self._archive_cr('editor', build_dir)
-
-    def archive_server(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'server').replace('\\', '/') + '/'
-        host, path = full_archive_path.split(':', 1)
-        build_dir = join(self.defold_root, 'server')
-        for p in glob(join(build_dir, 'build/distributions/*.zip')):
-            self.upload_file(p, full_archive_path)
-
-    def _build_cr(self, product):
-        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        env = self._form_env()
-        self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
-
     def build_editor2(self):
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
@@ -1147,6 +1057,103 @@ instructions.configure=\
         cwd = join(self.defold_root, 'editor')
 
         self.exec_env_command(cmd, cwd = cwd)
+
+
+    def get_notarization_uuid(self):
+        args = [
+            'xcrun',
+            'altool',
+            '--notarization-history',
+            '-u', self.notarization_username,
+            '-p', self.notarization_password]
+
+        if self.notarization_itc_provider:
+            args.extend(['-itc_provider', self.notarization_itc_provider])
+
+        res = self._exec_command(args)
+
+        #
+        # Notarization History - page 0
+        #
+        # Date                      RequestUUID                          Status  Status Code Status Message
+        # ------------------------- ------------------------------------ ------- ----------- ----------------
+        # 2019-10-10 14:15:12 +0000 6c8d88ce-f67d-45c1-bce9-6da583416ba9 success 0           Package Approved
+        lines = res.splitlines()
+        request = lines.pop(5)
+        pattern = r"^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \+\d\d\d\d (\w\w\w\w\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w\w\w\w\w\w\w\w\w) (\w*?) .*$"
+        match = re.search(pattern, request)
+        if not match:
+            return None
+
+        uuid = match.group(1)
+        return uuid
+
+
+    def get_notarization_status(self, uuid):
+        args = [
+            'xcrun',
+            'altool',
+            '--notarization-info', uuid,
+            '-u', self.notarization_username,
+            '-p', self.notarization_password]
+
+        if self.notarization_itc_provider:
+            args.extend(['-itc_provider', self.notarization_itc_provider])
+
+        res = self._exec_command(args)
+
+        pattern = r".*Status: (.*)"
+        match = re.search(pattern, res)
+        if not match:
+            return None
+
+        status = match.group(1)
+        return status
+
+
+    def notarize_editor2(self):
+        if self.notarization_username is None or self.notarization_password is None:
+            raise Exception("Apple notarization username or password is not set")
+
+        self._log('Sending editor for notarization')
+        app = join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg')
+        args = ['xcrun', 'altool', '--notarize-app',
+                                    '--type', 'osx',
+                                    '--file', app,
+                                    '--primary-bundle-id', "com.defold.editor",
+                                    '--username', self.notarization_username,
+                                    '--password', self.notarization_password]
+        if self.notarization_itc_provider:
+            args.extend(['-itc_provider', self.notarization_itc_provider])
+
+        res = self._exec_command(args)
+
+
+        self._log('Getting UUID for notarization request')
+        uuid = self.get_notarization_uuid()
+        if not uuid:
+            self._log("Unable to find any notarization data")
+            sys.exit(1)
+
+        while True:
+            self._log('Checking notarization status for the current request')
+            status = self.get_notarization_status(uuid)
+            if status == "success":
+                self._log('Notarization was successful')
+                break
+            elif status == "invalid":
+                self._log("Notarization failed")
+                sys.exit(1)
+            time.sleep(15)
+
+        # staple approval
+        self._log('Stapling notarization approval to application')
+        res = self._exec_command([
+            'xcrun',
+            'stapler',
+            'staple',
+            app
+        ])
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -2024,31 +2031,29 @@ if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)
 
 Commands:
-distclean       - Removes the DYNAMO_HOME folder
-install_ext     - Install external packages
-install_ems     - Install emscripten sdk
-sync_archive    - Sync engine artifacts from S3
-activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
-build_engine    - Build engine
-archive_engine  - Archive engine (including builtins) to path specified with --archive-path
-install_go      - Install go dev tools
-build_go        - Build go code
-archive_go      - Archive go binaries
-test_cr         - Test editor and server
-build_server    - Build server
-build_editor    - Build editor
-archive_editor  - Archive editor to path specified with --archive-path
-sign_editor     - Sign the editor and upload a dmg archive to S3
-archive_server  - Archive server to path specified with --archive-path
-build_bob       - Build bob with native libraries included for cross platform deployment
-archive_bob     - Archive bob to path specified with --archive-path
-build_docs      - Build documentation
-build_builtins  - Build builtin content archive
-bump            - Bump version number
-release         - Release editor
-shell           - Start development shell
-smoke_test      - Test editor and engine in combination
-local_smoke     - Test run smoke test using local dev environment
+distclean        - Removes the DYNAMO_HOME folder
+install_ext      - Install external packages
+install_ems      - Install emscripten sdk
+sync_archive     - Sync engine artifacts from S3
+activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
+build_engine     - Build engine
+archive_engine   - Archive engine (including builtins) to path specified with --archive-path
+install_go       - Install go dev tools
+build_go         - Build go code
+archive_go       - Archive go binaries
+build_editor2    - Build editor
+notarize_editor2 - Notarize the macOS version of the editor
+archive_editor2  - Archive editor to path specified with --archive-path
+sign_editor      - Sign the editor and upload a dmg archive to S3
+build_bob        - Build bob with native libraries included for cross platform deployment
+archive_bob      - Archive bob to path specified with --archive-path
+build_docs       - Build documentation
+build_builtins   - Build builtin content archive
+bump             - Bump version number
+release          - Release editor
+shell            - Start development shell
+smoke_test       - Test editor and engine in combination
+local_smoke      - Test run smoke test using local dev environment
 
 Multiple commands can be specified
 
@@ -2139,6 +2144,18 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Save environment variables to a file')
 
+    parser.add_option('--notarization-username', dest='notarization_username',
+                      default = None,
+                      help = 'Username to use when sending the editor for notarization')
+
+    parser.add_option('--notarization-password', dest='notarization_password',
+                      default = None,
+                      help = 'Password to use when sending the editor for notarization')
+
+    parser.add_option('--notarization-itc-provider', dest='notarization_itc_provider',
+                      default = None,
+                      help = 'Optional iTunes Connect provider to use when sending the editor for notarization')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2172,7 +2189,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       eclipse_version = options.eclipse_version,
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
-                      save_env_path = options.save_env_path)
+                      save_env_path = options.save_env_path,
+                      notarization_username = options.notarization_username,
+                      notarization_password = options.notarization_password,
+                      notarization_itc_provider = options.notarization_itc_provider)
 
     for cmd in args:
         f = getattr(c, cmd, None)
