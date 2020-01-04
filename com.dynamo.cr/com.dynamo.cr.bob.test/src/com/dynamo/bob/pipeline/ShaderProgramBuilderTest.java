@@ -44,6 +44,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -62,6 +64,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -78,6 +82,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -94,6 +100,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
