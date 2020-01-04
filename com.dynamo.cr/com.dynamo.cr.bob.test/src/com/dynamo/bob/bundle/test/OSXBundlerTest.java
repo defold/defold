@@ -81,11 +81,35 @@ public class OSXBundlerTest {
         project.build(new NullProgress(), "clean", "build", "bundle");
     }
 
+public void listDirectory(File dir, int level) {
+    if (level == 0) {
+        System.out.printf("PATH: %s\n", dir.getAbsolutePath());
+    }
+    File[] firstLevelFiles = dir.listFiles();
+    if (firstLevelFiles != null && firstLevelFiles.length > 0) {
+        for (File aFile : firstLevelFiles) {
+            for (int i = 0; i < level; i++) {
+                System.out.print("\t");
+            }
+            if (aFile.isDirectory()) {
+                System.out.println("[" + aFile.getName() + "]");
+                listDirectory(aFile, level + 1);
+            } else {
+                System.out.println(aFile.getName());
+            }
+        }
+    }
+}
     @Test
     public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createBuiltins();
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
+
+
+    System.out.printf("MAWE contentRoot:\n");
+        listDirectory(new File(contentRoot), 0);
+
         build();
         assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
         assertExe();
