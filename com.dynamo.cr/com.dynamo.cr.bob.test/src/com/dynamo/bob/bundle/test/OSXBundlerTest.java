@@ -49,7 +49,7 @@ public class OSXBundlerTest {
     }
 
     private void assertExe() throws IOException {
-        assertTrue(new File(concat(outputDir, "unnamed.app/Contents/MacOS/Unnamed")).isFile());
+        assertTrue(new File(concat(outputDir, "unnamed.app/Contents/MacOS/unnamed")).isFile());
     }
 
     protected void createBuiltins() throws IOException {
