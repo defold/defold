@@ -79,7 +79,7 @@
 
     <target name="test" depends="compile-test">
 
-        <junit printsummary="yes" haltonfailure="yes">
+        <junit printsummary="yes" haltonfailure="yes" timeout="10000">
             <formatter type="plain" usefile="false" /> <!-- to screen -->
 
             <classpath>
@@ -101,7 +101,7 @@
             <!-- How to test individual tests -->
             <!-- <test name="com.dynamo.bob.bundle.test.BundleHelperTest" haltonfailure="yes" /> -->
 
-            <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" timeout="10000" />
+            <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" />
         </junit>
     </target>
 
