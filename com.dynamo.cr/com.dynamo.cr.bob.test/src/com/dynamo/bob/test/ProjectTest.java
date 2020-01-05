@@ -61,6 +61,7 @@ public class ProjectTest {
     public TestLibrariesRule testLibs = new TestLibrariesRule();
 
     private void initHttpServer(String serverLocation) throws IOException {
+        System.out.printf("initHttpServer start");
         httpServer = new Server();
 
         SocketConnector connector = new SocketConnector();
@@ -77,10 +78,12 @@ public class ProjectTest {
         } catch (Exception e) {
             throw new IOException("Unable to start http server", e);
         }
+        System.out.printf("initHttpServer end");
     }
 
     @Before
     public void setUp() throws Exception {
+        System.out.printf("setUp start");
         // See TestLibrariesRule.java for the creation of these zip files
         libraryUrls = new ArrayList<URL>();
         libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
@@ -95,6 +98,7 @@ public class ProjectTest {
         project.setLibUrls(libraryUrls);
 
         initHttpServer(testLibs.getServerLocation());
+        System.out.printf("setUp end");
     }
 
     @After
@@ -113,6 +117,7 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
+System.out.printf("testResolve start");
         assertEquals(0, _304Count.get());
         File lib = new File(project.getLibPath());
         if (lib.exists()) {
@@ -135,10 +140,13 @@ public class ProjectTest {
             assertTrue(libExists(filename));
         }
         assertEquals(filenames.size(), _304Count.get());
+
+        System.out.printf("testResolve end");
     }
 
     @Test
     public void testMountPoints() throws Exception {
+        System.out.printf("testMountPoints start");
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib5/file5.in", "builtins/cp_test.in"));
@@ -147,10 +155,12 @@ public class ProjectTest {
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
+        System.out.printf("end");
     }
 
     @Test
     public void testMountPointFindSources() throws Exception {
+        System.out.printf("testMountPointFindSources start");
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
         project.findSources(".", null);
@@ -159,6 +169,8 @@ public class ProjectTest {
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
+
+        System.out.printf("end");
     }
 
     // due to bob.jar including builtins/ we get way too many resources
@@ -177,6 +189,7 @@ public class ProjectTest {
 
     @Test
     public void testFindResourcePaths() throws Exception {
+        System.out.printf("testFindResourcePaths start");
         libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
@@ -188,10 +201,12 @@ public class ProjectTest {
 
         assertFalse(results.isEmpty());
         assertEquals(5, results.size());
+        System.out.printf("end");
     }
 
     @Test
     public void testFindResourceDirs() throws Exception {
+        System.out.printf("testFindResourceDirs start");
         libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
@@ -212,6 +227,7 @@ public class ProjectTest {
         assertEquals(2, results.size());
         assertTrue(results.contains("testdir1"));
         assertTrue(results.contains("testdir2"));
+        System.out.printf("end");
     }
 
     private class FileHandler extends ResourceHandler {

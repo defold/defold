@@ -32,30 +32,8 @@ public class OSXBundler implements IBundler {
             File inFile = new File(projectRoot, name);
             File outFile = new File(resourcesDir, ICON_NAME);
             FileUtils.copyFile(inFile, outFile);
-        } else {
-System.out.printf("MAWE: No app_icon set!");
         }
     }
-
-public void listDirectory(File dir, int level) {
-    if (level == 0) {
-        System.out.printf("PATH: %s\n", dir.getAbsolutePath());
-    }
-    File[] firstLevelFiles = dir.listFiles();
-    if (firstLevelFiles != null && firstLevelFiles.length > 0) {
-        for (File aFile : firstLevelFiles) {
-            for (int i = 0; i < level; i++) {
-                System.out.print("\t");
-            }
-            if (aFile.isDirectory()) {
-                System.out.println("[" + aFile.getName() + "]");
-                listDirectory(aFile, level + 1);
-            } else {
-                System.out.println(aFile.getName());
-            }
-        }
-    }
-}
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
@@ -123,8 +101,6 @@ public void listDirectory(File dir, int level) {
 
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
-
-        listDirectory(appDir, 0);
 
         // Copy Executable
         File exeOut = new File(macosDir, exeName);
