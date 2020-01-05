@@ -88,7 +88,7 @@
             <classpath location="${bob.dir}/dist/bob.jar"/>
             <classpath location="${test.tmp.dir}/bob-tests.jar" />
 
-<!--             <batchtest>
+            <batchtest>
                 <fileset dir="../com.dynamo.cr.bob.test/src">
                     <include name="**/*Test*.java" />
                     <exclude name="**/Abstract*.java" />
@@ -97,11 +97,11 @@
                     <exclude name="**/PropertiesTestUtil.java" />
                 </fileset>
             </batchtest>
- -->
+
             <!-- How to test individual tests -->
             <!-- <test name="com.dynamo.bob.bundle.test.BundleHelperTest" haltonfailure="yes" /> -->
 
-            <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" />
+            <!-- <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" /> -->
         </junit>
     </target>
 
