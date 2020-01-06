@@ -44,9 +44,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getBinary());
-                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                assertNotNull(shader.getShaders(1).getSource());
+                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
             default:
                 assertEquals(1, shader.getShadersCount());
@@ -62,9 +64,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getBinary());
-                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                assertNotNull(shader.getShaders(1).getSource());
+                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
 
             default:
@@ -78,9 +82,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getBinary());
-                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                assertNotNull(shader.getShaders(1).getSource());
+                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
 
             default:
@@ -94,9 +100,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             case X86Darwin:
             case X86_64Darwin:
+            case X86_64Linux:
+            case X86_64Win32:
                 assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getBinary());
-                assertEquals(ShaderDesc.Language.LANGUAGE_MSL, shader.getShaders(1).getLanguage());
+                assertNotNull(shader.getShaders(1).getSource());
+                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
 
             default:

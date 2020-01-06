@@ -3,6 +3,7 @@ package com.dynamo.bob.textureset.test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertEquals;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -25,7 +26,7 @@ public class TextureSetGeneratorTest {
     private static final float EPSILON = 0.000001f;
 
     public static class MappedAnimDesc extends AnimDesc {
-        List<String> ids;
+        public List<String> ids;
 
         public MappedAnimDesc(String id, List<String> ids, Playback playback, int fps, boolean flipHorizontal,
                 boolean flipVertical) {
@@ -96,6 +97,7 @@ public class TextureSetGeneratorTest {
                               newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
+        List<Integer> hullSizes = Arrays.asList(6, 6, 6, 6);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
@@ -103,15 +105,15 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true, false, null);
+        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage image = result.image;
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
         assertThat(textureSet.getAnimationsCount(), is(2));
 
-        assertThat(getVertexCount(textureSet, "anim1", 0), is(6));
-        assertThat(getVertexCount(textureSet, "anim2", 0), is(6));
+        assertThat(getIndexCount(textureSet, "anim1", 0), is(6));
+        assertThat(getIndexCount(textureSet, "anim2", 0), is(6));
     }
 
     @Test
@@ -120,6 +122,7 @@ public class TextureSetGeneratorTest {
                 newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
+        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
@@ -127,15 +130,17 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true, false, null);
+        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null);
         BufferedImage image = result.image;
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
+        int sizeOfFloat = 4;
+        int numFrames = ids.size() + animations.get(0).ids.size() + animations.get(1).ids.size();
         assertThat(textureSet.getAnimationsCount(), is(2));
-        assertThat(textureSet.getTexDims().size(), is(2 * 2)); // frame count * 2 floats (x, y)
+        assertThat(textureSet.getTexDims().size() / sizeOfFloat, is(numFrames * 2)); // frame count * 2 floats (x, y)
     }
 
     @Test
@@ -145,6 +150,7 @@ public class TextureSetGeneratorTest {
                 newImage(11, 11));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
+        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
@@ -152,7 +158,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 5, 0, 0, false, false, true, false, null);
+        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 5, 0, 0, true, false, null);
         BufferedImage image = result.image;
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
@@ -170,6 +176,7 @@ public class TextureSetGeneratorTest {
         List<BufferedImage> images = Arrays.asList(newImage(64,32), newImage(64,32), newImage(32,64), newImage(32,64));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
+        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1","2")));
@@ -177,7 +184,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true, false, null);
+        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null);
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
@@ -193,13 +200,14 @@ public class TextureSetGeneratorTest {
                 newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
+        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true, false, null);
+        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null);
 
         TextureSet textureSet = result.builder.setTexture("").build();
         assertUVTransform(0.0f, 1.0f, 0.5f, -0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));
@@ -208,10 +216,10 @@ public class TextureSetGeneratorTest {
     }
 
     private static int getFrameIndex(TextureSet textureSet, String id, int frame) {
-        return getAnim(textureSet, id).getStart() + frame;
+        return textureSet.getFrameIndices(getAnim(textureSet, id).getStart() + frame);
     }
-    private static int getVertexCount(TextureSet textureSet, String id, int frame) {
-        return textureSet.getVertexCount(getFrameIndex(textureSet, id, frame));
+    private static int getIndexCount(TextureSet textureSet, String id, int frame) {
+        return textureSet.getGeometries(getFrameIndex(textureSet, id, frame)).getIndicesCount();
     }
 
     private static UVTransform getUvTransforms(List<UVTransform> uvTransforms, TextureSet textureSet, String id, int frame) {
