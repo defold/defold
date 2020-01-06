@@ -79,7 +79,7 @@
 
     <target name="test" depends="compile-test">
 
-        <junit printsummary="yes" haltonfailure="yes" timeout="10000">
+        <junit printsummary="yes" haltonfailure="yes">
             <formatter type="plain" usefile="false" /> <!-- to screen -->
 
             <classpath>
