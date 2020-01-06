@@ -183,8 +183,12 @@ public class BundleHelper {
     }
 
     public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
-        String data = new String(resource.getContent());
-        Template template = Mustache.compiler().compile(data);
+        byte[] data = resource.getContent();
+        if (data == null) {
+            return "";
+        }
+        String s = new String(data);
+        Template template = Mustache.compiler().compile(s);
         StringWriter sw = new StringWriter();
         template.execute(this.propertiesMap, properties, sw);
         sw.flush();
@@ -284,7 +288,7 @@ public class BundleHelper {
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
-            return new File(appDir, "Info.plist");
+            return new File(appDir, "Contents/Info.plist");
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return new File(appDir, "AndroidManifest.xml");
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
@@ -961,7 +965,7 @@ public class BundleHelper {
 
             m = BundleHelper.internalServerIssue.matcher(line);
             if (m.matches()) {
-                throw new CompileExceptionError(null, 0, "Internal Server Error. Read the full logs on the cloud service");
+                throw new CompileExceptionError(null, 0, "Internal Server Error. Read the full logs on disc");
             }
 
             m = BundleHelper.nonResourceIssueRe.matcher(line);

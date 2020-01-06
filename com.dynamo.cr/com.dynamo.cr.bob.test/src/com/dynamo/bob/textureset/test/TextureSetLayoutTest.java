@@ -19,11 +19,12 @@ import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 
 public class TextureSetLayoutTest {
 
-    void assertRect(Layout layout, int i, int x, int y, Object id) {
+    void assertRect(Layout layout, int i, String id, int index, int x, int y) {
         Rect r = layout.getRectangles().get(i);
+        assertThat(r.id, is(id));
+        assertThat(r.index, is(index));
         assertThat(r.x, is(x));
         assertThat(r.y, is(y));
-        assertThat(r.id, is(id));
     }
 
     private static Layout packedLayout(int margin, List<Rect> rectangles) {
@@ -48,30 +49,30 @@ public class TextureSetLayoutTest {
     @Test
     public void testBasic1() {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect(0, 16, 16),
-                            rect(1, 16, 16),
-                            rect(2, 16, 16),
-                            rect(3, 16, 16));
+            = Arrays.asList(rect("0", 0, 16, 16),
+                            rect("1", 1, 16, 16),
+                            rect("2", 2, 16, 16),
+                            rect("3", 3, 16, 16));
 
         Layout layout = packedLayout(0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(32));
-        assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 0, 16, 1);
-        assertRect(layout, 2, 16, 0, 2);
-        assertRect(layout, 3, 16, 16, 3);
+        assertRect(layout, 0, "0", 0, 0, 0);
+        assertRect(layout, 1, "1", 1, 0, 16);
+        assertRect(layout, 2, "2", 2, 16, 0);
+        assertRect(layout, 3, "3", 3, 16, 16);
     }
 
     @Test
     public void testBasic2() {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect(0, 16, 16),
-                            rect(1, 8, 8),
-                            rect(2, 8, 8),
-                            rect(3, 8, 8),
-                            rect(4, 8, 8),
-                            rect(5, 8, 8),
-                            rect(6, 8, 8));
+            = Arrays.asList(rect("0", 0, 16, 16),
+                            rect("1", 1, 8, 8),
+                            rect("2", 2, 8, 8),
+                            rect("3", 3, 8, 8),
+                            rect("4", 4, 8, 8),
+                            rect("5", 5, 8, 8),
+                            rect("6", 6, 8, 8));
 
         // 0034
         // 00
@@ -80,87 +81,87 @@ public class TextureSetLayoutTest {
         Layout layout = packedLayout(0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(32));
-        assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 0, 16, 1);
-        assertRect(layout, 2, 0, 24, 2);
-        assertRect(layout, 3, 16, 0, 3);
-        assertRect(layout, 4, 24, 0, 4);
-        assertRect(layout, 5, 8, 16, 5);
-        assertRect(layout, 6, 8, 24, 6);
+        assertRect(layout, 0, "0", 0, 0, 0);
+        assertRect(layout, 1, "1", 1, 0, 16);
+        assertRect(layout, 2, "2", 2, 0, 24);
+        assertRect(layout, 3, "3", 3, 16, 0);
+        assertRect(layout, 4, "4", 4, 24, 0);
+        assertRect(layout, 5, "5", 5, 8, 16);
+        assertRect(layout, 6, "6", 6, 8, 24);
     }
 
     @Test
     public void testBasic3() {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect(0, 512, 128));
+            = Arrays.asList(rect("0", 0, 512, 128));
 
         Layout layout = packedLayout(0, rectangles);
         assertThat(layout.getWidth(), is(512));
         assertThat(layout.getHeight(), is(128));
-        assertRect(layout, 0, 0, 0, 0);
+        assertRect(layout, 0, "0", 0, 0, 0);
     }
 
     @Test
     public void testBasic4() {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect(0, 32, 12),
-                            rect(1, 16, 2),
-                            rect(2, 16, 2));
+            = Arrays.asList(rect("0", 0, 32, 12),
+                            rect("1", 1, 16, 2),
+                            rect("2", 2, 16, 2));
 
         Layout layout = packedLayout(0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(16));
-        assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 0, 12, 1);
-        assertRect(layout, 2, 0, 14, 2);
+        assertRect(layout, 0, "0", 0, 0, 0);
+        assertRect(layout, 1, "1", 1, 0, 12);
+        assertRect(layout, 2, "2", 2, 0, 14);
     }
 
     @Test
     public void testBasicMargin1() {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect(0, 16, 16),
-                            rect(1, 16, 16),
-                            rect(2, 16, 16),
-                            rect(3, 16, 16));
+            = Arrays.asList(rect("0", 0, 16, 16),
+                            rect("1", 1, 16, 16),
+                            rect("2", 2, 16, 16),
+                            rect("3", 3, 16, 16));
 
         Layout layout = packedLayout(2, rectangles);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
-        assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 0, (16 + 2), 1);
-        assertRect(layout, 2, (16 + 2), 0, 2);
-        assertRect(layout, 3, 0, (16 + 2) * 2, 3);
+        assertRect(layout, 0, "0", 0, 0, 0);
+        assertRect(layout, 1, "1", 1, 0, (16 + 2));
+        assertRect(layout, 2, "2", 2, (16 + 2), 0);
+        assertRect(layout, 3, "3", 3, 0, (16 + 2) * 2);
     }
 
     @Test
     public void testBasicMargin2() {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect(0, 15, 15),
-                            rect(1, 15, 15),
-                            rect(2, 15, 15),
-                            rect(3, 15, 15));
+            = Arrays.asList(rect("0", 0, 15, 15),
+                            rect("1", 1, 15, 15),
+                            rect("2", 2, 15, 15),
+                            rect("3", 3, 15, 15));
 
         Layout layout = packedLayout(2, rectangles);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
-        assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 0, (15 + 2), 1);
-        assertRect(layout, 2, (15 + 2), 0, 2);
-        assertRect(layout, 3, 0, (15 + 2) * 2, 3);
+        assertRect(layout, 0, "0", 0, 0, 0);
+        assertRect(layout, 1, "1", 1, 0, (15 + 2));
+        assertRect(layout, 2, "2", 2, (15 + 2), 0);
+        assertRect(layout, 3, "3", 3, 0, (15 + 2) * 2);
     }
 
     @Test
     public void testThinStrip() {
-        List<TextureSetLayout.Rect> rectangles = Arrays.asList(rect(0, 1, 16));
+        List<TextureSetLayout.Rect> rectangles = Arrays.asList(rect("0", 0, 1, 16));
 
         Layout layout = packedLayout(0, rectangles);
         assertThat(layout.getWidth(), is(1));
         assertThat(layout.getHeight(), is(16));
-        assertRect(layout, 0, 0, 0, 0);
+        assertRect(layout, 0, "0", 0, 0, 0);
     }
 
-    private Rect rect(Object id, int w, int h) {
-        return new Rect(id, w, h);
+    private Rect rect(String id, int index, int w, int h) {
+        return new Rect(id, index, w, h);
     }
 
 
@@ -180,7 +181,7 @@ public class TextureSetLayoutTest {
             int previousX = 1;
             for (int x=startRange; x<endRange; ++x) {
                 int xLength = nextLength(x, previousX) * scale;
-                rects.add(rect(rects.size(), xLength, yLength));
+                rects.add(rect(String.format("%d", rects.size()), rects.size(), xLength, yLength));
                 previousX = x;
             }
             previousY = y;
@@ -194,12 +195,11 @@ public class TextureSetLayoutTest {
         List<Rect> rectangles = createSampleRectangles(1);
         Layout layout = packedLayout(0, rectangles);
 
-        HashSet<Integer> recordedIds = new HashSet<Integer>();
+        HashSet<String> recordedIds = new HashSet<String>();
 
         for (Rect r : layout.getRectangles()) {
-            Integer id = (Integer)r.id;
-            assertFalse(recordedIds.contains(id));
-            recordedIds.add(id);
+            assertFalse(recordedIds.contains(r.id));
+            recordedIds.add(r.id);
         }
 
         assertEquals(recordedIds.size(), rectangles.size());
@@ -239,10 +239,10 @@ public class TextureSetLayoutTest {
     public void testGridLayout1() {
 
         List<Rect> rectangles
-            = Arrays.asList(rect(0, 16, 4),
-                            rect(1, 16, 4),
-                            rect(2, 16, 4),
-                            rect(3, 16, 4));
+            = Arrays.asList(rect("0", 0, 16, 4),
+                            rect("1", 1, 16, 4),
+                            rect("2", 2, 16, 4),
+                            rect("3", 3, 16, 4));
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 
@@ -254,7 +254,7 @@ public class TextureSetLayoutTest {
     public void testGridLayout2() {
 
         List<Rect> rectangles
-            = Arrays.asList(rect(0, 32, 16));
+            = Arrays.asList(rect("0", 0, 32, 16));
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 
@@ -265,10 +265,10 @@ public class TextureSetLayoutTest {
     @Test
     public void testGridNoOverlaps() {
         List<Rect> rectangles
-            = Arrays.asList(rect(0, 16, 4),
-                            rect(1, 16, 4),
-                            rect(2, 16, 4),
-                            rect(3, 16, 4));
+            = Arrays.asList(rect("0", 0, 16, 4),
+                            rect("1", 1, 16, 4),
+                            rect("2", 2, 16, 4),
+                            rect("3", 3, 16, 4));
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
         List<Rect> outputRectangles = layout.getRectangles();
         int numRectangles = outputRectangles.size();
@@ -282,7 +282,11 @@ public class TextureSetLayoutTest {
 
     @Test
     public void testLargeLayout() {
-        List<Rect> rectangles = Arrays.asList(rect(0, 1000, 800), rect(1, 800, 1000), rect(2, 1000, 100), rect(3, 800, 100));
+        List<Rect> rectangles
+            = Arrays.asList(rect("0", 0, 1000, 800),
+                            rect("1", 1, 800, 1000),
+                            rect("2", 2, 1000, 100),
+                            rect("3", 3, 800, 100));
         Layout layout = packedLayout(0, rectangles);
 
         assertEquals(layout.getWidth(), 2048);
