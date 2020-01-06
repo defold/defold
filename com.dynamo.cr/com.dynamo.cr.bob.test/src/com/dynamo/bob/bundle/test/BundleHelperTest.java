@@ -11,12 +11,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.core.runtime.Platform;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.OsgiResourceScanner;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
@@ -30,7 +30,7 @@ public class BundleHelperTest {
 
     @Before
     public void setUp() throws Exception {
-        this.mp = new ClassLoaderMountPoint(null, "com/dynamo/bob/bundle/test/*", new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        this.mp = new ClassLoaderMountPoint(null, "com/dynamo/bob/bundle/test/*", new ClassLoaderResourceScanner());
         this.mp.mount();
     }
 
@@ -72,7 +72,7 @@ public class BundleHelperTest {
 
     static void debugIssues(List<ResourceInfo> issues) {
         for (ResourceInfo info : issues) {
-            System.out.println(String.format("ISSUE: %s : %d: %s - \"%s\"", info.resource, info.lineNumber, info.severity, info.message));
+            System.out.printf(String.format("ISSUE: %s : %d: %s - \"%s\"\n", info.resource, info.lineNumber, info.severity, info.message));
         }
     }
 
@@ -89,7 +89,7 @@ public class BundleHelperTest {
     }
 
     @Test
-    public void testErrorLog() throws IOException {
+    public void testErrorLog() throws IOException, CompileExceptionError {
 
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogAndroid.txt");
@@ -104,6 +104,9 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 147, "error", "undefined reference to 'Foobar()'\ncollect2: error: ld returned 1 exit status"));
             // Main link error (missing extension symbol)
             assertEquals(true, checkIssue(issues, "main.cpp", 44, "error", "undefined reference to 'defos'\ncollect2: error: ld returned 1 exit status"));
+
+            assertEquals(true, checkIssue(issues, null, 1, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogWin32.txt");
@@ -118,9 +121,6 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "MathFuncsLib.lib", 1, "error", "MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
-
-            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
-            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
 
             assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
 

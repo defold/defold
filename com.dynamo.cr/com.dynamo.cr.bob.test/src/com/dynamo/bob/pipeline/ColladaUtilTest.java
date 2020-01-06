@@ -23,7 +23,6 @@ import javax.vecmath.Tuple4i;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4f;
 
-import org.eclipse.swt.widgets.Display;
 import org.junit.Test;
 
 import com.dynamo.bob.util.MathUtil;
@@ -39,14 +38,6 @@ import com.dynamo.rig.proto.Rig.RigAnimation;
 public class ColladaUtilTest {
 
     static double EPSILON = 0.0001;
-
-    public ColladaUtilTest(){
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
-    }
 
     private List<Float> bake(List<Integer> indices, List<Float> values, int elemCount) {
         List<Float> result = new ArrayList<Float>(indices.size() * elemCount);
