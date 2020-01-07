@@ -1072,37 +1072,6 @@ class Configuration(object):
 
         self.exec_env_command(cmd, cwd = cwd)
 
-
-    def get_notarization_uuid(self):
-        args = [
-            'xcrun',
-            'altool',
-            '--notarization-history',
-            '-u', self.notarization_username,
-            '-p', self.notarization_password]
-
-        if self.notarization_itc_provider:
-            args.extend(['-itc_provider', self.notarization_itc_provider])
-
-        res = self._exec_command(args)
-
-        #
-        # Notarization History - page 0
-        #
-        # Date                      RequestUUID                          Status  Status Code Status Message
-        # ------------------------- ------------------------------------ ------- ----------- ----------------
-        # 2019-10-10 14:15:12 +0000 6c8d88ce-f67d-45c1-bce9-6da583416ba9 success 0           Package Approved
-        lines = res.splitlines()
-        request = lines.pop(5)
-        pattern = r"^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \+\d\d\d\d (\w\w\w\w\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w-\w\w\w\w\w\w\w\w\w\w\w\w) (\w*?) .*$"
-        match = re.search(pattern, request)
-        if not match:
-            return None
-
-        uuid = match.group(1)
-        return uuid
-
-
     def get_notarization_status(self, uuid):
         args = [
             'xcrun',
@@ -1124,7 +1093,6 @@ class Configuration(object):
         status = match.group(1)
         return status
 
-
     def notarize_editor2(self):
         if self.notarization_username is None or self.notarization_password is None:
             raise Exception("Apple notarization username or password is not set")
@@ -1142,15 +1110,20 @@ class Configuration(object):
 
         res = self._exec_command(args)
 
-
         self._log('Getting UUID for notarization request')
-        uuid = self.get_notarization_uuid()
-        if not uuid:
-            self._log("Unable to find any notarization data")
+
+        # No errors uploading '/Users/runner/runners/2.163.1/work/defold/defold/editor/target/editor/Defold-x86_64-darwin.dmg'.
+        # RequestUUID = a062ed44-6da0-49c4-b0e6-0d1c28e1670d
+        pattern = r".*RequestUUID = (.*)"
+        match = re.search(pattern, res)
+        if not match:
+            self._log("Unable to find notarization request UUID")
             sys.exit(1)
+        uuid = match.group(1)
 
         while True:
-            self._log('Checking notarization status for the current request')
+            time.sleep(15)
+            self._log('Checking notarization status for "{}"'.format(uuid))
             status = self.get_notarization_status(uuid)
             if status == "success":
                 self._log('Notarization was successful')
@@ -1158,7 +1131,6 @@ class Configuration(object):
             elif status == "invalid":
                 self._log("Notarization failed")
                 sys.exit(1)
-            time.sleep(15)
 
         # staple approval
         self._log('Stapling notarization approval to application')
