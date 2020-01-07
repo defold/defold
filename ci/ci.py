@@ -7,15 +7,18 @@ import os
 import base64
 from argparse import ArgumentParser
 
-def call(args):
+def call(args, attempts = 1):
     print(args)
-    ret = os.system(args)
-    if ret != 0:
-        exit(1)
+    while attempts > 0:
+        ret = os.system(args)
+        if ret == 0:
+            return
+        attempts = attempts - 1
+    exit(1)
 
 
 def aptget(package):
-    call("sudo apt-get install --no-install-recommends " + package)
+    call("sudo apt-get install --no-install-recommends " + package, attempts=3)
 
 
 def choco(package):
