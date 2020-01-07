@@ -7,14 +7,15 @@ import os
 import base64
 from argparse import ArgumentParser
 
-def call(args, attempts = 1):
+def call(args, attempts = 1, failonerror = True):
     print(args)
     while attempts > 0:
         ret = os.system(args)
         if ret == 0:
             return
         attempts = attempts - 1
-    exit(1)
+    if failonerror:
+        exit(1)
 
 
 def aptget(package):
@@ -73,7 +74,7 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        call("sudo apt-get update")
+        call("sudo apt-get update", failonerror=False)
         call("sudo apt-get install -y software-properties-common")
         aptget("gcc-5")
         aptget("g++-5")
