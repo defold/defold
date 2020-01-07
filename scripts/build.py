@@ -1122,7 +1122,8 @@ class Configuration(object):
         uuid = match.group(1)
 
         while True:
-            self._log('Checking notarization status for the current request')
+            time.sleep(15)
+            self._log('Checking notarization status for "{}"'.format(uuid))
             status = self.get_notarization_status(uuid)
             if status == "success":
                 self._log('Notarization was successful')
@@ -1130,7 +1131,6 @@ class Configuration(object):
             elif status == "invalid":
                 self._log("Notarization failed")
                 sys.exit(1)
-            time.sleep(15)
 
         # staple approval
         self._log('Stapling notarization approval to application')
