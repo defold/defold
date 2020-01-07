@@ -82,11 +82,32 @@ def install(args):
         call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
         call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
         call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
-        call("sudo apt-get install -y apt-fast")
+        call("sudo apt-get install -y apt-fast aria2")
 
-        call("sudo apt-get update", failonerror=False)
+        # call("sudo apt-get update", failonerror=False)
         call("sudo apt-get install -y software-properties-common")
-        aptfast("gcc-5 g++-5 libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev tofrodos tree silversearcher-ag valgrind lib32z1")
+        packages = [
+            "gcc-5",
+            "g++-5",
+            "libssl-dev",
+            "openssl",
+            "libtool",
+            "autoconf",
+            "automake",
+            "build-essential",
+            "uuid-dev",
+            "libxi-dev",
+            "libopenal-dev",
+            "libgl1-mesa-dev",
+            "libglw1-mesa-dev",
+            "freeglut3-dev",
+            "tofrodos",
+            "tree",
+            "silversearcher-ag",
+            "valgrind",
+            "lib32z1"
+        ]
+        aptfast(" ".join(packages))
         # aptfast("gcc-5")
         # aptfast("g++-5")
         # aptfast("libssl-dev")
