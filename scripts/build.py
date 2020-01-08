@@ -33,7 +33,7 @@ PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
-CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
+CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL")
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"

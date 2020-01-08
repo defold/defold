@@ -43,9 +43,10 @@ This will start a new shell with all of the required environment variables set (
 
 Next step is to install external packages (from `./packages`) and download required platform SDKs:
 
-    $ ./scripts/build.py install_ext --platform=...
+    $ ./scripts/build.py install_ext --platform=... --package-path=http://path.to/packages
 
-Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The external packages and downloaded SDKs will be put in `./tmp/dynamo_home/ext`. This step is required whenever you switch target platform, as different packages are installed.
+Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The external packages and downloaded SDKs will be put in `./tmp/dynamo_home/ext`. This step is required whenever you switch target platform, as different packages are installed. The path to the packages can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
+
 
 ### Build the engine
 
