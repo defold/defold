@@ -33,7 +33,7 @@ PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
-CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL")
+CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
@@ -362,6 +362,10 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
+        if self.package_path is None:
+            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
+            sys.exit(1)
+
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
