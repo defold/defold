@@ -19,8 +19,10 @@ def call(args, attempts = 1, failonerror = True):
 
 
 def aptget(package):
-    call("sudo apt-get install --no-install-recommends " + package, attempts=3)
+    call("sudo apt-get install -y --no-install-recommends " + package, attempts=3)
 
+def aptfast(package):
+    call("sudo apt-fast install -y --no-install-recommends " + package)
 
 def choco(package):
     call("choco install " + package + " -y")
@@ -74,27 +76,37 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
+        # we use apt-fast to speed up apt-get downloads
+        # https://github.com/ilikenwf/apt-fast
+        call("sudo add-apt-repository ppa:apt-fast/stable")
         call("sudo apt-get update", failonerror=False)
+        call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
+        call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
+        call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
+        call("sudo apt-get install -y apt-fast aria2")
+
         call("sudo apt-get install -y software-properties-common")
-        aptget("gcc-5")
-        aptget("g++-5")
-        aptget("libssl-dev")
-        aptget("openssl")
-        aptget("libtool")
-        aptget("autoconf")
-        aptget("automake")
-        aptget("build-essential")
-        aptget("uuid-dev")
-        aptget("libxi-dev")
-        aptget("libopenal-dev")
-        aptget("libgl1-mesa-dev")
-        aptget("libglw1-mesa-dev")
-        aptget("freeglut3-dev")
-        aptget("tofrodos")
-        aptget("tree")
-        aptget("silversearcher-ag")
-        aptget("valgrind")
-        aptget("lib32z1") # aapt: error while loading shared libraries: libz.so.1: cannot open shared object file: No such file or directory
+        packages = [
+            "gcc-5",
+            "g++-5",
+            "libssl-dev",
+            "openssl",
+            "libtool",
+            "autoconf",
+            "automake",
+            "build-essential",
+            "uuid-dev",
+            "libxi-dev",
+            "libopenal-dev",
+            "libgl1-mesa-dev",
+            "libglw1-mesa-dev",
+            "freeglut3-dev",
+            "tofrodos",
+            "tree",
+            "valgrind",
+            "lib32z1"
+        ]
+        aptfast(" ".join(packages))
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
