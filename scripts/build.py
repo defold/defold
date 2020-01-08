@@ -33,7 +33,7 @@ PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
-CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
+CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
@@ -362,6 +362,10 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
+        if self.package_path is None:
+            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
+            sys.exit(1)
+
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
@@ -1083,14 +1087,21 @@ class Configuration(object):
         if self.notarization_itc_provider:
             args.extend(['-itc_provider', self.notarization_itc_provider])
 
-        res = self._exec_command(args)
+        # altool will sometimes fail with "Error: Apple Services operation failed. Could not find the RequestUUID."
+        # this can happen even with a valid uuid when Apple servers are busy and
+        # there's a lag between receiving an uuid and being able to request info
+        # about it
+        # we need to catch the error from exec_command() and try again
+        status = None
+        try:
+            res = self._exec_command(args)
+            pattern = r".*Status: (.*)"
+            match = re.search(pattern, res)
+            if match:
+                status = match.group(1)
+        except:
+            pass
 
-        pattern = r".*Status: (.*)"
-        match = re.search(pattern, res)
-        if not match:
-            return None
-
-        status = match.group(1)
         return status
 
     def notarize_editor2(self):

@@ -12,7 +12,7 @@ jobs:
   build-and-test-editor:
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       {
         name: 'Build editor',
@@ -23,7 +23,8 @@ jobs:
             MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}',
             NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
             NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
-            NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}'
+            NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
+            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
         run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install editor'
       }
