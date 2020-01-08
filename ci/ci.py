@@ -76,15 +76,15 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
+        # we use apt-fast to speed up apt-get downloads
+        # https://github.com/ilikenwf/apt-fast
         call("sudo add-apt-repository ppa:apt-fast/stable")
         call("sudo apt-get update", failonerror=False)
-
         call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
         call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
         call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
         call("sudo apt-get install -y apt-fast aria2")
 
-        # call("sudo apt-get update", failonerror=False)
         call("sudo apt-get install -y software-properties-common")
         packages = [
             "gcc-5",
@@ -103,30 +103,10 @@ def install(args):
             "freeglut3-dev",
             "tofrodos",
             "tree",
-            "silversearcher-ag",
             "valgrind",
             "lib32z1"
         ]
         aptfast(" ".join(packages))
-        # aptfast("gcc-5")
-        # aptfast("g++-5")
-        # aptfast("libssl-dev")
-        # aptfast("openssl")
-        # aptfast("libtool")
-        # aptfast("autoconf")
-        # aptfast("automake")
-        # aptfast("build-essential")
-        # aptfast("uuid-dev")
-        # aptfast("libxi-dev")
-        # aptfast("libopenal-dev")
-        # aptfast("libgl1-mesa-dev")
-        # aptfast("libglw1-mesa-dev")
-        # aptfast("freeglut3-dev")
-        # aptfast("tofrodos")
-        # aptfast("tree")
-        # aptfast("silversearcher-ag")
-        # aptfast("valgrind")
-        # aptfast("lib32z1") # aapt: error while loading shared libraries: libz.so.1: cannot open shared object file: No such file or directory
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
