@@ -1083,14 +1083,21 @@ class Configuration(object):
         if self.notarization_itc_provider:
             args.extend(['-itc_provider', self.notarization_itc_provider])
 
-        res = self._exec_command(args)
+        # altool will sometimes fail with "Error: Apple Services operation failed. Could not find the RequestUUID."
+        # this can happen even with a valid uuid when Apple servers are busy and
+        # there's a lag between receiving an uuid and being able to request info
+        # about it
+        # we need to catch the error from exec_command() and try again
+        status = None
+        try:
+            res = self._exec_command(args)
+            pattern = r".*Status: (.*)"
+            match = re.search(pattern, res)
+            if match:
+                status = match.group(1)
+        except:
+            pass
 
-        pattern = r".*Status: (.*)"
-        match = re.search(pattern, res)
-        if not match:
-            return None
-
-        status = match.group(1)
         return status
 
     def notarize_editor2(self):
