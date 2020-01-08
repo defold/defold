@@ -32,17 +32,19 @@ Catalina comes with both 64-bit Python 2.7.16 and Easy Install installed. For ol
 
 #### Windows
 
-Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
-
-[Follow the instructions](https://setuptools.readthedocs.io/en/latest/easy_install.html#installing-easy-install) to install Easy Install.
+Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually. You also need to add `C:\Python27\Scripts` to the PATH to be able to use Easy Install.
 
 #### Linux
 
 Install Python using:
 
-    > sudo apt-get install python-setuptools
+    > sudo apt-get install python 2.7 python-setuptools
 
-[Follow the instructions](https://setuptools.readthedocs.io/en/latest/easy_install.html#installing-easy-install) to install Easy Install.
+Configure use of Easy Install:
+
+    > sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    > sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    > chmod +x /usr/local/bin/easy_install
 
 
 ## Additional required software
