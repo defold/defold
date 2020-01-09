@@ -242,19 +242,24 @@ public class BundleHelper {
         String exeName = BundleHelper.projectNameToBinaryName(title);
 
         IResource mainManifest;
+        String mainManifestName;
         Map<String, Object> properties = new HashMap<>();
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             mainManifest = getResource("osx", "infoplist");
             properties = createOSXManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_OSX;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             mainManifest = getResource("android", "manifest");
             properties = createAndroidManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             mainManifest = getResource("html5", "htmlfile");
             properties = createHtml5ManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_HTML5;
         } else {
             return resolvedManifests;
         }
@@ -276,7 +281,7 @@ public class BundleHelper {
             String path = resource.getPath();
             // Store the main manifest at the root (and not in e.g. builtins/manifests/...)
             if (path.equals(mainManifest.getPath())) {
-                path = manifest.getName();
+                path = mainManifestName;
             }
             resolvedManifests.add(new FileExtenderResource(manifest, path));
         }
