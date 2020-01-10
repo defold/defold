@@ -20,6 +20,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.logging.Level;
@@ -989,6 +991,18 @@ public class BundleHelper {
         }
     }
 
+    public static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
+        Set<String> uniquePaths = new HashSet<>();
+        for (ExtenderResource resource : resources) {
+            String path = resource.getAbsPath();
+            if (uniquePaths.contains(path)) {
+                IResource iresource = ExtenderUtil.getResource(path, resources);
+                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + path);
+            }
+            uniquePaths.add(path);
+        }
+    }
+
     public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
@@ -998,6 +1012,8 @@ public class BundleHelper {
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }
+
+        checkForDuplicates(allSource);
 
         try {
             extender.build(platform, sdkVersion, allSource, zipFile, logFile);

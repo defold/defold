@@ -1001,10 +1001,8 @@ class Configuration(object):
         env = self._form_env()
 
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = []
-        if not self.skip_tests:
-            env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-            ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         args = [ant, 'clean', 'install'] + ant_args
