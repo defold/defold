@@ -1836,7 +1836,11 @@ bail:
         uint16_t uniforms_to_write          = shader_module->m_UniformCount;
         uint16_t uniform_to_write_index     = 0;
         uint16_t uniform_index              = 0;
+        uint16_t image_to_write_index       = 0;
+        uint16_t buffer_to_write_index      = 0;
         VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
+        VkDescriptorImageInfo vk_write_image_descriptors[max_write_descriptors];
+        VkDescriptorBufferInfo vk_write_buffer_descriptors[max_write_descriptors];
 
         while(uniforms_to_write > 0)
         {
@@ -1855,7 +1859,7 @@ bail:
             if (IsUniformTextureSampler(res))
             {
                 Texture* texture = g_Context->m_TextureUnits[res.m_TextureUnit];
-                VkDescriptorImageInfo vk_image_info;
+                VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
                 vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 vk_image_info.imageView           = texture->m_Handle.m_ImageView;
                 vk_image_info.sampler             = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
@@ -1879,7 +1883,7 @@ bail:
                 //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
                 //    offset is the base offset from which the dynamic offset is applied and range is the static size
                 //    used for all dynamic offsets."
-                VkDescriptorBufferInfo vk_buffer_info;
+                VkDescriptorBufferInfo& vk_buffer_info = vk_write_buffer_descriptors[buffer_to_write_index++];
                 vk_buffer_info.buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
                 vk_buffer_info.offset = 0;
                 vk_buffer_info.range  = uniform_size;
@@ -1896,6 +1900,8 @@ bail:
             {
                 vkUpdateDescriptorSets(vk_device, max_write_descriptors, vk_write_descriptors, 0, 0);
                 uniform_to_write_index = 0;
+                image_to_write_index = 0;
+                buffer_to_write_index = 0;
             }
         }
 
