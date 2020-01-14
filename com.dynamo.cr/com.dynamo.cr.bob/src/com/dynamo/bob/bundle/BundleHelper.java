@@ -994,10 +994,10 @@ public class BundleHelper {
     public static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
         Set<String> uniquePaths = new HashSet<>();
         for (ExtenderResource resource : resources) {
-            String path = resource.getAbsPath();
+            String path = resource.getPath(); // The relative path
             if (uniquePaths.contains(path)) {
                 IResource iresource = ExtenderUtil.getResource(path, resources);
-                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + path);
+                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getAbsPath());
             }
             uniquePaths.add(path);
         }
