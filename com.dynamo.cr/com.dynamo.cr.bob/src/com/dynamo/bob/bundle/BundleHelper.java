@@ -20,6 +20,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.logging.Level;
@@ -183,8 +185,12 @@ public class BundleHelper {
     }
 
     public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
-        String data = new String(resource.getContent());
-        Template template = Mustache.compiler().compile(data);
+        byte[] data = resource.getContent();
+        if (data == null) {
+            return "";
+        }
+        String s = new String(data);
+        Template template = Mustache.compiler().compile(s);
         StringWriter sw = new StringWriter();
         template.execute(this.propertiesMap, properties, sw);
         sw.flush();
@@ -238,19 +244,24 @@ public class BundleHelper {
         String exeName = BundleHelper.projectNameToBinaryName(title);
 
         IResource mainManifest;
+        String mainManifestName;
         Map<String, Object> properties = new HashMap<>();
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             mainManifest = getResource("osx", "infoplist");
             properties = createOSXManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_OSX;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             mainManifest = getResource("android", "manifest");
             properties = createAndroidManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             mainManifest = getResource("html5", "htmlfile");
             properties = createHtml5ManifestProperties(exeName);
+            mainManifestName = MANIFEST_NAME_HTML5;
         } else {
             return resolvedManifests;
         }
@@ -272,7 +283,7 @@ public class BundleHelper {
             String path = resource.getPath();
             // Store the main manifest at the root (and not in e.g. builtins/manifests/...)
             if (path.equals(mainManifest.getPath())) {
-                path = manifest.getName();
+                path = mainManifestName;
             }
             resolvedManifests.add(new FileExtenderResource(manifest, path));
         }
@@ -284,7 +295,7 @@ public class BundleHelper {
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
-            return new File(appDir, "Info.plist");
+            return new File(appDir, "Contents/Info.plist");
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return new File(appDir, "AndroidManifest.xml");
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
@@ -961,7 +972,7 @@ public class BundleHelper {
 
             m = BundleHelper.internalServerIssue.matcher(line);
             if (m.matches()) {
-                throw new CompileExceptionError(null, 0, "Internal Server Error. Read the full logs on the cloud service");
+                throw new CompileExceptionError(null, 0, "Internal Server Error. Read the full logs on disc");
             }
 
             m = BundleHelper.nonResourceIssueRe.matcher(line);
@@ -980,6 +991,18 @@ public class BundleHelper {
         }
     }
 
+    public static void checkForDuplicates(List<ExtenderResource> resources) throws CompileExceptionError {
+        Set<String> uniquePaths = new HashSet<>();
+        for (ExtenderResource resource : resources) {
+            String path = resource.getAbsPath();
+            if (uniquePaths.contains(path)) {
+                IResource iresource = ExtenderUtil.getResource(path, resources);
+                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + path);
+            }
+            uniquePaths.add(path);
+        }
+    }
+
     public static File buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
@@ -989,6 +1012,8 @@ public class BundleHelper {
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }
+
+        checkForDuplicates(allSource);
 
         try {
             extender.build(platform, sdkVersion, allSource, zipFile, logFile);

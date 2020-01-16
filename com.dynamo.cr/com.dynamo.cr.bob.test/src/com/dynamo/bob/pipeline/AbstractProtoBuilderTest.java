@@ -2,24 +2,24 @@ package com.dynamo.bob.pipeline;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.security.CodeSource;
 
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.swt.widgets.Display;
+
 import org.junit.After;
-import org.osgi.framework.Bundle;
-import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
@@ -28,12 +28,15 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.google.protobuf.Message;
 
 public abstract class AbstractProtoBuilderTest {
     private MockFileSystem fileSystem;
     private Project project;
+    private ZipMountPoint mp;
 
     @After
     public void tearDown() {
@@ -41,19 +44,24 @@ public abstract class AbstractProtoBuilderTest {
     }
 
     public AbstractProtoBuilderTest() {
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
 
         this.fileSystem = new MockFileSystem();
         this.fileSystem.setBuildDirectory("");
         this.project = new Project(this.fileSystem);
 
-        ClassLoaderScanner scanner = new TestClassLoaderScanner();
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        try {
+            CodeSource src = getClass().getProtectionDomain().getCodeSource();
+            String jarPath = new File(src.getLocation().toURI()).getAbsolutePath();
+            this.mp = new ZipMountPoint(null, jarPath, false);
+            this.mp.mount();
+        } catch (Exception e) {
+            // let the tests fail later on
+            System.err.printf("Failed mount the .jar file");
+        }
     }
 
     protected List<Message> build(String file, String source) throws Exception {
@@ -85,30 +93,41 @@ public abstract class AbstractProtoBuilderTest {
         this.fileSystem.addFile(file, content);
     }
 
-    protected void addTestFiles() {
-        Bundle bundle = FrameworkUtil.getBundle(getClass());
-        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
-        if (entries != null) {
-            while (entries.hasMoreElements()) {
-                final URL url = entries.nextElement();
-                IPath path = new Path(url.getPath()).removeFirstSegments(1);
-                // Make sure to only add files and not directory entries.
-                if (path.toString().lastIndexOf('/') != path.toString().length() - 1) {
-                    InputStream is = null;
-                    try {
-                        is = url.openStream();
-                        ByteArrayOutputStream os = new ByteArrayOutputStream();
-                        IOUtils.copy(is, os);
-                        String p = "/" + path.toString();
-                        addFile(p, os.toByteArray());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    } finally {
-                        IOUtils.closeQuietly(is);
-                    }
+    class Walker extends FileSystemWalker {
+
+        private String basePath;
+        private ZipMountPoint mp;
+
+        public Walker(ZipMountPoint mp, String basePath) {
+            this.mp = mp;
+            this.basePath = basePath;
+            if (basePath.startsWith("/")) {
+                this.basePath = basePath.substring(1, basePath.length());
+            }
+        }
+
+        @Override
+        public void handleFile(String path, Collection<String> results) {
+            String first = path.substring(0, path.indexOf("/"));
+            if (first.equals(basePath)) {
+                try {
+                    IResource resource = this.mp.get(path);
+                    path = path.substring(basePath.length()+1);
+                    addFile("/" + path, resource.getContent());
+                } catch (IOException e) {
+                    System.err.printf("Failed to add %s to test resources", "/" + path);
                 }
             }
         }
+    }
+
+    protected void addResourceDirectory(String dir) {
+        List<String> results = new ArrayList<String>(1024);
+        this.mp.walk(dir, new Walker(this.mp, dir), results);
+    }
+
+    protected void addTestFiles() {
+        addResourceDirectory("/test");
     }
 
     private BufferedImage newImage(int w, int h) {
