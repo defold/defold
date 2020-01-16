@@ -368,10 +368,19 @@ public class BundleHelper {
 
             File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
-            File[] directories = packagesDir.listFiles(File::isDirectory);
+            // Get a list of relative paths, in the order gradle returned them
+            List<String> directories = new ArrayList<>();
+            try {
+                List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
+                for (String line : allLines) {
+                    directories.add(line);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-            for (File dir : directories) {
-                File resDir = new File(dir, "res");
+            for (String dir : directories) {
+                File resDir = new File(packagesDir, dir);
                 if (!resDir.isDirectory())
                     continue;
                 args.add("-S"); args.add(resDir.getAbsolutePath());
