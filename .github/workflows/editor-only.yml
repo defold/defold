@@ -14,6 +14,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.9.1 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build editor',
