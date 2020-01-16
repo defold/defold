@@ -2388,8 +2388,6 @@ bail:
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
     {
         ShaderModule tmp_shader;
-        memset(&tmp_shader, 0, sizeof(tmp_shader));
-
         VkResult res = CreateShaderModule(g_Context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, &tmp_shader);
         if (res == VK_SUCCESS)
         {
