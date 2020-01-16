@@ -274,7 +274,7 @@ def main(argv):
         release_bob = False
         release_editor = True
         engine_artifacts = None
-    elif branch.startswith("DEFEDIT-"):
+    elif branch and branch.startswith("DEFEDIT-"):
         release_channel = None
         editor_channel = None
         release_bob = False
