@@ -2229,19 +2229,15 @@ bail:
         *byte_offset_end_out = byte_offset;
     }
 
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static void CreateProgram(HContext context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
-        Program* program              = new Program;
-        ShaderModule* vertex_module   = (ShaderModule*) vertex_program;
-        ShaderModule* fragment_module = (ShaderModule*) fragment_program;
-
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
         memset(&vk_vertex_shader_create_info, 0, sizeof(vk_vertex_shader_create_info));
 
         vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
-        vk_vertex_shader_create_info.module = ((ShaderModule*) vertex_program)->m_Module;
+        vk_vertex_shader_create_info.module = vertex_module->m_Module;
         vk_vertex_shader_create_info.pName  = "main";
 
         VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
@@ -2249,7 +2245,7 @@ bail:
 
         vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-        vk_fragment_shader_create_info.module = ((ShaderModule*) fragment_program)->m_Module;
+        vk_fragment_shader_create_info.module = fragment_module->m_Module;
         vk_fragment_shader_create_info.pName  = "main";
 
         program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
@@ -2325,50 +2321,47 @@ bail:
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
+    }
 
+    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    {
+        Program* program = new Program;
+        CreateProgram(context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
         return (HProgram) program;
+    }
+
+    static void DestroyProgram(HContext context, Program* program)
+    {
+        if (program->m_UniformData)
+        {
+            delete[] program->m_UniformData;
+            delete[] program->m_UniformDataOffsets;
+        }
+
+        if (program->m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program->m_PipelineLayout, 0);
+        }
+
+        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        {
+            if (program->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program->m_DescriptorSetLayout[i], 0);
+            }
+        }
     }
 
     void DeleteProgram(HContext context, HProgram program)
     {
         assert(program);
         Program* program_ptr = (Program*) program;
-        if (program_ptr->m_UniformData)
-        {
-            delete[] program_ptr->m_UniformData;
-            delete[] program_ptr->m_UniformDataOffsets;
-        }
-
-        if (program_ptr->m_PipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program_ptr->m_PipelineLayout, 0);
-        }
-
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
-        {
-            if (program_ptr->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
-            {
-                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program_ptr->m_DescriptorSetLayout[i], 0);
-            }
-        }
-
+        DestroyProgram(context, program_ptr);
         delete program_ptr;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static void DestroyShader(ShaderModule* shader)
     {
-        return true;
-    }
-
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
-    {
-        return true;
-    }
-
-    void DeleteVertexProgram(HVertexProgram prog)
-    {
-        ShaderModule* shader = (ShaderModule*) prog;
-
         DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
@@ -2390,7 +2383,41 @@ bail:
         {
             delete[] shader->m_Uniforms;
         }
+    }
 
+    static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
+    {
+        ShaderModule tmp_shader;
+        VkResult res = CreateShaderModule(g_Context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, &tmp_shader);
+        if (res == VK_SUCCESS)
+        {
+            DestroyShader(shader);
+            memset(shader, 0, sizeof(*shader));
+
+            // Transfer created module to old pointer and recreate resource bindings
+            shader->m_Hash    = tmp_shader.m_Hash;
+            shader->m_Module  = tmp_shader.m_Module;
+            CreateShaderResourceBindings(shader, ddf, (uint32_t) g_Context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return ReloadShader((ShaderModule*) prog, ddf);
+    }
+
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return ReloadShader((ShaderModule*) prog, ddf);
+    }
+
+    void DeleteVertexProgram(HVertexProgram prog)
+    {
+        ShaderModule* shader = (ShaderModule*) prog;
+        DestroyShader(shader);
         delete shader;
     }
 
@@ -2431,6 +2458,9 @@ bail:
 
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
+        Program* program_ptr = (Program*) program;
+        DestroyProgram(context, program_ptr);
+        CreateProgram(context, program_ptr, (ShaderModule*) vert_program, (ShaderModule*) frag_program);
         return true;
     }
 
