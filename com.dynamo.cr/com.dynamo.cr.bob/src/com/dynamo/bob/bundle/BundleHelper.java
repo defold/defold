@@ -368,13 +368,35 @@ public class BundleHelper {
 
             File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
-            File[] directories = packagesDir.listFiles(File::isDirectory);
+            // Get a list of relative paths, in the order gradle returned them
+            List<String> directories = new ArrayList<>();
+            File packagesList = new File(packagesDir, "packages.txt");
+            if (packagesList.exists()) {
+                try {
+                    List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
+                    for (String line : allLines) {
 
-            for (File dir : directories) {
-                File resDir = new File(dir, "res");
-                if (!resDir.isDirectory())
-                    continue;
-                args.add("-S"); args.add(resDir.getAbsolutePath());
+                        File resDir = new File(packagesDir, line);
+                        if (!resDir.isDirectory())
+                            continue;
+
+                        directories.add(resDir.getAbsolutePath());
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                File[] dirs = packagesDir.listFiles(File::isDirectory);
+                for (File dir : dirs) {
+                    File resDir = new File(dir, "res");
+                    if (!resDir.isDirectory())
+                        continue;
+                    directories.add(resDir.getAbsolutePath());
+                }
+            }
+
+            for (String dir : directories) {
+                args.add("-S"); args.add(dir);
             }
 
             Result res = Exec.execResultWithEnvironment(aaptEnv, args);
