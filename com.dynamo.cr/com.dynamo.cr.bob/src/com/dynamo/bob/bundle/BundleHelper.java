@@ -370,20 +370,33 @@ public class BundleHelper {
 
             // Get a list of relative paths, in the order gradle returned them
             List<String> directories = new ArrayList<>();
-            try {
-                List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
-                for (String line : allLines) {
-                    directories.add(line);
+            File packagesList = new File(packagesDir, "packages.txt");
+            if (packagesList.exists()) {
+                try {
+                    List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
+                    for (String line : allLines) {
+
+                        File resDir = new File(packagesDir, line);
+                        if (!resDir.isDirectory())
+                            continue;
+
+                        directories.add(resDir.getAbsolutePath());
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
-            } catch (IOException e) {
-                e.printStackTrace();
+            } else {
+                File[] dirs = packagesDir.listFiles(File::isDirectory);
+                for (File dir : dirs) {
+                    File resDir = new File(dir, "res");
+                    if (!resDir.isDirectory())
+                        continue;
+                    directories.add(resDir.getAbsolutePath());
+                }
             }
 
             for (String dir : directories) {
-                File resDir = new File(packagesDir, dir);
-                if (!resDir.isDirectory())
-                    continue;
-                args.add("-S"); args.add(resDir.getAbsolutePath());
+                args.add("-S"); args.add(dir);
             }
 
             System.out.println("aaptMakePackageInternal");
