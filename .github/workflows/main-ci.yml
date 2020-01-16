@@ -13,6 +13,22 @@ on:
 
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
+  build-engine-windows:
+    strategy:
+      matrix:
+        platform: [win32, x86_64-win32]
+    runs-on: windows-2016
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
+      {
+        name: 'Build engine',
+        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
+        shell: bash,
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine'
+      }]
+
   build-engine-macos:
     strategy:
       matrix:
@@ -41,22 +57,6 @@ jobs:
         name: 'Build engine',
         env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
-      }]
-
-  build-engine-windows:
-    strategy:
-      matrix:
-        platform: [win32, x86_64-win32]
-    runs-on: windows-2016
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
-      {
-        name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
-        shell: bash,
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine'
       }]
 
   build-engine-web:
@@ -148,7 +148,7 @@ jobs:
             S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install build-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" build-editor'
       }]
 
   notarize-editor:
@@ -170,5 +170,5 @@ jobs:
             NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install notarize-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
       }]
