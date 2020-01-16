@@ -114,9 +114,9 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build bob',
+        name: 'Build bob and release',
         env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
-        run: 'ci/ci.sh --branch=$GITHUB_REF bob'
+        run: 'ci/ci.sh --branch=$GITHUB_REF bob release'
       }]
 
   build-sdk:
@@ -132,17 +132,34 @@ jobs:
         run: 'ci/ci.sh --branch=$GITHUB_REF sdk'
       }]
 
-# ---- BUILD EDITOR AND SMOKE TEST ------------------
+# ---- BUILD EDITOR ------------------
 
-  build-editor-and-smoke-test:
+  build-editor:
     needs: [build-bob]
-    runs-on: macOS-latest
+    runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build editor',
+        env: {
+            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
+        },
+        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install editor'
+      }]
+
+  notarize-editor:
+    needs: [notarize-editor]
+    runs-on: macOS-latest
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'Sign editor',
         env: {
             S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
             S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
@@ -153,7 +170,5 @@ jobs:
             NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install editor'
-      }
-      # ,{ name: 'Smoke-test', env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}' }, run: 'ci/ci.sh --branch=$GITHUB_REF smoke' }
-    ]
+        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" install notarize-editor'
+      }]
