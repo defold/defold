@@ -399,11 +399,6 @@ public class BundleHelper {
                 args.add("-S"); args.add(dir);
             }
 
-            System.out.println("aaptMakePackageInternal");
-            for (String arg: args) {
-                System.out.println("ARG: " + arg);
-            }
-
             Result res = Exec.execResultWithEnvironment(aaptEnv, args);
 
             if (res.ret != 0) {
