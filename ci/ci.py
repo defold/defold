@@ -279,7 +279,7 @@ def main(argv):
         editor_channel = None
         release_bob = False
         release_editor = False
-        engine_artifacts = "auto"
+        engine_artifacts = "archived-stable"
     else:
         release_channel = None
         editor_channel = None
