@@ -18,6 +18,15 @@ def call(args, attempts = 1, failonerror = True):
         exit(1)
 
 
+def platform_from_host():
+    system = platform.system()
+    if system == "Linux":
+        return "x86_64-linux"
+    elif system == "Darwin":
+        return "x86_64-darwin"
+    else:
+        return "x86_64-win32"
+
 def aptget(package):
     call("sudo apt-get install -y --no-install-recommends " + package, attempts=3)
 
@@ -117,7 +126,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     opts = []
     waf_opts = []
 
-    opts.append('--platform=' + platform)
+    opts.append('--platform=%s' % platform)
 
     if platform == 'js-web' or platform == 'wasm-web':
         args.append('install_ems')
@@ -157,16 +166,16 @@ def build_editor(branch = None, channel = None, engine_artifacts = None):
     opts = []
 
     if engine_artifacts:
-        opts.append(' --engine-artifacts=%s' % engine_artifacts)
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
 
     if branch:
-        opts.append("--branch=" + branch)
+        opts.append("--branch=%s" % branch)
 
     if channel:
-        opts.append(' --channel=%s' % channel)
+        opts.append('--channel=%s' % channel)
 
     opts_string = ' '.join(opts)
-    call('python scripts/build.py distclean build_editor2 %s' % opts_string)
+    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform_from_host(), opts_string))
     for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
         call('python scripts/build.py bundle_editor2 archive_editor2 --platform=%s %s' % (platform, opts_string))
 
@@ -179,20 +188,20 @@ def notarize_editor(branch = None, channel = None, release = False, notarization
         args.append("release")
 
     if branch:
-        opts.append("--branch=" + branch)
+        opts.append("--branch=%s" % branch)
 
     if channel:
-        opts.append("--channel=" + channel)
+        opts.append("--channel=%s" % channel)
 
     opts.append('--platform=x86_64-darwin')
 
     if notarization_username and notarization_password:
         args.append('notarize_editor2')
-        opts.append(' --notarization-username=' + notarization_username)
-        opts.append(' --notarization-password=' + notarization_password)
+        opts.append(' --notarization-username=%s' % notarization_username)
+        opts.append(' --notarization-password=%s' % notarization_password)
 
     if notarization_itc_provider:
-        opts.append(' --notarization-itc-provider=' + notarization_itc_provider)
+        opts.append(' --notarization-itc-provider=%s' % notarization_itc_provider)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -206,10 +215,10 @@ def build_bob(branch = None, channel = None, release = False):
         args.append("release")
 
     if branch:
-        opts.append("--branch=" + branch)
+        opts.append("--branch=%s" % branch)
 
     if channel:
-        opts.append("--channel=" + channel)
+        opts.append("--channel=%s" % channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
