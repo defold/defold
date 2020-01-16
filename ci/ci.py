@@ -300,7 +300,7 @@ def main(argv):
             build_editor(
                 branch = branch,
                 channel = editor_channel,
-                engine_artifacts = engine_artifacts
+                engine_artifacts = engine_artifacts)
         elif command == "notarize-editor":
             notarize_editor(
                 branch = branch,
