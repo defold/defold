@@ -1997,11 +1997,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Set version explicitily when bumping version')
 
-    parser.add_option('--eclipse', dest='eclipse',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Output build commands in a format eclipse can parse')
-
     parser.add_option('--branch', dest='branch',
                       default = None,
                       help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
@@ -2009,10 +2004,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--channel', dest='channel',
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
-
-    parser.add_option('--eclipse-version', dest='eclipse_version',
-                      default = '3.8',
-                      help = 'Eclipse version')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
@@ -2060,10 +2051,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       archive_path = options.archive_path,
                       package_path = options.package_path,
                       set_version = options.set_version,
-                      eclipse = options.eclipse,
                       branch = options.branch,
                       channel = options.channel,
-                      eclipse_version = options.eclipse_version,
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
                       save_env_path = options.save_env_path,
