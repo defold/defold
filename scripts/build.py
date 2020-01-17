@@ -1063,9 +1063,9 @@ class Configuration(object):
         prefix = self._get_s3_archive_prefix()
 
         editor_filename = "Defold-%s.zip" % self.target_platform
-        editor_path = join(self.defold_root, 'editor', 'target', 'editor', editor_filename)
+        editor_path = join(self.defold_root, 'editor', 'target', 'editor')
         s3_path = "s3://%s/%s/%s/editor2/%s" % (bucket_name, prefix, self.channel, editor_filename)
-        self.download_file(editor_path, s3_path)
+        self.download_file(join(editor_path, editor_filename), s3_path)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -1693,6 +1693,7 @@ class Configuration(object):
     def download_file(self, path, url):
         url = url.replace('\\', '/')
         self._log('Downloading %s -> %s' % (url, path))
+        self._mkdirs(os.path.dirname(path))
         u = urlparse.urlparse(url)
 
         if u.netloc == '':

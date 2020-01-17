@@ -297,6 +297,9 @@ def main(argv):
         release_editor = False
         engine_artifacts = "archived"
 
+
+    engine_artifacts = "01e58a9552869d8875e063165cbb325c7ede95b0"
+
     print("Using branch={} release_channel={} editor_channel={}".format(branch, release_channel, editor_channel))
 
     # execute commands
