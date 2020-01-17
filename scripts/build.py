@@ -1087,6 +1087,10 @@ class Configuration(object):
         cmd = ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                'build']
+
+        if self.skip_tests:
+            cmd.append("--skip-tests")
+
         self.run_editor_script(cmd)
 
     def bundle_editor2(self):
