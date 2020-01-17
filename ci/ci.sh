@@ -21,8 +21,8 @@ echo "PATH=" $PATH
 # start X virtual frame buffer
 if [[ "${OSTYPE}" == "linux-gnu" ]]; then
     echo "Starting xvfb"
-    apt-get xvfb
-    xvfb :99 &
+    sudo apt-get install -y --no-install-recommends xvfb
+    Xvfb :99 &
     export DISPLAY=:99
 fi
 
