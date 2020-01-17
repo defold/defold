@@ -117,9 +117,6 @@ def install(args):
             "xvfb"
         ]
         aptfast(" ".join(packages))
-
-        call("Xvfb :99 &")
-        call("export DISPLAY=:99")
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
