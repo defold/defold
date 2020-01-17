@@ -18,6 +18,8 @@ source ci/env.sh
 export PATH=$PATH:$OLDPATH
 echo "PATH=" $PATH
 
+echo "OSTYPE ${OSTYPE}"
+
 echo "Calling ci.py with args: $@"
 # -u to run python unbuffered to guarantee that output ends up in the correct order in logs
 python -u ./ci/ci.py "$@"
