@@ -21,7 +21,7 @@ echo "PATH=" $PATH
 # start X virtual frame buffer
 if [[ "${OSTYPE}" == "linux-gnu" ]]; then
     echo "Starting xvfb"
-    sudo apt-get install -y --no-install-recommends xvfb
+    # sudo apt-get install -y --no-install-recommends xvfb
     Xvfb :99 &
     export DISPLAY=:99
 fi
@@ -32,7 +32,7 @@ python -u ./ci/ci.py "$@"
 
 # stop X virtual frame buffer
 if [[ "${OSTYPE}" == "linux-gnu" ]]; then
-    local xvfb_pids=`ps aux | grep tmp/xvfb-run | grep -v grep | awk '{print $2}'`
+    xvfb_pids=`ps aux | grep tmp/xvfb-run | grep -v grep | awk '{print $2}'`
     if [ "$xvfb_pids" != "" ]; then
         echo "Killing the following xvfb processes: $xvfb_pids"
         sudo kill $xvfb_pids
