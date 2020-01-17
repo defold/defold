@@ -369,7 +369,11 @@ namespace dmGameSystem
             Sound* sound = (Sound*) *params.m_UserData;
             dmGameSystemDDF::SetGain* set_gain = (dmGameSystemDDF::SetGain*)params.m_Message->m_Data;
 
-            return SoundSetParameter(world, params.m_Instance, sound, dmSound::PARAMETER_GAIN, set_gain->m_Gain);
+            if (dmGameObject::PROPERTY_RESULT_OK != SoundSetParameter(world, params.m_Instance, sound, dmSound::PARAMETER_GAIN, set_gain->m_Gain))
+            {
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+            }
+            return dmGameObject::UPDATE_RESULT_OK;
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor)
         {
