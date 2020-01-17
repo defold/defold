@@ -671,8 +671,22 @@ public class Project {
             BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
 
             allSource.addAll(helper.writeExtensionResources(platform));
-            allSource.addAll(helper.writeManifestFiles(platform, helper.getTargetManifestDir()));
 
+            // Replace the unresolved manifests with the resolved ones
+            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir());
+            for (ExtenderResource manifest : resolvedManifests) {
+                ExtenderResource src = null;
+                for (ExtenderResource s : allSource) {
+                    if (s.getPath().equals(manifest.getPath())) {
+                        src = s;
+                        break;
+                    }
+                }
+                if (src != null) {
+                    allSource.remove(src);
+                }
+                allSource.add(manifest);
+            }
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
