@@ -394,7 +394,7 @@ Commands:
                       default = False,
                       help = 'Skip tests when building')
 
-    parser.add_option('--bundle-dir', dest='v_dir',
+    parser.add_option('--bundle-dir', dest='bundle_dir',
                       default = "target/editor",
                       help = 'Path to directory containing editor bundles')
 

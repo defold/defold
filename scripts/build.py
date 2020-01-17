@@ -1103,13 +1103,26 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
-        if self.target_platform == "x86_64-darwin":
-            cmd = ['./scripts/notarize.py',
-                   join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
-                   self.notarization_username,
-                   self.notarization_password,
-                   self.notarization_itc_provider]
-            self.run_editor_script(cmd)
+        if self.target_platform != "x86_64-darwin":
+            return
+
+        # create dmg installer
+        cmd = ['./scripts/bundle.py',
+               '--platform=x86_64-darwin',
+               '--version=%s' % self.version,
+               '--channel=%s' % self.channel,
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
+               'installer']
+        self.run_editor_script(cmd)
+
+        # notarize dmg
+        cmd = ['./scripts/notarize.py',
+               join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
+               self.notarization_username,
+               self.notarization_password,
+               self.notarization_itc_provider]
+        self.run_editor_script(cmd)
 
     def release_editor2(self):
         if not self.channel:

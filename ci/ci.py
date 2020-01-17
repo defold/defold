@@ -181,9 +181,12 @@ def build_editor(branch = None, channel = None, engine_artifacts = None):
         call('python scripts/build.py bundle_editor2 archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 
-def notarize_editor(branch = None, channel = None, release = False, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor(branch = None, channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
     opts = []
+
+    if engine_artifacts:
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
 
     if release:
         args.append("release")
@@ -245,6 +248,7 @@ def main(argv):
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
+    parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
@@ -265,42 +269,39 @@ def main(argv):
         editor_channel = "stable"
         release_bob = False
         release_editor = True
-        engine_artifacts = "archived"
+        engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
         release_channel = "beta"
         editor_channel = "beta"
         release_bob = False
         release_editor = True
-        engine_artifacts = "archived"
+        engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "dev":
         release_channel = "alpha"
         editor_channel = "alpha"
         release_bob = True
         release_editor = True
-        engine_artifacts = "archived"
+        engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
         release_channel = "alpha"
         editor_channel = "editor-alpha"
         release_bob = False
         release_editor = True
-        engine_artifacts = None
+        engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
         release_channel = None
         editor_channel = None
         release_bob = False
         release_editor = False
-        engine_artifacts = "archived-stable"
-    else:
+        engine_artifacts = args.engine_artifacts or "archived-stable"
+    else: # engine dev branch
         release_channel = None
         editor_channel = None
         release_bob = False
         release_editor = False
-        engine_artifacts = "archived"
+        engine_artifacts = args.engine_artifacts or "archived"
 
-
-    engine_artifacts = "01e58a9552869d8875e063165cbb325c7ede95b0"
-
-    print("Using branch={} release_channel={} editor_channel={}".format(branch, release_channel, editor_channel))
+    print("Using branch={} release_channel={} editor_channel={} engine_artifacts={}".format(branch, release_channel, editor_channel, engine_artifacts))
 
     # execute commands
     for command in args.commands:
@@ -318,6 +319,7 @@ def main(argv):
             notarize_editor(
                 branch = branch,
                 channel = editor_channel,
+                engine_artifacts = engine_artifacts,
                 release = release_editor,
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
