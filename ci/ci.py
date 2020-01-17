@@ -113,9 +113,13 @@ def install(args):
             "tofrodos",
             "tree",
             "valgrind",
-            "lib32z1"
+            "lib32z1",
+            "xvfb"
         ]
         aptfast(" ".join(packages))
+
+        call("Xvfb :99 &")
+        call("export DISPLAY=:99")
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
