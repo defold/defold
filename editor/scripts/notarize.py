@@ -102,7 +102,7 @@ def notarize(app, notarization_username, notarization_password, notarization_itc
     while True:
         time.sleep(15)
         _log('Checking notarization status for "{}"'.format(uuid))
-        status = get_status(uuid)
+        status = get_status(uuid,notarization_username, notarization_password, notarization_itc_provider)
         if status == "success":
             _log('Notarization was successful')
             break
