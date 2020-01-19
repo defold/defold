@@ -227,7 +227,6 @@ def create_bundle(options):
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
 
-    rmtree('target/editor')
     mkdirs('target/editor')
     for platform in options.target_platform:
         print("Creating bundle for platform %s" % platform)
@@ -273,6 +272,7 @@ def create_bundle(options):
         if icon:
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
+        # creating editor config file
         config = ConfigParser.ConfigParser()
         config.read('bundle-resources/config')
         config.set('build', 'editor_sha1', options.editor_sha1)
@@ -303,7 +303,11 @@ def create_bundle(options):
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s/jdk%s' % (packages_dir, java_version)])
 
+        # create final zip file
         zipfile = 'target/editor/Defold-%s.zip' % platform
+        if os.path.exists(zipfile):
+            os.remove(zipfile)
+
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
         ziptree(bundle_dir, zipfile, 'tmp')
 
