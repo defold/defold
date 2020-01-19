@@ -170,7 +170,7 @@ jobs:
             NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --engine-artifacts=04ac52d0c4077df7442e2ddd07ba1c209d292ad6 --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-  provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --engine-artifacts=04ac52d0c4077df7442e2ddd07ba1c209d292ad6 --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
       },
       {
         name: 'Archive editor',
