@@ -151,7 +151,7 @@ jobs:
             S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" build-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" build-editor'
       }]
 
   notarize-editor:
@@ -160,18 +160,23 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'Install dependencies',
+        env: {
+            MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
+            MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}'
+        },
+        run: 'ci/ci.sh --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" install'
+      },
       {
         name: 'Notarize editor',
         env: {
             S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
             S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
-            MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
-            MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}',
             NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
             NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
             NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
       }]
