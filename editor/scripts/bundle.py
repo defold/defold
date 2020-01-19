@@ -141,15 +141,6 @@ def sign_files(bundle_dir):
     else:
         exec_command(['codesign', '--deep', '--force', '-s', certificate, bundle_dir])
 
-def create_dmg(dmg_dir, dmg_file):
-    exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
-
-    certificate = mac_certificate()
-    if certificate == None:
-        print("Warning: Codesigning certificate not found, DMG will not be signed")
-    else:
-        exec_command(['codesign', '-s', certificate, dmg_file])
-
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
         return options.launcher
@@ -312,14 +303,19 @@ def create_bundle(options):
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s/jdk%s' % (packages_dir, java_version)])
 
-        ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
+        zipfile = 'target/editor/Defold-%s.zip' % platform
+        print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
+        ziptree(bundle_dir, zipfile, 'tmp')
 
 
 def create_dmg(options):
+    print("Creating .dmg from file in '%s'" % options.bundle_dir)
+
     # check that we have an editor bundle to create a dmg from
     bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.zip")
     if not os.path.exists(bundle_file):
         print('Editor bundle %s does not exist' % bundle_file)
+        exec_command(['ls', '-la', options.bundle_dir])
         sys.exit(1)
 
     # setup
@@ -344,7 +340,14 @@ def create_dmg(options):
     dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
-    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+    exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+
+    # sign the dmg
+    certificate = mac_certificate()
+    if certificate == None:
+        print("Warning: Codesigning certificate not found, DMG will not be signed")
+    else:
+        exec_command(['codesign', '-s', certificate, dmg_file])
 
 
 def create_installer(options):

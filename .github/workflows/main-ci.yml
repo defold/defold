@@ -135,7 +135,7 @@ jobs:
 # ---- BUILD EDITOR ------------------
 
   build-and-notarize-editor:
-    needs: [build-bob]
+    # needs: [build-bob]
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 0 } },
@@ -158,7 +158,7 @@ jobs:
             S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF build-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --engine-artifacts=beta build-editor'
       },
       {
         name: 'Notarize editor',
@@ -170,7 +170,7 @@ jobs:
             NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-  provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --engine-artifacts=beta --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-  provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
       },
       {
         name: 'Archive editor',
@@ -179,7 +179,7 @@ jobs:
             S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF archive-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --engine-artifacts=beta archive-editor'
       }]
 
   # build-editor:
