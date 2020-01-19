@@ -142,7 +142,7 @@ def sign_files(bundle_dir):
         exec_command(['codesign', '--deep', '--force', '-s', certificate, bundle_dir])
 
 def create_dmg(dmg_dir, dmg_file):
-    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+    exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     certificate = mac_certificate()
     if certificate == None:
