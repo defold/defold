@@ -134,32 +134,15 @@ jobs:
 
 # ---- BUILD EDITOR ------------------
 
-  build-editor:
+  build-and-notarize-editor:
     needs: [build-bob]
-    runs-on: ubuntu-18.04
+    runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 0 } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
-      {
-        name: 'Build editor',
-        env: {
-            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
-            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
-            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
-        },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" build-editor'
-      }]
-
-  notarize-editor:
-    needs: [build-editor]
-    runs-on: macOS-latest
-    steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
-      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       {
         name: 'Install dependencies',
         env: {
@@ -167,6 +150,15 @@ jobs:
             MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}'
         },
         run: 'ci/ci.sh --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" install'
+      },
+      {
+        name: 'Build editor',
+        env: {
+            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
+        },
+        run: 'ci/ci.sh --branch=$GITHUB_REF build-editor'
       },
       {
         name: 'Notarize editor',
@@ -178,5 +170,61 @@ jobs:
             NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
             DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
         },
-        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-  provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+      },
+      {
+        name: 'Archive editor',
+        env: {
+            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
+        },
+        run: 'ci/ci.sh --branch=$GITHUB_REF archive-editor'
       }]
+
+  # build-editor:
+  #   needs: [build-bob]
+  #   runs-on: ubuntu-18.04
+  #   steps: [
+  #     { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 0 } },
+  #     { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
+  #     { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+  #     { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+  #     { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
+  #     { name: 'Install dependencies', run: 'ci/ci.sh install' },
+  #     {
+  #       name: 'Build editor',
+  #       env: {
+  #           S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+  #           S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+  #           DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
+  #       },
+  #       run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" build-editor'
+  #     }]
+  #
+  # notarize-editor:
+  #   needs: [build-editor]
+  #   runs-on: macOS-latest
+  #   steps: [
+  #     { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+  #     { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+  #     {
+  #       name: 'Install dependencies',
+  #       env: {
+  #           MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
+  #           MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}'
+  #       },
+  #       run: 'ci/ci.sh --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" install'
+  #     },
+  #     {
+  #       name: 'Notarize editor',
+  #       env: {
+  #           S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+  #           S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+  #           NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
+  #           NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
+  #           NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
+  #           DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
+  #       },
+  #       run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+  #     }]
