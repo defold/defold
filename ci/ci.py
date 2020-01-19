@@ -176,7 +176,7 @@ def build_editor(branch = None, channel = None, engine_artifacts = None):
         opts.append('--channel=%s' % channel)
 
     opts_string = ' '.join(opts)
-    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s --skip-tests %s' % (platform_from_host(), opts_string))
+    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform_from_host(), opts_string))
     for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
         call('python scripts/build.py bundle_editor2 archive_editor2 --platform=%s %s' % (platform, opts_string))
 
