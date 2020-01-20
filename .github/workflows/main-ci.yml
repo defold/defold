@@ -104,7 +104,7 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine'
       }]
 
----- BUILD BOB AND SDK ------------------
+# ---- BUILD BOB AND SDK ------------------
 
   build-bob:
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
