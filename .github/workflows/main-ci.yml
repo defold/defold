@@ -53,7 +53,7 @@ jobs:
 
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
-    if: ${{env.BUILD_ENGINE}} == true
+    if: ${{job.BUILD_ENGINE}} == true
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
@@ -70,7 +70,7 @@ jobs:
       }]
 
   build-engine-macos:
-    if: ${{env.BUILD_ENGINE}} == true
+    if: ${{job.BUILD_ENGINE}} == true
     strategy:
       matrix:
         platform: [x86_64-darwin]
@@ -86,7 +86,7 @@ jobs:
       }]
 
   build-engine-ios:
-    if: ${{env.BUILD_ENGINE}} == true
+    if: ${{job.BUILD_ENGINE}} == true
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
@@ -102,7 +102,7 @@ jobs:
       }]
 
   build-engine-web:
-    if: ${{env.BUILD_ENGINE}} == true
+    if: ${{job.BUILD_ENGINE}} == true
     strategy:
       matrix:
         platform: [js-web, wasm-web]
@@ -118,7 +118,7 @@ jobs:
       }]
 
   build-engine-android:
-    if: ${{env.BUILD_ENGINE}} == true
+    if: ${{job.BUILD_ENGINE}} == true
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
@@ -134,7 +134,7 @@ jobs:
       }]
 
   build-engine-linux:
-    if: ${{env.BUILD_ENGINE}} == true
+    if: ${{job.BUILD_ENGINE}} == true
     strategy:
       matrix:
         platform: [x86_64-linux]
