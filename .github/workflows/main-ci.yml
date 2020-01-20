@@ -16,8 +16,7 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
-  # BUILD_BRANCH: ${{ github.event.client_payload.branch }}
-  BUILD_BRANCH: 'beta'
+  BUILD_BRANCH: ${{ github.event.client_payload.branch }}
 
 
 jobs:
@@ -29,7 +28,7 @@ jobs:
         platform: [win32, x86_64-win32]
     runs-on: windows-2016
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3, ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
@@ -46,7 +45,7 @@ jobs:
         platform: [x86_64-darwin]
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -62,7 +61,7 @@ jobs:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -78,7 +77,7 @@ jobs:
         platform: [js-web, wasm-web]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -94,7 +93,7 @@ jobs:
         platform: [armv7-android, arm64-android]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -110,7 +109,7 @@ jobs:
         platform: [x86_64-linux]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -126,7 +125,7 @@ jobs:
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -140,7 +139,7 @@ jobs:
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
@@ -156,7 +155,7 @@ jobs:
     needs: [build-bob]
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 0 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
