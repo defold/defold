@@ -18,6 +18,15 @@ def call(args, attempts = 1, failonerror = True):
         exit(1)
 
 
+def platform_from_host():
+    system = platform.system()
+    if system == "Linux":
+        return "x86_64-linux"
+    elif system == "Darwin":
+        return "x86_64-darwin"
+    else:
+        return "x86_64-win32"
+
 def aptget(package):
     call("sudo apt-get install -y --no-install-recommends " + package, attempts=3)
 
@@ -104,7 +113,8 @@ def install(args):
             "tofrodos",
             "tree",
             "valgrind",
-            "lib32z1"
+            "lib32z1",
+            "xvfb"
         ]
         aptfast(" ".join(packages))
     elif system == "Darwin":
@@ -117,7 +127,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     opts = []
     waf_opts = []
 
-    opts.append('--platform=' + platform)
+    opts.append('--platform=%s' % platform)
 
     if platform == 'js-web' or platform == 'wasm-web':
         args.append('install_ems')
@@ -153,34 +163,74 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor(channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
-    args = 'python scripts/build.py distclean install_ext build_editor2'.split()
+def build_editor(branch = None, channel = None, engine_artifacts = None):
     opts = []
 
-    if notarization_username and notarization_password:
-        args.append('notarize_editor2')
-        opts.append('--notarization-username=' + notarization_username)
-        opts.append('--notarization-password=' + notarization_password)
-
-    if notarization_itc_provider:
-        opts.append('--notarization-itc-provider=' + notarization_itc_provider)
-
-    args.append('archive_editor2')
-
-    if release:
-        args.append('release_editor2')
-
-    # for install_ext
-    opts.append('--platform=x86_64-darwin')
-
-    # Specifies from where to get the engine SHA1.
-    # From build.py:
-    #     'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)'
     if engine_artifacts:
-        opts.append('--engine-artifacts=' + engine_artifacts)
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
+
+    if branch:
+        opts.append("--branch=%s" % branch)
 
     if channel:
-        opts.append('--channel=' + channel)
+        opts.append('--channel=%s' % channel)
+
+    opts_string = ' '.join(opts)
+    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform_from_host(), opts_string))
+    for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
+        call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
+        # call('python scripts/build.py bundle_editor2 archive_editor2 --platform=%s %s' % (platform, opts_string))
+
+
+def notarize_editor(branch = None, channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+    if not notarization_username or not notarization_password:
+        print("No notarization username or password")
+        exit(1)
+
+    # args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
+    args = 'python scripts/build.py notarize_editor2'.split()
+    opts = []
+
+    if release:
+        args.append("release")
+
+    if engine_artifacts:
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
+
+    if branch:
+        opts.append("--branch=%s" % branch)
+
+    if channel:
+        opts.append("--channel=%s" % channel)
+
+    opts.append('--platform=x86_64-darwin')
+
+    opts.append('--notarization-username=%s' % notarization_username)
+    opts.append('--notarization-password=%s' % notarization_password)
+
+    if notarization_itc_provider:
+        opts.append('--notarization-itc-provider=%s' % notarization_itc_provider)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
+
+def archive_editor(branch = None, channel = None, release = False, engine_artifacts = None):
+    # args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
+    args = 'python scripts/build.py archive_editor2'.split()
+    opts = []
+
+    if engine_artifacts:
+        opts.append('--engine-artifacts=%s' % engine_artifacts)
+
+    if release:
+        args.append("release")
+
+    if branch:
+        opts.append("--branch=%s" % branch)
+
+    if channel:
+        opts.append("--channel=%s" % channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -194,10 +244,10 @@ def build_bob(branch = None, channel = None, release = False):
         args.append("release")
 
     if branch:
-        opts.append("--branch=" + branch)
+        opts.append("--branch=%s" % branch)
 
     if channel:
-        opts.append("--channel=" + channel)
+        opts.append("--channel=%s" % channel)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -223,6 +273,7 @@ def main(argv):
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
+    parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
@@ -237,24 +288,45 @@ def main(argv):
     if branch:
         branch = branch.replace("refs/heads/", "")
 
-    # configure channel and release based on branch
+    # configure build flags based on the branch
     if branch == "master":
-        channel = "stable"
-        release = False
+        release_channel = "stable"
+        editor_channel = "stable"
+        release_bob = False
+        release_editor = True
+        engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
-        channel = "beta"
-        release = False
+        release_channel = "beta"
+        editor_channel = "beta"
+        release_bob = False
+        release_editor = True
+        engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "dev":
-        channel = "alpha"
-        release = True
+        release_channel = "alpha"
+        editor_channel = "alpha"
+        release_bob = True
+        release_editor = True
+        engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
-        channel = "alpha"
-        release = False
-    else:
-        channel = None
-        release = False
+        release_channel = "alpha"
+        editor_channel = "editor-alpha"
+        release_bob = False
+        release_editor = True
+        engine_artifacts = args.engine_artifacts
+    elif branch and branch.startswith("DEFEDIT-"):
+        release_channel = None
+        editor_channel = None
+        release_bob = False
+        release_editor = False
+        engine_artifacts = args.engine_artifacts or "archived-stable"
+    else: # engine dev branch
+        release_channel = None
+        editor_channel = None
+        release_bob = False
+        release_editor = False
+        engine_artifacts = args.engine_artifacts or "archived"
 
-    print("Using branch={} channel={} release={}".format(branch, channel, release))
+    print("Using branch={} release_channel={} editor_channel={} engine_artifacts={}".format(branch, release_channel, editor_channel, engine_artifacts))
 
     # execute commands
     for command in args.commands:
@@ -263,42 +335,27 @@ def main(argv):
                 raise Exception("No --platform specified.")
             with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
             build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
-        elif command == "editor":
-            if branch == "master" or branch == "beta" or branch == "dev":
-                build_editor(
-                    channel = channel,
-                    release = True,
-                    engine_artifacts = "archived",
-                    notarization_username = args.notarization_username,
-                    notarization_password = args.notarization_password,
-                    notarization_itc_provider = args.notarization_itc_provider)
-            elif branch == "editor-dev":
-                build_editor(
-                    channel = "editor-alpha",
-                    release = True,
-                    notarization_username = args.notarization_username,
-                    notarization_password = args.notarization_password,
-                    notarization_itc_provider = args.notarization_itc_provider)
-            elif branch.startswith("DEFEDIT-"):
-                build_editor(
-                    release = False,
-                    engine_artifacts = "archived-stable",
-                    notarization_username = args.notarization_username,
-                    notarization_password = args.notarization_password,
-                    notarization_itc_provider = args.notarization_itc_provider)
-            else:
-                # Assume this is a branch for an engine related issue (DEF-xyz or Issue-xyz). Naming can vary though.
-                build_editor(
-                    release = False,
-                    engine_artifacts = "archived",
-                    notarization_username = args.notarization_username,
-                    notarization_password = args.notarization_password,
-                    notarization_itc_provider = args.notarization_itc_provider)
+        elif command == "build-editor":
+            build_editor(
+                branch = branch,
+                channel = editor_channel,
+                engine_artifacts = engine_artifacts)
+        elif command == "notarize-editor":
+            notarize_editor(
+                branch = branch,
+                channel = editor_channel,
+                engine_artifacts = engine_artifacts,
+                notarization_username = args.notarization_username,
+                notarization_password = args.notarization_password,
+                notarization_itc_provider = args.notarization_itc_provider)
+        elif command == "archive-editor":
+            archive_editor(
+                branch = branch,
+                channel = editor_channel,
+                engine_artifacts = engine_artifacts,
+                release = release_editor)
         elif command == "bob":
-            if branch == "master" or branch == "beta" or branch == "dev":
-                build_bob(branch = branch, channel = channel, release = release)
-            else:
-                build_bob()
+            build_bob(branch = branch, channel = release_channel, release = release_bob)
         elif command == "sdk":
             build_sdk()
         elif command == "smoke":

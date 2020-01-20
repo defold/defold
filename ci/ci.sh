@@ -19,7 +19,11 @@ export PATH=$PATH:$OLDPATH
 echo "PATH=" $PATH
 
 echo "Calling ci.py with args: $@"
-# -u to run python unbuffered to guarantee that output ends up in the correct order in logs
-python -u ./ci/ci.py "$@"
+# # -u to run python unbuffered to guarantee that output ends up in the correct order in logs
+if [[ "${OSTYPE}" == "linux-gnu" ]]; then
+    xvfb-run --auto-servernum python -u ./ci/ci.py "$@"
+else
+    python -u ./ci/ci.py "$@"
+fi
 
 echo -e "ci.sh finished\n-----------------\n\n\n\n\n"
