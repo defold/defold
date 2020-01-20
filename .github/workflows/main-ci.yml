@@ -53,7 +53,7 @@ jobs:
 
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
-    if: env.BUILD_ENGINE == true
+    if: BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
@@ -70,7 +70,7 @@ jobs:
       }]
 
   build-engine-macos:
-    if: env.BUILD_ENGINE == true
+    if: BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [x86_64-darwin]
@@ -86,7 +86,7 @@ jobs:
       }]
 
   build-engine-ios:
-    if: env.BUILD_ENGINE == true
+    if: BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
@@ -102,7 +102,7 @@ jobs:
       }]
 
   build-engine-web:
-    if: env.BUILD_ENGINE == true
+    if: BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [js-web, wasm-web]
@@ -118,7 +118,7 @@ jobs:
       }]
 
   build-engine-android:
-    if: env.BUILD_ENGINE == true
+    if: BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
@@ -134,7 +134,7 @@ jobs:
       }]
 
   build-engine-linux:
-    if: env.BUILD_ENGINE == true
+    if: BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [x86_64-linux]
@@ -152,7 +152,7 @@ jobs:
 # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    if: env.BUILD_BOB == true
+    if: BUILD_BOB == true
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
@@ -166,7 +166,7 @@ jobs:
       }]
 
   build-sdk:
-    if: env.BUILD_SDK == true
+    if: BUILD_SDK == true
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
@@ -182,7 +182,7 @@ jobs:
 # ---- BUILD EDITOR ------------------
 
   build-and-notarize-editor:
-    if: env.BUILD_EDITOR == true
+    if: BUILD_EDITOR == true
     needs: [build-bob]
     runs-on: macOS-latest
     steps: [
