@@ -16,7 +16,8 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
-  BUILD_BRANCH: ${{ github.event.client_payload.branch }}
+  # BUILD_BRANCH: ${{ github.event.client_payload.branch }}
+  BUILD_BRANCH: 'beta'
 
 
 jobs:
