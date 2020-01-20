@@ -8,18 +8,14 @@ on:
   repository_dispatch: {}
 
 env:
-  S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }},
-  S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }},
-  NOTARIZATION_USERNAME: ${{ secrets.NOTARIZATION_USERNAME }},
-  NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }},
-  NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }},
-  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }},
-  MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }},
-  MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }},
-  BUILD_ENGINE: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true)) }},
-  BUILD_BOB: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_bob != true)) }},
-  BUILD_SDK: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_sdk != true)) }},
-  BUILD_EDITOR: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)) }}
+  S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+  S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+  NOTARIZATION_USERNAME: ${{ secrets.NOTARIZATION_USERNAME }}
+  NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+  NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }}
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+  MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
 
 
 jobs:
@@ -53,7 +49,7 @@ jobs:
 
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
-    if: job.BUILD_ENGINE == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
@@ -70,7 +66,7 @@ jobs:
       }]
 
   build-engine-macos:
-    if: job.BUILD_ENGINE == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [x86_64-darwin]
@@ -86,7 +82,7 @@ jobs:
       }]
 
   build-engine-ios:
-    if: job.BUILD_ENGINE == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
@@ -102,7 +98,7 @@ jobs:
       }]
 
   build-engine-web:
-    if: job.BUILD_ENGINE == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [js-web, wasm-web]
@@ -118,7 +114,7 @@ jobs:
       }]
 
   build-engine-android:
-    if: job.BUILD_ENGINE == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
@@ -134,7 +130,7 @@ jobs:
       }]
 
   build-engine-linux:
-    if: job.BUILD_ENGINE == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [x86_64-linux]
@@ -152,7 +148,7 @@ jobs:
 # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    if: BUILD_BOB == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_bob != true))
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
@@ -166,7 +162,7 @@ jobs:
       }]
 
   build-sdk:
-    if: BUILD_SDK == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_sdk != true))
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
@@ -182,7 +178,7 @@ jobs:
 # ---- BUILD EDITOR ------------------
 
   build-and-notarize-editor:
-    if: BUILD_EDITOR == true
+    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     needs: [build-bob]
     runs-on: macOS-latest
     steps: [
