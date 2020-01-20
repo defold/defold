@@ -18,33 +18,12 @@ source ci/env.sh
 export PATH=$PATH:$OLDPATH
 echo "PATH=" $PATH
 
-# # start X virtual frame buffer
-# if [[ "${OSTYPE}" == "linux-gnu" ]]; then
-#     echo "Starting xvfb"
-#     # sudo apt-get install -y --no-install-recommends xvfb
-#     Xvfb :99 &
-#     export DISPLAY=:99
-# fi
-
 echo "Calling ci.py with args: $@"
 # # -u to run python unbuffered to guarantee that output ends up in the correct order in logs
-# python -u ./ci/ci.py "$@"
-
 if [[ "${OSTYPE}" == "linux-gnu" ]]; then
     xvfb-run --auto-servernum python -u ./ci/ci.py "$@"
 else
     python -u ./ci/ci.py "$@"
 fi
-
-# # stop X virtual frame buffer
-# if [[ "${OSTYPE}" == "linux-gnu" ]]; then
-#     xvfb_pids=`ps aux | grep tmp/xvfb-run | grep -v grep | awk '{print $2}'`
-#     if [ "$xvfb_pids" != "" ]; then
-#         echo "Killing the following xvfb processes: $xvfb_pids"
-#         sudo kill $xvfb_pids
-#     else
-#         echo "No xvfb processes to kill"
-#     fi
-# fi
 
 echo -e "ci.sh finished\n-----------------\n\n\n\n\n"
