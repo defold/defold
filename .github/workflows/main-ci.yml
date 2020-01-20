@@ -11,6 +11,16 @@ on:
   #      - '!DEFEDIT-*'
 
 
+env: {
+    S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+    S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+    NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
+    NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
+    NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
+    DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}',
+    MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
+    MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}'
+}
 
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
@@ -26,7 +36,6 @@ jobs:
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         shell: bash,
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine'
       }]
@@ -43,7 +52,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine'
       }]
 
@@ -59,7 +67,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
       }]
 
@@ -75,7 +82,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
       }]
 
@@ -91,7 +97,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
       }]
 
@@ -107,7 +112,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine'
       }]
 
@@ -123,7 +127,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build bob',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --branch=$GITHUB_REF bob'
       }]
 
@@ -137,7 +140,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build SDK',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.c }}' },
         run: 'ci/ci.sh --branch=$GITHUB_REF sdk'
       }]
 
@@ -154,39 +156,17 @@ jobs:
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
         name: 'Install dependencies',
-        env: {
-            MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
-            MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}'
-        },
         run: 'ci/ci.sh --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" install'
       },
       {
         name: 'Build editor',
-        env: {
-            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
-            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
-            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
-        },
         run: 'ci/ci.sh --branch=$GITHUB_REF build-editor'
       },
       {
         name: 'Notarize editor',
-        env: {
-            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
-            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
-            NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
-            NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
-            NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
-            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
-        },
         run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
       },
       {
         name: 'Archive editor',
-        env: {
-            S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
-            S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
-            DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
-        },
         run: 'ci/ci.sh --branch=$GITHUB_REF archive-editor'
       }]

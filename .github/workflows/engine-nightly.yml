@@ -5,6 +5,12 @@ on:
     # nightly at 03:00
     - cron: 0 3 * * *
 
+env: {
+    S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
+    S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
+    DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}'
+}
+
 jobs:
   build-engine-darwin-64:
     runs-on: macOS-latest
@@ -15,7 +21,6 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=x86_64-darwin --branch=dev --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
       }]
 
@@ -28,6 +33,5 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
         run: 'ci/ci.sh --platform=x86_64-linux --branch=dev --with-valgrind --skip-builtins --skip-docs engine'
       }]
