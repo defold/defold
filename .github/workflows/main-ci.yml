@@ -8,18 +8,18 @@ on:
   repository_dispatch: {}
 
 env: {
-    S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}',
-    S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}',
-    NOTARIZATION_USERNAME: '${{ secrets.NOTARIZATION_USERNAME }}',
-    NOTARIZATION_PASSWORD: '${{ secrets.NOTARIZATION_PASSWORD }}',
-    NOTARIZATION_ITC_PROVIDER: '${{ secrets.NOTARIZATION_ITC_PROVIDER }}',
-    DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}',
-    MACOS_CERTIFICATE: '${{ secrets.MACOS_CERTIFICATE }}',
-    MACOS_CERTIFICATE_PASS: '${{ secrets.MACOS_CERTIFICATE_PASS }}',
-    BUILD_ENGINE: '${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)) }}',
-    BUILD_BOB: '${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)) }}',
-    BUILD_SDK: '${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)) }}',
-    BUILD_EDITOR: '${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)) }}'
+    S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }},
+    S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }},
+    NOTARIZATION_USERNAME: ${{ secrets.NOTARIZATION_USERNAME }},
+    NOTARIZATION_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }},
+    NOTARIZATION_ITC_PROVIDER: ${{ secrets.NOTARIZATION_ITC_PROVIDER }},
+    DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }},
+    MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }},
+    MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }},
+    BUILD_ENGINE: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)) }},
+    BUILD_BOB: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)) }},
+    BUILD_SDK: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)) }},
+    BUILD_EDITOR: ${{ (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)) }}
 }
 
 jobs:
