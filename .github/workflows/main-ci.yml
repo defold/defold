@@ -53,7 +53,7 @@ jobs:
 
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
-    if: ${{job.BUILD_ENGINE}} == true
+    if: job.BUILD_ENGINE == true
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
