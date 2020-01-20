@@ -355,10 +355,7 @@ def main(argv):
                 engine_artifacts = engine_artifacts,
                 release = release_editor)
         elif command == "bob":
-            if branch == "master" or branch == "beta" or branch == "dev":
-                build_bob(branch = branch, channel = release_channel, release = release_bob)
-            else:
-                build_bob()
+            build_bob(branch = branch, channel = release_channel, release = release_bob)
         elif command == "sdk":
             build_sdk()
         elif command == "smoke":

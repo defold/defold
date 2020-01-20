@@ -121,9 +121,9 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build bob and release',
+        name: 'Build bob',
         env: { S3_ACCESS_KEY: '${{ secrets.S3_ACCESS_KEY }}', S3_SECRET_KEY: '${{ secrets.S3_SECRET_KEY }}', DM_PACKAGES_URL: '${{ secrets.DM_PACKAGES_URL }}' },
-        run: 'ci/ci.sh --branch=$GITHUB_REF bob release'
+        run: 'ci/ci.sh --branch=$GITHUB_REF bob'
       }]
 
   build-sdk:
