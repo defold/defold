@@ -16,37 +16,10 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
+  BUILD_BRANCH: ${{ github.event.client_payload.branch }}
 
 
 jobs:
-  dump:
-    runs-on: ubuntu-16.04
-    steps:
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
-      - name: Dump job context
-        env:
-          JOB_CONTEXT: ${{ toJson(job) }}
-        run: echo "$JOB_CONTEXT"
-      - name: Dump steps context
-        env:
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-        run: echo "$STEPS_CONTEXT"
-      - name: Dump runner context
-        env:
-          RUNNER_CONTEXT: ${{ toJson(runner) }}
-        run: echo "$RUNNER_CONTEXT"
-      - name: Dump strategy context
-        env:
-          STRATEGY_CONTEXT: ${{ toJson(strategy) }}
-        run: echo "$STRATEGY_CONTEXT"
-      - name: Dump matrix context
-        env:
-          MATRIX_CONTEXT: ${{ toJson(matrix) }}
-        run: echo "$MATRIX_CONTEXT"
-
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
     if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
@@ -55,7 +28,7 @@ jobs:
         platform: [win32, x86_64-win32]
     runs-on: windows-2016
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3 } },
+      { name: 'Checkout', uses: actions/checkout@v2, with: { fetch-depth: 3, ref: ${{env.BUILD_BRANCH}} } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
