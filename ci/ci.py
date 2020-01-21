@@ -268,6 +268,11 @@ def build_sdk():
 def smoke_test():
     call('python scripts/build.py distclean install_ext smoke_test')
 
+def get_branch():
+    branch = call("git rev-parse --abbrev-ref HEAD")
+    if branch == "HEAD":
+        branch = call("git rev-parse HEAD")
+    return branch
 
 def main(argv):
     parser = ArgumentParser()
@@ -291,7 +296,7 @@ def main(argv):
 
     platform = args.platform
     # https://stackoverflow.com/a/55276236/1266551
-    branch = call("git describe --tags --exact-match 2> /dev/null || git symbolic-ref -q --short HEAD || git rev-parse --short HEAD")
+    branch = get_branch()
 
     # configure build flags based on the branch
     if branch == "master":
