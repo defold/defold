@@ -134,6 +134,10 @@ public class Project {
         return buildDirectory;
     }
 
+    public String getBinaryOutputDirectory() {
+        return options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+    }
+
     public String getLibPath() {
         return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
     }
