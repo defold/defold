@@ -7,15 +7,23 @@ import os
 import base64
 from argparse import ArgumentParser
 
-def call(args, attempts = 1, failonerror = True):
+def call(args, failonerror = True):
     print(args)
-    while attempts > 0:
-        ret = os.system(args)
-        if ret == 0:
-            return
-        attempts = attempts - 1
-    if failonerror:
+    process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
+
+    output = ''
+    while True:
+        line = process.stdout.readline()
+        if line != '':
+            output += line
+            print(line.rstrip())
+        else:
+            break
+
+    if process.wait() != 0 and failonerror:
         exit(1)
+
+    return output
 
 
 def platform_from_host():
@@ -28,7 +36,7 @@ def platform_from_host():
         return "x86_64-win32"
 
 def aptget(package):
-    call("sudo apt-get install -y --no-install-recommends " + package, attempts=3)
+    call("sudo apt-get install -y --no-install-recommends " + package)
 
 def aptfast(package):
     call("sudo apt-fast install -y --no-install-recommends " + package)
@@ -263,9 +271,8 @@ def smoke_test():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
-    parser.add_argument("--branch", dest="branch", help="The branch to build for (when building engine and editor)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
@@ -283,10 +290,8 @@ def main(argv):
     args = parser.parse_args()
 
     platform = args.platform
-    branch = args.branch
-    print("args.branch is {}".format(args.branch))
-    if branch:
-        branch = branch.replace("refs/heads/", "")
+    # https://stackoverflow.com/a/55276236/1266551
+    branch = call("git describe --tags --exact-match 2> /dev/null || git symbolic-ref -q --short HEAD || git rev-parse --short HEAD")
 
     # configure build flags based on the branch
     if branch == "master":
@@ -333,8 +338,15 @@ def main(argv):
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
-            with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ])
-            build_engine(platform, with_valgrind = with_valgrind, with_asan = args.with_asan, with_vanilla_lua = args.with_vanilla_lua, archive = args.archive, skip_tests = args.skip_tests, skip_builtins = args.skip_builtins, skip_docs = args.skip_docs)
+            build_engine(
+                platform,
+                with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
+                with_asan = args.with_asan,
+                with_vanilla_lua = args.with_vanilla_lua,
+                archive = args.archive,
+                skip_tests = args.skip_tests,
+                skip_builtins = args.skip_builtins,
+                skip_docs = args.skip_docs)
         elif command == "build-editor":
             build_editor(
                 branch = branch,

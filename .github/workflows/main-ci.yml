@@ -22,7 +22,6 @@ env:
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
@@ -34,12 +33,12 @@ jobs:
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         shell: bash,
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       }]
 
   build-engine-macos:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [x86_64-darwin]
@@ -51,11 +50,11 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-builtins --skip-docs engine'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       }]
 
   build-engine-ios:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
@@ -67,11 +66,11 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       }]
 
   build-engine-web:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [js-web, wasm-web]
@@ -83,11 +82,11 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       }]
 
   build-engine-android:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
@@ -99,11 +98,11 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive --skip-tests --skip-builtins --skip-docs engine'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       }]
 
   build-engine-linux:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_engine != true))
     strategy:
       matrix:
         platform: [x86_64-linux]
@@ -115,13 +114,13 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --branch=$GITHUB_REF --archive engine'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
       }]
 
 # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_bob != true))
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
@@ -131,11 +130,11 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build bob',
-        run: 'ci/ci.sh --branch=$GITHUB_REF bob'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
+        run: 'ci/ci.sh bob'
       }]
 
   build-sdk:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') &&   (github.event.client_payload.skip_sdk != true))
     needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
     runs-on: ubuntu-18.04
     steps: [
@@ -145,13 +144,13 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build SDK',
-        run: 'ci/ci.sh --branch=$GITHUB_REF sdk'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
+        run: 'ci/ci.sh sdk'
       }]
 
 # ---- BUILD EDITOR ------------------
 
   build-and-notarize-editor:
-    if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     needs: [build-bob]
     runs-on: macOS-latest
     steps: [
@@ -166,13 +165,16 @@ jobs:
       },
       {
         name: 'Build editor',
-        run: 'ci/ci.sh --branch=$GITHUB_REF build-editor'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
+        run: 'ci/ci.sh build-editor'
       },
       {
         name: 'Notarize editor',
-        run: 'ci/ci.sh --branch=$GITHUB_REF --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+        run: 'ci/ci.sh --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
       },
       {
         name: 'Archive editor',
-        run: 'ci/ci.sh --branch=$GITHUB_REF archive-editor'
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+        run: 'ci/ci.sh archive-editor'
       }]

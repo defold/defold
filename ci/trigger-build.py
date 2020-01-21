@@ -11,10 +11,10 @@ def main(argv):
     parser.add_argument("--token", dest="token", help="GitHub API personal access token ")
     parser.add_argument("--action", dest="action", default="build", help="The trigger action")
     parser.add_argument("--branch", dest="branch", help="The branch to build")
-    parser.add_argument("--skip-engine", dest="skip_engine", action='store_true', help="Skip building the engine")
-    parser.add_argument("--skip-sdk", dest="skip_sdk", action='store_true', help="Skip building the Defold SDK")
-    parser.add_argument("--skip-bob", dest="skip_bob", action='store_true', help="Skip building bob")
-    parser.add_argument("--skip-editor", dest="skip_editor", action='store_true', help="Skip building the editor")
+    parser.add_argument("--skip-engine", dest="skip_engine", action='store_true', default=False, help="Skip building the engine")
+    parser.add_argument("--skip-sdk", dest="skip_sdk", action='store_true', default=False, help="Skip building the Defold SDK")
+    parser.add_argument("--skip-bob", dest="skip_bob", action='store_true', default=False, help="Skip building bob")
+    parser.add_argument("--skip-editor", dest="skip_editor", action='store_true', default=False, help="Skip building the editor")
 
     args = parser.parse_args()
 
