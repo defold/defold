@@ -22,6 +22,7 @@ env:
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
   build-engine-windows:
+    if: !contains(github.event.head_commit.message, 'skip-ci')
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
@@ -39,6 +40,7 @@ jobs:
       }]
 
   build-engine-macos:
+    if: !contains(github.event.head_commit.message, 'skip-ci')
     strategy:
       matrix:
         platform: [x86_64-darwin]
@@ -55,6 +57,7 @@ jobs:
       }]
 
   build-engine-ios:
+    if: !contains(github.event.head_commit.message, 'skip-ci')
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
@@ -71,6 +74,7 @@ jobs:
       }]
 
   build-engine-web:
+    if: !contains(github.event.head_commit.message, 'skip-ci')
     strategy:
       matrix:
         platform: [js-web, wasm-web]
@@ -87,6 +91,7 @@ jobs:
       }]
 
   build-engine-android:
+    if: !contains(github.event.head_commit.message, 'skip-ci')
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
@@ -103,6 +108,7 @@ jobs:
       }]
 
   build-engine-linux:
+    if: !contains(github.event.head_commit.message, 'skip-ci')
     strategy:
       matrix:
         platform: [x86_64-linux]
