@@ -69,7 +69,7 @@ message TextureSet
     repeated SpriteGeometry geometries      = 20;
 
     // If false, uses the legacy code path
-    required uint32 use_geometries          = 21;
+    optional uint32 use_geometries          = 21;
 
     // Maps animation frames to geometry index
     repeated uint32 frame_indices           = 22;
