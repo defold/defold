@@ -677,7 +677,7 @@ public class Project {
             allSource.addAll(helper.writeExtensionResources(platform));
 
             // Replace the unresolved manifests with the resolved ones
-            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir());
+            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir(platform));
             for (ExtenderResource manifest : resolvedManifests) {
                 ExtenderResource src = null;
                 for (ExtenderResource s : allSource) {
