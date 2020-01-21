@@ -193,6 +193,7 @@ public class TextureSetGenerator {
 
         // We must respect the upper limit of the vertex hull count
         if (points == null || points.length > hullVertexCount) {
+            // Generates a CCW rect
             points = new ConvexHull2D.PointF[4];
             points[0] = new ConvexHull2D.PointF(-0.5,-0.5);
             points[1] = new ConvexHull2D.PointF( 0.5,-0.5);
@@ -236,7 +237,8 @@ public class TextureSetGenerator {
         for (int i = 0; i < numPoints; ++i) {
 
             // the points are in object space, where origin is at the center of the sprite image
-            // in units [-0.5,0.5]
+            // in units [-0.5,0.5].
+            // The polygon has a CCW orientation
             float localU = geometry.getVertices(i * 2 + 0);
             float localV = geometry.getVertices(i * 2 + 1);
             float localX = localU * originalRectWidth;

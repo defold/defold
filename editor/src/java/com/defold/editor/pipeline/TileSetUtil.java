@@ -73,6 +73,7 @@ public class TileSetUtil {
     private static int Max(int a, int b) { return a > b ? a : b; }
     private static int Min(int a, int b) { return a < b ? a : b; }
 
+    // Returns a CW rect
     private static ConvexHull2D.Point[] calcRect(int[] alpha, int width, int height, int inflate) {
         int maxX = -1;
         int maxY = -1;
@@ -169,7 +170,7 @@ public class TileSetUtil {
         ConvexHull2D.PointF points[] = new ConvexHull2D.PointF[4];
         int i = 0;
         for (ConvexHull2D.Point p : ipoints) {
-            points[i] = new ConvexHull2D.PointF(p.x / (double)width - 0.5, p.y / (double)height - 0.5);
+            points[i] = new ConvexHull2D.PointF(p.x / (double)width - 0.5, -(p.y / (double)height - 0.5));
             ++i;
         }
         return points;
