@@ -165,7 +165,7 @@ jobs:
       },
       {
         name: 'Build editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh build-editor'
       },
       {
