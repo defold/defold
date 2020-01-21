@@ -28,7 +28,7 @@ jobs:
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
         name: 'Install dependencies',
-        run: 'ci/ci.sh --keychain-cert="${MACOS_CERTIFICATE}" --keychain-cert-pass="${MACOS_CERTIFICATE_PASS}" install'
+        run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
         name: 'Build editor',
@@ -36,7 +36,7 @@ jobs:
       },
       {
         name: 'Notarize editor',
-        run: 'ci/ci.sh --notarization-username="${NOTARIZATION_USERNAME}" --notarization-password="${NOTARIZATION_PASSWORD}" --notarization-itc-provider="${NOTARIZATION_ITC_PROVIDER}" notarize-editor'
+        run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
       },
       {
         name: 'Archive editor',
