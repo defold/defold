@@ -269,7 +269,7 @@ def smoke_test():
     call('python scripts/build.py distclean install_ext smoke_test')
 
 def get_branch():
-    branch = call("git rev-parse --abbrev-ref HEAD")
+    branch = call("git rev-parse --abbrev-ref HEAD").strip()
     if branch == "HEAD":
         branch = call("git rev-parse HEAD")
     return branch
