@@ -92,6 +92,16 @@ public class OSXBundlerTest {
         assertPList();
     }
 
+    @Test
+    // Issue-3442 The bundle process crashed if an empty value was set for app_icon
+    public void testBundleWithNoIcon() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createBuiltins();
+        createFile(contentRoot, "game.project", "[osx]\napp_icon=\n");
+        build();
+        assertExe();
+        assertPList();
+    }
+
     private String readFile(String dir, String name) throws IOException {
         return FileUtils.readFileToString(new File(dir, name));
     }
