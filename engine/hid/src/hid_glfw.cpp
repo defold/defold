@@ -41,7 +41,12 @@ namespace dmHID
     HContext g_Context = 0;
     static void CharacterCallback(int chr,int)
     {
-        AddKeyboardChar(g_Context, chr);
+        // check that the character is outside the Unicode private area
+        // on cocoa the arrow keys will generate characters in this area
+        // and should not be treated as characters
+        if (chr < 0xE00 || chr > 0xF8FF) {
+            AddKeyboardChar(g_Context, chr);
+        }
     }
 
     static void MarkedTextCallback(char* text)
