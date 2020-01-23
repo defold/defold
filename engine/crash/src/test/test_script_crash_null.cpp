@@ -70,15 +70,15 @@ bool RunFile(lua_State* L, const char* filename)
     return true;
 }
 
-TEST_F(ScriptCrashTest, TestCrash)
+TEST_F(ScriptCrashTest, TestCrashNull)
 {
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(RunFile(L, "test_crash.luac"));
+    ASSERT_TRUE(RunFile(L, "test_crash_null.luac"));
 
     lua_getglobal(L, "functions");
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_crash");
+    lua_getfield(L, -1, "test_crash_null");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
     int result = dmScript::PCall(L, 0, LUA_MULTRET);
     if (result == LUA_ERRRUN)

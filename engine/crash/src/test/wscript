@@ -52,3 +52,4 @@ def build(bld):
                                      target = 'test_script_crash_null',
                                      exported_symbols = 'CrashExt',
                                      source = 'test_script_crash_null.cpp test_crash_null.lua')
+    test_script_crash_null.install_path = None

@@ -19,7 +19,7 @@ def build(bld):
                                 protoc_includes = '../proto',
                                 target = 'crashext_null')
 
-    crashnull.source = 'crash.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
+    crashnull.source = 'crash_null.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
 
     if 'android' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_libunwind.cpp'
