@@ -12,6 +12,15 @@ def build(bld):
     sig_handler = 'backtrace_null.cpp'
     file_handler = 'file_null.cpp'
 
+    crashnull = bld.new_task_gen(features = 'cxx cstaticlib',
+                                includes = ['.', '../proto'],
+                                proto_gen_py = True,
+                                proto_gen_cc = True,
+                                protoc_includes = '../proto',
+                                target = 'crashext_null')
+
+    crashnull.source = 'crash.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
+
     if 'android' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_libunwind.cpp'
         load_addrs = 'load_addrs_proc_smap.cpp'

@@ -20,6 +20,17 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
+    # essentially only test that it links
+    test_crash_null = bld.new_task_gen(features = 'cxx cprogram',
+                                     includes = '..',
+                                     uselib = libs,
+                                     uselib_local = 'crashext_null',
+                                     web_libs = ['library_sys.js'],
+                                     target = 'test_crash_null',
+                                     source = 'test_crash.cpp')
+
+    test_crash_null.install_path = None
+
     test_script_crash = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '..',
                                      uselib = libs,
@@ -32,3 +43,12 @@ def build(bld):
     test_script_crash.install_path = None
     if 'win32' in bld.env['PLATFORM']:
         test_script_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
+
+    test_script_crash_null = bld.new_task_gen(features = 'cxx cprogram test',
+                                     includes = '..',
+                                     uselib = libs,
+                                     uselib_local = 'crashext_null',
+                                     web_libs = ['library_sys.js','library_script.js'],
+                                     target = 'test_script_crash_null',
+                                     exported_symbols = 'CrashExt',
+                                     source = 'test_script_crash_null.cpp test_crash_null.lua')
