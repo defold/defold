@@ -490,7 +490,7 @@ public class BundleHelper {
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
 
-            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, resDir));
+            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, packagesDir));
         }
 
         return resources;
