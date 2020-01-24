@@ -90,15 +90,17 @@ Download and install using `apt-get`:
 
 This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](http://www.mingw.org/download/installer) and run the installer and check these packages (binary):
 
-	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-	* MSYS Base System: `msys-base`, `msys-bash`
-	* optional packages `msys-dos2unix`
+	* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
+	* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
+    * MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
 
 Select the menu option `Installation -> Apply Changes`.
 
 You also need to install `wget`. From the mingw terminal run:
 
 	> mingw-get install msys-wget-bin msys-zip msys-unzip
+
+**NOTE:** You can start the visual installer again by simply running `mingw-get`
 
 #### Git
 
