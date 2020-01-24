@@ -1215,8 +1215,8 @@ class Configuration(object):
         env = self._form_env()
         res = ""
         for key in env:
-            var = key.replace('(','_').replace(')','_') # illegal chars in bash environment variables
-            res = res + ("export %s='%s'\n" % (var, env[key]))
+            if bool(re.match('^[a-zA-Z0-9_]+$', key)):
+                res = res + ("export %s='%s'\n" % (key, env[key]))
         with open(self.save_env_path, "w") as f:
             f.write(res)
 
