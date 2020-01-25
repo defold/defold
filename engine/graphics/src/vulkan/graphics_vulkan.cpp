@@ -2109,6 +2109,7 @@ bail:
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
 
         // The 'first' value that comes in is intended to be a byte offset,
@@ -2122,6 +2123,7 @@ bail:
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
