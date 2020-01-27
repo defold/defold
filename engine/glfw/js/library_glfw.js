@@ -294,8 +294,8 @@ var LibraryGLFW = {
         }
         // Audio is blocked by default in some browsers until a user performs an interaction,
         // so we need to try to resume it here (on mouse button up and touch end).
-        // We must also check that the sound device is not null since it could have been stripped
-        if (DefoldSoundDevice != null) {
+        // We must also check that the sound device hasn't been stripped
+        if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
             DefoldSoundDevice.TryResumeAudio();
         }
 
@@ -393,8 +393,8 @@ var LibraryGLFW = {
 
       // Audio is blocked by default in some browsers until a user performs an interaction,
       // so we need to try to resume it here (on mouse button up and touch end).
-      // We must also check that the sound device is not null since it could have been stripped
-      if (DefoldSoundDevice != null) {
+      // We must also check that the sound device hasn't been stripped
+      if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
           DefoldSoundDevice.TryResumeAudio();
       }
     },
