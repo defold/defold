@@ -33,7 +33,7 @@ PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
-CDN_PACKAGES_URL="https://s3-eu-west-1.amazonaws.com/defold-packages"
+CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
@@ -179,7 +179,6 @@ class Future(object):
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
-                 eclipse_home = None,
                  skip_tests = False,
                  skip_codesign = False,
                  skip_docs = False,
@@ -190,13 +189,14 @@ class Configuration(object):
                  archive_path = None,
                  package_path = None,
                  set_version = None,
-                 eclipse = False,
                  branch = None,
                  channel = None,
-                 eclipse_version = None,
                  engine_artifacts = None,
                  waf_options = [],
-                 save_env_path = None):
+                 save_env_path = None,
+                 notarization_username = None,
+                 notarization_password = None,
+                 notarization_itc_provider = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -207,7 +207,6 @@ class Configuration(object):
         self.ext = join(self.dynamo_home, 'ext')
         self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
-        self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.host2 = get_host_platform2()
@@ -229,13 +228,15 @@ class Configuration(object):
         self.archive_path = archive_path
         self.package_path = package_path
         self.set_version = set_version
-        self.eclipse = eclipse
         self.branch = branch
         self.channel = channel
-        self.eclipse_version = eclipse_version
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
         self.save_env_path = save_env_path
+        self.notarization_username = notarization_username
+        self.notarization_password = notarization_password
+        self.notarization_itc_provider = notarization_itc_provider
+
 
         self.thread_pool = None
         self.s3buckets = {}
@@ -344,23 +345,24 @@ class Configuration(object):
         else:
             print("No go found for %s" % self.target_platform)
 
-    def _make_package_path(self, platform, package):
-        return join(self.defold_root, 'packages', package) + '-%s.tar.gz' % platform
-
-    def _make_package_paths(self, platform, packages):
-        return [self._make_package_path(platform, package) for package in packages]
-
-    def _extract_packages(self, platform, packages):
-        for package in packages:
-            self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
+        def make_package_path(root, platform, package):
+            return join(root, 'packages', package) + '-%s.tar.gz' % platform
+
+        def make_package_paths(root, platform, packages):
+            return [make_package_path(root, platform, package) for package in packages]
+
+        if self.package_path is None:
+            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
+            sys.exit(1)
+
         print("Installing common packages")
         for p in PACKAGES_ALL:
-            self._extract_tgz(self._make_package_path('common', p), self.ext)
+            self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.ext)
 
         for p in DMSDK_PACKAGES_ALL:
-            self._extract_tgz(self._make_package_path('common', p), self.dmsdk)
+            self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.dmsdk)
 
         # TODO: Make sure the order of install does not affect the outcome!
 
@@ -387,7 +389,7 @@ class Configuration(object):
 
         for platform in other_platforms:
             packages = platform_packages.get(platform, [])
-            package_paths = self._make_package_paths(platform, packages)
+            package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
@@ -396,7 +398,7 @@ class Configuration(object):
         for base_platform in self.get_base_platforms():
             packages = list(PACKAGES_HOST)
             packages.extend(platform_packages.get(base_platform, []))
-            package_paths = self._make_package_paths(base_platform, packages)
+            package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
             if len(package_paths) != 0:
                 print("Installing %s packages" % base_platform)
@@ -405,7 +407,7 @@ class Configuration(object):
                 installed_packages.update(package_paths)
 
         target_packages = platform_packages.get(self.target_platform, [])
-        target_package_paths = self._make_package_paths(self.target_platform, target_packages)
+        target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
         if len(target_package_paths) != 0:
@@ -796,8 +798,7 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        eclipse = '--eclipse' if self.eclipse else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'eclipse':eclipse}
+        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -814,8 +815,8 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache):
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -882,6 +883,7 @@ class Configuration(object):
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print "Removing", os.environ['DM_BOB_ROOTFOLDER']
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
+
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
         go = '%s/ext/go/%s/go/bin/go%s' % (self.dynamo_home, self.target_platform, exe_ext)
@@ -988,8 +990,20 @@ class Configuration(object):
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                              cwd = cwd, shell = True, env = env)
+
+        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
+        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        args = [ant, 'clean', 'install'] + ant_args
+        self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+
+        if not self.skip_tests:
+            cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+            args = [ant, 'test-clean', 'test'] + ant_args
+            self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1038,125 +1052,77 @@ class Configuration(object):
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
-    def test_cr(self):
-        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-Declipse-version=%s' % self.eclipse_version],
-                              cwd = cwd)
 
-    def _get_cr_builddir(self, product):
-        return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
+# ------------------------------------------------------------
+# BEGIN: EDITOR 2
+#
+    def download_editor2(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket_name = u.hostname
+        bucket = self._get_s3_bucket(bucket_name)
+        prefix = self._get_s3_archive_prefix()
 
-    def build_server(self):
-        cwd = join(self.defold_root, 'server')
-        self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
-
-    def build_editor(self):
-        import xml.etree.ElementTree as ET
-
-        self.build_bob_light()
-
-        sha1 = self._git_sha1()
-
-        if self.channel != 'stable':
-            qualified_version = self.version + ".qualifier"
-        else:
-            qualified_version = self.version
-
-        icon_path = '/icons/%s' % self.channel
-
-        tree = ET.parse('com.dynamo.cr/com.dynamo.cr.editor-product/template/cr.product')
-        root = tree.getroot()
-
-        root.attrib['version'] = qualified_version
-        for n in root.find('launcher'):
-            if n.tag == 'win':
-                icon = n.find('ico')
-                name = os.path.basename(icon.attrib['path'])
-                icon.attrib['path'] = 'icons/%s/%s' % (self.channel, name)
-            elif 'icon' in n.attrib:
-                name = os.path.basename(n.attrib['icon'])
-                n.attrib['icon'] = 'icons/%s/%s' % (self.channel, name)
-
-        for n in root.find('configurations').findall('property'):
-            if n.tag == 'property':
-                name = n.attrib['name']
-                if name == 'defold.version':
-                    n.attrib['value'] = self.version
-                elif name == 'defold.sha1':
-                    n.attrib['value'] = sha1
-                elif name == 'defold.channel':
-                    n.attrib['value'] = options.channel
-
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'wb') as f:
-            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-            f.write('<?pde version="3.5"?>\n')
-            f.write('\n')
-            tree.write(f, encoding='utf-8')
-
-        p2 = """
-instructions.configure=\
-  addRepository(type:0,location:http${#58}//d.defold.com/%(channel)s/update/);\
-  addRepository(type:1,location:http${#58}//d.defold.com/%(channel)s/update/);
-"""
-
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'wb') as f:
-            f.write(p2 % { 'channel': self.channel })
-
-        self._build_cr('editor')
-
-    def _archive_cr(self, product, build_dir):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, self.channel, product).replace('\\', '/') + '/'
-        host, path = full_archive_path.split(':', 1)
-        for p in glob(join(build_dir, 'target/products/*.zip')):
-            self.upload_file(p, full_archive_path)
-
-        repo_dir = join(build_dir, 'target/repository')
-        for root,dirs,files in os.walk(repo_dir):
-            for f in files:
-                p = join(root, f)
-                u = join(full_archive_path, "repository", os.path.relpath(p, repo_dir))
-                self.upload_file(p, u)
-
-    def archive_editor(self):
-        build_dir = self._get_cr_builddir('editor')
-        self._archive_cr('editor', build_dir)
-
-    def archive_server(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'server').replace('\\', '/') + '/'
-        host, path = full_archive_path.split(':', 1)
-        build_dir = join(self.defold_root, 'server')
-        for p in glob(join(build_dir, 'build/distributions/*.zip')):
-            self.upload_file(p, full_archive_path)
-
-    def _build_cr(self, product):
-        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        env = self._form_env()
-        self._exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'], cwd = cwd, env = env)
-
-    def build_editor2(self):
-        cmd = ['./scripts/bundle.py',
-               '--platform=x86_64-darwin',
-               '--platform=x86_64-linux',
-               '--platform=x86_64-win32',
-               '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts]
-
-        cwd = join(self.defold_root, 'editor')
-
-        self.exec_env_command(cmd, cwd = cwd)
+        editor_filename = "Defold-%s.zip" % self.target_platform
+        editor_path = join(self.defold_root, 'editor', 'target', 'editor')
+        s3_path = "s3://%s/%s/%s/editor2/%s" % (bucket_name, prefix, self.channel, editor_filename)
+        self.download_file(join(editor_path, editor_filename), s3_path)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, self.channel, 'editor2')
 
-        for ext in ['zip', 'dmg']:
-            for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
-                self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-
+        zip_file = "Defold-%s.zip" % self.target_platform
+        dmg_file = "Defold-%s.dmg" % self.target_platform
+        zip_path = join(self.defold_root, 'editor', 'target', 'editor', zip_file)
+        dmg_path = join(self.defold_root, 'editor', 'target', 'editor', dmg_file)
+        if os.path.exists(zip_path): self.upload_file(zip_path, '%s/%s' % (full_archive_path, zip_file))
+        if os.path.exists(dmg_path): self.upload_file(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
         self.wait_uploads()
+
+    def run_editor_script(self, cmd):
+        cwd = join(self.defold_root, 'editor')
+        self.exec_env_command(cmd, cwd = cwd)
+
+    def build_editor2(self):
+        cmd = ['./scripts/bundle.py',
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               'build']
+
+        if self.skip_tests:
+            cmd.append("--skip-tests")
+
+        self.run_editor_script(cmd)
+
+    def bundle_editor2(self):
+        cmd = ['./scripts/bundle.py',
+               '--platform=%s' % self.target_platform,
+               '--version=%s' % self.version,
+               '--channel=%s' % self.channel,
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               'bundle']
+        self.run_editor_script(cmd)
+
+    def notarize_editor2(self):
+        if self.target_platform != "x86_64-darwin":
+            return
+
+        # create dmg installer
+        cmd = ['./scripts/bundle.py',
+               '--platform=x86_64-darwin',
+               '--version=%s' % self.version,
+               '--channel=%s' % self.channel,
+               '--engine-artifacts=%s' % self.engine_artifacts,
+               '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
+               'installer']
+        self.run_editor_script(cmd)
+
+        # notarize dmg
+        cmd = ['./scripts/notarize.py',
+               join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
+               self.notarization_username,
+               self.notarization_password,
+               self.notarization_itc_provider]
+        self.run_editor_script(cmd)
 
     def release_editor2(self):
         if not self.channel:
@@ -1185,6 +1151,10 @@ instructions.configure=\
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
+#
+# END: EDITOR 2
+# ------------------------------------------------------------
+
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1213,8 +1183,8 @@ instructions.configure=\
         env = self._form_env()
         res = ""
         for key in env:
-            var = key.replace('(','_').replace(')','_') # illegal chars in bash environment variables
-            res = res + ("export %s='%s'\n" % (var, env[key]))
+            if bool(re.match('^[a-zA-Z0-9_]+$', key)):
+                res = res + ("export %s='%s'\n" % (key, env[key]))
         with open(self.save_env_path, "w") as f:
             f.write(res)
 
@@ -1232,6 +1202,9 @@ instructions.configure=\
             self._log(output)
             sys.exit(process.returncode)
 
+# ------------------------------------------------------------
+# BEGIN: RELEASE
+#
     # Get archive files for a single release/sha1
     def _get_files(self, bucket, sha1):
         root = urlparse.urlparse(self.archive_path).path[1:]
@@ -1488,108 +1461,10 @@ instructions.configure=\
             key.set_contents_from_string(template % {'host': host,
                                                      'sha1': release_sha1,
                                                      'channel': self.channel})
+#
+# END: RELEASE
+# ------------------------------------------------------------
 
-    def _get_s3_archive_prefix(self):
-        u = urlparse.urlparse(self.archive_path)
-        assert (u.scheme == 's3')
-        sha1 = self._git_sha1()
-        prefix = os.path.join(u.path, sha1)[1:]
-        return prefix
-
-    # TODO: Fix upload of .dmg (currently aborts if it finds it in the beta branch)
-    def sign_editor(self):
-        u = urlparse.urlparse(self.archive_path)
-        bucket_name = u.hostname
-        bucket = self._get_s3_bucket(bucket_name)
-        prefix = self._get_s3_archive_prefix()
-        bucket_items = bucket.list(prefix=prefix)
-
-        candidates = {}
-        print("Searching for editor signing candidates ...")
-        for entry in bucket_items:
-            entrypath = os.path.dirname(entry.key)
-            if entry.key.endswith('Defold-macosx.cocoa.x86_64.zip'):
-                if entrypath not in candidates.keys():
-                    candidates[entrypath] = {}
-                candidates[entrypath]['zip'] = entry
-            if entry.key.endswith('Defold-macosx.cocoa.x86_64.dmg'):
-                if entrypath not in candidates.keys():
-                    candidates[entrypath] = {}
-                candidates[entrypath]['dmg'] = entry
-
-        print("Found %d candidate(s) for editor signing ..." % len(candidates.keys()))
-        for candidate in candidates.keys():
-            if 'zip' in candidates[candidate].keys():
-                if 'dmg' in candidates[candidate].keys():
-                    print("Pruning candidate, dmg found: %s" % candidate)
-                    del candidates[candidate]
-            elif 'dmg' in candidates[candidate].keys():
-                print("Pruning candidate, dmg found but zip missing: %s" % candidate)
-                del candidates[candidate]
-
-        print("Found %d true candidate(s) for editor signing ..." % (len(candidates.keys())))
-        result = False
-        for candidate in candidates.keys():
-            candidate = candidates[candidate]['zip']
-            root = None
-            builddir = None
-            try:
-                root = tempfile.mkdtemp(prefix='defsign.')
-                builddir = os.path.join(root, 'build')
-                self._mkdirs(builddir)
-
-                # Download the editor from S3
-                filepath = os.path.join(root, 'Defold-macosx.cocoa.x86_64.zip')
-                if not os.path.isfile(filepath):
-                    self._log('Downloading s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
-                    candidate.get_contents_to_filename(filepath)
-                    self._log('Downloaded s3://%s/%s -> %s' % (bucket_name, candidate.name, filepath))
-
-                # Prepare the build directory to create a signed container
-                self._log('Signing %s' % (filepath))
-                dp_defold = os.path.join(builddir, 'Defold-macosx.cocoa.x86_64')
-                fp_defold_app = os.path.join(dp_defold, 'Defold.app')
-                fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
-
-                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold])
-                self.exec_command(['chmod', '-R', '755', dp_defold])
-                os.symlink('/Applications', os.path.join(builddir, 'Applications'))
-
-                # Create a signature for Defold.app and the container
-                # This certificate must be installed on the computer performing the operation
-                certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
-                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app])
-                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg])
-
-                # This step is intermittently failing. In such cases, we retry a few more times
-                # E.g. "/var/folders/6l/p6nhw59s2ns2x9chznhy9k1r0000gp/T/defsign.MamsrV/Defold-macosx.cocoa.x86_64.dmg: The timestamp service is not available."
-                max_tries = 5
-
-                for i in range(max_tries):
-                    try:
-                        self.exec_command_no_quit(['codesign', '-s', certificate, fp_defold_dmg])
-                        break # it went ok, let's continue the process
-                    except ExecException, e:
-                        self._log("Failed attempt %d/%d" % (i+1, max_tries))
-                        if i == max_tries-1:
-                            sys.exit(e.retcode)
-                    time.sleep(10) # seconds
-
-                self._log('Signed %s' % (fp_defold_dmg))
-
-                # Upload the signed container to S3
-                target = "s3://%s/%s.dmg" % (bucket_name, candidate.name[:-4])
-                self.upload_file(fp_defold_dmg, target)
-                result = True
-            finally:
-                self.wait_uploads()
-                if root is not None:
-                    if builddir is not None:
-                        if os.path.islink(os.path.join(builddir, 'Applications')):
-                            os.unlink(os.path.join(builddir, 'Applications'))
-                    shutil.rmtree(root)
-
-        return result
 
     def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1627,6 +1502,9 @@ instructions.configure=\
         for f in futures:
             f()
 
+# ------------------------------------------------------------
+# BEGIN: SMOKE TEST
+#
     def _download_editor2(self, channel, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
@@ -1781,6 +1659,17 @@ instructions.configure=\
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
         return True
+#
+# END: SMOKE TEST
+# ------------------------------------------------------------
+
+
+    def _get_s3_archive_prefix(self):
+        u = urlparse.urlparse(self.archive_path)
+        assert (u.scheme == 's3')
+        sha1 = self._git_sha1()
+        prefix = os.path.join(u.path, sha1)[1:]
+        return prefix
 
     def _get_s3_bucket(self, bucket_name):
         if bucket_name in self.s3buckets:
@@ -1813,6 +1702,23 @@ instructions.configure=\
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket
+
+    def download_file(self, path, url):
+        url = url.replace('\\', '/')
+        self._log('Downloading %s -> %s' % (url, path))
+        self._mkdirs(os.path.dirname(path))
+        u = urlparse.urlparse(url)
+
+        if u.netloc == '':
+            print("Not implemented")
+        elif u.scheme == 's3':
+            from boto.s3.key import Key
+
+            bucket = self._get_s3_bucket(u.netloc)
+            k = Key(bucket)
+            k.key = u.path
+            k.get_contents_to_filename(path)
+            self._log('Downloaded %s -> %s' % (url, path))
 
     def upload_file(self, path, url):
         url = url.replace('\\', '/')
@@ -2024,41 +1930,36 @@ if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)
 
 Commands:
-distclean       - Removes the DYNAMO_HOME folder
-install_ext     - Install external packages
-install_ems     - Install emscripten sdk
-sync_archive    - Sync engine artifacts from S3
-activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
-build_engine    - Build engine
-archive_engine  - Archive engine (including builtins) to path specified with --archive-path
-install_go      - Install go dev tools
-build_go        - Build go code
-archive_go      - Archive go binaries
-test_cr         - Test editor and server
-build_server    - Build server
-build_editor    - Build editor
-archive_editor  - Archive editor to path specified with --archive-path
-sign_editor     - Sign the editor and upload a dmg archive to S3
-archive_server  - Archive server to path specified with --archive-path
-build_bob       - Build bob with native libraries included for cross platform deployment
-archive_bob     - Archive bob to path specified with --archive-path
-build_docs      - Build documentation
-build_builtins  - Build builtin content archive
-bump            - Bump version number
-release         - Release editor
-shell           - Start development shell
-smoke_test      - Test editor and engine in combination
-local_smoke     - Test run smoke test using local dev environment
+distclean        - Removes the DYNAMO_HOME folder
+install_ext      - Install external packages
+install_ems      - Install emscripten sdk
+sync_archive     - Sync engine artifacts from S3
+activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
+build_engine     - Build engine
+archive_engine   - Archive engine (including builtins) to path specified with --archive-path
+install_go       - Install go dev tools
+build_go         - Build go code
+archive_go       - Archive go binaries
+build_editor2    - Build editor
+bundle_editor2   - Bundle editor (zip)
+archive_editor2  - Archive editor to path specified with --archive-path
+download_editor2 - Download editor bundle (zip)
+notarize_editor2 - Notarize the macOS version of the editor
+build_bob        - Build bob with native libraries included for cross platform deployment
+archive_bob      - Archive bob to path specified with --archive-path
+build_docs       - Build documentation
+build_builtins   - Build builtin content archive
+bump             - Bump version number
+release          - Release editor
+shell            - Start development shell
+smoke_test       - Test editor and engine in combination
+local_smoke      - Test run smoke test using local dev environment
 
 Multiple commands can be specified
 
 To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 '''
     parser = optparse.OptionParser(usage)
-
-    parser.add_option('--eclipse-home', dest='eclipse_home',
-                      default = None,
-                      help = 'Eclipse directory')
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
@@ -2114,11 +2015,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Set version explicitily when bumping version')
 
-    parser.add_option('--eclipse', dest='eclipse',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Output build commands in a format eclipse can parse')
-
     parser.add_option('--branch', dest='branch',
                       default = None,
                       help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
@@ -2127,10 +2023,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
 
-    parser.add_option('--eclipse-version', dest='eclipse_version',
-                      default = '3.8',
-                      help = 'Eclipse version')
-
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
                       help = 'What engine version to bundle the Editor with (auto, dynamo-home, archived, archived-stable or a SHA1)')
@@ -2138,6 +2030,18 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--save-env-path', dest='save_env_path',
                       default = None,
                       help = 'Save environment variables to a file')
+
+    parser.add_option('--notarization-username', dest='notarization_username',
+                      default = None,
+                      help = 'Username to use when sending the editor for notarization')
+
+    parser.add_option('--notarization-password', dest='notarization_password',
+                      default = None,
+                      help = 'Password to use when sending the editor for notarization')
+
+    parser.add_option('--notarization-itc-provider', dest='notarization_itc_provider',
+                      default = None,
+                      help = 'Optional iTunes Connect provider to use when sending the editor for notarization')
 
     options, all_args = parser.parse_args()
 
@@ -2155,7 +2059,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
-                      eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
@@ -2166,13 +2069,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       archive_path = options.archive_path,
                       package_path = options.package_path,
                       set_version = options.set_version,
-                      eclipse = options.eclipse,
                       branch = options.branch,
                       channel = options.channel,
-                      eclipse_version = options.eclipse_version,
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
-                      save_env_path = options.save_env_path)
+                      save_env_path = options.save_env_path,
+                      notarization_username = options.notarization_username,
+                      notarization_password = options.notarization_password,
+                      notarization_itc_provider = options.notarization_itc_provider)
 
     for cmd in args:
         f = getattr(c, cmd, None)

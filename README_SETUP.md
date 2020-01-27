@@ -32,17 +32,19 @@ Catalina comes with both 64-bit Python 2.7.16 and Easy Install installed. For ol
 
 #### Windows
 
-Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
-
-[Follow the instructions](https://setuptools.readthedocs.io/en/latest/easy_install.html#installing-easy-install) to install Easy Install.
+Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually. You also need to add `C:\Python27\Scripts` to the PATH to be able to use Easy Install.
 
 #### Linux
 
 Install Python using:
 
-    > sudo apt-get install python-setuptools
+    > sudo apt-get install python 2.7 python-setuptools
 
-[Follow the instructions](https://setuptools.readthedocs.io/en/latest/easy_install.html#installing-easy-install) to install Easy Install.
+Configure use of Easy Install:
+
+    > sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    > sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    > chmod +x /usr/local/bin/easy_install
 
 
 ## Additional required software
@@ -88,15 +90,17 @@ Download and install using `apt-get`:
 
 This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](http://www.mingw.org/download/installer) and run the installer and check these packages (binary):
 
-	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-	* MSYS Base System: `msys-base`, `msys-bash`
-	* optional packages `msys-dos2unix`
+	* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
+	* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
+    * MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
 
 Select the menu option `Installation -> Apply Changes`.
 
 You also need to install `wget`. From the mingw terminal run:
 
 	> mingw-get install msys-wget-bin msys-zip msys-unzip
+
+**NOTE:** You can start the visual installer again by simply running `mingw-get`
 
 #### Git
 

@@ -402,7 +402,7 @@ namespace dmGraphics
         dmHashUpdateBuffer64(&shader_hash_state, source, (uint32_t) sourceSize);
         shaderModuleOut->m_Hash = dmHashFinal64(&shader_hash_state);
 
-        return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);;
+        return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);
     }
 
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,

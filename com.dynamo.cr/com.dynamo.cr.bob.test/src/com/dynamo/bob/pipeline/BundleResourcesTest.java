@@ -9,10 +9,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipFile;
@@ -21,21 +23,20 @@ import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.swt.widgets.Display;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.osgi.framework.Bundle;
-import org.osgi.framework.FrameworkUtil;
 
+import java.security.CodeSource;
 import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 
@@ -44,6 +45,7 @@ public class BundleResourcesTest {
 
     private MockFileSystem fileSystem;
     private Project project;
+    private ZipMountPoint mp;
 
     @Rule
     public TemporaryFolder tmpFolder = new TemporaryFolder();
@@ -53,21 +55,20 @@ public class BundleResourcesTest {
         this.project.dispose();
     }
 
-    public BundleResourcesTest() {
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
-
+    public BundleResourcesTest() throws IOException, URISyntaxException {
         this.fileSystem = new MockFileSystem();
         this.fileSystem.setBuildDirectory("");
         this.project = new Project(this.fileSystem);
         this.project.clearProjectProperties();
 
-        ClassLoaderScanner scanner = new TestClassLoaderScanner();
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+
+        CodeSource src = getClass().getProtectionDomain().getCodeSource();
+        String jarPath = new File(src.getLocation().toURI()).getAbsolutePath();
+        this.mp = new ZipMountPoint(null, jarPath, false);
+        this.mp.mount();
 
         addResourceDirectory("/testextension");
         addResourceDirectory("/testappmanifest");
@@ -85,35 +86,53 @@ public class BundleResourcesTest {
         this.fileSystem.addDirectory(path);
     }
 
-    private void addResourceDirectory(String dir) {
-        Bundle bundle = FrameworkUtil.getBundle(getClass());
-        Enumeration<URL> entries = bundle.findEntries(dir, "*", true);
-        if (entries != null) {
-            while (entries.hasMoreElements()) {
-                final URL url = entries.nextElement();
-                IPath path = new Path(url.getPath()).removeFirstSegments(1);
-                String p = "/" + path.toString();
 
-                // Make sure the filesystem know if the resource is a file or a directory.
-                if (path.toString().lastIndexOf('/') != path.toString().length() - 1) {
-                    InputStream is = null;
-                    try {
-                        is = url.openStream();
-                        ByteArrayOutputStream os = new ByteArrayOutputStream();
-                        IOUtils.copy(is, os);
-                        addFile(p, os.toByteArray());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    } finally {
-                        IOUtils.closeQuietly(is);
-                    }
-                } else {
-                    // Explicitly add directories as well, the tests need to verify that they
-                    // are not included when collecting sources/bundle resources.
-                    addDirectory(p);
+    class Walker extends FileSystemWalker {
+
+        private String basePath;
+        private ZipMountPoint mp;
+
+        public Walker(ZipMountPoint mp, String basePath) {
+            this.mp = mp;
+            this.basePath = basePath;
+            if (basePath.startsWith("/")) {
+                this.basePath = basePath.substring(1, basePath.length());
+            }
+        }
+
+        @Override
+        public void handleFile(String path, Collection<String> results) {
+            String first = path.substring(0, path.indexOf("/"));
+            if (first.equals(basePath)) {
+                try {
+                    IResource resource = this.mp.get(path);
+                    path = path.substring(basePath.length()+1);
+                    addFile("/" + path, resource.getContent());
+                } catch (IOException e) {
+
                 }
             }
         }
+
+        @Override
+        public boolean handleDirectory(String path, Collection<String> results) {
+            path = FilenameUtils.normalize(path, true);
+            if (path.endsWith("/")) {
+                path = path.substring(0, path.length()-1);
+            }
+            String first = path.contains("/") ? path.substring(0, path.indexOf("/")) : path;
+            if (!first.equals(basePath)) {
+                return false;
+            }
+            path = path.substring(basePath.length(), path.length());
+            addDirectory(path);
+            return true;
+        }
+    }
+
+    private void addResourceDirectory(String dir) {
+        List<String> results = new ArrayList<String>(1024);
+        this.mp.walk(dir, new Walker(this.mp, dir), results);
     }
 
     @Test
@@ -323,25 +342,27 @@ public class BundleResourcesTest {
     // Extension source collecting
     @Test
     public void testExtensionSources() throws Exception {
-
-        // Should find: _app/app.manifest, ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
         List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
-        assertEquals(5, resources.size());
+        assertEquals(7, resources.size());
 
         assertTrue(findInResourceList(resources, "_app/app.manifest") != null);
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
         assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
         assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
         assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
+        assertTrue(findInResourceList(resources, "extension1/res/common/collision.txt") != null);
+        assertTrue(findInResourceList(resources, "extension1/res/common/subdir/subdirtest.txt") != null);
 
         Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "release");
         resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, appmanifestOptions);
-        assertEquals(4, resources.size());
+        assertEquals(6, resources.size());
 
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
         assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
         assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        assertTrue(findInResourceList(resources, "extension1/res/common/collision.txt") != null);
+        assertTrue(findInResourceList(resources, "extension1/res/common/subdir/subdirtest.txt") != null);
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String synthesizedManifest = new String(appManifest.getContent());
         String expectedManifest = "";
@@ -357,7 +378,7 @@ public class BundleResourcesTest {
 
         project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
         List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
-        assertEquals(5, resources.size());
+        assertEquals(7, resources.size());
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());
         String expectedManifest = "";

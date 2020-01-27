@@ -11,6 +11,7 @@
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
 #include "../graphics_private.h"
+#include "../graphics_native.h"
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
@@ -1317,6 +1318,26 @@ bail:
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {}
 
+    #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
+
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSOpenGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HWND, WindowsHWND);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HGLRC, WindowsHGLRC);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLContext, AndroidEGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
+
+    #undef WRAP_GLFW_NATIVE_HANDLE_CALL
+
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context->m_CurrentRenderTarget);
@@ -1836,7 +1857,11 @@ bail:
         uint16_t uniforms_to_write          = shader_module->m_UniformCount;
         uint16_t uniform_to_write_index     = 0;
         uint16_t uniform_index              = 0;
+        uint16_t image_to_write_index       = 0;
+        uint16_t buffer_to_write_index      = 0;
         VkWriteDescriptorSet vk_write_descriptors[max_write_descriptors];
+        VkDescriptorImageInfo vk_write_image_descriptors[max_write_descriptors];
+        VkDescriptorBufferInfo vk_write_buffer_descriptors[max_write_descriptors];
 
         while(uniforms_to_write > 0)
         {
@@ -1855,7 +1880,7 @@ bail:
             if (IsUniformTextureSampler(res))
             {
                 Texture* texture = g_Context->m_TextureUnits[res.m_TextureUnit];
-                VkDescriptorImageInfo vk_image_info;
+                VkDescriptorImageInfo& vk_image_info = vk_write_image_descriptors[image_to_write_index++];
                 vk_image_info.imageLayout         = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 vk_image_info.imageView           = texture->m_Handle.m_ImageView;
                 vk_image_info.sampler             = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
@@ -1879,7 +1904,7 @@ bail:
                 //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
                 //    offset is the base offset from which the dynamic offset is applied and range is the static size
                 //    used for all dynamic offsets."
-                VkDescriptorBufferInfo vk_buffer_info;
+                VkDescriptorBufferInfo& vk_buffer_info = vk_write_buffer_descriptors[buffer_to_write_index++];
                 vk_buffer_info.buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
                 vk_buffer_info.offset = 0;
                 vk_buffer_info.range  = uniform_size;
@@ -1896,6 +1921,8 @@ bail:
             {
                 vkUpdateDescriptorSets(vk_device, max_write_descriptors, vk_write_descriptors, 0, 0);
                 uniform_to_write_index = 0;
+                image_to_write_index = 0;
+                buffer_to_write_index = 0;
             }
         }
 
@@ -2082,6 +2109,7 @@ bail:
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
 
         // The 'first' value that comes in is intended to be a byte offset,
@@ -2095,6 +2123,7 @@ bail:
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
@@ -2223,19 +2252,15 @@ bail:
         *byte_offset_end_out = byte_offset;
     }
 
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static void CreateProgram(HContext context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
-        Program* program              = new Program;
-        ShaderModule* vertex_module   = (ShaderModule*) vertex_program;
-        ShaderModule* fragment_module = (ShaderModule*) fragment_program;
-
         // Set pipeline creation info
         VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
         memset(&vk_vertex_shader_create_info, 0, sizeof(vk_vertex_shader_create_info));
 
         vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
-        vk_vertex_shader_create_info.module = ((ShaderModule*) vertex_program)->m_Module;
+        vk_vertex_shader_create_info.module = vertex_module->m_Module;
         vk_vertex_shader_create_info.pName  = "main";
 
         VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
@@ -2243,7 +2268,7 @@ bail:
 
         vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-        vk_fragment_shader_create_info.module = ((ShaderModule*) fragment_program)->m_Module;
+        vk_fragment_shader_create_info.module = fragment_module->m_Module;
         vk_fragment_shader_create_info.pName  = "main";
 
         program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]      = vk_vertex_shader_create_info;
@@ -2319,50 +2344,47 @@ bail:
             vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
+    }
 
+    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    {
+        Program* program = new Program;
+        CreateProgram(context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
         return (HProgram) program;
+    }
+
+    static void DestroyProgram(HContext context, Program* program)
+    {
+        if (program->m_UniformData)
+        {
+            delete[] program->m_UniformData;
+            delete[] program->m_UniformDataOffsets;
+        }
+
+        if (program->m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program->m_PipelineLayout, 0);
+        }
+
+        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        {
+            if (program->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program->m_DescriptorSetLayout[i], 0);
+            }
+        }
     }
 
     void DeleteProgram(HContext context, HProgram program)
     {
         assert(program);
         Program* program_ptr = (Program*) program;
-        if (program_ptr->m_UniformData)
-        {
-            delete[] program_ptr->m_UniformData;
-            delete[] program_ptr->m_UniformDataOffsets;
-        }
-
-        if (program_ptr->m_PipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program_ptr->m_PipelineLayout, 0);
-        }
-
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
-        {
-            if (program_ptr->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
-            {
-                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program_ptr->m_DescriptorSetLayout[i], 0);
-            }
-        }
-
+        DestroyProgram(context, program_ptr);
         delete program_ptr;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static void DestroyShader(ShaderModule* shader)
     {
-        return true;
-    }
-
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
-    {
-        return true;
-    }
-
-    void DeleteVertexProgram(HVertexProgram prog)
-    {
-        ShaderModule* shader = (ShaderModule*) prog;
-
         DestroyShaderModule(g_Context->m_LogicalDevice.m_Device, shader);
 
         for (uint32_t i=0; i < shader->m_UniformCount; i++)
@@ -2384,7 +2406,41 @@ bail:
         {
             delete[] shader->m_Uniforms;
         }
+    }
 
+    static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
+    {
+        ShaderModule tmp_shader;
+        VkResult res = CreateShaderModule(g_Context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, &tmp_shader);
+        if (res == VK_SUCCESS)
+        {
+            DestroyShader(shader);
+            memset(shader, 0, sizeof(*shader));
+
+            // Transfer created module to old pointer and recreate resource bindings
+            shader->m_Hash    = tmp_shader.m_Hash;
+            shader->m_Module  = tmp_shader.m_Module;
+            CreateShaderResourceBindings(shader, ddf, (uint32_t) g_Context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return ReloadShader((ShaderModule*) prog, ddf);
+    }
+
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return ReloadShader((ShaderModule*) prog, ddf);
+    }
+
+    void DeleteVertexProgram(HVertexProgram prog)
+    {
+        ShaderModule* shader = (ShaderModule*) prog;
+        DestroyShader(shader);
         delete shader;
     }
 
@@ -2425,6 +2481,9 @@ bail:
 
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
+        Program* program_ptr = (Program*) program;
+        DestroyProgram(context, program_ptr);
+        CreateProgram(context, program_ptr, (ShaderModule*) vert_program, (ShaderModule*) frag_program);
         return true;
     }
 

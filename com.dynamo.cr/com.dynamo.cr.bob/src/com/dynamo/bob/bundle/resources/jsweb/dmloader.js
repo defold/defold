@@ -23,6 +23,7 @@ var Combine = {
     _onAllTargetsBuilt:[],      // signature: void
     _onDownloadProgress: [],    // signature: downloaded, total
 
+    _currentDownloadBytes: 0,
     _totalDownloadBytes: 0,
 
     _retry_time: 0,             // pause before retry file loading after error
@@ -91,6 +92,7 @@ var Combine = {
         this._onAllTargetsBuilt = [];
         this._onDownloadProgress = [];
 
+        this._currentDownloadBytes = 0;
         this._totalDownloadBytes = 0;
     },
 
@@ -98,6 +100,7 @@ var Combine = {
         var json = JSON.parse(xhr.responseText);
         this._targets = json.content;
         this._totalDownloadBytes = 0;
+        this._currentDownloadBytes = 0;
 
         var targets = this._targets;
         for(var i=0; i<targets.length; ++i) {
@@ -129,20 +132,22 @@ var Combine = {
             throw "Request out of order";
         }
 
+        var item = target.pieces[index];
         target.lastRequestedPiece = index;
         target.progress = {};
+        target.progress[item.name] = {total: 0, downloaded: 0};
 
-        var item = target.pieces[index];
         var xhr = new XMLHttpRequest();
         xhr.open('GET', this._archiveLocationFilter('/' + item.name), true);
         xhr.responseType = 'arraybuffer';
         xhr.onprogress = function(evt) {
-           target.progress[item.name] = {total: 0, downloaded: 0};
             if (evt.total && evt.lengthComputable) {
                 target.progress[item.name].total = evt.total;
             }
             if (evt.loaded && evt.lengthComputable) {
+                var delta = evt.loaded - target.progress[item.name].downloaded;
                 target.progress[item.name].downloaded = evt.loaded;
+                Combine._currentDownloadBytes += delta;
                 Combine.updateProgress(target);
             }
         };
@@ -175,12 +180,8 @@ var Combine = {
     },
 
     updateProgress: function(target) {
-        var total_downloaded = 0;
-        for (var p in target.progress) {
-            total_downloaded += target.progress[p].downloaded;
-        }
         for(i = 0; i<this._onDownloadProgress.length; ++i) {
-            this._onDownloadProgress[i](total_downloaded, this._totalDownloadBytes);
+            this._onDownloadProgress[i](this._currentDownloadBytes, this._totalDownloadBytes);
         }
     },
 
@@ -697,5 +698,3 @@ window.onerror = function(err, url, line, column, errObj) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
 };
-
-

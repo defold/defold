@@ -15,12 +15,11 @@ import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
-import com.dynamo.bob.OsgiScanner;
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -46,11 +45,11 @@ public class OSXBundlerTest {
     }
 
     private void assertPList() {
-        assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/Info.plist")).isFile());
+        assertTrue(new File(concat(outputDir, "unnamed.app/Contents/Info.plist")).isFile());
     }
 
     private void assertExe() throws IOException {
-        assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/Unnamed")).isFile());
+        assertTrue(new File(concat(outputDir, "unnamed.app/Contents/MacOS/unnamed")).isFile());
     }
 
     protected void createBuiltins() throws IOException {
@@ -71,7 +70,7 @@ public class OSXBundlerTest {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
@@ -88,7 +87,17 @@ public class OSXBundlerTest {
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
         build();
-        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
+        assertEquals("test_icon", readFile(concat(outputDir, "unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
+        assertExe();
+        assertPList();
+    }
+
+    @Test
+    // Issue-3442 The bundle process crashed if an empty value was set for app_icon
+    public void testBundleWithNoIcon() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createBuiltins();
+        createFile(contentRoot, "game.project", "[osx]\napp_icon=\n");
+        build();
         assertExe();
         assertPList();
     }

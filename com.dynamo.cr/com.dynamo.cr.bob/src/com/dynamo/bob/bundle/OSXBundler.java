@@ -28,7 +28,7 @@ public class OSXBundler implements IBundler {
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
         String name = projectProperties.getStringValue("osx", "app_icon");
-        if (name != null) {
+        if (name != null && name.trim().length() > 0) {
             File inFile = new File(projectRoot, name);
             File outFile = new File(resourcesDir, ICON_NAME);
             FileUtils.copyFile(inFile, outFile);
