@@ -361,11 +361,6 @@ public class BundleHelper {
             args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
             args.add("-F"); args.add(apk.getAbsolutePath());
 
-            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
-            if (debuggable) {
-                args.add("--debug-mode");
-            }
-
             File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
             // Get a list of relative paths, in the order gradle returned them
@@ -670,6 +665,18 @@ public class BundleHelper {
         } else {
             properties.put("orientation-support", "sensor");
         }
+
+        // Since we started to always fill in the default values to the propject properties
+        // it is harder to distinguish what is a user defined value.
+        // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
+        if (projectProperties.isDefault("android", "debuggable")) {
+            Map<String, Object> propGroup = propertiesMap.get("android");
+            if (propGroup != null && propGroup.containsKey("debuggable")) {
+                boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG);
+                propGroup.put("debuggable", debuggable ? "true":"false");
+            }
+        }
+
         return properties;
     }
 
