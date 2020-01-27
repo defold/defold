@@ -162,6 +162,8 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
+    waf_opts.append('--opt-level=0')
+
     cmd = ' '.join(args + opts)
 
     # Add arguments to waf after a double-dash
