@@ -71,11 +71,12 @@ diff --git a/src/google/protobuf/stubs/common.cc b/src/google/protobuf/stubs/com
 index 1e2d68d..0204bd6 100644
 --- a/src/google/protobuf/stubs/common.cc
 +++ b/src/google/protobuf/stubs/common.cc
-@@ -44,6 +44,7 @@
+@@ -44,6 +44,8 @@
  #define snprintf _snprintf    // see comment in strutil.cc
  #elif defined(HAVE_PTHREAD)
  #include <pthread.h>
 +#elif defined(__EMSCRIPTEN__)
++#elif defined(__NX__)
  #else
  #error "No suitable threading library available."
  #endif
@@ -83,7 +84,7 @@ index 1e2d68d..0204bd6 100644
    // TODO(kenton):  Maybe keep track of locking thread ID like with WIN32?
  }
 
-+#elif defined(__EMSCRIPTEN__)
++#elif defined(__EMSCRIPTEN__) || defined(__NX__)
 +
 +struct Mutex::Internal {
 +};

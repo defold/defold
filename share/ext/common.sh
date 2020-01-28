@@ -1,4 +1,8 @@
-# config
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 IOS_SDK_VERSION=13.1
 IOS_SIMULATOR_SDK_VERSION=13.1
@@ -42,10 +46,11 @@ function cmi_make() {
 }
 
 function cmi_unpack() {
-    tar xfz ../../download/$FILE_URL --strip-components=1
+    tar xfz $SCRIPTDIR/download/$FILE_URL --strip-components=1
 }
 
 function cmi_configure() {
+    echo CONFIGURE_ARGS=$CONFIGURE_ARGS $2
     ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
         --disable-shared \
         --prefix=${PREFIX} \
@@ -138,6 +143,10 @@ function save_function() {
 
 function windows_path_to_posix() {
     echo "/$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
+}
+
+function path_to_posix() {
+    echo "$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
 }
 
 function cmi_setup_vs2015_env() {
@@ -362,7 +371,12 @@ function cmi() {
             ;;
 
         *)
-            echo "Unknown target $1" && exit 1
+            if [ -f "$SCRIPTDIR/common_private.sh" ]; then
+                source $SCRIPTDIR/common_private.sh
+                cmi_private $@
+            else
+                echo "Unknown target $1" && exit 1
+            fi
             ;;
     esac
 }
