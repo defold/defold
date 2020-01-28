@@ -1360,7 +1360,7 @@ bail:
         vk_clear_rect.layerCount         = 1;
 
         // Clear color
-        if (flags & BUFFER_TYPE_COLOR_BIT)
+        if (context->m_CurrentRenderTarget->m_TextureColor && flags & BUFFER_TYPE_COLOR_BIT)
         {
             float r = ((float)red)/255.0f;
             float g = ((float)green)/255.0f;
@@ -1376,7 +1376,7 @@ bail:
         }
 
         // Clear depth / stencil
-        if (flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT))
+        if (context->m_CurrentRenderTarget->m_TextureDepthStencil && flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT))
         {
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
