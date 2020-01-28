@@ -1359,8 +1359,11 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
+        bool has_color_texture         = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureColor;
+        bool has_depth_stencil_texture = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureDepthStencil;
+
         // Clear color
-        if (context->m_CurrentRenderTarget->m_TextureColor && flags & BUFFER_TYPE_COLOR_BIT)
+        if (has_color_texture && (flags & BUFFER_TYPE_COLOR_BIT))
         {
             float r = ((float)red)/255.0f;
             float g = ((float)green)/255.0f;
@@ -1376,7 +1379,7 @@ bail:
         }
 
         // Clear depth / stencil
-        if (context->m_CurrentRenderTarget->m_TextureDepthStencil && flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT))
+        if (has_depth_stencil_texture && (flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)))
         {
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
