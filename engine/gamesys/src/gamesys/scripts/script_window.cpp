@@ -303,7 +303,7 @@ static const luaL_reg Module_methods[] =
 
 /*# iconify window event
  *
- * This event is sent to a window event listener when the game window or app screen is
+ * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
  * iconified (reduced to an application icon in a toolbar, application tray or similar).
  *
  * @name window.WINDOW_EVENT_ICONFIED
@@ -312,7 +312,7 @@ static const luaL_reg Module_methods[] =
 
 /*# deiconified window event
  *
- * This event is sent to a window event listener when the game window or app screen is
+ * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
  * restored after being iconified.
  *
  * @name window.WINDOW_EVENT_DEICONIFIED
