@@ -79,6 +79,8 @@ namespace dmExtension
      *
      * Event id enumeration.
      *
+     * EVENT_ID_INCONIFYAPP and EVENT_ID_DEICONIFYAPP only available on [icon:osx] [icon:windows] [icon:linux]
+     *
      * @enum
      * @name dmExtension::EventID
      * @member dmExtension::EVENT_ID_ACTIVATEAPP
