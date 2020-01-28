@@ -147,8 +147,6 @@ static void ShutdownEngine(bool call_exit)
 
     if(_glfwWin.windowFocusCallback)
         _glfwWin.windowFocusCallback(0);
-    if(_glfwWin.windowIconifyCallback)
-        _glfwWin.windowIconifyCallback(1);
 }
 
 - (void)applicationDidBecomeActive:(UIApplication *)application
@@ -156,8 +154,6 @@ static void ShutdownEngine(bool call_exit)
     _glfwWin.iconified = GL_FALSE;
     if(_glfwWin.windowFocusCallback)
         _glfwWin.windowFocusCallback(1);
-    if(_glfwWin.windowIconifyCallback)
-        _glfwWin.windowIconifyCallback(0);
 }
 
 - (void)dealloc

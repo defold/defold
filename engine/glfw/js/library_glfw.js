@@ -417,9 +417,6 @@ var LibraryGLFW = {
       if (GLFW.focusFunc) {
         Runtime.dynCall('vi', GLFW.focusFunc, [focus]);
       }
-      if (GLFW.iconifyFunc) {
-          Runtime.dynCall('vi', GLFW.iconifyFunc, [!focus]);
-      }
     },
 
     onFullScreenEventChange: function(event) {
