@@ -1,0 +1,39 @@
+#! /usr/bin/env python
+
+srcdir = '.'
+blddir = 'build'
+
+import os, sys, re
+import waf_dynamo
+
+
+Task.simple_task_type('dex', '${DX} --dex --output ${TGT} ${SRC}',
+                      color='YELLOW',
+                      after='jar_create',
+                      shell=True)
+
+def unpack_package_task(bld, src, name=None):
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    parts = src.split('/')
+    filename = parts[-1]
+    src_path = src.replace('/', os.sep)
+    return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
+                            target = filename,
+                            name = name,
+                            shell = True)
+
+def init():
+    pass
+
+def set_options(opt):
+    for d in get_libraries():
+        opt.sub_options(d)
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    for d in get_libraries():
+        conf.conf.sub_config(d)
+
+def build(bld):
+    for d in get_libraries():
+        bld.add_subdirs(d)
