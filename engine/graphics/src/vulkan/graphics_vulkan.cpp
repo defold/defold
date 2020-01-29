@@ -88,7 +88,7 @@ namespace dmGraphics
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
         dmArray<VkCommandBuffer>        m_MainCommandBuffers;
-        //dmArray<ResourcesToDestroyList*> m_MainResourcesToDestroy;
+        VkCommandBuffer                 m_MainCommandBufferUploadHelper;
         ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
         dmArray<ScratchBuffer>          m_MainScratchBuffers;
         dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
@@ -597,6 +597,9 @@ namespace dmGraphics
             context->m_MainCommandBuffers.Begin());
         CHECK_VK_ERROR(res);
 
+        // Create an additional single-time buffer for device uploading
+        CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
+
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < num_swap_chain_images; ++i)
         {
@@ -1064,6 +1067,7 @@ bail:
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
+            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
             for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
             {
@@ -1355,8 +1359,11 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
+        bool has_color_texture         = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureColor;
+        bool has_depth_stencil_texture = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureDepthStencil;
+
         // Clear color
-        if (flags & BUFFER_TYPE_COLOR_BIT)
+        if (has_color_texture && (flags & BUFFER_TYPE_COLOR_BIT))
         {
             float r = ((float)red)/255.0f;
             float g = ((float)green)/255.0f;
@@ -1372,7 +1379,7 @@ bail:
         }
 
         // Clear depth / stencil
-        if (flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT))
+        if (has_depth_stencil_texture && (flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)))
         {
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
@@ -1413,14 +1420,12 @@ bail:
         }
         else
         {
-            CreateCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-
             VkCommandBufferBeginInfo vk_command_buffer_begin_info;
             memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
 
             vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
+            vk_command_buffer                  = context->m_MainCommandBufferUploadHelper;
             res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
             CHECK_VK_ERROR(res);
         }
@@ -1431,6 +1436,7 @@ bail:
         if (!context->m_FrameBegun)
         {
             vkEndCommandBuffer(vk_command_buffer);
+            vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
         }
     }
 
