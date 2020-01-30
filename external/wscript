@@ -4,49 +4,30 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys, re
-import waf_dynamo
-# import Task
-# from TaskGen import extension, taskgen, feature, after, before
+import waf_dynamo, waf_package
+import Task
 
-# @taskgen
-# @after('apply_link')
-# @feature('cprogram')
-# def create_app_bundle(self):
-#     if not re.match('arm.*?darwin', self.env['PLATFORM']):
-#         return
-#     Utils.def_attrs(self, bundleid = None, provision = None, entitlements = None)
+PACKAGES='bullet3d'.split()
 
-#     app_bundle_task = self.create_task('app_bundle', self.env)
-#     app_bundle_task.bundleid = self.bundleid
-#     app_bundle_task.set_inputs(self.link_task.outputs)
-
-# def copy_file_task(bld, src, name=None):
-#     copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
-#     parts = src.split('/')
-#     filename = parts[-1]
-#     src_path = src.replace('/', os.sep)
-#     return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
-#                             target = filename,
-#                             name = name,
-#                             shell = True)
-
-def get_libraries():
-    return [x for x in os.listdir('.') if os.path.isdir(x    )]
-
-def init():
-    print "HELLO"
-    print get_libraries()
-    pass
+def get_packages():
+    return PACKAGES
 
 def set_options(opt):
-    for d in get_libraries():
-        opt.sub_options(d)
     opt.tool_options('waf_dynamo')
 
+    for d in get_packages():
+        opt.recurse(d)
+
 def configure(conf):
-    for d in get_libraries():
-        conf.conf.sub_config(d)
+    conf.check_tool('waf_dynamo')
+
+    for d in get_packages():
+        conf.recurse(d)
 
 def build(bld):
-    for d in get_libraries():
-        bld.add_subdirs(d)
+    for d in get_packages():
+        bld.recurse(d)
+
+def package(ctx):
+    for d in get_packages():
+        ctx.recurse(d)

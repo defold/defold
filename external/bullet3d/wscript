@@ -3,37 +3,95 @@
 srcdir = '.'
 blddir = 'build'
 
+APPNAME='bullet'
+VERSION='2.77'
+
 import os, sys, re
 import waf_dynamo
 
-
-Task.simple_task_type('dex', '${DX} --dex --output ${TGT} ${SRC}',
-                      color='YELLOW',
-                      after='jar_create',
-                      shell=True)
-
-def unpack_package_task(bld, src, name=None):
-    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
-    parts = src.split('/')
-    filename = parts[-1]
-    src_path = src.replace('/', os.sep)
-    return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
-                            target = filename,
-                            name = name,
-                            shell = True)
+sys.path.append("..")
+import waf_package
 
 def init():
     pass
 
 def set_options(opt):
-    for d in get_libraries():
-        opt.sub_options(d)
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
-    for d in get_libraries():
-        conf.conf.sub_config(d)
+    conf.check_tool('waf_dynamo')
+
+    conf.env.append_unique('CXXDEFINES', 'NDEBUG')
 
 def build(bld):
-    for d in get_libraries():
-        bld.add_subdirs(d)
+
+    packagedir = 'package/%s-%s/src' % (APPNAME, VERSION)
+
+    path = './%s/BulletCollision' % packagedir
+    bullet_collision = bld.new_task_gen(features = 'cxx cstaticlib',
+                                        defines = ['NDEBUG'],
+                                        includes = '. ..',
+                                        target = 'BulletCollision')
+
+    bullet_collision.find_sources_in_dirs(['%s/BroadphaseCollision' % path,
+                                           '%s/CollisionShapes' % path,
+                                           '%s/CollisionDispatch' % path,
+                                           '%s/Gimpact' % path,
+                                           '%s/NarrowPhaseCollision' % path])
+    bullet_collision.install_path = None
+
+    path = './%s/BulletDynamics' % packagedir
+    bullet_dynamics = bld.new_task_gen(features = 'cxx cstaticlib',
+                                        defines = ['NDEBUG'],
+                                       includes = '. ..',
+                                       target = 'BulletDynamics')
+    bullet_dynamics.find_sources_in_dirs([  '%s/Character' % path,
+                                            '%s/ConstraintSolver' % path,
+                                            '%s/Dynamics' % path,
+                                            '%s/Vehicle' % path])
+    bullet_dynamics.install_path = None
+
+    path = './%s/LinearMath' % packagedir
+    linear_math = bld.new_task_gen(features = 'cxx cstaticlib',
+                                   defines = ['NDEBUG'],
+                                   includes = '. ..',
+                                   target = 'LinearMath')
+    linear_math.find_sources_in_dirs(path)
+    linear_math.install_path = None
+
+
+    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletCollision')
+    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletDynamics')
+    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'LinearMath')
+
+    waf_package.package_install_files(bld,
+                        '${PREFIX}/%s-%s/include' % (APPNAME, VERSION),
+                        bld.path.ant_glob('**/*.h'),
+                        cwd=bld.path.find_dir(packagedir), relative_trick=True)
+
+def package(conf):
+    env = waf_package.load_build_context(blddir)
+
+    cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION))
+
+    files = waf_package.glob_files("include/**/*", cwd=cwd)
+    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
+    waf_package.create_tar(files, cwd, target=target)
+
+    files = waf_package.glob_files(["bin/%s/*" % env.PLATFORM,
+                                    "bin/%s/**/*" % env.PLATFORM,
+                                    "lib/%s/*" % env.PLATFORM,
+                                    "lib/%s/**/*" % env.PLATFORM],
+                                    cwd=cwd)
+
+    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, env.PLATFORM))
+    waf_package.create_tar(files, cwd, target=target)
+
+
+
+
+
+
+
+
+

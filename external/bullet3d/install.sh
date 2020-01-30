@@ -25,7 +25,7 @@ function cmi_unpack() {
     #unzip -q ../../download/$FILE_URL
     unzip -q ../$FILE_URL
     pushd ${PRODUCT}-${VERSION}
-    rm -rf Demos Extras UnitTests msvc
+    rm -rf Demos Extras UnitTests msvc Glut
     # Convert line endings to unix style
     convert_line_endings
     popd
