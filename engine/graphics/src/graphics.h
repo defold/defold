@@ -24,6 +24,8 @@ namespace dmGraphics
 
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
 
+    typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
+
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -349,6 +351,10 @@ namespace dmGraphics
         WindowFocusCallback     m_FocusCallback;
         /// User data supplied to the callback function
         void*                   m_FocusCallbackUserData;
+        /// Window iconify callback
+        WindowIconifyCallback   m_IconifyCallback;
+        /// User data supplied to the callback function
+        void*                   m_IconifyCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
         /// Window height, 480 by default
