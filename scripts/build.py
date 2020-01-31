@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+"""
+    Build utility for installing external packages, building engine, editor and cr
+    Run build.py --help for help
+"""
+
 import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
@@ -11,10 +16,31 @@ from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
 
-"""
-    Build utility for installing external packages, building engine, editor and cr
-    Run build.py --help for help
-"""
+try:
+    import build_private
+except:
+    class build_private(object):
+        @classmethod
+        def get_target_platforms(cls):
+            return []
+        @classmethod
+        def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
+            return []
+        @classmethod
+        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the host
+            return []
+        @classmethod
+        def install_sdk(cls, platform): # Installs the sdk for the private platform
+            pass
+
+
+def get_target_platforms():
+    return ['x86_64-linux',
+            'x86_64-darwin',
+            'win32', 'x86_64-win32',
+            'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
+            'armv7-android', 'arm64-android',
+            'js-web', 'wasm-web'] + build_private.get_target_platforms()
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.5 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
@@ -394,7 +420,7 @@ class Configuration(object):
             installed_packages.update(package_paths)
 
         for base_platform in self.get_base_platforms():
-            packages = list(PACKAGES_HOST)
+            packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
             packages.extend(platform_packages.get(base_platform, []))
             package_paths = self._make_package_paths(base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
@@ -404,7 +430,7 @@ class Configuration(object):
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
 
-        target_packages = platform_packages.get(self.target_platform, [])
+        target_packages = platform_packages.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
         target_package_paths = self._make_package_paths(self.target_platform, target_packages)
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
@@ -482,6 +508,8 @@ class Configuration(object):
             download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk('%s/%s-%s-android-29.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+
+        build_private.install_sdk(target_platform)
 
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)
@@ -853,13 +881,14 @@ class Configuration(object):
         if host == 'darwin':
             host = 'x86_64-darwin'
         # Make sure we build these for the host platform for the toolchain (bob light)
-        for lib in ['dlib', 'texc']:
-            skip_tests = host != self.target_platform
-            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
-        if not self.skip_bob_light:
-            # We must build bob-light, which builds content during the engine build
-            self.build_bob_light()
+        #for lib in ['dlib', 'texc']:
+        #    skip_tests = host != self.target_platform
+        #    self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+        #if not self.skip_bob_light:
+        #    # We must build bob-light, which builds content during the engine build
+        #    self.build_bob_light()
         # Target libs to build
+        
         engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
@@ -2097,7 +2126,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web'],
+                      choices = get_target_platforms(),
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
