@@ -367,6 +367,13 @@ static void LogFrameBufferError(GLenum status)
             g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
     }
 
+    static void OnWindowIconify(int iconify)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowIconifyCallback != 0x0)
+            g_Context->m_WindowIconifyCallback(g_Context->m_WindowIconifyCallbackUserData, iconify);
+    }
+
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
         assert(extension && extensions);
@@ -621,15 +628,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
+        glfwSetWindowIconifyCallback(OnWindowIconify);
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
-        context->m_WindowResizeCallback         = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback          = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback          = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
+        context->m_WindowResizeCallback           = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData   = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback            = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData    = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback            = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
+        context->m_WindowIconifyCallback          = params->m_IconifyCallback;
+        context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
         context->m_WindowOpened = 1;
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
