@@ -1,5 +1,6 @@
 #include <assert.h>
 #include "condition_variable.h"
+#include "mutex.h"
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>

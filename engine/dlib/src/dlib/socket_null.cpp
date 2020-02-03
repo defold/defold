@@ -2,6 +2,10 @@
 
 namespace dmSocket
 {
+    Selector::Selector()
+    {
+    }
+
     Result Initialize() {
         return RESULT_OK;
     }

@@ -29,6 +29,11 @@ def _set_includes(conf, flags):
     for flag in flags.split():
         conf.env.append_unique('CPPPATH', flag)
 
+def _set_defines(conf, flags):
+    for flag in flags.split():
+        conf.env.append_unique('CCDEFINES', flag)
+        conf.env.append_unique('CXXDEFINES', flag)
+
 #*******************************************************************************************************
 # NINTENDO SWITCH -->
 #*******************************************************************************************************
@@ -50,9 +55,9 @@ def setup_tools_nx(conf, build_util):
     conf.env['CXX']     = '%s/clang++' % bin_folder
     conf.env['LINK_CXX']= '%s/clang++' % bin_folder
     conf.env['CPP']     = '%s/clang -E' % bin_folder
-    conf.env['AR']      = '%s/ar' % bin_folder
-    conf.env['RANLIB']  = '%s/ranlib' % bin_folder
-    conf.env['LD']      = '%s/ld' % bin_folder
+    conf.env['AR']      = '%s/llvm-ar' % bin_folder
+    conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_folder
+    conf.env['LD']      = '%s/lld' % bin_folder
 
     #CHECK_C_COMPILER
 
@@ -76,6 +81,10 @@ def setup_vars_nx(conf, build_util):
 
     _set_ccflags(conf, CCFLAGS)
     _set_cxxflags(conf, CXXFLAGS)
+
+    DEFINES = ""
+    DEFINES+= "NN_SDK_BUILD_%s" % BUILDTYPE.upper()
+    _set_defines(conf, DEFINES)
 
     LINKFLAGS ="-nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
     LINKFLAGS+=" -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free"

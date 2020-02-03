@@ -2,23 +2,8 @@
 #define DM_SOCKET_H
 
 #include <stdint.h>
-#include <string.h>
-#include <stdio.h>
-#include <ostream>
-
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
-#include <sys/socket.h>
-#include <errno.h>
-#include <sys/select.h>
-#include <netinet/in.h>
-#elif defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#define snprintf _snprintf
-typedef int socklen_t;
-#else
-#error "Unsupported platform"
-#endif
+#include <string.h> // memset, memcmp
+#include <dlib/sockettypes.h>
 
 /**
  * Socket abstraction
@@ -99,23 +84,6 @@ namespace dmSocket
         FLAGS_LINK = (1 << 3),
     };
 
-    struct Selector;
-    void SelectorZero(Selector* selector);
-
-    /**
-     * Selector. Do not use directly. Use access functions related to Select()
-     */
-    struct Selector
-    {
-        fd_set m_FdSets[3];
-        int    m_Nfds;
-
-        Selector()
-        {
-            SelectorZero(this);
-        }
-    };
-
     /**
      * Invalid socket handle
      */
@@ -126,10 +94,10 @@ namespace dmSocket
      */
     enum Domain
     {
-        DOMAIN_MISSING = 0x0,     //!< DOMAIN_MISSING
-        DOMAIN_IPV4 = AF_INET,    //!< DOMAIN_IPV4
-        DOMAIN_IPV6 = AF_INET6,   //!< DOMAIN_IPV6
-        DOMAIN_UNKNOWN = 0xff,    //!< DOMAIN_UNKNOWN
+        DOMAIN_MISSING, //!< DOMAIN_MISSING
+        DOMAIN_IPV4,    //!< DOMAIN_IPV4
+        DOMAIN_IPV6,    //!< DOMAIN_IPV6
+        DOMAIN_UNKNOWN, //!< DOMAIN_UNKNOWN
     };
 
     /**
@@ -137,8 +105,8 @@ namespace dmSocket
      */
     enum Type
     {
-        TYPE_STREAM = SOCK_STREAM,//!< TYPE_STREAM
-        TYPE_DGRAM = SOCK_DGRAM,  //!< TYPE_DGRAM
+        TYPE_STREAM, //!< TYPE_STREAM
+        TYPE_DGRAM,  //!< TYPE_DGRAM
     };
 
     /**
@@ -146,8 +114,8 @@ namespace dmSocket
      */
     enum Protocol
     {
-        PROTOCOL_TCP = IPPROTO_TCP,//!< PROTOCOL_TCP
-        PROTOCOL_UDP = IPPROTO_UDP,//!< PROTOCOL_UDP
+        PROTOCOL_TCP, //!< PROTOCOL_TCP
+        PROTOCOL_UDP, //!< PROTOCOL_UDP
     };
 
     /**
@@ -155,15 +123,9 @@ namespace dmSocket
      */
     enum ShutdownType
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-        SHUTDOWNTYPE_READ      = SHUT_RD,
-        SHUTDOWNTYPE_WRITE     = SHUT_WR,
-        SHUTDOWNTYPE_READWRITE = SHUT_RDWR,
-#else
-        SHUTDOWNTYPE_READ      = SD_RECEIVE,//!< SHUTDOWNTYPE_READ
-        SHUTDOWNTYPE_WRITE     = SD_SEND,   //!< SHUTDOWNTYPE_WRITE
-        SHUTDOWNTYPE_READWRITE = SD_BOTH,   //!< SHUTDOWNTYPE_READWRITE
-#endif
+        SHUTDOWNTYPE_READ,
+        SHUTDOWNTYPE_WRITE,
+        SHUTDOWNTYPE_READWRITE,
     };
 
     /**
@@ -192,34 +154,18 @@ namespace dmSocket
      */
     inline bool operator==(const Address& lhs, const Address& rhs)
     {
-        return memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr)) == 0;
+        return memcmp(lhs.m_address, rhs.m_address, sizeof(lhs.m_address)) == 0;
     }
 
     inline bool operator< (const Address& lhs, const Address& rhs)
     {
-        return memcmp(lhs.m_address, rhs.m_address, sizeof(struct in6_addr)) < 0;
+        return memcmp(lhs.m_address, rhs.m_address, sizeof(lhs.m_address)) < 0;
     }
 
     inline bool operator!=(const Address& lhs, const Address& rhs) { return !operator==(lhs,rhs); }
     inline bool operator> (const Address& lhs, const Address& rhs) { return  operator< (rhs,lhs); }
     inline bool operator<=(const Address& lhs, const Address& rhs) { return !operator> (lhs,rhs); }
     inline bool operator>=(const Address& lhs, const Address& rhs) { return !operator< (lhs,rhs); }
-
-    /**
-     * Stream operator for dmSocket::Address (network address).
-     * This operator is required so that a GTest failure can print out relevant
-     * information. The operator is not, and should never, be used in production
-     * code.
-     */
-    inline std::ostream & operator<<(std::ostream &os, const dmSocket::Address& address) {
-        char buffer[39 + 1] = { 0 };
-        snprintf(buffer, sizeof(buffer), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-            address.m_address[0] & 0xff00, address.m_address[0] & 0x00ff,
-            address.m_address[1] & 0xff00, address.m_address[1] & 0x00ff,
-            address.m_address[2] & 0xff00, address.m_address[2] & 0x00ff,
-            address.m_address[3] & 0xff00, address.m_address[3] & 0x00ff);
-        return os << buffer;
-    }
 
     struct IfAddr
     {
@@ -427,45 +373,6 @@ namespace dmSocket
 
 
     /**
-     * Clear selector for socket. Similar to FD_CLR
-     * @param selector Selector
-     * @param selector_kind Kind to clear
-     * @param socket Socket to clear
-     */
-    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket);
-
-    /**
-     * Set selector for socket. Similar to FD_SET
-     * @param selector Selector
-     * @param selector_kind Kind to clear
-     * @param socket Socket to set
-     */
-    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket);
-
-    /**
-     * Check if selector is set. Similar to FD_ISSET
-     * @param selector Selector
-     * @param selector_kind Selector kind
-     * @param socket Socket to check for
-     * @return True if set.
-     */
-    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket);
-
-    /**
-     * Clear selector (all kinds). Similar to FD_ZERO
-     * @param selector Selector
-     */
-    void SelectorZero(Selector* selector);
-
-    /**
-     * Select for pending data
-     * @param selector Selector
-     * @param timeout Timeout. For blocking pass -1
-     * @return RESULT_OK on success
-     */
-    Result Select(Selector* selector, int32_t timeout);
-
-    /**
      * Get name, address and port for socket
      * @param socket Socket to get name for
      * @param address Address (result)
@@ -535,6 +442,16 @@ namespace dmSocket
     const char* ResultToString(Result result);
 
     /**
+     * Converts a native result (error) to dmSocket::Result
+     * Also logs the error
+     * @param filename the file that calls this function
+     * @param line the line number of this call
+     * @param r the native result
+     * @return Result
+     */
+    Result NativeToResult(const char* filename, int line, int r);
+
+    /**
      * Check if a network address is empty (all zeroes).
      * @param address The address to check
      * @return True if the address is empty, false otherwise
@@ -582,6 +499,46 @@ namespace dmSocket
      */
     uint32_t BitDifference(Address a, Address b);
 
+    struct Selector;
+
+        /**
+     * Clear selector for socket. Similar to FD_CLR
+     * @param selector Selector
+     * @param selector_kind Kind to clear
+     * @param socket Socket to clear
+     */
+    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket);
+
+    /**
+     * Set selector for socket. Similar to FD_SET
+     * @param selector Selector
+     * @param selector_kind Kind to clear
+     * @param socket Socket to set
+     */
+    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket);
+
+    /**
+     * Check if selector is set. Similar to FD_ISSET
+     * @param selector Selector
+     * @param selector_kind Selector kind
+     * @param socket Socket to check for
+     * @return True if set.
+     */
+    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket);
+
+    /**
+     * Clear selector (all kinds). Similar to FD_ZERO
+     * @param selector Selector
+     */
+    void SelectorZero(Selector* selector);
+
+    /**
+     * Select for pending data
+     * @param selector Selector
+     * @param timeout Timeout. For blocking pass -1
+     * @return RESULT_OK on success
+     */
+    Result Select(Selector* selector, int32_t timeout);
 }
 
 #endif // DM_SOCKET_H
