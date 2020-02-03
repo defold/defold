@@ -139,7 +139,14 @@ def sign_files(bundle_dir):
     if certificate == None:
         print("Warning: Codesigning certificate not found, files will not be signed")
     else:
-        exec_command(['codesign', '--deep', '--force', '--options', 'runtime', '-s', certificate, bundle_dir])
+        exec_command([
+            'codesign',
+            '--deep',
+            '--force',
+            '--options', 'runtime',
+            '--entitlements', './scripts/entitlements.plist'
+            '-s', certificate,
+            bundle_dir])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
