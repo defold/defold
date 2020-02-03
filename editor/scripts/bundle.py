@@ -144,7 +144,7 @@ def sign_files(bundle_dir):
             '--deep',
             '--force',
             '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist'
+            '--entitlements', './scripts/entitlements.plist',
             '-s', certificate,
             bundle_dir])
 
