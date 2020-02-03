@@ -12,6 +12,26 @@ if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
 
+try:
+    import waf_dynamo_private
+except:
+    class waf_dynamo_private(object):
+        @classmethod
+        def set_options(cls, opt):
+            pass
+        @classmethod
+        def setup_tools(cls, ctx, build_util):
+            pass
+        @classmethod
+        def setup_vars(cls, ctx, build_util):
+            pass
+        @classmethod
+        def is_platform_private(cls, platform):
+            return False
+
+def is_platform_private(platform):
+    return waf_dynamo_private.is_platform_private(platform)
+
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
@@ -347,7 +367,7 @@ def default_flags(self):
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
         self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
-    else: # *-win32
+    elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -369,6 +389,8 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
+
+    waf_dynamo_private.setup_vars(self, build_util)
 
 # Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
 @feature('remove_flags')
@@ -1541,6 +1563,8 @@ def detect(conf):
             conf.env.CC = "gcc"
             conf.env.CPP = "cpp"
 
+    waf_dynamo_private.setup_tools(conf, build_util)
+
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
@@ -1551,7 +1575,7 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and ('js' == build_util.get_target_architecture() or 'wasm' == build_util.get_target_architecture()):
+    if 'web' == build_util.get_target_os() and build_util.get_target_architecture() in ['js', 'wasm']:
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
@@ -1613,7 +1637,7 @@ def detect(conf):
         conf.env['STATICLIB_LUA'] = 'lua'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        if build_util.get_target_platform() == 'x86_64-linux' or build_util.get_target_platform() == 'x86_64-win32' or build_util.get_target_platform() == 'x86_64-darwin' or build_util.get_target_platform() == 'arm64-android' or build_util.get_target_platform() == 'arm64-darwin':
+        if build_util.get_target_platform() in ['x86_64-linux', 'x86_64-win32', 'x86_64-darwin', 'arm64-android', 'arm64-darwin']:
             conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
@@ -1657,3 +1681,5 @@ def set_options(opt):
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
+
+    waf_dynamo_private.set_options(opt)

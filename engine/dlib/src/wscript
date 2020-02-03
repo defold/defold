@@ -3,7 +3,8 @@
 import os, re, sys
 import Options
 from TaskGen import feature, after
-from waf_dynamo import dmsdk_add_files, remove_flag
+from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private
+from BuildUtility import BuildUtilityException, create_build_utility
 
 def set_options(opt):
     pass
@@ -20,6 +21,9 @@ def configure(conf):
         conf.env.append_unique('CXXDEFINES', 'WEBP_FORCE_ALIGNED')
 
 def build(bld):
+
+    build_util = create_build_utility(bld.env)
+
     if not Options.options.skip_build_tests:
         bld.add_subdirs('test')
 
@@ -37,6 +41,14 @@ def build(bld):
         source_dirs.append('dlib/linux')
     elif 'web' in bld.env.PLATFORM:
         source_dirs.append('dlib/js')
+
+    private_source_dir = ''
+    private_include_dir = ''
+    if is_platform_private(bld.env.PLATFORM):
+        private_source_dir = 'dlib/%s/dlib' % build_util.get_target_os()
+        private_include_dir = 'dlib/%s' % build_util.get_target_os()
+        if os.path.exists('src/'+private_source_dir):
+            source_dirs.append(private_source_dir)
 
     extra_defines = ['ZLIB_CONST']
 
@@ -75,12 +87,55 @@ def build(bld):
         source_dirs.extend(webp_source_dirs)
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib',
-                            includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                            includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
                             add_objects = local_objs,
                             target = 'dlib',
                             defines= ['VALGRIND'] + extra_defines)
     dlib.find_sources_in_dirs(source_dirs)
     dlib.source.extend(webp_source_no_neon)
+
+
+    lib_features = {
+                    'CONDITIONVARIABLE':    os.path.join('dlib', 'condition_variable.cpp'),
+                    'DNS':                  os.path.join('dlib', 'dns.cpp'),
+                    'MEMPROFILE':           os.path.join('dlib', 'memprofile.cpp'),
+                    'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
+                    'SOCKET':               os.path.join('dlib', 'socket.cpp'),
+                    'THREAD':               os.path.join('dlib', 'thread.cpp'),
+                    'TIME':                 os.path.join('dlib', 'time.cpp'),
+                    }
+
+    for feature, source in lib_features.iteritems():
+        dlib.source.remove(source)
+        # remove those files that are replacements, we'll add them back a bit later
+        private_source = os.path.join(private_source_dir, os.path.basename(source))
+        private_source = os.path.normpath(private_source) # slashes
+        if private_source in dlib.source:
+            index = dlib.source.index(private_source)
+            del dlib.source[index]
+
+
+    # remove all null implementations
+    dlib.source = [x for x in dlib.source if not x.endswith('_null.cpp')]    
+
+    if bld.env.PLATFORM in ['js-web', 'wasm-web']:
+        lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
+        lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
+
+    if is_platform_private(bld.env.PLATFORM):
+        del lib_features['MEMPROFILE']
+
+        # Until implemented
+        lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
+        lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
+
+        # Replace with any specialized sources that the private platform uses
+        _dir = 'dlib/%s' % build_util.get_target_os()
+        for feature, source in lib_features.iteritems():
+            private_source = os.path.join(_dir, source)
+            private_source = os.path.normpath(private_source) # slashes
+            if os.path.exists(os.path.join(os.path.join('src',private_source))):
+                lib_features[feature] = private_source
 
     # Create a separate library, in order to separate it from the ASAN builds
     dlib_noasan = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan',
@@ -90,6 +145,10 @@ def build(bld):
                             defines= ['VALGRIND'] + extra_defines)
     dlib_noasan.find_sources_in_dirs(source_dirs)
     dlib_noasan.source.extend(webp_source_no_neon)
+
+    if is_platform_private(bld.env.PLATFORM):
+        dlib_noasan.source.remove(os.path.join('dlib', 'mutex.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'condition_variable.cpp'))
 
     # If we have optimizations on, let's minimize this library
     opt_level = getattr(Options.options, 'opt_level', '')
@@ -125,15 +184,9 @@ def build(bld):
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
         dlib_noasan.source = [x for x in dlib.source if not x.endswith('.mm')]
 
-    dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-    dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-
-    if 'web' in bld.env['PLATFORM']:
-        dlib.source.remove(os.path.join('dlib', 'dns.cpp'))
-        dlib_noasan.source.remove(os.path.join('dlib', 'dns.cpp'))
-    else:
-        dlib.source.remove(os.path.join('dlib', 'dns_null.cpp'))
-        dlib_noasan.source.remove(os.path.join('dlib', 'dns_null.cpp'))
+    for feature, source in lib_features.iteritems():
+        dlib.source.append(source)
+        dlib_noasan.source.append(source)
 
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:

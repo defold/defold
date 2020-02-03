@@ -4,8 +4,8 @@
 #include <assert.h>
 #include "shared_library.h"
 #include "crypt.h"
-#include "endian.h"
 
+#include <dlib/endian.h>
 #include <mbedtls/md5.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>

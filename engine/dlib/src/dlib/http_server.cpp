@@ -3,13 +3,14 @@
 #include <string.h>
 #include "array.h"
 #include "log.h"
-#include "socket.h"
 #include "math.h"
 #include "time.h"
 #include "dstrings.h"
 #include "http_server.h"
 #include "http_server_private.h"
 #include "network_constants.h"
+#include <dlib/socket.h>
+
 
 namespace dmHttpServer
 {

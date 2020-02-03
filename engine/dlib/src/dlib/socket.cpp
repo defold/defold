@@ -22,6 +22,8 @@
 
 #if defined(_WIN32)
 #include <Winsock2.h>
+#include <ws2tcpip.h>
+typedef int socklen_t;
 #endif
 
 #include "log.h"
@@ -209,9 +211,36 @@ namespace dmSocket
         return RESULT_OK;
     }
 
+    static int TypeToNative(Type type)
+    {
+        switch(type)
+        {
+            case TYPE_STREAM:  return SOCK_STREAM;
+            case TYPE_DGRAM:  return SOCK_DGRAM;
+        }
+    }
+    static int ProtocolToNative(Protocol protocol)
+    {
+        switch(protocol)
+        {
+            case PROTOCOL_TCP:  return PROTOCOL_TCP;
+            case PROTOCOL_UDP:  return IPPROTO_UDP;
+        }
+    }
+    static int DomainToNative(Domain domain)
+    {
+        switch(domain)
+        {
+            case DOMAIN_MISSING:  return 0x0;
+            case DOMAIN_IPV4:     return AF_INET;
+            case DOMAIN_IPV6:     return AF_INET6;
+            case DOMAIN_UNKNOWN:  return 0xff;
+        }
+    }
+
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
-        Socket sock = ::socket(domain, type, protocol);
+        Socket sock = (Socket)::socket(DomainToNative(domain), TypeToNative(type), ProtocolToNative(protocol));
         *socket = sock;
         if (sock >= 0)
         {
@@ -422,9 +451,25 @@ namespace dmSocket
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
+    static int ShutdownTypeToNative(ShutdownType type)
+    {
+        switch(type)
+        {
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+            case SHUTDOWNTYPE_READ:         return SHUT_RD;
+            case SHUTDOWNTYPE_WRITE:        return SHUT_WR;
+            case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
+#else
+            case SHUTDOWNTYPE_READ:         return SD_RECEIVE;
+            case SHUTDOWNTYPE_WRITE:        return SD_SEND;
+            case SHUTDOWNTYPE_READWRITE:    return SD_BOTH;
+#endif
+        }
+    }
+
     Result Shutdown(Socket socket, ShutdownType how)
     {
-        int ret = shutdown(socket, how);
+        int ret = shutdown(socket, ShutdownTypeToNative(how));
         if (ret < 0)
         {
             return NATIVETORESULT(DM_SOCKET_ERRNO);
@@ -568,56 +613,6 @@ namespace dmSocket
         }
 
         return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
-    }
-
-    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
-    {
-        FD_CLR(socket, &selector->m_FdSets[selector_kind]);
-    }
-
-    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
-    {
-        selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
-        FD_SET(socket, &selector->m_FdSets[selector_kind]);
-    }
-
-    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
-    {
-        return (bool) FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
-    }
-
-    void SelectorZero(Selector* selector)
-    {
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
-        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
-        selector->m_Nfds = 0;
-    }
-
-    Result Select(Selector* selector, int32_t timeout)
-    {
-        timeval timeout_val;
-        timeout_val.tv_sec = timeout / 1000000;
-        timeout_val.tv_usec = timeout % 1000000;
-
-        int r;
-        if (timeout < 0)
-            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
-        else
-            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
-
-        if (r < 0)
-        {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
-        }
-        else if(timeout > 0 && r == 0)
-        {
-            return RESULT_WOULDBLOCK;
-        }
-        else
-        {
-            return RESULT_OK;
-        }
     }
 
     Result GetName(Socket socket, Address* address, uint16_t* port)
@@ -966,4 +961,60 @@ namespace dmSocket
         return "RESULT_UNDEFINED";
     }
     #undef DM_SOCKET_RESULT_TO_STRING_CASE
+
+
+    Selector::Selector()
+    {
+        SelectorZero(this);
+    }
+    
+    void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        FD_CLR(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    void SelectorSet(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        selector->m_Nfds = dmMath::Max(selector->m_Nfds, socket);
+        FD_SET(socket, &selector->m_FdSets[selector_kind]);
+    }
+
+    bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
+    {
+        return FD_ISSET(socket, &selector->m_FdSets[selector_kind]) != 0;
+    }
+
+    void SelectorZero(Selector* selector)
+    {
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_READ]);
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_WRITE]);
+        FD_ZERO(&selector->m_FdSets[SELECTOR_KIND_EXCEPT]);
+        selector->m_Nfds = 0;
+    }
+
+    Result Select(Selector* selector, int32_t timeout)
+    {
+        timeval timeout_val;
+        timeout_val.tv_sec = timeout / 1000000;
+        timeout_val.tv_usec = timeout % 1000000;
+
+        int r;
+        if (timeout < 0)
+            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], 0);
+        else
+            r = select(selector->m_Nfds + 1, &selector->m_FdSets[SELECTOR_KIND_READ], &selector->m_FdSets[SELECTOR_KIND_WRITE], &selector->m_FdSets[SELECTOR_KIND_EXCEPT], &timeout_val);
+
+        if (r < 0)
+        {
+            return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);
+        }
+        else if(timeout > 0 && r == 0)
+        {
+            return RESULT_WOULDBLOCK;
+        }
+        else
+        {
+            return RESULT_OK;
+        }
+    }
 }

@@ -12,11 +12,11 @@
 #include "hash.h"
 #include "math.h"
 #include "time.h"
-#include "mutex.h"
 #include "index_pool.h"
 #include "array.h"
 #include "poolallocator.h"
 #include "path.h"
+#include <dlib/mutex.h>
 
 namespace dmHttpCache
 {
