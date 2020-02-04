@@ -344,8 +344,7 @@ def create_dmg(options):
     mkdirs(dmg_dir)
 
     # unzip (.zip -> .app)
-    zip = zipfile.ZipFile(bundle_file)
-    zip.extractall(dmg_dir)
+    exec_command(['unzip', bundle_file, '-d', dmg_dir])
 
     # create additional files for the .dmg
     shutil.copy('bundle-resources/dmg_ds_store', '%s/.DS_Store' % dmg_dir)
