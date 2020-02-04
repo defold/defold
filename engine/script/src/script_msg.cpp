@@ -447,7 +447,7 @@ namespace dmScript
      * @name msg.post
      * @param receiver [type:string|url|hash] The receiver must be a string in URL-format, a URL object or a hashed string.
      * @param message_id [type:string|hash] The id must be a string or a hashed string.
-     * @param [message] [type:table] a lua table with message parameters to send.
+     * @param [message] [type:table|nil] a lua table with message parameters to send.
      * @examples
      *
      * Send "enable" to the sprite "my_sprite" in "my_gameobject":
@@ -488,37 +488,29 @@ namespace dmScript
         DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
-        const dmDDF::Descriptor* desc = 0x0;
-        HContext context = dmScript::GetScriptContext(L);
 
-        if (context != 0)
+        const dmDDF::Descriptor* desc = dmDDF::GetDescriptorFromHash(message_id);
+        if (desc != 0)
         {
-            desc = dmDDF::GetDescriptorFromHash(message_id);
-            if (desc != 0)
+            if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
             {
-                if (top > 2)
-                {
-                    if (desc->m_Size > MAX_MESSAGE_DATA_SIZE)
-                    {
-                        return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);
-                    }
-                    luaL_checktype(L, 3, LUA_TTABLE);
-                    lua_pushvalue(L, 3);
-                }
-                else
-                {
-                    lua_newtable(L);
-                }
-                data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, -1);
-                lua_pop(L, 1);
+                return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);
             }
-        }
-        if (top > 2)
-        {
-            if (desc != 0x0)
+            if (top > 2)
             {
+                luaL_checktype(L, 3, LUA_TTABLE);
+                lua_pushvalue(L, 3);
             }
             else
+            {
+                lua_newtable(L);
+            }
+            data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, -1);
+            lua_pop(L, 1);
+        }
+        else if (top > 2)
+        {
+            if (!lua_isnil(L, 3))
             {
                 data_size = dmScript::CheckTable(L, data, MAX_MESSAGE_DATA_SIZE, 3);
             }

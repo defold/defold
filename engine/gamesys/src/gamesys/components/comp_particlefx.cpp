@@ -82,9 +82,9 @@ namespace dmGameSystem
         world->m_EmitterCount = 0;
         dmGraphics::VertexElement ve[] =
         {
-            {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-            {"color", 1, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-            {"texcoord0", 2, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
+            {"position",  0, 3, dmGraphics::TYPE_FLOAT, false},
+            {"color",     1, 4, dmGraphics::TYPE_FLOAT, true},
+            {"texcoord0", 2, 2, dmGraphics::TYPE_FLOAT, true},
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
         *params.m_World = world;

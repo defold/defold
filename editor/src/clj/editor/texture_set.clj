@@ -1,19 +1,13 @@
 (ns editor.texture-set
-  (:require
-   [dynamo.graph :as g]
-   [editor.camera :as camera]
-   [editor.colors :as colors]
-   [editor.gl :as gl]
-   [editor.gl.pass :as pass]
-   [editor.gl.shader :as shader]
-   [editor.gl.vertex :as vtx]
-   [editor.scene :as scene]
-   [editor.types :as types])
-  (:import
-   (java.nio ByteBuffer ByteOrder FloatBuffer)
-   (javax.vecmath Point3d Vector3d Matrix4d)
-   (com.google.protobuf ByteString)
-   (com.jogamp.opengl GL2)))
+  (:require [editor.camera :as camera]
+            [editor.colors :as colors]
+            [editor.gl :as gl]
+            [editor.gl.shader :as shader]
+            [editor.gl.vertex :as vtx])
+  (:import [com.google.protobuf ByteString]
+           [com.jogamp.opengl GL2]
+           [java.nio ByteOrder FloatBuffer]
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,21 +32,28 @@
   (let [offset (* quad-index 4)]
     (mapv #(->uv-vertex (+ offset %) tex-coords) tex-coord-order)))
 
+(defn- ->tex-dim
+  [frame-index ^FloatBuffer tex-dims]
+  (let [offset (* frame-index 2)
+        width (.get tex-dims ^int (+ offset 0))
+        height (.get tex-dims ^int (+ offset 1))]
+    {:width width :height height}))
 
 ;; anim data
 
 (defn- ->anim-frame
-  [frame-index tex-coords tex-coord-order dimensions]
+  [frame-index tex-coords tex-dims tex-coord-order frame-indices]
   (let [tex-coords-data (->uv-quad frame-index tex-coords tex-coord-order)
-        {:keys [width height]} (nth dimensions frame-index)]
+        {:keys [width height]} (->tex-dim frame-index tex-dims)]
     {:tex-coords tex-coords-data
      :width width
      :height height}))
 
+
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords uv-transforms dimensions]
+  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices]
   (let [tex-coord-order (tex-coord-lookup flip-horizontal flip-vertical)
-        frames (mapv #(->anim-frame % tex-coords tex-coord-order dimensions) (range start end))]
+        frames (mapv #(->anim-frame % tex-coords tex-dims tex-coord-order frame-indices) (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
      :playback playback
@@ -60,54 +61,20 @@
      :frames frames
      :uv-transforms (subvec uv-transforms start end)}))
 
-(defn- decode-vertices
-  [texture-set]
-  (let [vs-buf (-> ^ByteString (:vertices texture-set)
-                   (.asReadOnlyByteBuffer)
-                   (.order ByteOrder/LITTLE_ENDIAN))]
-    (loop [vs (transient [])]
-      (if (.hasRemaining vs-buf)
-        (recur (conj! vs [(.getFloat vs-buf)
-                          (.getFloat vs-buf)
-                          (.getFloat vs-buf)
-                          (.getShort vs-buf)
-                          (.getShort vs-buf)]))
-        (persistent! vs)))))
-
-(defn- frame-vertices
-  [texture-set]
-  (let [vs (decode-vertices texture-set)]
-    (mapv (fn [start n]
-            (mapv (fn [i] (nth vs i)) (range start (+ start n))))
-          (:vertex-start texture-set)
-          (:vertex-count texture-set))))
-
-(defn- mind ^double [^double a ^double b] (Math/min a b))
-(defn- maxd ^double [^double a ^double b] (Math/max a b))
-
-(defn- dimension
-  [vertices]
-  (loop [[[x y :as v] & more] vertices
-         x0 0.0, y0 0.0, x1 0.0, y1 0.0]
-    (if v
-      (recur more (mind x x0) (mind y y0) (maxd x x1) (maxd y y1))
-      {:width (long (- x1 x0))
-       :height (long (- y1 y0))})))
-
-(defn- frame-dimensions
-  [texture-set]
-  (mapv dimension (frame-vertices texture-set)))
-
 (defn make-anim-data
   [texture-set uv-transforms]
   (let [tex-coords (-> ^ByteString (:tex-coords texture-set)
                        (.asReadOnlyByteBuffer)
                        (.order ByteOrder/LITTLE_ENDIAN)
                        (.asFloatBuffer))
+        tex-dims (-> ^ByteString (:tex-dims texture-set)
+                     (.asReadOnlyByteBuffer)
+                     (.order ByteOrder/LITTLE_ENDIAN)
+                     (.asFloatBuffer))
         animations (:animations texture-set)
-        frame-dimensions (frame-dimensions texture-set)]
+        frame-indices (:frame-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords uv-transforms frame-dimensions)))
+          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices)))
           animations)))
 
 

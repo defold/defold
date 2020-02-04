@@ -1066,6 +1066,8 @@ namespace dmEngine
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
+        dmGameSystem::OnWindowResized(physical_width, physical_height);
+
         return true;
 
 bail:

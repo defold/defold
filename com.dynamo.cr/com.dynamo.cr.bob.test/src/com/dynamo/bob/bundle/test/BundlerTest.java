@@ -29,19 +29,17 @@ import javax.imageio.ImageIO;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
-import org.eclipse.swt.widgets.Display;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-import org.osgi.framework.FrameworkUtil;
 
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
-import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
@@ -169,12 +167,6 @@ public class BundlerTest {
         contentRootUnused = Files.createTempDirectory(null).toFile().getAbsolutePath();
         createFile(contentRootUnused, "game.project", "[display]\nwidth=640\nheight=480\n[bootstrap]\nmain_collection = /main.collectionc\n");
 
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
-
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_4BYTE_ABGR);
         ImageIO.write(image, "png", new File(contentRoot, "test.png"));
     }
@@ -190,14 +182,17 @@ public class BundlerTest {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         project.setOption("platform", platform.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
-        project.findSources(contentRoot, new HashSet<String>());
+
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
+
+        project.findSources(contentRoot, skipDirs);
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
@@ -264,7 +259,7 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
-        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_DEV_HEAD}}} {{{DEFOLD_DEV_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
+        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
 
         return count;
     }
@@ -292,7 +287,7 @@ public class BundlerTest {
         Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 

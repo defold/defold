@@ -1,11 +1,10 @@
 # Packaging the SDK's
 
-The basic principle is to "zip it up" and put it in a cloud storage that the build scripts can access later on.
+Most of the SDKs used by Defold have licenses that prevent third party redistribution. To efficiently work with the build servers and our build pipeline it is recommended to package the SDKs and serve them from a private URL, accessible by `build.py`. The URL is defined as `CDN_PACKAGES_URL` in `build.py`.
 
-Some script can be run on a single host, and yet package the sdk for another host.
-However, some scripts need to be run on a certain host (for instance various installers)
+We provide a number of scripts to package the SDKs into a format expected by `build.py`. The basic principle when packaging an SDK is to "zip it up" and put it in a cloud storage that the build scripts can access later on. Some of the package scripts can be run on a single host, and yet package the SDK for another host. However, some scripts need to be run on a certain host (for instance various installers).
 
-Usually, the folders can be packaged as-is, but it's generally preferrable to remove redundant folders in order to minimize download and installation sizes.
+Usually, the folders can be packaged as-is, but it's generally preferable to remove redundant folders in order to minimize download and installation sizes.
 (E.g. for the extender Docker container)
 
 ## Installation
@@ -35,7 +34,7 @@ Version 9 or 10 _can_ work with some hacks, but 11 won't work at all (see sdk sc
 
 ### Packaging
 
-#### NDK
+#### Android NDK
 
 Run the script (on any host):
 
@@ -45,11 +44,13 @@ Run the script (on any host):
 
 and it will output the package in:
 
+```
 	_tmpdir/darwin/android-ndk-r20-darwin-x86_64.tar.gz
 	_tmpdir/linux/android-ndk-r20-linux-x86_64.tar.gz
 	_tmpdir/windows/android-ndk-r20-windows-x86_64.tar.gz
+```
 
-#### SDK
+#### Android SDK
 
 *Since this step is running an actual installer, it is required to be run on the respective host platform.*
 
@@ -59,9 +60,11 @@ Run the script (hostsystem is any of darwin/linux/windows):
 
 and it will output a package (depending on hostsystem):
 
+```
 	_tmpdir/darwin/android-sdk-darwin-android-29.tar.gz
 	_tmpdir/linux/android-sdk-linux-android-29.tar.gz
 	_tmpdir/windows/android-sdk-windows-android-29.tar.gz
+```
 
 #### Tools
 

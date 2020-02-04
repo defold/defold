@@ -1,0 +1,108 @@
+<project default="test">
+    <import file="../com.dynamo.cr.bob/build.xml"/>
+
+    <property environment="env"/>
+    <property name="test.dir" value="../com.dynamo.cr.bob.test/"/>
+    <property name="test.classes.dir" value="${test.dir}/build"/>
+    <property name="test.tmp.dir" value="${test.dir}/tmp"/>
+
+    <target name="test-clean">
+        <delete dir="${classes.dir}"/>
+        <delete dir="${test.classes.dir}"/>
+        <delete dir="${test.tmp.dir}"/>
+    </target>
+
+    <path id="test.classpath">
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="junit-4.12.jar" />
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="hamcrest-all-1.3.jar" />
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="ant-junit-1.10.7.jar" />
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="aspectjtools-1.9.5.jar" />
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="jetty-all-7.0.2.v20100331.jar" />
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="servlet-api-2.5.jar" />
+
+    </path>
+    <target name="clean">
+        <delete dir="${test.classes.dir}"/>
+    </target>
+
+    <target name="compile-test" depends="dist">
+        <mkdir dir="${test.classes.dir}" />
+
+        <fail message="bob.jar is missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="${bob.dir}/dist" includes="bob.jar" />
+                </resourcecount>
+            </condition>
+        </fail>
+
+        <javac destdir="${test.classes.dir}"
+               includeantruntime="false"
+               debug="true"
+               encoding="UTF-8">
+            <src path="src"/>
+            <include name="com/dynamo/**"/>
+
+            <classpath location="${bob.dir}/dist/bob.jar" />
+            <classpath>
+                <path refid="classpath"/>
+            </classpath>
+            <classpath>
+                <path refid="test.classpath"/>
+            </classpath>
+            <compilerarg value="-g"/>
+        </javac>
+
+        <jar destfile="${test.tmp.dir}/bob-tests.jar">
+            <fileset dir="${test.classes.dir}">
+                <exclude name="default/**/*.*" />
+            </fileset>
+            <fileset dir="${test.dir}/src">
+                <include name="com/dynamo/bob/**/*.txt"/>
+                <include name="com/dynamo/bob/**/*.yml"/>
+                <include name="com/dynamo/bob/**/*.png"/>
+                <include name="com/dynamo/bob/**/*.dae"/>
+                <include name="com/dynamo/bob/**/*.lua"/>
+                <include name="com/dynamo/bob/**/*.fnt"/>
+                <include name="com/dynamo/bob/**/*.ttf"/>
+                <include name="com/dynamo/bob/**/*.json"/>
+                <include name="builtins/**/*.*"/>
+            </fileset>
+            <fileset dir="${test.dir}">
+                <include name="test/**/*.*"/>
+                <exclude name="test/build/**/*.*" />
+                <include name="testappmanifest/**/*.*"/>
+                <include name="testextension/**/*.*"/>
+            </fileset>
+        </jar>
+    </target>
+
+    <target name="test" depends="compile-test">
+
+        <junit printsummary="yes" haltonfailure="yes">
+            <formatter type="plain" usefile="false" /> <!-- to screen -->
+
+            <classpath>
+                <path refid="test.classpath"/>
+            </classpath>
+            <classpath location="${bob.dir}/dist/bob.jar"/>
+            <classpath location="${test.tmp.dir}/bob-tests.jar" />
+
+            <batchtest>
+                <fileset dir="../com.dynamo.cr.bob.test/src">
+                    <include name="**/*Test*.java" />
+                    <exclude name="**/Abstract*.java" />
+                    <exclude name="**/TestClassLoaderScanner.java" />
+                    <exclude name="**/TestLibrariesRule.java" />
+                    <exclude name="**/PropertiesTestUtil.java" />
+                </fileset>
+            </batchtest>
+
+            <!-- How to test individual tests -->
+            <!-- <test name="com.dynamo.bob.bundle.test.BundleHelperTest" haltonfailure="yes" /> -->
+
+            <!-- <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" /> -->
+        </junit>
+    </target>
+
+</project>

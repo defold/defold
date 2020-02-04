@@ -5,16 +5,15 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build :as build]
-            [editor.math :as math]
+            [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
-            [editor.defold-project :as project]
-            [editor.pipeline :as pipeline]
+            [editor.math :as math]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
@@ -109,7 +108,7 @@
                  :pb-class        TextureSetProto$TextureSet
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
-                            (is (< 0 (count (:convex-hull-points pb)))))}
+                            (is (< 0 (count (:collision-hull-points pb)))))}
                 {:label "Spine Scene"
                  :path "/player/spineboy.spinescene"
                  :pb-class Rig$RigScene

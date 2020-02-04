@@ -904,6 +904,48 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return ((uint32_t) node->m_Version) << 16 | node->m_Index;
     }
 
+    TextureSetAnimDesc* GetNodeTextureSet(HScene scene, HNode node)
+    {
+        InternalNode* in = GetNode(scene, node);
+        Node& n = in->m_Node;
+        if(n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET || n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
+            return 0;
+        return &n.m_TextureSetAnimDesc;
+    }
+
+    static inline int32_t GetNodeAnimationFrameInternal(InternalNode* in)
+    {
+        Node& n = in->m_Node;
+        if(n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET || n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
+            return -1;
+        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
+        int32_t anim_frames = anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
+        int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
+        return anim_desc->m_State.m_Start + dmMath::Clamp(anim_frame, 0, anim_frames-1);
+    }
+
+    int32_t GetNodeAnimationFrame(HScene scene, HNode node)
+    {
+        return GetNodeAnimationFrameInternal(GetNode(scene, node));
+    }
+
+    static inline const float* GetNodeFlipbookAnimUVInternal(InternalNode* in)
+    {
+        int32_t anim_frame = GetNodeAnimationFrameInternal(in);
+        if (anim_frame < 0)
+            return 0;
+
+        Node& n = in->m_Node;
+        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
+        // Each frame is a quad, with 2 floats for each coord (== 8 floats)
+        return anim_desc->m_TexCoords + anim_frame * 8;
+    }
+
+    const float* GetNodeFlipbookAnimUV(HScene scene, HNode node)
+    {
+        return GetNodeFlipbookAnimUVInternal(GetNode(scene, node));
+    }
+
     Vector4 CalculateReferenceScale(HScene scene, InternalNode* node)
     {
         float scale_x = 1.0f;
@@ -930,11 +972,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return;
         }
 
+        const float* tc = GetNodeFlipbookAnimUVInternal(in);
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
-        int32_t anim_frames = anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
-        int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
-        anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
-        const float* tc = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_State.m_Start + anim_frame)<<3);
 
         float w,h;
         if(tc[0] != tc[2] && tc[3] != tc[5])
@@ -3935,20 +3974,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         InternalNode* n = GetNode(scene, node);
         CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
         n->m_Node.m_FlipbookAnimHash = 0;
-    }
-
-    const float* GetNodeFlipbookAnimUV(HScene scene, HNode node)
-    {
-        InternalNode* in = GetNode(scene, node);
-        Node& n = in->m_Node;
-        if(n.m_TextureType != NODE_TEXTURE_TYPE_TEXTURE_SET || n.m_TextureSetAnimDesc.m_TexCoords == 0x0)
-            return 0;
-        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
-        int32_t anim_frames = anim_desc->m_State.m_End - anim_desc->m_State.m_Start;
-        int32_t anim_frame = (int32_t) (n.m_FlipbookAnimPosition * (float)anim_frames);
-        anim_frame = dmMath::Clamp(anim_frame, 0, anim_frames-1);
-        const float* frame_uv = n.m_TextureSetAnimDesc.m_TexCoords + ((anim_desc->m_State.m_Start + anim_frame)<<3);
-        return frame_uv;
     }
 
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical)

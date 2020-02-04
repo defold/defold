@@ -22,6 +22,7 @@
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -30,11 +31,12 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [schema.core :as s]
             [util.digestable :as digestable])
-  (:import [com.dynamo.atlas.proto AtlasProto$Atlas]
+  (:import [com.dynamo.atlas.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-           [com.dynamo.tile.proto Tile$Playback]
+           [com.dynamo.tile.proto Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
@@ -167,6 +169,9 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
 
+  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-off)
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
+
   (property image resource/Resource
             (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -196,8 +201,8 @@
 
   (input animation-updatable g/Any)
 
-  (output atlas-image Image (g/fnk [image-resource maybe-image-size]
-                              (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size))))
+  (output atlas-image Image (g/fnk [image-resource maybe-image-size sprite-trim-mode]
+                              (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)))
   (output animation Animation (g/fnk [atlas-image id]
                                 (image->animation atlas-image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
@@ -211,8 +216,8 @@
 
                                                                (resource/openable-resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
-  (output ddf-message g/Any (g/fnk [maybe-image-resource order]
-                              {:image (resource/resource->proj-path maybe-image-resource) :order order}))
+  (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode]
+                              {:image (resource/resource->proj-path maybe-image-resource) :order order :sprite-trim-mode sprite-trim-mode}))
   (output scene g/Any :cached produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
                                (g/package-errors _node-id
@@ -450,8 +455,8 @@
                                     :passes [pass/outline]}}]
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders]}]
-  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders))
+(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders workspace]}]
+  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders workspace))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -516,7 +521,7 @@
   (output all-atlas-images           [Image]             :cached (g/fnk [animations]
                                                                    (into [] (comp (mapcat :images) (distinct)) animations)))
 
-  (output texture-set-data-generator g/Any (g/fnk [_node-id animations all-atlas-images margin inner-padding extrude-borders :as args]
+  (output texture-set-data-generator g/Any (g/fnk [_node-id animations all-atlas-images extrude-borders inner-padding margin resource :as args]
                                                   (or (when-let [errors (->> [[margin "Margin"]
                                                                               [inner-padding "Inner Padding"]
                                                                               [extrude-borders "Extrude Borders"]]
@@ -525,7 +530,8 @@
                                                                              not-empty)]
                                                         (g/error-aggregate errors))
                                                       {:f    generate-texture-set-data
-                                                       :args args})))
+                                                       :args (assoc args
+                                                               :workspace (resource/workspace resource))})))
 
   (output texture-set-data g/Any               :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
   (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))
@@ -601,32 +607,45 @@
                                                               own-build-errors))))
 
 (defn- make-image-nodes
-  [attach-fn parent image-resources]
+  [attach-fn parent image-msgs]
   (let [graph-id (g/node-id->graph-id parent)]
-    (for [image-resource image-resources]
+    (for [{:keys [image sprite-trim-mode]} image-msgs]
       (g/make-nodes
         graph-id
-        [atlas-image [AtlasImage {:image image-resource}]]
+        [atlas-image [AtlasImage {:image image :sprite-trim-mode sprite-trim-mode}]]
         (attach-fn parent atlas-image)))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
+(def ^:private default-image-msg (protobuf/pb->map (AtlasProto$AtlasImage/getDefaultInstance)))
 
-(defn add-images [atlas-node img-resources]
+(defn add-images [atlas-node image-resources]
   ; used by tests
-  (make-image-nodes-in-atlas atlas-node img-resources))
+  (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
+    (make-image-nodes-in-atlas atlas-node image-msgs)))
+
+(defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
+  (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
+    (into []
+          (comp (remove (comp empty? :image))
+                (if remove-duplicates
+                  (util/distinct-by :image)
+                  identity)
+                (map (fn [atlas-image-msg]
+                       (update atlas-image-msg :image resolve-workspace-resource))))
+          image-msgs)))
 
 (defn- make-atlas-animation [atlas-node anim]
   (let [graph-id (g/node-id->graph-id atlas-node)
         project (project/get-project atlas-node)
         workspace (project/workspace project)
-        image-resources (mapv (comp (partial workspace/resolve-workspace-resource workspace) :image) (:images anim))]
+        image-msgs (resolve-image-msgs workspace (:images anim) false)]
     (g/make-nodes
       graph-id
       [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
                    :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
       (attach-animation-to-atlas atlas-node atlas-anim)
-      (make-image-nodes-in-animation atlas-anim image-resources))))
+      (make-image-nodes-in-animation atlas-anim image-msgs))))
 
 (defn- update-int->bool [keys m]
   (reduce (fn [m key]
@@ -638,19 +657,14 @@
 
 (defn load-atlas [project self resource atlas]
   (let [workspace (project/workspace project)
-        image-resources (into []
-                              (comp (map :image)
-                                    (remove empty?)
-                                    (distinct)
-                                    (map (partial workspace/resolve-workspace-resource workspace)))
-                              (:images atlas))]
+        image-msgs (resolve-image-msgs workspace (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
-      (make-image-nodes-in-atlas self image-resources)
+      (make-image-nodes-in-atlas self image-msgs)
       (map (comp (partial make-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))
            (:animations atlas)))))
@@ -699,6 +713,7 @@
 (defn- add-images-handler [app-view workspace project parent] ; parent = new parent of images
   (when-some [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
     (let [op-seq (gensym)
+          image-msgs (map #(assoc default-image-msg :image %) image-resources)
           image-nodes (g/tx-nodes-added
                         (g/transact
                           (concat
@@ -706,10 +721,10 @@
                             (g/operation-label "Add Images")
                             (cond
                               (g/node-instance? AtlasNode parent)
-                              (make-image-nodes-in-atlas parent image-resources)
+                              (make-image-nodes-in-atlas parent image-msgs)
 
                               (g/node-instance? AtlasAnimation parent)
-                              (make-image-nodes-in-animation parent image-resources)
+                              (make-image-nodes-in-animation parent image-msgs)
 
                               :else
                               (let [parent-node-type @(g/node-type* parent)]

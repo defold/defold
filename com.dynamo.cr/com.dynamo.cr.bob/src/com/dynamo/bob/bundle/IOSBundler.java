@@ -142,6 +142,8 @@ public class IOSBundler implements IBundler {
         }
 
         // If a custom engine was built we need to copy it
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        File extenderPlatformDir = new File(project.getBuildDirectory(), architectures.get(0).getExtenderPair());
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         // Loop over all architectures needed for bundling
@@ -195,18 +197,11 @@ public class IOSBundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 
-        final boolean useArchive = true;
-
         BundleHelper.throwIfCanceled(canceled);
-        if (useArchive) {
-            // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
-                FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
-            }
-        } else {
-            FileUtils.copyDirectory(buildDir, appDir);
-            new File(buildDir, "game.arci").delete();
-            new File(buildDir, "game.arcd").delete();
+
+        // Copy archive and game.projectc
+        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
+            FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -249,58 +244,29 @@ public class IOSBundler implements IBundler {
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
-            // iPhone X (portrait+landscape)
+            // iPad pro (11")
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2388", "Default-Portrait-1194h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2388x1668", "Default-Landscape-1194h@2x.png");
+
+            // iPhone X, XS (portrait+landscape)
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
             copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+
+            // iPhone XR (portrait+landscape
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_828x1792", "Default-Portrait-896h@2x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1792x828", "Default-Landscape-896h@2x.png");
+
+            // iPhone XS Max (portrait+landscape)
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2688", "Default-Portrait-896h@3x.png");
+            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2688x1242", "Default-Landscape-896h@3x.png");
         } catch (Exception e) {
             throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
         }
 
-        List<String> applicationQueriesSchemes = new ArrayList<String>();
-        List<String> urlSchemes = new ArrayList<String>();
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
 
-        BundleHelper.throwIfCanceled(canceled);
-
-        String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
-        if (bundleId != null) {
-            urlSchemes.add(bundleId);
-        }
-
-        Map<String, Object> properties = new HashMap<String, Object>();
-        properties.put("exe-name", exeName);
-        properties.put("url-schemes", urlSchemes);
-        properties.put("application-queries-schemes", applicationQueriesSchemes);
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        List<String> orientationSupport = new ArrayList<String>();
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
-            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                orientationSupport.add("LandscapeRight");
-            } else {
-                orientationSupport.add("Portrait");
-            }
-        } else {
-            orientationSupport.add("Portrait");
-            orientationSupport.add("PortraitUpsideDown");
-            orientationSupport.add("LandscapeLeft");
-            orientationSupport.add("LandscapeRight");
-        }
-        properties.put("orientation-support", orientationSupport);
-
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app", variant);
-        try {
-            helper.copyIosIcons();
-
-            File manifestFile = new File(appDir, "Info.plist");
-            IResource sourceManifestFile = helper.getResource("ios", "infoplist");
-            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
-        } catch (IOException e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
-        }
-
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
+        helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into .app folder

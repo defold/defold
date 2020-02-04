@@ -14,12 +14,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.eclipse.swt.widgets.Display;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ConsoleProgress;
-import com.dynamo.bob.IClassScanner;
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -30,30 +29,38 @@ import com.dynamo.bob.fs.IFileSystem;
 public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
+        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
         Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", ".", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        BufferedReader ein = new BufferedReader(new InputStreamReader(p.getErrorStream()));
         String line;
         while ((line = in.readLine()) != null) {
+            System.out.println(line);
+        }
+        while ((line = ein.readLine()) != null) {
             System.out.println(line);
         }
         return p.waitFor();
     }
 
     private int bob(String[] commands, String outputMatch) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
+        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
         String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", "."};
         String[] allArgs = new String[bobArgs.length + commands.length];
         System.arraycopy(bobArgs, 0, allArgs, 0, bobArgs.length);
         System.arraycopy(commands, 0, allArgs, bobArgs.length, commands.length);
         Process p = Runtime.getRuntime().exec(allArgs);
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        BufferedReader ein = new BufferedReader(new InputStreamReader(p.getErrorStream()));
         String line;
         while ((line = in.readLine()) != null) {
             System.out.println(line);
             if (!outputMatch.isEmpty() && line.equals(outputMatch)) {
                 return 1337;
             }
+        }
+        while ((line = ein.readLine()) != null) {
+            System.out.println(line);
         }
         return p.waitFor();
     }
@@ -86,18 +93,12 @@ public class JarTest {
      */
     @Test
     public void testNonJarBuild() throws Exception {
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
-
         IFileSystem fs = new DefaultFileSystem();
         String cwd = new File("test").getAbsolutePath();
         Project p = new Project(fs, cwd, "build/default");
         p.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        IClassScanner scanner = new TestClassLoaderScanner();
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         p.scan(scanner, "com.dynamo.bob");
         p.scan(scanner, "com.dynamo.bob.pipeline");
 

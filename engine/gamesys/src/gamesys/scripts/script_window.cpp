@@ -9,7 +9,7 @@ namespace dmGameSystem
 {
     /*# Window API documentation
      *
-     * Functions and constants to access the window, window event listeners 
+     * Functions and constants to access the window, window event listeners
      * and screen dimming.
      *
      * @document
@@ -36,6 +36,8 @@ struct LuaListener
 struct WindowInfo
 {
     LuaListener m_Listener;
+    int m_Width;
+    int m_Height;
 };
 
 struct CallbackInfo
@@ -173,9 +175,9 @@ static int SetListener(lua_State* L)
 }
 
 /*# set the mode for screen dimming
- * 
+ *
  * [icon:ios] [icon:android] Sets the dimming mode on a mobile device.
- * 
+ *
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction. The dimming mode will only affect the mobile device while the game is in focus on the device, but not when the game is running in the background.
  *
  * This function has no effect on platforms that does not support dimming.
@@ -213,7 +215,7 @@ static int SetDimMode(lua_State* L)
 /*# get the mode for screen dimming
  *
  * [icon:ios] [icon:android] Returns the current dimming mode set on a mobile device.
- * 
+ *
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction.
  *
  * On platforms that does not support dimming, `window.DIMMING_UNKNOWN` is always returned.
@@ -236,11 +238,31 @@ static int GetDimMode(lua_State* L)
     return 1;
 }
 
+/*# get the window size
+ *
+ * This returns the current window size (width and height).
+ *
+ * @name window.get_size
+ * @return width [type:number] The window width
+ * @return height [type:number] The window height
+ */
+static int GetSize(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    lua_pushnumber(L, g_Window.m_Width);
+    lua_pushnumber(L, g_Window.m_Height);
+
+    assert(top + 2 == lua_gettop(L));
+    return 2;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set_listener", SetListener},
     {"set_dim_mode", SetDimMode},
     {"get_dim_mode", GetDimMode},
+    {"get_size", GetSize},
     {0, 0}
 };
 
@@ -254,7 +276,7 @@ static const luaL_reg Module_methods[] =
 
 /*# focus gained window event
  *
- * This event is sent to a window event listener when the game window or app screen has 
+ * This event is sent to a window event listener when the game window or app screen has
  * gained focus.
  * This event is also sent at game startup and the engine gives focus to the game.
  *
@@ -333,6 +355,9 @@ void ScriptWindowOnWindowFocus(bool focus)
 
 void ScriptWindowOnWindowResized(int width, int height)
 {
+    g_Window.m_Width = width;
+    g_Window.m_Height = height;
+
     CallbackInfo cbinfo;
     cbinfo.m_Info = &g_Window;
     cbinfo.m_Event = WINDOW_EVENT_RESIZED;
@@ -343,4 +368,3 @@ void ScriptWindowOnWindowResized(int width, int height)
 
 
 } // namespace
-

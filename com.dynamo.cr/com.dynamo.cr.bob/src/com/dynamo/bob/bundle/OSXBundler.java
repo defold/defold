@@ -74,7 +74,7 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -95,10 +95,7 @@ public class OSXBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("exe-name", exeName);
-        IResource sourceManifestFile = helper.getResource("osx", "infoplist");
-        helper.format(infoData, sourceManifestFile, new File(contentsDir, "Info.plist"));
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -128,9 +125,12 @@ public class OSXBundler implements IBundler {
         // Strip executable
         if( strip_executable )
         {
-            Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
-            if (stripResult.ret != 0) {
-                logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+            // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+            if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+                Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
+                if (stripResult.ret != 0) {
+                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 
 import com.dynamo.atlas.proto.AtlasProto.Atlas;
+import com.dynamo.atlas.proto.AtlasProto.AtlasImage;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -31,8 +32,8 @@ public class AtlasBuilder extends Builder<Void>  {
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(".texturec"));
 
-        for (String p : AtlasUtil.collectImages(atlas)) {
-            taskBuilder.addInput(input.getResource(p));
+        for (AtlasImage image : AtlasUtil.collectImages(atlas)) {
+            taskBuilder.addInput(input.getResource(image.getImage()));
         }
 
         // If there is a texture profiles file, we need to make sure
