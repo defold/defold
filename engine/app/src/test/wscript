@@ -1,0 +1,13 @@
+#! /usr/bin/env python
+import re
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def build(bld):
+    test_extension = bld.new_task_gen(features = 'cxx cprogram test',
+                                      includes = '../../../src .',
+                                      uselib_local = 'app',
+                                      target = 'test_app',
+                                      source = 'test_app.cpp')
+
+    test_extension.install_path = None
