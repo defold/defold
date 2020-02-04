@@ -303,7 +303,7 @@ def main(argv):
         release_channel = "stable"
         editor_channel = "stable"
         release_bob = False
-        release_editor = True
+        release_editor = False
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
         release_channel = "beta"
