@@ -187,7 +187,6 @@ def build_editor(branch = None, channel = None, engine_artifacts = None):
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform_from_host(), opts_string))
     for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
-        # call('python scripts/build.py bundle_editor2 archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 
 def notarize_editor(branch = None, channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
@@ -224,15 +223,10 @@ def notarize_editor(branch = None, channel = None, release = False, engine_artif
 
 
 def archive_editor(branch = None, channel = None, release = False, engine_artifacts = None):
-    # args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
-    args = 'python scripts/build.py archive_editor2'.split()
     opts = []
 
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    if release:
-        args.append("release")
 
     if branch:
         opts.append("--branch=%s" % branch)
@@ -240,8 +234,12 @@ def archive_editor(branch = None, channel = None, release = False, engine_artifa
     if channel:
         opts.append("--channel=%s" % channel)
 
-    cmd = ' '.join(args + opts)
-    call(cmd)
+    opts_string = ' '.join(opts)
+    for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
+        call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
+
+    if release:
+        call('python scripts/build.py release %s' % opts_string)
 
 
 def build_bob(branch = None, channel = None, release = False):
