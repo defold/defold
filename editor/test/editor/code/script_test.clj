@@ -251,4 +251,28 @@
      "end"]
     ["do"
      "                          "
-     "end"]))
+     "end"]
+
+    ["go.property();"]
+    ["              "]
+
+    ["go.property()"
+     ";"]
+    ["             "
+     " "]
+
+    ["go.property(); -- comment"]
+    ["               -- comment"]
+
+    ["go.property()"
+     "; -- comment"]
+    ["             "
+     "  -- comment"]
+
+    ["go.property('name;', resource.texture('/image.png'));"]
+    ["                                                     "]
+
+    ["go.property('name;',"
+     "            123456); -- comment"]
+    ["                    "
+     "                     -- comment"]))
