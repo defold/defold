@@ -14,7 +14,8 @@ if not 'DYNAMO_HOME' in os.environ:
 
 try:
     import waf_dynamo_private
-except:
+except ImportError, e:
+    print e # TODO: handle non existing file gracefully, but report rest as a failure!
     class waf_dynamo_private(object):
         @classmethod
         def set_options(cls, opt):
@@ -1204,8 +1205,21 @@ def run_tests(valgrind = False, configfile = None):
     for t in Build.bld.all_task_gen:
         if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             output = t.path
-            cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
-            if 'web' in Build.bld.env.PLATFORM:
+            launch_pattern = '%s %s'
+            if 'TEST_LAUNCH_PATTERN' in t.env:
+                launch_pattern = t.env.TEST_LAUNCH_PATTERN
+
+            for task in t.tasks:
+                if task.name in ['cxx_link', 'cc_link']:
+                    break
+
+            if hasattr(task, 'bundle_output'):
+                program = task.bundle_output
+            else:
+                program = task.outputs[0].abspath()
+            cmd = launch_pattern % (program, configfile if configfile else '')
+            print cmd
+            if 'web' in Build.bld.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
             # disable shortly during beta release, due to issue with jctest + test_gui
             valgrind = False
@@ -1431,10 +1445,11 @@ def get_msvc_version(conf, platform):
 def remove_flag(arr, flag, nargs):
     if not flag in arr:
         return
-    index = arr.index(flag)
-    del arr[index]
-    for i in range(nargs):
+    while flag in arr:
+        index = arr.index(flag)
         del arr[index]
+        for i in range(nargs):
+            del arr[index]
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
