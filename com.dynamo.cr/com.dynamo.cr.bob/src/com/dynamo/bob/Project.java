@@ -134,6 +134,10 @@ public class Project {
         return buildDirectory;
     }
 
+    public String getBinaryOutputDirectory() {
+        return options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+    }
+
     public String getLibPath() {
         return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
     }
@@ -642,8 +646,6 @@ public class Project {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
-        File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
-        logFile.deleteOnExit();
 
         IProgress m = monitor.subProgress(architectures.length);
         m.beginTask("Building engine...", 0);
@@ -651,7 +653,7 @@ public class Project {
         final String variant = appmanifestOptions.get("baseVariant");
 
         // Build all skews of platform
-        String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+        String outputDir = getBinaryOutputDirectory();
         for (int i = 0; i < architectures.length; ++i) {
             Platform platform = Platform.get(architectures[i]);
 
@@ -673,7 +675,7 @@ public class Project {
             allSource.addAll(helper.writeExtensionResources(platform));
 
             // Replace the unresolved manifests with the resolved ones
-            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir());
+            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir(platform));
             for (ExtenderResource manifest : resolvedManifests) {
                 ExtenderResource src = null;
                 for (ExtenderResource s : allSource) {
@@ -687,6 +689,9 @@ public class Project {
                 }
                 allSource.add(manifest);
             }
+
+            // Located in the same place as the log file in the unpacked successful build
+            File logFile = new File(buildDir, "log.txt");
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
@@ -734,7 +739,7 @@ public class Project {
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Cleaning engine...", 0);
 
-        String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+        String outputDir = getBinaryOutputDirectory();
         for (int i = 0; i < platformStrings.length; ++i) {
             Platform platform = Platform.get(platformStrings[i]);
             cleanEngine(platform, new File(outputDir, platform.getExtenderPair()));

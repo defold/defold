@@ -232,8 +232,11 @@ public class BundleHelper {
         return null;
     }
 
-    public File getTargetManifestDir(){
-        return new File(project.getBuildDirectory(), "manifests");
+    public File getTargetManifestDir(Platform platform){
+        String outputDir = project.getBinaryOutputDirectory();
+        File buildDir = new File(FilenameUtils.concat(outputDir, platform.getExtenderPair()));
+        File manifestsDir = new File(buildDir, "manifests");
+        return manifestsDir;
     }
 
     // This is used in the step prior to upload all sources (and manifests) to the extender server
@@ -321,13 +324,12 @@ public class BundleHelper {
 
         File targetManifest = getAppManifestFile(platform, appDir);
 
-        File extenderPlatformDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair());
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
 
         File manifestFile;
         if (!hasExtensions) {
             // Write a resolved manifest to this directory (should only be one)
-            List<ExtenderResource> manifests = writeManifestFiles(platform, getTargetManifestDir());
+            List<ExtenderResource> manifests = writeManifestFiles(platform, getTargetManifestDir(platform));
 
             ExtenderResource resource = manifests.get(0);
             if (resource instanceof FileExtenderResource) {
@@ -336,6 +338,7 @@ public class BundleHelper {
                 throw new IOException("Manifest file is of wrong type");
             }
         } else {
+            File extenderPlatformDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair());
             manifestFile = new File(extenderPlatformDir, sourceManifest.getName()); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
@@ -487,7 +490,7 @@ public class BundleHelper {
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
 
-            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, resDir));
+            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, packagesDir));
         }
 
         return resources;

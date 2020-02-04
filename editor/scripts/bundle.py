@@ -13,6 +13,7 @@ import zipfile
 import ConfigParser
 import datetime
 import imp
+import fnmatch
 
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
@@ -139,7 +140,14 @@ def sign_files(bundle_dir):
     if certificate == None:
         print("Warning: Codesigning certificate not found, files will not be signed")
     else:
-        exec_command(['codesign', '--deep', '--force', '-s', certificate, bundle_dir])
+        exec_command([
+            'codesign',
+            '--deep',
+            '--force',
+            '--options', 'runtime',
+            '--entitlements', './scripts/entitlements.plist',
+            '-s', certificate,
+            bundle_dir])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
@@ -311,6 +319,14 @@ def create_bundle(options):
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
         ziptree(bundle_dir, zipfile, 'tmp')
 
+def find_files(root_dir, file_pattern):
+    matches = []
+    for root, dirnames, filenames in os.walk(root_dir):
+        for filename in filenames:
+            fullname = os.path.join(root, filename)
+            if fnmatch.fnmatch(filename, file_pattern):
+                matches.append(fullname)
+    return matches
 
 def create_dmg(options):
     print("Creating .dmg from file in '%s'" % options.bundle_dir)
@@ -337,8 +353,15 @@ def create_dmg(options):
     exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
 
     # sign files
-    app = os.path.join(dmg_dir, "Defold.app")
-    sign_files(app)
+    # we need to sign the binaries in Resources folder manually as codesign of
+    # the *.app will not process files in Resources
+    jdk_path = os.path.join(dmg_dir, "Defold.app", "Contents", "Resources", "packages", "jdk11.0.1")
+    for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
+        sign_files(exe)
+    for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
+        sign_files(lib)
+    sign_files(os.path.join(jdk_path, "lib", "jspawnhelper"))
+    sign_files(os.path.join(dmg_dir, "Defold.app"))
 
     # create dmg
     dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")

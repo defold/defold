@@ -86,7 +86,7 @@ namespace dmGameSystem
         uint8_t*                        m_IndexBufferData;
         uint8_t*                        m_IndexBufferWritePtr;
         uint8_t                         m_Is16BitIndex : 1;
-        uint8_t                         m_UsesGeometries : 1;
+        uint8_t                         m_UseGeometries : 1;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -132,7 +132,7 @@ namespace dmGameSystem
 
             sprite_world->m_IndexBufferData = (uint8_t*)realloc(sprite_world->m_IndexBufferData, indices_size);
 
-            if (!sprite_world->m_UsesGeometries) {
+            if (!sprite_world->m_UseGeometries) {
                 if (sprite_world->m_Is16BitIndex) {
                     fillIndices<uint16_t>((uint16_t*)sprite_world->m_IndexBufferData, indices_count);
                 } else {
@@ -171,7 +171,7 @@ namespace dmGameSystem
         sprite_world->m_IndexBuffer = 0;
         sprite_world->m_IndexBufferData = 0;
 
-        sprite_world->m_UsesGeometries = 0;
+        sprite_world->m_UseGeometries = 0;
 
         // TODO: Create new settings for vertex buffer size
         // TODO: Should we remove the index buffer altogether?
@@ -344,7 +344,7 @@ namespace dmGameSystem
         PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
 
         TextureSetResource* texture_set = GetTextureSet(component, resource);
-        sprite_world->m_UsesGeometries |= texture_set->m_TextureSet->m_Geometries.m_Count != 0 ? 1 : 0;
+        sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -380,7 +380,7 @@ namespace dmGameSystem
 
         uint32_t index_type_size = sprite_world->m_Is16BitIndex ? sizeof(uint16_t) : sizeof(uint32_t);
 
-        if (sprite_world->m_UsesGeometries)
+        if (sprite_world->m_UseGeometries)
         {
             const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
 
@@ -839,7 +839,7 @@ namespace dmGameSystem
 
                 DM_COUNTER("SpriteVertexBuffer", (world->m_VertexBufferWritePtr - world->m_VertexBufferData) * sizeof(SpriteVertex));
 
-                if (world->m_UsesGeometries)
+                if (world->m_UseGeometries)
                 {
                     uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
                     dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
@@ -1111,7 +1111,7 @@ namespace dmGameSystem
                 PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
 
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
-                sprite_world->m_UsesGeometries |= texture_set->m_TextureSet->m_Geometries.m_Count != 0 ? 1 : 0;
+                sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
             }
             return res;
         }
