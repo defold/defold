@@ -228,12 +228,14 @@ def archive_editor2(channel = None, engine_artifacts = None):
 
 
 def release_editor2(channel = None):
+    args = "python scripts/build.py release_editor2".split()
     opts = []
 
     if channel:
         opts.append("--channel=%s" % channel)
 
-    call('python scripts/build.py release_editor2 %s' % opts_string)
+    cmd = ' '.join(args + opts)
+    call(cmd)
 
 
 def build_bob(channel = None):
