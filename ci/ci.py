@@ -171,14 +171,11 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor(branch = None, channel = None, engine_artifacts = None):
+def build_editor2(channel = None, engine_artifacts = None):
     opts = []
 
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    if branch:
-        opts.append("--branch=%s" % branch)
 
     if channel:
         opts.append('--channel=%s' % channel)
@@ -189,7 +186,7 @@ def build_editor(branch = None, channel = None, engine_artifacts = None):
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
 
-def notarize_editor(branch = None, channel = None, release = False, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
         exit(1)
@@ -197,18 +194,6 @@ def notarize_editor(branch = None, channel = None, release = False, engine_artif
     # args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
-
-    if release:
-        args.append("release")
-
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    if branch:
-        opts.append("--branch=%s" % branch)
-
-    if channel:
-        opts.append("--channel=%s" % channel)
 
     opts.append('--platform=x86_64-darwin')
 
@@ -222,14 +207,11 @@ def notarize_editor(branch = None, channel = None, release = False, engine_artif
     call(cmd)
 
 
-def archive_editor(branch = None, channel = None, release = False, engine_artifacts = None):
+def archive_editor2(channel = None, engine_artifacts = None):
     opts = []
 
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    if branch:
-        opts.append("--branch=%s" % branch)
 
     if channel:
         opts.append("--channel=%s" % channel)
@@ -238,19 +220,32 @@ def archive_editor(branch = None, channel = None, release = False, engine_artifa
     for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
         call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
 
-    if release:
-        call('python scripts/build.py release %s' % opts_string)
+
+def release_editor2(channel = None):
+    args = "python scripts/build.py release_editor2".split()
+    opts = []
+
+    if channel:
+        opts.append("--channel=%s" % channel)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
 
 
-def build_bob(branch = None, channel = None, release = False):
+def build_bob(channel = None):
     args = "python scripts/build.py distclean install_ext sync_archive build_bob archive_bob".split()
     opts = []
 
-    if release:
-        args.append("release")
+    if channel:
+        opts.append("--channel=%s" % channel)
 
-    if branch:
-        opts.append("--branch=%s" % branch)
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
+
+def release(channel = None):
+    args = "python scripts/build.py release".split()
+    opts = []
 
     if channel:
         opts.append("--channel=%s" % channel)
@@ -266,6 +261,7 @@ def build_sdk():
 def smoke_test():
     call('python scripts/build.py distclean install_ext smoke_test')
 
+
 def get_branch():
     branch = call("git rev-parse --abbrev-ref HEAD").strip()
     if branch == "HEAD":
@@ -279,7 +275,7 @@ def main(argv):
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
-    parser.add_argument("--archive", dest="archive", action='store_true', help="")
+    parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
@@ -298,43 +294,43 @@ def main(argv):
 
     # configure build flags based on the branch
     if branch == "master":
-        release_channel = "stable"
-        editor_channel = "stable"
-        release_bob = False
+        engine_channel = "stable"
+        editor_channel = "editor-alpha"
+        release_engine = False
         release_editor = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
-        release_channel = "beta"
+        engine_channel = "beta"
         editor_channel = "beta"
-        release_bob = False
+        release_engine = True
         release_editor = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "dev":
-        release_channel = "alpha"
+        engine_channel = "alpha"
         editor_channel = "alpha"
-        release_bob = True
+        release_engine = True
         release_editor = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
-        release_channel = "alpha"
+        engine_channel = "alpha"
         editor_channel = "editor-alpha"
-        release_bob = False
+        release_engine = False
         release_editor = True
         engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
-        release_channel = None
+        engine_channel = None
         editor_channel = None
-        release_bob = False
+        release_engine = False
         release_editor = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
-        release_channel = None
+        engine_channel = None
         editor_channel = None
-        release_bob = False
+        release_engine = False
         release_editor = False
         engine_artifacts = args.engine_artifacts or "archived"
 
-    print("Using branch={} release_channel={} editor_channel={} engine_artifacts={}".format(branch, release_channel, editor_channel, engine_artifacts))
+    print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
 
     # execute commands
     for command in args.commands:
@@ -351,26 +347,20 @@ def main(argv):
                 skip_builtins = args.skip_builtins,
                 skip_docs = args.skip_docs)
         elif command == "build-editor":
-            build_editor(
-                branch = branch,
-                channel = editor_channel,
-                engine_artifacts = engine_artifacts)
+            build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts)
         elif command == "notarize-editor":
-            notarize_editor(
-                branch = branch,
-                channel = editor_channel,
-                engine_artifacts = engine_artifacts,
+            notarize_editor2(
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
                 notarization_itc_provider = args.notarization_itc_provider)
         elif command == "archive-editor":
-            archive_editor(
-                branch = branch,
-                channel = editor_channel,
-                engine_artifacts = engine_artifacts,
-                release = release_editor)
+            archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts)
+            if release_editor:
+                release_editor2(channel = editor_channel)
         elif command == "bob":
-            build_bob(branch = branch, channel = release_channel, release = release_bob)
+            build_bob(channel = engine_channel)
+            if release_engine:
+                release(channel = engine_channel)
         elif command == "sdk":
             build_sdk()
         elif command == "smoke":
