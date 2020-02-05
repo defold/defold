@@ -186,7 +186,7 @@ def build_editor2(channel = None, engine_artifacts = None):
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
 
-def notarize_editor2(channel = None, engine_artifacts = None, notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
         exit(1)
@@ -194,12 +194,6 @@ def notarize_editor2(channel = None, engine_artifacts = None, notarization_usern
     # args = 'python scripts/build.py download_editor2 notarize_editor2 archive_editor2'.split()
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
-
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    if channel:
-        opts.append("--channel=%s" % channel)
 
     opts.append('--platform=x86_64-darwin')
 
@@ -356,8 +350,6 @@ def main(argv):
             build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts)
         elif command == "notarize-editor":
             notarize_editor2(
-                channel = editor_channel,
-                engine_artifacts = engine_artifacts,
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
                 notarization_itc_provider = args.notarization_itc_provider)

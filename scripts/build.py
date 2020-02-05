@@ -1107,9 +1107,6 @@ class Configuration(object):
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts,
                '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
                'installer']
         self.run_editor_script(cmd)
