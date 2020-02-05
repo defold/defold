@@ -189,7 +189,6 @@ class Configuration(object):
                  archive_path = None,
                  package_path = None,
                  set_version = None,
-                 branch = None,
                  channel = None,
                  engine_artifacts = None,
                  waf_options = [],
@@ -228,7 +227,6 @@ class Configuration(object):
         self.archive_path = archive_path
         self.package_path = package_path
         self.set_version = set_version
-        self.branch = branch
         self.channel = channel
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
@@ -1109,9 +1107,6 @@ class Configuration(object):
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts,
                '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
                'installer']
         self.run_editor_script(cmd)
@@ -2020,10 +2015,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Set version explicitily when bumping version')
 
-    parser.add_option('--branch', dest='branch',
-                      default = None,
-                      help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
-
     parser.add_option('--channel', dest='channel',
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
@@ -2074,7 +2065,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       archive_path = options.archive_path,
                       package_path = options.package_path,
                       set_version = options.set_version,
-                      branch = options.branch,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
