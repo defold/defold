@@ -1426,10 +1426,15 @@ class Configuration(object):
 
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
+        editor_channel = None
         if self.channel == "stable":
-            model['release'] = {'editor': [ dict(name='macOS 10.7+', url='https://d.defold.com/archive/'+release_sha1+'/stable/editor2/Defold-x86_64-darwin.dmg'),
-                                            dict(name='Windows', url='https://d.defold.com/archive/'+release_sha1+'/stable/editor2/Defold-x86_64-win32.zip'),
-                                            dict(name='Ubuntu 16.04+', url='https://d.defold.com/archive/'+release_sha1+'/stable/editor2/Defold-x86_64-linux.zip')] }
+            editor_channel = "editor-alpha"
+        else:
+            editor_channel = self.channel or "stable"
+
+        model['release'] = {'editor': [ dict(name='macOS 10.7+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.dmg'),
+                                        dict(name='Windows', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-win32.zip'),
+                                        dict(name='Ubuntu 16.04+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-linux.zip')] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
