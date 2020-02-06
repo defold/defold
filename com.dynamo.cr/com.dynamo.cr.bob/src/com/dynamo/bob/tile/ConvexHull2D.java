@@ -124,6 +124,28 @@ public class ConvexHull2D {
         public void setY(double y) {
             this.y = y;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof PointF) {
+                PointF p = (PointF) obj;
+                return x == p.x && y == p.y;
+
+            }
+            return super.equals(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            final int h1 = Double.hashCode(x);
+            final int h2 = Double.hashCode(y);
+            return h1 ^ h2;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("(%f, %f)", x, y);
+        }
     }
 
     public static class Line {
@@ -444,6 +466,7 @@ public class ConvexHull2D {
     }
 
     /**
+     * @note returns CW winding
      * @return a PointF array where each point is in the space [-0.5, 0.5]
      */
     public static PointF[] imageConvexHullCorners(int[] mask, int width, int height, int targetCount) {
@@ -489,6 +512,13 @@ public class ConvexHull2D {
 
             result[npoints++] = p;
         }
+
+        // Reverse the list to make it CW
+        PointF[] tmp = new PointF[npoints];
+        for (int i = 0; i < npoints; ++i) {
+            tmp[i] = result[npoints-i-1];
+        }
+        result = tmp;
 
         return simplifyHull(result, targetCount);
     }
