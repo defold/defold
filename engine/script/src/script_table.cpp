@@ -30,7 +30,7 @@ typedef uint32_t uint32_t_1_align;
 namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
-    const uint32_t TABLE_VERSION_CURRENT = 2;
+    const uint32_t TABLE_VERSION_CURRENT = 3;
 
     /*
      * Original table serialization format:
@@ -167,6 +167,7 @@ namespace dmScript
         case 0:
         case 1:
         case 2:
+        case 3:
             supported = true;
             break;
         default:
@@ -187,6 +188,18 @@ namespace dmScript
             uint16_t key = (uint16_t)index;
             *((uint16_t_1_align *)buffer) = key;
             buffer += 2;
+        }
+        else if (3 == header.m_Version)
+        {
+            lua_Number index = lua_tonumber(L, -2);
+            if (index > 0xffffffff) {
+                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
+            }
+            uint32_t key = (uint32_t)index;
+            *buffer++ = (uint8_t)(key & 0x000000FF);
+            *buffer++ = (uint8_t)((key & 0x0000FF00) >> 8);
+            *buffer++ = (uint8_t)((key & 0x00FF0000) >> 16);
+            *buffer++ = (uint8_t)((key & 0xFF000000) >> 24);
         }
         else
         {
@@ -541,6 +554,15 @@ namespace dmScript
             lua_pushnumber(L, *((uint16_t_1_align *)buffer));
             buffer += 2;
         }
+        else if (3 == header.m_Version)
+        {
+            uint32_t b1 = (uint32_t)*buffer++;
+            uint32_t b2 = (uint32_t)(*buffer++) << 8;
+            uint32_t b3 = (uint32_t)(*buffer++) << 16;
+            uint32_t b4 = (uint32_t)(*buffer++) << 24;
+            int32_t value = b4 | b3 | b2 | b1;
+            lua_pushnumber(L, value);
+        }
         else
         {
             uint32_t value;
@@ -849,4 +871,3 @@ namespace dmScript
     }
 
 }
-
