@@ -203,6 +203,7 @@ namespace dmGameSystem
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);
     void OnWindowResized(int width, int height);
+    void OnWindowCreated(int width, int height);
 }
 
 #endif // DM_GAMESYS_H
