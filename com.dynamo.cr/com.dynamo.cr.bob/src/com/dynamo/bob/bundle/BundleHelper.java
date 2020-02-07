@@ -801,8 +801,8 @@ public class BundleHelper {
     };
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
-    private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(fatal error|error|warning|note).*?:\\s*(.+)"); // CL.exe
+    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
+    private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload\\/packages|upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(fatal error|error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
     private static Pattern resourceIssueLinkerLLDLINKre = Pattern.compile("^(?:.*lld-link|.*ld):\\s(?:(warning|error)?:\\s)?(?:([\\w-.]+)\\([\\w.]+\\):\\s)?(.*)");
@@ -830,6 +830,9 @@ public class BundleHelper {
 
     // In case something really bad happened on the server
     private static Pattern internalServerIssue = Pattern.compile("Internal Server Error*.+");
+
+    // This regexp catches issues when merging android manifests
+    private static Pattern manifestMergeAndroidRe = Pattern.compile("(?:\\/tmp\\/job\\d*?\\/)(?:build|upload)\\/(.*?):(\\d*?):\\s(.*?):\\s(.*)");
 
     private static List<String> excludeMessages = new ArrayList<String>() {{
         add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
