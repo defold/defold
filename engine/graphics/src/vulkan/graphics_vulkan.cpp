@@ -865,6 +865,12 @@ namespace dmGraphics
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
+    #else
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_DXT1;
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT1;
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT3;
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT5;
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
