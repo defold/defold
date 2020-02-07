@@ -193,11 +193,12 @@ public class TextureSetGenerator {
 
         // We must respect the upper limit of the vertex hull count
         if (points == null || points.length > hullVertexCount) {
+            // Generates a CW rect
             points = new ConvexHull2D.PointF[4];
             points[0] = new ConvexHull2D.PointF(-0.5,-0.5);
-            points[1] = new ConvexHull2D.PointF( 0.5,-0.5);
+            points[1] = new ConvexHull2D.PointF(-0.5, 0.5);
             points[2] = new ConvexHull2D.PointF( 0.5, 0.5);
-            points[3] = new ConvexHull2D.PointF(-0.5, 0.5);
+            points[3] = new ConvexHull2D.PointF( 0.5,-0.5);
         }
 
         for (int i = 0; i < points.length; ++i) {
