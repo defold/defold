@@ -388,6 +388,10 @@ public class Bob {
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
+        // debug options
+        options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
+
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
