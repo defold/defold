@@ -796,6 +796,16 @@ public class ExtenderUtil {
         }
     }
 
+    // For debugging purposes
+    public static void writeResourcesToZip(List<ExtenderResource> source, ZipOutputStream zipOutputStream) throws IOException {
+        for (ExtenderResource s : source) {
+            ZipEntry ze = new ZipEntry(normalize(s.getPath(), true));
+            zipOutputStream.putNextEntry(ze);
+            zipOutputStream.write(s.getContent());
+            zipOutputStream.closeEntry();
+        }
+    }
+
     /** Finds a resource given a relative path
      * @param path  The relative path to the resource
      * @param source A list of all source files
