@@ -197,25 +197,15 @@ namespace dmScript
         {
             if (buffer_end - buffer < 4)
                 luaL_error(L, "table too large");
-            if (index > 0xffffffff) {
+            if (index < 0)
+                index = -index;
+            if (index > 0xffffffff)
                 luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
-            }
-            if (index >= 0)
-            {
-                uint32_t key = (uint32_t)index;
-                *buffer++ = (uint8_t)(key & 0x000000FF);
-                *buffer++ = (uint8_t)((key & 0x0000FF00) >> 8);
-                *buffer++ = (uint8_t)((key & 0x00FF0000) >> 16);
-                *buffer++ = (uint8_t)((key & 0xFF000000) >> 24);
-            }
-            else
-            {
-                int32_t key = (int32_t)index;
-                *buffer++ = (uint8_t)(key & 0x000000FF);
-                *buffer++ = (uint8_t)((key & 0x0000FF00) >> 8);
-                *buffer++ = (uint8_t)((key & 0x00FF0000) >> 16);
-                *buffer++ = (uint8_t)((key & 0xFF000000) >> 24);
-            }
+            uint32_t key = (uint32_t)index;
+            *buffer++ = (uint8_t)(key & 0xFF);
+            *buffer++ = (uint8_t)((key >> 8) & 0xFF);
+            *buffer++ = (uint8_t)((key >> 16) & 0xFF);
+            *buffer++ = (uint8_t)((key >> 24) & 0xFF);
         }
         else
         {
@@ -585,16 +575,13 @@ namespace dmScript
             uint8_t b2 = (uint8_t)*buffer++;
             uint8_t b3 = (uint8_t)*buffer++;
             uint8_t b4 = (uint8_t)*buffer++;
-            if (key_type == LUA_TNUMBER)
+            uint32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
+            lua_Number number = index;
+            if (key_type == LUA_TNEGATIVENUMBER)
             {
-                uint32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
-                lua_pushnumber(L, (lua_Number)index);
+                number = -number;
             }
-            else if (key_type == LUA_TNEGATIVENUMBER)
-            {
-                int32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
-                lua_pushnumber(L, (lua_Number)index);
-            }
+            lua_pushnumber(L, number);
         }
         else
         {
