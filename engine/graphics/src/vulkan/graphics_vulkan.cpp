@@ -3282,7 +3282,7 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
-        uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format) >> 3;
+        uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format);
         size_t tex_data_size        = 0;
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
@@ -3301,7 +3301,7 @@ bail:
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint32_t data_pixel_count = params.m_Width * params.m_Height;
-            uint8_t bpp_new           = 4;
+            uint8_t bpp_new           = 32;
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
             RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
@@ -3371,6 +3371,8 @@ bail:
                 vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
             CHECK_VK_ERROR(res);
         }
+
+        tex_data_size = (int) ceil((float) tex_data_size / 8.0f);
 
         CopyToTexture(g_Context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 
