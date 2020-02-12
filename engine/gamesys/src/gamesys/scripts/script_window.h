@@ -18,6 +18,7 @@ namespace dmGameSystem
     void ScriptWindowOnWindowFocus(bool focus);
     void ScriptWindowOnWindowIconify(bool iconify);
     void ScriptWindowOnWindowResized(int width, int height);
+    void ScriptWindowOnWindowCreated(int width, int height);
 
     void PlatformSetDimMode(DimMode mode);
     DimMode PlatformGetDimMode();
