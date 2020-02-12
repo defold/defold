@@ -45,6 +45,11 @@ namespace dmSys
     	}
     	return RESULT_OK;
     }
+    
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
+    {
+        return GetApplicationSupportPath(application_name, path, path_len);
+    }
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {

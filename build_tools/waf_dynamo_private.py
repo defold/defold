@@ -1,4 +1,4 @@
-import sys, os, shutil
+import sys, os, shutil, time
 import Options
 import Task, Node, Utils
 from TaskGen import extension, taskgen, feature, after, before
@@ -88,8 +88,9 @@ def setup_vars_nx(conf, build_util):
     _set_ccflags(conf, CCFLAGS)
     _set_cxxflags(conf, CXXFLAGS)
 
-    DEFINES = ""
-    DEFINES+= "NN_SDK_BUILD_%s" % BUILDTYPE.upper()
+    DEFINES ="DM_NO_SYSTEM_FUNCTION"
+    DEFINES+=" JC_TEST_NO_DEATH_TEST"
+    DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
     _set_defines(conf, DEFINES)
 
     LINKFLAGS ="-nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
@@ -98,7 +99,6 @@ def setup_vars_nx(conf, build_util):
     LINKFLAGS+=" -Wl,--start-group "
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/rocrt.o" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/nnApplication.o" % NINTENDO_SDK_ROOT
-    LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a" % NINTENDO_SDK_ROOT
@@ -119,6 +119,9 @@ def setup_vars_nx(conf, build_util):
     conf.env.program_PATTERN = '%s.nss'
     conf.env.bundle_PATTERN = '%s.nspd'
 
+    # Until we support cares
+    conf.env['STATICLIB_CARES'] = []
+
 
 @feature('cprogram', 'cxxprogram')
 @before('apply_core')
@@ -133,8 +136,8 @@ def switch_modify_ccflags_fn(self):
     if 'test' in str(self.features) and self.name.startswith('test_'):
         _set_defines(self, 'JC_TEST_NO_COLORS')
 
-
 Task.simple_task_type('switch_nso', '${MAKENSO} ${SRC} ${TGT}', color='YELLOW', shell=True, after='cxx_link cc_link')
+
 Task.simple_task_type('switch_meta', '${MAKEMETA} --desc ${SWITCH_DESC} --meta ${SWITCH_META} -o ${TGT} -d DefaultIs64BitInstruction=True -d DefaultProcessAddressSpace=AddressSpace64Bit',
                                      color='YELLOW', shell=True, after='switch_nso')
 
@@ -145,13 +148,48 @@ def switch_make_bundle(self):
     shutil.copy2(self.input_rtld, self.bundle_rtld.abspath(self.env))
     shutil.copy2(self.input_sdk, self.bundle_sdk.abspath(self.env))
   
-Task.task_type_from_func('switch_make_bundle',
-                         func = switch_make_bundle,
-                         color = 'blue',
-                         after  = 'switch_meta')
+Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
 
 Task.simple_task_type('switch_authorize', '${AUTHORINGTOOL} createnspd -o ${NPSD_DIR} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
                     color='YELLOW', shell=True, after='switch_make_bundle')
+
+NX64_MANIFEST="""<?xml version="1.0"?>
+<!-- From C:/Nintendo/SDK/NintendoSDK/Resources/SpecFilesApplication.aarch64.lp64.nmeta -->
+
+<NintendoSdkMeta>
+    <Core>
+        <Name>Application</Name>
+        <ApplicationId>0x01004b9000490000</ApplicationId>
+        <Is64BitInstruction>True</Is64BitInstruction>
+        <ProcessAddressSpace>AddressSpace64Bit</ProcessAddressSpace>
+    </Core>
+
+    <Application>
+        <Title>
+            <Language>AmericanEnglish</Language>
+            <Name>%(app_name)s</Name>
+            <Publisher>Defold</Publisher>
+        </Title>
+        <Icon>
+            <Language>AmericanEnglish</Language>
+            <IconPath>%(app_icon)s</IconPath>
+        </Icon>
+        <DisplayVersion>1.0.0</DisplayVersion>
+        <SupportedLanguage>AmericanEnglish</SupportedLanguage>
+        <Rating>
+            <Organization>ESRB</Organization>
+            <Age>0</Age>
+        </Rating>
+        <LogoType>LicensedByNintendo</LogoType>
+        <ReleaseVersion>0</ReleaseVersion>
+
+        <UserAccountSaveDataSize>0x0000000000100000</UserAccountSaveDataSize>
+        <UserAccountSaveDataJournalSize>0x0000000000040000</UserAccountSaveDataJournalSize>
+        <CacheStorageSize>0x0000000003F00000</CacheStorageSize>
+        <CacheStorageJournalSize>0x0000000000100000</CacheStorageJournalSize>
+    </Application>
+</NintendoSdkMeta>
+"""
 
 # Creates a set of directories (modified from wafadmin/Tools/osx.py)
 # returns the last DIR node in the supplied path
@@ -174,28 +212,40 @@ def switch_make_app(self):
             break
 
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
-    metafile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.aarch64.lp64.nmeta')
+    app_icon = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/NintendoSDK_Application.bmp')
 
     nss = task.outputs[0]
+    bundle_parent = nss.parent
+
+    exe_name = os.path.splitext(nss.name)[0]
 
     nso = nss.change_ext('.nso')
     nsotask = self.create_task('switch_nso')
     nsotask.set_inputs(nss)
     nsotask.set_outputs(nso)
 
+    manifest = bundle_parent.exclusive_build_node("%s.nmeta" % exe_name)
+    
+    generated_folder = manifest.parent
+    if not os.path.exists(generated_folder.abspath(task.env)):
+        os.makedirs(generated_folder.abspath(task.env))
+
+    with open(manifest.abspath(task.env), 'wb') as f:
+        f.write(NX64_MANIFEST % { 'app_name' : exe_name, 'app_icon' : app_icon })
+        self.bld.node_sigs[self.env.variant()][manifest.id] = Utils.h_file(manifest.abspath(task.env))
+
     npdm = nss.change_ext('.npdm')
     metatask = self.create_task('switch_meta')
     metatask.set_inputs(nso)
     metatask.set_outputs(npdm)
+    metatask.env['SWITCH_META'] = manifest.abspath(task.env)
     metatask.env['SWITCH_DESC'] = descfile
-    metatask.env['SWITCH_META'] = metafile
 
-    npsd_dir = '%s.nspd' % os.path.splitext(nss.name)[0]
+    npsd_dir = '%s.nspd' % exe_name
     # temporary folders for code/data that will be copied into the signed bundle
-    code_dir = '%s.code' % os.path.splitext(nss.name)[0]
-    data_dir = '%s.data' % os.path.splitext(nss.name)[0]
+    code_dir = '%s.code' % exe_name
+    data_dir = '%s.data' % exe_name
 
-    bundle_parent = nss.parent
 
     bundle_npsd = create_bundle_dirs(self, npsd_dir, bundle_parent)
 
@@ -230,13 +280,26 @@ def switch_make_app(self):
     authorizetask = self.create_task('switch_authorize')
     authorizetask.set_inputs([bundle_main, bundle_npdm])
     authorizetask.set_outputs([authorize_control])
-    authorizetask.env['SWITCH_META'] = metafile
+    authorizetask.env['SWITCH_META'] = manifest.abspath(task.env)
     authorizetask.env['NPSD_DIR'] = bundle_npsd.abspath(task.env)
     authorizetask.env['CODE_DIR'] = bundle_main.parent.abspath(task.env)
     authorizetask.env['DATA_DIR'] = authorize_data_dir
     
     task.bundle_output = bundle_npsd.abspath(task.env)
 
+def supports_feature_nx(platform, feature, data):
+    if feature == 'mbedtls':
+        return False
+    # until we've added an implementation of socket.cpp and dns.cpp
+    if feature in ['test_socket', 'test_dns', 'test_httpclient', 'test_configfile', 'test_httpserver']:
+        return False
+    # until we've added an implementation of memprofile.cpp
+    if feature in ['test_memprofile']: 
+        return False
+    # until we've figured out a way to test it host<->switch
+    if feature in ['test_webserver']: 
+        return False
+    return True
 
 #*******************************************************************************************************
 # <-- NINTENDO SWITCH
@@ -248,19 +311,27 @@ def set_options(opt):
 
 # setup the CC et al
 def setup_tools(conf, build_util):
-    print "MAWE", "setup_tools"
-
     if build_util.get_target_platform() in ['arm64-nx64']:
         _dont_look_for_msvc()
         setup_tools_nx(conf, build_util)
 
 # Modify any variables after the cc+cxx compiler tools have been loaded
 def setup_vars(task_gen, build_util):
-    #print "MAWE", "setup_vars", task_gen.name
-
     if build_util.get_target_platform() in ['arm64-nx64']:
         setup_vars_nx(task_gen, build_util)
 
 
 def is_platform_private(platform):
     return platform in ['arm64-nx64']
+
+
+def supports_feature(platform, feature, data):
+    """ Can ask if the platform supports this feature.
+    Returns True by defalt.
+    @param platform
+    @param feature string
+    @param data table
+    """
+    if platform in ['arm64-nx64']:
+        return supports_feature_nx(platform, feature, data)
+    return True

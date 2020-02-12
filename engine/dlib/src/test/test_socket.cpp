@@ -1,15 +1,15 @@
 #include <stdint.h>
 #include <stdlib.h> // free
 #include <string.h>
-#include "../dlib/dstrings.h"
-#include "../dlib/socket.h"
-#include "../dlib/thread.h"
-#include "../dlib/time.h"
+#include <dlib/dstrings.h>
+#include <dlib/socket.h>
+#include <dlib/thread.h>
+#include <dlib/time.h>
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 #include <arpa/inet.h>
 #endif
 
-#include "../dlib/network_constants.h"
+#include <dlib/network_constants.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>

@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- From C:/Nintendo/SDK/NintendoSDK/Resources/SpecFilesApplication.aarch64.lp64.nmeta -->
+<NintendoSdkMeta>
+    <Core>
+        <Name>Application</Name>
+        <ApplicationId>0x01004b9000490000</ApplicationId>
+        <Is64BitInstruction>True</Is64BitInstruction>
+        <ProcessAddressSpace>AddressSpace64Bit</ProcessAddressSpace>
+    </Core>
+
+    <Application>
+        <Title>
+            <Language>AmericanEnglish</Language>
+            <Name>{{ project.title }}</Name>
+            <Publisher>Defold</Publisher>
+        </Title>
+        <Icon>
+            <Language>AmericanEnglish</Language>
+            <IconPath>{{ switch.icon }}</IconPath>
+        </Icon>
+        <DisplayVersion>{{ project.version }}</DisplayVersion>
+        <SupportedLanguage>AmericanEnglish</SupportedLanguage>
+        <Rating>
+            <Organization>{{ switch.rating_organisation }}</Organization>
+            <Age>{{ switch.rating_recommended_age }}</Age>
+        </Rating>
+        <LogoType>LicensedByNintendo</LogoType>
+        <ReleaseVersion>{{ switch.release_version }}</ReleaseVersion>
+
+        <UserAccountSaveDataSize>{{ switch.user_account_save_data_size }}</UserAccountSaveDataSize>
+        <UserAccountSaveDataJournalSize>{{ switch.user_account_save_data_journal_size }}</UserAccountSaveDataJournalSize>
+        <CacheStorageSize>{{ switch.cache_storage_size }}</CacheStorageSize>
+        <CacheStorageJournalSize>{{ switch.cache_storage_journal_size }}</CacheStorageJournalSize>
+    </Application>
+</NintendoSdkMeta>
