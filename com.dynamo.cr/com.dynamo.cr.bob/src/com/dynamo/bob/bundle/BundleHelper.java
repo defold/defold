@@ -249,7 +249,7 @@ public class BundleHelper {
         IResource mainManifest;
         String mainManifestName;
         Map<String, Object> properties = new HashMap<>();
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
             mainManifestName = MANIFEST_NAME_IOS;
@@ -295,7 +295,7 @@ public class BundleHelper {
     }
 
     public File getAppManifestFile(Platform platform, File appDir) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios  ) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
             return new File(appDir, "Contents/Info.plist");
@@ -310,10 +310,10 @@ public class BundleHelper {
     // either copies the merged manifest or writes a new resolved manifest from single source file
     public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File sourceManifest;
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
         } else if (platform == Platform.X86_64Darwin) {
-            sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
+            sourceManifest = new File(projectProperties.getStringValue("osx", "infoplist"));
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             sourceManifest = new File(projectProperties.getStringValue("android", "manifest"));
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
