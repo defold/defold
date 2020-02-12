@@ -865,6 +865,20 @@ namespace dmGraphics
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         }
+    #else
+
+        if (selected_device->m_Features.textureCompressionETC2)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+        if (selected_device->m_Features.textureCompressionBC)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_DXT1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT3;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT5;
+        }
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
@@ -3268,7 +3282,7 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
-        uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format) >> 3;
+        uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format);
         size_t tex_data_size        = 0;
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
@@ -3287,7 +3301,7 @@ bail:
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint32_t data_pixel_count = params.m_Width * params.m_Height;
-            uint8_t bpp_new           = 4;
+            uint8_t bpp_new           = 32;
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
             RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
@@ -3357,6 +3371,8 @@ bail:
                 vk_memory_type, VK_IMAGE_ASPECT_COLOR_BIT, vk_initial_layout, texture);
             CHECK_VK_ERROR(res);
         }
+
+        tex_data_size = (int) ceil((float) tex_data_size / 8.0f);
 
         CopyToTexture(g_Context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 

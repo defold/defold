@@ -173,9 +173,26 @@ namespace dmGraphics
             vk_swap_chain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         }
 
+        VkCompositeAlphaFlagBitsKHR vk_composite_alpha_flag_selected = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        VkCompositeAlphaFlagBitsKHR vk_composite_alpha_flags[4] = {
+            VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+            VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+            VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+        };
+
+        for (int i = 0; i < sizeof(vk_composite_alpha_flags)/sizeof(VkCompositeAlphaFlagBitsKHR); ++i)
+        {
+            if (capabilities.m_SurfaceCapabilities.supportedCompositeAlpha & vk_composite_alpha_flags[i])
+            {
+                vk_composite_alpha_flag_selected = vk_composite_alpha_flags[i];
+                break;
+            }
+        }
+
          // The preTransform field can be used to rotate the swap chain when presenting
         vk_swap_chain_create_info.preTransform   = capabilities.m_SurfaceCapabilities.currentTransform;
-        vk_swap_chain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        vk_swap_chain_create_info.compositeAlpha = vk_composite_alpha_flag_selected;
         vk_swap_chain_create_info.presentMode    = vk_present_mode;
         vk_swap_chain_create_info.clipped        = VK_TRUE;
         vk_swap_chain_create_info.oldSwapchain   = vk_old_swap_chain;
