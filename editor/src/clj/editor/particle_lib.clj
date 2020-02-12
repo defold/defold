@@ -21,8 +21,8 @@
 
 (vertex/defvertex vertex-format
   (vec3 position)
-  (vec4.ubyte color true)
-  (vec2.ushort texcoord0 true))
+  (vec4 color true)
+  (vec2 texcoord0 true))
 
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
