@@ -666,7 +666,7 @@ public class BundleHelper {
             properties.put("orientation-support", "sensor");
         }
 
-        // Since we started to always fill in the default values to the propject properties
+        // Since we started to always fill in the default values to the project properties
         // it is harder to distinguish what is a user defined value.
         // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
         if (projectProperties.isDefault("android", "debuggable")) {
