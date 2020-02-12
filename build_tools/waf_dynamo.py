@@ -29,9 +29,15 @@ except ImportError, e:
         @classmethod
         def is_platform_private(cls, platform):
             return False
+        @classmethod
+        def supports_feature(cls, platform, feature, data):
+            return True
 
 def is_platform_private(platform):
     return waf_dynamo_private.is_platform_private(platform)
+
+def platform_supports_feature(platform, feature, data):
+    return waf_dynamo_private.supports_feature(platform, feature, data)
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 ANDROID_ROOT=SDK_ROOT
@@ -301,7 +307,6 @@ def default_flags(self):
                 self.env.append_value(f, ['-stdlib=libc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
-            # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
@@ -1632,7 +1637,6 @@ def detect(conf):
     if re.match('.*?linux', platform):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
-        conf.env['LIB_UUID'] = 'uuid'
     elif 'darwin' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'android' in platform:
@@ -1657,6 +1661,7 @@ def detect(conf):
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
+    conf.env['STATICLIB_APP'] = ['app']
     conf.env['STATICLIB_CARES'] = []
     if platform != 'web':
         conf.env['STATICLIB_CARES'].append('cares')

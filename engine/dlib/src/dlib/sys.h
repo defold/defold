@@ -184,6 +184,7 @@ namespace dmSys
      * OSX: ~/Library/Application Support/APPLICATION_NAME
      * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
      * Linux: ~/.APPLICATION_NAME
+     * Switch: fscache://
      * @param application_name application name to get path for. This is the name of "your" application.
      * @param path path buffer
      * @param path_len path buffer length
@@ -191,6 +192,21 @@ namespace dmSys
      * codes, e.g. RESULT_ACCES if permission is denied.
      */
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len);
+
+    /**
+     * Get and create platform specific application save directory.
+     * For Switch, it returns the path, prefixed with "save://"
+     * Example paths:
+     * OSX: ~/Library/Application Support/APPLICATION_NAME
+     * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
+     * Linux: ~/.APPLICATION_NAME
+     * @param application_name application name to get path for. This is the name of "your" application.
+     * @param path path buffer
+     * @param path_len path buffer length
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. General IO-errors could result in other
+     * codes, e.g. RESULT_ACCES if permission is denied.
+     */
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len);
 
     /**
      * Get resource directory path. On iOS the bundle directory is returned whereas on MacOSX
@@ -218,6 +234,7 @@ namespace dmSys
      * @return
      */
     Result GetLogPath(char* path, uint32_t path_len);
+
 
     /**
      * Get system information
@@ -298,6 +315,10 @@ namespace dmSys
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)
      */
     void PumpMessageQueue();
+
+    // private functions
+    void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
+    Result NativeToResult(int r);
 }
 
 #endif

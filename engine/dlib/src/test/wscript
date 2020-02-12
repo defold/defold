@@ -1,15 +1,26 @@
 #! /usr/bin/env python
 import os, re
+from waf_dynamo import is_platform_private, platform_supports_feature
+from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None, skip_run = False):
 
-    req_libs = ['UUID', 'CARES']
+    # Sometimes, we need to disable certain tests until they're supported 
+    if not platform_supports_feature(bld.env.PLATFORM, name, {}):
+        return
+
+    build_util = create_build_utility(bld.env)
+
+    req_libs = ['APP', 'CARES']
     req_defines = []
 
     req_features = ['cxx', 'cprogram']
     req_includes = ['../../src']
     req_embed = None
+
+    if is_platform_private(bld.env.PLATFORM):
+        req_includes.insert(0, '../dlib/%s' % build_util.get_target_os())
 
     if not skip_run:
         req_features.append('test')
@@ -101,7 +112,6 @@ def build(bld):
     create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
     create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
-    create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run)
