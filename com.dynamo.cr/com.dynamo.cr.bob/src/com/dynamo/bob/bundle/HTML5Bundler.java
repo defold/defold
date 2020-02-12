@@ -227,8 +227,6 @@ public class HTML5Bundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
-        // Flash audio swf
-        FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
         BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
 

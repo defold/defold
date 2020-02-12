@@ -101,7 +101,6 @@ copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_rel
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
 copy js-web/dmengine.js js-web/dmengine.js
-copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem
 copy js-web/dmengine_release.js js-web/dmengine_release.js
 #copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
