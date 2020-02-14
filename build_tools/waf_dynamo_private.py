@@ -82,7 +82,7 @@ def setup_vars_nx(conf, build_util):
     BUILDTARGET = 'NX-NXFP2-a64'
     BUILDTYPE = "Debug"
 
-    CCFLAGS="-mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
+    CCFLAGS="-g -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
     CXXFLAGS="-fno-rtti -std=gnu++14 "
 
     _set_ccflags(conf, CCFLAGS)
@@ -94,7 +94,8 @@ def setup_vars_nx(conf, build_util):
     DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
     _set_defines(conf, DEFINES)
 
-    LINKFLAGS ="-nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
+    LINKFLAGS =""
+    LINKFLAGS+=" -g -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
     LINKFLAGS+=" -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free"
     LINKFLAGS+=" -fdiagnostics-format=msvc -Wl,-T C:/Nintendo/SDK/NintendoSDK/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
     LINKFLAGS+=" -Wl,--start-group "
@@ -151,8 +152,11 @@ def switch_make_bundle(self):
 
 Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
 
-Task.simple_task_type('switch_authorize', '${AUTHORINGTOOL} createnspd -o ${NPSD_DIR} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
+Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} creatensp -o ${NPSD_DIR} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
                     color='YELLOW', shell=True, after='switch_make_bundle')
+
+Task.simple_task_type('switch_nsp', '${AUTHORINGTOOL} creatensp -o ${TGT} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
+                    color='YELLOW', shell=True, after='switch_nspd')
 
 NX64_MANIFEST="""<?xml version="1.0"?>
 <!-- From C:/Nintendo/SDK/NintendoSDK/Resources/SpecFilesApplication.aarch64.lp64.nmeta -->
@@ -250,6 +254,8 @@ def switch_make_app(self):
 
     bundle_npsd = create_bundle_dirs(self, npsd_dir, bundle_parent)
 
+    bundle_nsp = bundle_parent.exclusive_build_node('%s.nsp' % exe_name)
+
     bundle_main = bundle_parent.exclusive_build_node(code_dir+'/main')
     bundle_npdm = bundle_parent.exclusive_build_node(code_dir+'/main.npdm')
     bundle_rtld = bundle_parent.exclusive_build_node(code_dir+'/rtld')
@@ -269,7 +275,6 @@ def switch_make_app(self):
     bundletask.input_sdk = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nso')
 
     # TODO: Add some mechanic to copy app data to the bundle (e.g. icon)
-
     authorize_control_dir   = create_bundle_dirs(self, npsd_dir+'/control0.ncd/data', bundle_parent)
     authorize_control       = authorize_control_dir.find_or_declare(['control.nacp'])
     authorize_data_dir  = bundle_parent.exclusive_build_node(data_dir).abspath(task.env)
@@ -278,15 +283,36 @@ def switch_make_app(self):
 
     self.bld.rescan(bundle_main.parent)
 
-    authorizetask = self.create_task('switch_authorize')
-    authorizetask.set_inputs([bundle_main, bundle_npdm])
-    authorizetask.set_outputs([authorize_control])
-    authorizetask.env['SWITCH_META'] = manifest.abspath(task.env)
-    authorizetask.env['NPSD_DIR'] = bundle_npsd.abspath(task.env)
-    authorizetask.env['CODE_DIR'] = bundle_main.parent.abspath(task.env)
-    authorizetask.env['DATA_DIR'] = authorize_data_dir
+    nspdtask = self.create_task('switch_nspd')
+    nspdtask.set_inputs([bundle_main, bundle_npdm])
+    nspdtask.set_outputs([authorize_control])
+    nspdtask.env['SWITCH_META'] = manifest.abspath(task.env)
+    nspdtask.env['SWITCH_DESC'] = descfile
+    nspdtask.env['NPSD_DIR'] = bundle_npsd.abspath(task.env)
+    nspdtask.env['CODE_DIR'] = bundle_main.parent.abspath(task.env)
+    nspdtask.env['DATA_DIR'] = authorize_data_dir
+    # check if the directory is empty
+    if not os.listdir(nspdtask.env['DATA_DIR']):
+        nspdtask.env['DATA_DIR'] = None
 
-    task.bundle_output = bundle_npsd.abspath(task.env)
+    authorize_data_dir  = bundle_parent.exclusive_build_node(data_dir).abspath(task.env)
+    if not os.path.exists(authorize_data_dir):
+        os.makedirs(authorize_data_dir)
+
+    nsptask = self.create_task('switch_nsp')
+    nsptask.set_inputs([bundle_main, bundle_npdm])
+    nsptask.set_outputs([bundle_nsp])
+    nsptask.env['SWITCH_META'] = manifest.abspath(task.env)
+    nsptask.env['SWITCH_DESC'] = descfile
+    nsptask.env['CODE_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/code').abspath(task.env)
+    nsptask.env['DATA_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/data').abspath(task.env)
+    # check if the directory is empty
+    if not os.listdir(nsptask.env['DATA_DIR']):
+        nsptask.env['DATA_DIR'] = None
+
+    task.bundle_output = bundle_nsp.abspath(task.env)
+
+
 
 def supports_feature_nx(platform, feature, data):
     if feature == 'mbedtls':
