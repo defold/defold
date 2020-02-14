@@ -6,8 +6,9 @@ from BuildUtility import create_build_utility
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
                 extra_includes = None, extra_defines = None, skip_run = False):
 
-    # Sometimes, we need to disable certain tests until they're supported 
+    # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
+        print "Skipping test '%s' due to platform missing feature" % name
         return
 
     build_util = create_build_utility(bld.env)

@@ -130,7 +130,7 @@ def build(bld):
         del lib_features['MEMPROFILE'] # no support for "execinfo.h"
 
         # Until implemented
-        lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
+        #lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
         lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
 
         # Replace with any specialized sources that the private platform uses

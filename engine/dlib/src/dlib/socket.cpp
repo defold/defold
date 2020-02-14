@@ -28,6 +28,7 @@ typedef int socklen_t;
 
 #include "log.h"
 #include "socket_private.h"
+#include <dlib/sockettypes.h>
 
 // Helper and utility functions
 namespace dmSocket
@@ -37,7 +38,7 @@ namespace dmSocket
 #else
     #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
 #endif
-    static Result NativeToResult(const char* filename, int line, int r)
+    Result NativeToResult(const char* filename, int line, int r)
     {
         switch (r)
         {
@@ -967,7 +968,7 @@ namespace dmSocket
     {
         SelectorZero(this);
     }
-    
+
     void SelectorClear(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
         FD_CLR(socket, &selector->m_FdSets[selector_kind]);

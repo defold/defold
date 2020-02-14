@@ -148,6 +148,7 @@ TEST(Socket, BitDifference_Equal)
     ASSERT_EQ(0U, dmSocket::BitDifference(instance1, instance2));
 }
 
+#if !defined(__NX__) // until we have a helper interface wrapper for inet_addr
 TEST(Socket, NetworkOrder)
 {
     dmSocket::Address address;
@@ -160,6 +161,7 @@ TEST(Socket, NetworkOrder)
     // This checks so our format is in network order.
     ASSERT_EQ(inet_addr(DM_LOOPBACK_ADDRESS_IPV4), address.m_address[3]);
 }
+#endif
 
 TEST(Socket, IPv4)
 {
@@ -168,12 +170,14 @@ TEST(Socket, IPv4)
     ASSERT_EQ(&instance.m_address[3], dmSocket::IPv4(&instance));
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, IPv6)
 {
     dmSocket::Address instance;
     instance.m_family = dmSocket::DOMAIN_IPV6;
     ASSERT_EQ(&instance.m_address[0], dmSocket::IPv6(&instance));
 }
+#endif
 
 TEST(Socket, New_IPv4)
 {
@@ -191,6 +195,7 @@ TEST(Socket, New_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, New_IPv6)
 {
     dmSocket::Socket instance = 0;
@@ -206,6 +211,7 @@ TEST(Socket, New_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, New_InvalidDomain)
 {
@@ -241,6 +247,7 @@ TEST(Socket, SetReuseAddress_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, SetReuseAddress_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -254,6 +261,7 @@ TEST(Socket, SetReuseAddress_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, AddMembership_IPv4)
 {
@@ -268,6 +276,7 @@ TEST(Socket, AddMembership_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, AddMembership_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -280,6 +289,7 @@ TEST(Socket, AddMembership_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, SetMulticastIf_IPv4)
 {
@@ -317,6 +327,7 @@ TEST(Socket, SetMulticastIf_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, SetMulticastIf_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -352,6 +363,7 @@ TEST(Socket, SetMulticastIf_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, Delete_IPv4)
 {
@@ -363,6 +375,7 @@ TEST(Socket, Delete_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, Delete_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -372,6 +385,7 @@ TEST(Socket, Delete_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, Delete_InvalidSocket)
 {
@@ -430,6 +444,7 @@ TEST(Socket, Connect_IPv4_ThreadServer)
     dmThread::Join(thread);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, Connect_IPv6_ThreadServer)
 {
     // Setup server thread
@@ -469,6 +484,7 @@ TEST(Socket, Connect_IPv6_ThreadServer)
 
     dmThread::Join(thread);
 }
+#endif
 
 static void RefusingServerThread(void* arg)
 {
@@ -509,6 +525,7 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     dmThread::Join(thread);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
     dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -540,6 +557,7 @@ TEST(Socket, Connect_IPv6_ConnectionRefused)
 
     dmThread::Join(thread);
 }
+#endif
 
 // Listen
 
@@ -591,6 +609,7 @@ TEST(Socket, GetName_IPv4_Connected)
     dmThread::Join(thread);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetName_IPv6_Connected)
 {
     // Setup server thread
@@ -639,6 +658,7 @@ TEST(Socket, GetName_IPv6_Connected)
 
     dmThread::Join(thread);
 }
+#endif
 
 TEST(Socket, SetBlocking_IPv4)
 {
@@ -657,6 +677,7 @@ TEST(Socket, SetBlocking_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, SetBlocking_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -673,6 +694,7 @@ TEST(Socket, SetBlocking_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, SetNoDelay_IPv4)
 {
@@ -691,6 +713,7 @@ TEST(Socket, SetNoDelay_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, SetNoDelay_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -707,6 +730,7 @@ TEST(Socket, SetNoDelay_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, SetTimeout_IPv4)
 {
@@ -728,6 +752,7 @@ TEST(Socket, SetTimeout_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, SetTimeout_IPv6)
 {
     dmSocket::Socket instance = 0;
@@ -747,6 +772,7 @@ TEST(Socket, SetTimeout_IPv6)
     result = dmSocket::Delete(instance);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
+#endif
 
 TEST(Socket, AddressToIPString_IPv4)
 {
@@ -762,6 +788,7 @@ TEST(Socket, AddressToIPString_IPv4)
     free(actual);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, AddressToIPString_IPv6_Empty)
 {
     dmSocket::Address address;
@@ -814,6 +841,7 @@ TEST(Socket, AddressToIPString_IPv6_FullAddress)
     // Teardown
     free(actual);
 }
+#endif
 
 TEST(Socket, GetHostByName_IPv4_Localhost)
 {
@@ -827,6 +855,7 @@ TEST(Socket, GetHostByName_IPv4_Localhost)
     ASSERT_EQ(0x0100007f, *dmSocket::IPv4(&address));
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetHostByName_IPv6_Localhost)
 {
     dmSocket::Address address;
@@ -841,6 +870,7 @@ TEST(Socket, GetHostByName_IPv6_Localhost)
     ASSERT_EQ(0x00000000, address.m_address[2]);
     ASSERT_EQ(0x01000000, address.m_address[3]);
 }
+#endif
 
 TEST(Socket, GetHostByName_IPv4_External)
 {
@@ -853,6 +883,7 @@ TEST(Socket, GetHostByName_IPv4_External)
     ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetHostByName_IPv6_External)
 {
 #if !defined(_WIN32)
@@ -868,6 +899,7 @@ TEST(Socket, GetHostByName_IPv6_External)
     ASSERT_TRUE(true);
 #endif
 }
+#endif
 
 TEST(Socket, GetHostByName_IPv4_Unavailable)
 {
@@ -879,6 +911,7 @@ TEST(Socket, GetHostByName_IPv4_Unavailable)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, GetHostByName_IPv6_Unavailable)
 {
     dmSocket::Address address;
@@ -888,6 +921,7 @@ TEST(Socket, GetHostByName_IPv6_Unavailable)
     result = dmSocket::GetHostByName(hostname, &address, false, true);
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
+#endif
 
 TEST(Socket, GetHostByName_NoValidAddressFamily)
 {
@@ -921,6 +955,7 @@ TEST(Socket, ServerSocketIPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, ServerSocketIPv6)
 {
     dmSocket::Socket socket;
@@ -942,6 +977,7 @@ TEST(Socket, ServerSocketIPv6)
     r = dmSocket::Delete(socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
+#endif
 
 TEST(Socket, ServerSocketIPv4_MultipleBind)
 {
@@ -976,6 +1012,7 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, ServerSocketIPv6_MultipleBind)
 {
     dmSocket::Socket socket1, socket2;
@@ -1007,6 +1044,7 @@ TEST(Socket, ServerSocketIPv6_MultipleBind)
     r = dmSocket::Delete(socket2);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
+#endif
 
 TEST(Socket, ServerSocketIPv4_Accept)
 {
@@ -1038,6 +1076,7 @@ TEST(Socket, ServerSocketIPv4_Accept)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, ServerSocketIPv6_Accept)
 {
     dmSocket::Socket socket;
@@ -1067,6 +1106,7 @@ TEST(Socket, ServerSocketIPv6_Accept)
     r = dmSocket::Delete(socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
+#endif
 
 static void PrintFlags(uint32_t f) {
     if (f & dmSocket::FLAGS_UP) {
@@ -1106,6 +1146,7 @@ TEST(Socket, GetIfAddrs)
     }
 }
 
+#if !defined(DM_NO_IPV6)
 TEST(Socket, Timeout)
 {
     const uint64_t timeout = 50 * 1000;
@@ -1176,6 +1217,7 @@ TEST(Socket, Timeout)
     dmSocket::Delete(server_socket);
     dmSocket::Delete(client_socket);
 }
+#endif
 
 int main(int argc, char **argv)
 {

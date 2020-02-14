@@ -89,6 +89,7 @@ def setup_vars_nx(conf, build_util):
     _set_cxxflags(conf, CXXFLAGS)
 
     DEFINES ="DM_NO_SYSTEM_FUNCTION"
+    DEFINES+=" DM_NO_IPV6"
     DEFINES+=" JC_TEST_NO_DEATH_TEST"
     DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
     _set_defines(conf, DEFINES)
@@ -112,8 +113,8 @@ def setup_vars_nx(conf, build_util):
     LIBPATHS ="%s/Libraries/%s/%s" % (NINTENDO_SDK_ROOT, BUILDTARGET, BUILDTYPE)
     _set_libpath(conf, LIBPATHS)
 
-    CPPPATH ="%s/Common/Configs/Targets/%s/Include" % (NINTENDO_SDK_ROOT, BUILDTARGET)
-    CPPPATH+=" %s/Include" % (NINTENDO_SDK_ROOT,)
+    CPPPATH ="%s/Include" % (NINTENDO_SDK_ROOT,)
+    CPPPATH+=" %s/Common/Configs/Targets/%s/Include" % (NINTENDO_SDK_ROOT, BUILDTARGET)
     _set_includes(conf, CPPPATH)
 
     conf.env.program_PATTERN = '%s.nss'
@@ -147,7 +148,7 @@ def switch_make_bundle(self):
     shutil.copy2(self.input_npdm.abspath(self.env), self.bundle_npdm.abspath(self.env))
     shutil.copy2(self.input_rtld, self.bundle_rtld.abspath(self.env))
     shutil.copy2(self.input_sdk, self.bundle_sdk.abspath(self.env))
-  
+
 Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
 
 Task.simple_task_type('switch_authorize', '${AUTHORINGTOOL} createnspd -o ${NPSD_DIR} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
@@ -225,7 +226,7 @@ def switch_make_app(self):
     nsotask.set_outputs(nso)
 
     manifest = bundle_parent.exclusive_build_node("%s.nmeta" % exe_name)
-    
+
     generated_folder = manifest.parent
     if not os.path.exists(generated_folder.abspath(task.env)):
         os.makedirs(generated_folder.abspath(task.env))
@@ -284,20 +285,20 @@ def switch_make_app(self):
     authorizetask.env['NPSD_DIR'] = bundle_npsd.abspath(task.env)
     authorizetask.env['CODE_DIR'] = bundle_main.parent.abspath(task.env)
     authorizetask.env['DATA_DIR'] = authorize_data_dir
-    
+
     task.bundle_output = bundle_npsd.abspath(task.env)
 
 def supports_feature_nx(platform, feature, data):
     if feature == 'mbedtls':
         return False
     # until we've added an implementation of socket.cpp and dns.cpp
-    if feature in ['test_socket', 'test_dns', 'test_httpclient', 'test_configfile', 'test_httpserver']:
-        return False
+    #if feature in ['test_socket', 'test_dns', 'test_httpclient', 'test_configfile', 'test_httpserver']:
+    #    return False
     # until we've added an implementation of memprofile.cpp
-    if feature in ['test_memprofile']: 
+    if feature in ['test_memprofile']:
         return False
     # until we've figured out a way to test it host<->switch
-    if feature in ['test_webserver']: 
+    if feature in ['test_webserver']:
         return False
     return True
 
