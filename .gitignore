@@ -13,6 +13,7 @@
 .java
 .oracle*
 .bash*
+*.pyc
 
 /.ccache
 /.idea
