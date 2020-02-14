@@ -18,7 +18,7 @@ namespace dmThread
         assert(stack_size % nn::os::ThreadStackAlignment == 0);
 
         nn::os::ThreadType* thread = (nn::os::ThreadType*)malloc(sizeof(nn::os::ThreadType));
-        
+
         // We simply pass it in here, leaving it as is.
         // Currently no way to get stack pointer, but do we really need to free it when the app goes down?
         void* stack = malloc(stack_size);
@@ -31,6 +31,8 @@ namespace dmThread
         }
 
         nn::os::SetThreadName(thread, name);
+
+        nn::os::StartThread(thread);
         return thread;
     }
 
@@ -38,7 +40,7 @@ namespace dmThread
     {
         nn::os::WaitThread(thread);
     }
-    
+
     Thread GetCurrentThread()
     {
         return nn::os::GetCurrentThread();
