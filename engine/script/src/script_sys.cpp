@@ -219,7 +219,7 @@ union SaveLoadBuffer
         const char* application_id = luaL_checkstring(L, 1);
 
         char app_support_path[1024];
-        dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
+        dmSys::Result r = dmSys::GetApplicationSavePath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
             return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
@@ -284,6 +284,45 @@ union SaveLoadBuffer
 
         return 1;
     }
+
+    /*# gets the application support-file path
+     * The support file path is operating system specific and is typically located under the user's home directory.
+     *
+     * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
+     *
+     * @name sys.get_save_file
+     * @param application_id [type:string] user defined id of the application, which helps define the location of the save-file
+     * @param file_name [type:string] file-name to get path for
+     * @return path [type:string] path to save-file
+     * @examples
+     *
+     * Find a path where we can store data (the example path is on the macOS platform):
+     *
+     * ```lua
+     * local my_file_path = sys.get_save_file("my_game", "my_file")
+     * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
+     * ```
+     */
+    int Sys_GetApplicationSupportFile(lua_State* L)
+    {
+        const char* application_id = luaL_checkstring(L, 1);
+
+        char app_support_path[1024];
+        dmSys::Result r = dmSys::GetApplicationSavePath(application_id, app_support_path, sizeof(app_support_path));
+        if (r != dmSys::RESULT_OK)
+        {
+            return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
+        }
+
+        const char* filename = luaL_checkstring(L, 2);
+
+        dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
+        dmStrlCat(app_support_path, filename, sizeof(app_support_path));
+        lua_pushstring(L, app_support_path);
+
+        return 1;
+    }
+
 
     /*# get config value
      * Get config value from the game.project configuration file.
@@ -1105,6 +1144,7 @@ union SaveLoadBuffer
         {"get_engine_info", Sys_GetEngineInfo},
         {"get_application_info", Sys_GetApplicationInfo},
         {"get_application_path", Sys_GetApplicationPath},
+        {"get_application_support_path", Sys_GetApplicationSupportFile},
         {"get_ifaddrs", Sys_GetIfaddrs},
         {"set_error_handler", Sys_SetErrorHandler},
         {"set_connectivity_host", Sys_SetConnectivityHost},
