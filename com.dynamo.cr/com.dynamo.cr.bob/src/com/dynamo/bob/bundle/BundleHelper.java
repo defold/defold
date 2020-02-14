@@ -726,9 +726,6 @@ public class BundleHelper {
     public Map<String, Object> createHtml5ManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
 
-        IResource customCSS = getResource("html5", "cssfile");
-        properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
-
         properties.put("exe-name", exeName);
 
         // Same value as engine is compiled with; 268435456
@@ -788,6 +785,9 @@ public class BundleHelper {
             engineArguments.add("--verify-graphics-calls=false");
             properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
         }
+
+        IResource customCSS = getResource("html5", "cssfile");
+        properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
 
         return properties;
     }
