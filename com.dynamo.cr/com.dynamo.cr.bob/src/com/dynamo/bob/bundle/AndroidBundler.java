@@ -66,6 +66,9 @@ public class AndroidBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         Bob.initAndroid(); // extract resources
 
+        final Platform platform = Platform.Armv7Android;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
@@ -94,12 +97,6 @@ public class AndroidBundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         ArrayList<File> classesDex = new ArrayList<File>();
-
-        List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "armv7-android,arm64-android").split(",");
-        for (int i = 0; i < architecturesStrings.length; i++) {
-            architectures.add(Platform.get(architecturesStrings[i]));
-        }
 
         for (Platform architecture : architectures) {
             List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
@@ -172,7 +169,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, targetPlatform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 

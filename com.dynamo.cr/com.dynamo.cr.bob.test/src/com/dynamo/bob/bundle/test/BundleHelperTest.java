@@ -153,8 +153,6 @@ public class BundleHelperTest {
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
             BundleHelper.parseLog("x86_64-win32", log, issues);
 
-            debugIssues(issues);
-
             assertTrue(expectIssueTrue(issues, "androidnative/src/main2.cpp", 17, "error", "missing type specifier - int assumed. Note: C++ does not support default-int"));
             assertTrue(expectIssueTrue(issues, "androidnative/src/main3.cpp", 17, "error", "syntax error: missing ';' before identifier 'g_foo'"));
             assertTrue(expectIssueTrue(issues, "main.cpp_0.o", 1, "error", "unresolved external symbol \"void __cdecl Foobar(void)\" (?Foobar@@YAXXZ) referenced in function \"enum dmExtension::Result __cdecl AppInitializeExtension(struct dmExtension::AppParams * __ptr64)\" (?AppInitializeExtension@@YA?AW4Result@dmExtension@@PEAUAppParams@2@@Z)"));

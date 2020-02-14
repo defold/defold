@@ -121,25 +121,13 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        String tmpPlatform = project.option("platform", null);
-        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("x86_64-ios");
+        final Platform platform = Platform.Armv7Darwin;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
-        Map<String, IResource> bundleResources = null;
-        if (simulatorBinary) {
-            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.X86_64Ios);
-        } else {
-            // Collect bundle/package resources to be included in .App directory
-            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.Arm64Darwin);
-        }
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
-
-        List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "").split(",");
-        for (int i = 0; i < architecturesStrings.length; i++) {
-            architectures.add(Platform.get(architecturesStrings[i]));
-        }
 
         // If a custom engine was built we need to copy it
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
