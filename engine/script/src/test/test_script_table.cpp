@@ -199,7 +199,7 @@ TEST_F(LuaTableTest, VerifySinTable01)
 
 TEST_F(LuaTableTest, TestSerializeLargeNumbers)
 {
-    lua_Number numbers[] = {0, -1, -2147483648, 4294967295, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
+    lua_Number numbers[] = {0, -1, -4294967295, 4294967295, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
     const uint32_t count = sizeof(numbers) / sizeof(lua_Number);
 
     lua_newtable(L);
