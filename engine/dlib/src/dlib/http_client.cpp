@@ -33,6 +33,9 @@ namespace dmHttpClient
 
     const int SOCKET_TIMEOUT = 500 * 1000;
 
+    // Since https post requests have an upper limit of 2^14 bytes
+    // we need to be able to handle chunked uploads.
+    // See https://tools.ietf.org/html/rfc8446, chapter 5.1
     const uint32_t MAX_HTTPS_POST_CHUNK_SIZE = 16384;
 
     // TODO: This is not good. Singleton like stuff
@@ -348,11 +351,6 @@ namespace dmHttpClient
         k++;
         if (response->m_SSLConnection != 0) {
             int r = 0;
-
-            // char* byff = (char*)alloca(length+1);
-            // memcpy(byff, buffer, length);
-            // byff[length] = 0;
-            // printf("S: '%s'  len: %d\n", byff, length);
             while( ( r = mbedtls_ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length) ) < 0 )
             {
                 if (r == MBEDTLS_ERR_SSL_WANT_WRITE ||
@@ -652,8 +650,6 @@ if (sock_res != dmSocket::RESULT_OK)\
         if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
 
-            // Since https post requests have an upper limit of 2^14 bytes
-            // we need to be able to handle chunked uploads.
             if (client->m_Secure && send_content_length > MAX_HTTPS_POST_CHUNK_SIZE)
             {
                 chunked = 1;

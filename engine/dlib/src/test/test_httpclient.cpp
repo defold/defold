@@ -745,12 +745,6 @@ TEST_P(dmHttpClientTest, PostLarge)
         printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(200, m_StatusCode);
-
-        // printf("STATUS: %d\n", m_StatusCode);
-        // printf("CONTENT:\n%s\n", m_Content.c_str());
-
-        // printf("expected sum: %d\n", sum);
-        // printf("arrived sum : %d\n", atoi(m_Content.c_str()));
         ASSERT_EQ(sum, atoi(m_Content.c_str()));
     }
 }
