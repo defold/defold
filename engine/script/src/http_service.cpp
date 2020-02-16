@@ -107,10 +107,12 @@ namespace dmHttpService
         return worker->m_Request->m_RequestLength;
     }
 
-    dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
+    dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, uint32_t offset, uint32_t size, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
-        return dmHttpClient::Write(response, (const void*) worker->m_Request->m_Request, worker->m_Request->m_RequestLength);
+        uint8_t* request = (uint8_t*)worker->m_Request->m_Request;
+        uint32_t request_len = dmMath::Min(worker->m_Request->m_RequestLength - offset, size);
+        return dmHttpClient::Write(response, (const void*) request[offset], request_len);
     }
 
     dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)

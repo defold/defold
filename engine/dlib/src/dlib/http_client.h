@@ -67,10 +67,12 @@ namespace dmHttpClient
     /**
      * HTTP-post callback. Invoked for POST method. The function invokes the Write function to POST data.
      * @param response Response handle
+     * @param offset Offset into the request data
+     * @param length The length of the chunk to write
      * @param user_data User data
      * @return The callback should return the value returned from the Write function
      */
-    typedef Result (*HttpWrite)(HResponse response, void* user_data);
+    typedef Result (*HttpWrite)(HResponse response, uint32_t offset, uint32_t length, void* user_data);
 
     /**
      * HTTP write request header callback. The function invokes the WriteHeader function to send request header
