@@ -152,7 +152,7 @@ def switch_make_bundle(self):
 
 Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
 
-Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} creatensp -o ${NPSD_DIR} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
+Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} createnspd -o ${NSPD_DIR} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
                     color='YELLOW', shell=True, after='switch_make_bundle')
 
 Task.simple_task_type('switch_nsp', '${AUTHORINGTOOL} creatensp -o ${TGT} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
@@ -216,6 +216,7 @@ def switch_make_app(self):
         if task.name in ['cxx_link', 'cc_link']:
             break
 
+    print self.name
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
     app_icon = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/NintendoSDK_Application.bmp')
 
@@ -246,13 +247,13 @@ def switch_make_app(self):
     metatask.env['SWITCH_META'] = manifest.abspath(task.env)
     metatask.env['SWITCH_DESC'] = descfile
 
-    npsd_dir = '%s.nspd' % exe_name
+    nspd_dir = '%s.nspd' % exe_name
     # temporary folders for code/data that will be copied into the signed bundle
     code_dir = '%s.code' % exe_name
     data_dir = '%s.data' % exe_name
 
 
-    bundle_npsd = create_bundle_dirs(self, npsd_dir, bundle_parent)
+    bundle_npsd = create_bundle_dirs(self, nspd_dir, bundle_parent)
 
     bundle_nsp = bundle_parent.exclusive_build_node('%s.nsp' % exe_name)
 
@@ -275,7 +276,7 @@ def switch_make_app(self):
     bundletask.input_sdk = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nso')
 
     # TODO: Add some mechanic to copy app data to the bundle (e.g. icon)
-    authorize_control_dir   = create_bundle_dirs(self, npsd_dir+'/control0.ncd/data', bundle_parent)
+    authorize_control_dir   = create_bundle_dirs(self, nspd_dir+'/control0.ncd/data', bundle_parent)
     authorize_control       = authorize_control_dir.find_or_declare(['control.nacp'])
     authorize_data_dir  = bundle_parent.exclusive_build_node(data_dir).abspath(task.env)
     if not os.path.exists(authorize_data_dir):
@@ -288,12 +289,13 @@ def switch_make_app(self):
     nspdtask.set_outputs([authorize_control])
     nspdtask.env['SWITCH_META'] = manifest.abspath(task.env)
     nspdtask.env['SWITCH_DESC'] = descfile
-    nspdtask.env['NPSD_DIR'] = bundle_npsd.abspath(task.env)
+    nspdtask.env['NSPD_DIR'] = bundle_npsd.abspath(task.env)
     nspdtask.env['CODE_DIR'] = bundle_main.parent.abspath(task.env)
     nspdtask.env['DATA_DIR'] = authorize_data_dir
-    # check if the directory is empty
-    if not os.listdir(nspdtask.env['DATA_DIR']):
-        nspdtask.env['DATA_DIR'] = None
+    # TODO: Make this variable drive by the app creation task/generator
+    ## check if the directory is empty
+    #if not os.listdir(nsptask.env['DATA_DIR']):
+    #    nsptask.env['DATA_DIR'] = None
 
     authorize_data_dir  = bundle_parent.exclusive_build_node(data_dir).abspath(task.env)
     if not os.path.exists(authorize_data_dir):
@@ -305,10 +307,12 @@ def switch_make_app(self):
     nsptask.env['SWITCH_META'] = manifest.abspath(task.env)
     nsptask.env['SWITCH_DESC'] = descfile
     nsptask.env['CODE_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/code').abspath(task.env)
-    nsptask.env['DATA_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/data').abspath(task.env)
-    # check if the directory is empty
-    if not os.listdir(nsptask.env['DATA_DIR']):
-        nsptask.env['DATA_DIR'] = None
+
+    # TODO: Make this variable drive by the app creation task/generator
+    #nsptask.env['DATA_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/data').abspath(task.env)
+    ## check if the directory is empty
+    #if not os.listdir(nsptask.env['DATA_DIR']):
+    #    nsptask.env['DATA_DIR'] = None
 
     task.bundle_output = bundle_nsp.abspath(task.env)
 
@@ -317,9 +321,17 @@ def switch_make_app(self):
 def supports_feature_nx(platform, feature, data):
     if feature == 'mbedtls':
         return False
-    # until we've added an implementation of socket.cpp and dns.cpp
-    #if feature in ['test_socket', 'test_dns', 'test_httpclient', 'test_configfile', 'test_httpserver']:
-    #    return False
+    # until we've added an implementation of dns.cpp
+    if feature in [ 'test_dns',
+                    'test_httpclient',
+                    'test_configfile',
+                    'test_connection_pool',
+                    'test_httpserver',
+                    'test_ssdp',
+                    'test_httpcache',
+                    'test_ssdp_internals']:
+        return False
+
     # until we've added an implementation of memprofile.cpp
     if feature in ['test_memprofile']:
         return False

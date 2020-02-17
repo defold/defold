@@ -51,6 +51,8 @@ namespace dmThread
         (void)nn::os::SetThreadName(thread, name);
     }
 
+    // MANUAL:
+    //    https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/Pages/Page_83955692.html?highlighttext=Thread%20local%20storage#Anchor_83955692_h2_2
     // https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/index.html
     TlsKey AllocTls()
     {

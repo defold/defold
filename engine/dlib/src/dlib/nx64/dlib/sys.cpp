@@ -14,7 +14,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
-// void nn::fs::SetSaveDataRootPath	(	const char * 	rootPath	)	
+// void nn::fs::SetSaveDataRootPath	(	const char * 	rootPath	)
 // https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Api/HtmlNX/namespacenn_1_1fs.html#a90c27aaf70aec66968715663cd8c5415
 
 namespace dmSys
@@ -108,6 +108,15 @@ namespace dmSys
                 }
             }
         }
+        return RESULT_OK;
+    }
+
+    // Default
+    Result GetLogPath(char* path, uint32_t path_len)
+    {
+        if (dmStrlCpy(path, "fscache:/", path_len) >= path_len)
+            return RESULT_INVAL;
+
         return RESULT_OK;
     }
 

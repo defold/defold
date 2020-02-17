@@ -160,6 +160,8 @@ namespace dmProfile
         mach_timebase_info_data_t info;
         mach_timebase_info(&info);
         g_TicksPerSecond = (info.denom * 1000000000ull) / info.numer;
+#else
+        // See the default value
 #endif
         // Set g_BeginTime even if we haven't started since threads may calculate scopes outside of
         // engine Begin()/End() of profiles which happens in Engine::Step() - just so we don't get

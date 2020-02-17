@@ -38,7 +38,7 @@ static void LogThread(void* arg)
     delete[] s;
 }
 
-#if !defined(__EMSCRIPTEN__)
+#if !(defined(__EMSCRIPTEN__) || defined(__NX__))
 TEST(dmLog, Client)
 {
     char buf[256];
