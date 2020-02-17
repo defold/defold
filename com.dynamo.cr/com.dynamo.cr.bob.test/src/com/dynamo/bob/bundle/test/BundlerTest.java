@@ -68,15 +68,22 @@ public class BundlerTest {
 
     @Parameters
     public static Collection<Platform[]> data() {
-        Platform[][] data = new Platform[][] {
-            {Platform.X86Win32}, {Platform.X86_64Win32},
-            {Platform.X86_64Darwin},
-            {Platform.X86_64Linux},
-            {Platform.Armv7Android},
-            {Platform.JsWeb},
-            {Platform.Armv7Darwin}, {Platform.Arm64Darwin}, {Platform.X86_64Ios},
-        };
-        return Arrays.asList(data);
+        List<Platform[]> data = new ArrayList<>();
+
+        data.add(new Platform[]{Platform.X86Win32});
+        data.add(new Platform[]{Platform.X86_64Win32});
+        data.add(new Platform[]{Platform.X86_64Darwin});
+        data.add(new Platform[]{Platform.X86_64Linux});
+        data.add(new Platform[]{Platform.Armv7Android});
+        data.add(new Platform[]{Platform.JsWeb});
+
+            // Can only do this on OSX machines currently
+        if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+            data.add(new Platform[]{Platform.Armv7Darwin});
+            data.add(new Platform[]{Platform.Arm64Darwin});
+            data.add(new Platform[]{Platform.X86_64Ios});
+        }
+        return data;
     }
 
     private File getOutputDirFile(String outputDir, String projectName) {
