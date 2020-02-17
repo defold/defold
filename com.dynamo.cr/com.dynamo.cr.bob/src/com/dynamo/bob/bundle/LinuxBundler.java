@@ -47,6 +47,8 @@ public class LinuxBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Linux;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = BundleHelper.projectNameToBinaryName(title);
@@ -77,7 +79,7 @@ public class LinuxBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 

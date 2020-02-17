@@ -100,6 +100,27 @@ public enum Platform {
         return architectures;
     }
 
+    public static List<Platform> getArchitecturesFromString(String architectures, Platform defaultPlatform) {
+
+        String[] architecturesStrings;
+        if (architectures == null || architectures.length() == 0) {
+            architecturesStrings = defaultPlatform.getArchitectures().getDefaultArchitectures();
+        }
+        else {
+            architecturesStrings = architectures.split(",");
+        }
+
+        List<Platform> out = new ArrayList<Platform>();
+        for (String architecture : architecturesStrings) {
+            out.add(Platform.get(architecture));
+        }
+        return out;
+    }
+
+    public String toString() {
+        return getExtenderPair();
+    }
+
     public List<String> formatBinaryName(String basename) {
         List<String> names = new ArrayList<String>();
         for (String exeSuffix : exeSuffixes) {
