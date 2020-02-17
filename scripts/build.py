@@ -739,7 +739,6 @@ class Configuration(object):
                     self.upload_file(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
             if 'web' in self.target_platform:
-                self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
@@ -935,7 +934,7 @@ class Configuration(object):
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
-        js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
+        js_files = {}
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}

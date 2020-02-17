@@ -389,6 +389,12 @@ void ScriptWindowOnWindowIconify(bool iconify)
     RunCallback(&cbinfo);
 }
 
+void ScriptWindowOnWindowCreated(int width, int height)
+{
+    g_Window.m_Width = width;
+    g_Window.m_Height = height;
+}
+
 void ScriptWindowOnWindowResized(int width, int height)
 {
     g_Window.m_Width = width;

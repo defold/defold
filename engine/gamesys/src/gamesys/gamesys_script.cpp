@@ -109,4 +109,9 @@ namespace dmGameSystem
     {
         ScriptWindowOnWindowResized(width, height);
     }
+
+    void OnWindowCreated(int width, int height)
+    {
+        ScriptWindowOnWindowCreated(width, height);
+    }
 }

@@ -502,7 +502,6 @@ public class BundlerTest {
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("defold_sound.swf");
                 expectedFiles.add("archive/game.arcd0");
                 expectedFiles.add("archive/game.arci0");
                 expectedFiles.add("archive/game.dmanifest0");

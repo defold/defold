@@ -606,6 +606,8 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
+        dmGameSystem::OnWindowCreated(physical_width, physical_height);
+
         bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
         uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
         uint32_t update_frequency = setting_update_frequency;
@@ -1080,8 +1082,6 @@ namespace dmEngine
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
-
-        dmGameSystem::OnWindowResized(physical_width, physical_height);
 
         return true;
 
