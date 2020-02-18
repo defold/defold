@@ -90,7 +90,7 @@ def setup_vars_nx(conf, build_util):
 
     DEFINES ="DM_NO_SYSTEM_FUNCTION"
     DEFINES+=" DM_NO_IPV6"
-    DEFINES+=" JC_TEST_NO_DEATH_TEST"
+    DEFINES+=" JC_TEST_NO_DEATH_TEST JC_TEST_FORCE_COLORS"
     DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
     _set_defines(conf, DEFINES)
 
@@ -200,7 +200,6 @@ NX64_MANIFEST="""<?xml version="1.0"?>
 # returns the last DIR node in the supplied path
 def create_bundle_dirs(self, path, dir):
     bld=self.bld
-    print "PATH", path
     for token in path.split('/'):
         subdir=dir.get_dir(token)
         if not subdir:
@@ -216,7 +215,6 @@ def switch_make_app(self):
         if task.name in ['cxx_link', 'cc_link']:
             break
 
-    print self.name
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
     app_icon = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/NintendoSDK_Application.bmp')
 
