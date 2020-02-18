@@ -1,5 +1,5 @@
-#ifndef DM_ENDIAN
-#define DM_ENDIAN
+#ifndef DM_ENDIAN_H
+#define DM_ENDIAN_H
 
 #include <nn/util/util_endian.h>
 
@@ -20,7 +20,7 @@ namespace dmEndian {
 
     static inline uint16_t ToHost(uint16_t x) {
         //return ntohs(x);
-        return nn::util::LoadBigEndian<uint16_t>((const uint16_t*)&x);   
+        return nn::util::LoadBigEndian<uint16_t>((const uint16_t*)&x);
     }
 
     static inline uint32_t ToNetwork(uint32_t x) {
@@ -32,7 +32,7 @@ namespace dmEndian {
 
     static inline uint32_t ToHost(uint32_t x) {
         //return ntohl(x);
-        return nn::util::LoadBigEndian<uint32_t>((const uint32_t*)&x);  
+        return nn::util::LoadBigEndian<uint32_t>((const uint32_t*)&x);
     }
 
     static inline uint64_t ToNetwork(uint64_t x) {
@@ -49,7 +49,7 @@ namespace dmEndian {
     static inline uint64_t ToHost(uint64_t x) {
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
         //return (((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32);
-        return nn::util::LoadBigEndian<uint64_t>((const uint64_t*)&x);  
+        return nn::util::LoadBigEndian<uint64_t>((const uint64_t*)&x);
 #else
         return x;
 #endif
@@ -57,4 +57,4 @@ namespace dmEndian {
 }
 
 
-#endif
+#endif // DM_ENDIAN_H
