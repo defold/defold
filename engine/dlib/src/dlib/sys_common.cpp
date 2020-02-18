@@ -1,6 +1,9 @@
 #include <assert.h>
 #include <stdint.h>
-#include <unistd.h> // rmdir
+#include <unistd.h>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
 #include <errno.h>
 #include <sys/stat.h>
 
@@ -58,7 +61,7 @@ namespace dmSys
         return RESULT_UNKNOWN;
     }
     #undef DM_SYS_NATIVE_TO_RESULT_CASE
-    
+
     // Currently only used in tests
     #define DM_SYS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
     const char* ResultToString(Result r)

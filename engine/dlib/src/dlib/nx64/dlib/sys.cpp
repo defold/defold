@@ -14,6 +14,8 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
+#include <nn/oe.h> // language
+
 // void nn::fs::SetSaveDataRootPath	(	const char * 	rootPath	)
 // https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Api/HtmlNX/namespacenn_1_1fs.html#a90c27aaf70aec66968715663cd8c5415
 
@@ -30,23 +32,13 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
-        /* Currently get an undefined symbol uname
-        struct utsname uts;
-        uname(&uts);
 
-        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
-        dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
+        dmStrlCpy(info->m_SystemName, "Switch", sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemVersion, "1.0", sizeof(info->m_SystemVersion)); // There's a debug fn for firmware, but I don't think we'll need that
         info->m_DeviceModel[0] = '\0';
-        */
 
-        const char* default_lang = "en_US";
-        const char* lang = getenv("LANG");
-        if (!lang) {
-            dmLogWarning("Variable LANG not set");
-            lang = default_lang;
-        }
-
-        FillLanguageTerritory(lang, info);
+        nn::settings::LanguageCode lang_code = nn::oe::GetDesiredLanguage();
+        FillLanguageTerritory(lang_code.string, info);
         FillTimeZone(info);
     }
 
