@@ -16,7 +16,7 @@
 
 extern "C" int main(int argc, char** argv);
 
-  
+
 namespace {
 
 	// Allocates a static space as space for malloc().
@@ -32,12 +32,14 @@ namespace {
  //-----------------------------------------------------------------------------
  //  The six functions malloc, free, calloc, realloc, aligned_alloc, and malloc_usable_size are defined at the same time.
  //-----------------------------------------------------------------------------
- 
+
  extern "C" void* malloc(size_t size)
  {
+    if (size == 0)
+        size = 1;
      return Get(g_SampleAllocator).Allocate(size);
  }
- 
+
  extern "C" void free(void* p)
  {
      if (p)
@@ -45,31 +47,31 @@ namespace {
          Get(g_SampleAllocator).Free(p);
      }
  }
- 
+
  extern "C" void* calloc(size_t num, size_t size)
  {
      size_t sum = num * size;
      void*  p   = std::malloc(sum);
- 
+
      if (p)
      {
          std::memset(p, 0, sum);
      }
      return p;
  }
- 
+
  extern "C" void* realloc(void* p, size_t newSize)
  {
      // Change the memory block size.
      // Reallocate() and realloc() have the same specification, call it without any modifications.
      return Get(g_SampleAllocator).Reallocate(p, newSize);
  }
- 
+
  extern "C" void* aligned_alloc(size_t alignment, size_t size)
  {
      return Get(g_SampleAllocator).Allocate(size, alignment);
  }
- 
+
  extern "C" size_t malloc_usable_size(void* p)
  {
      if (!p)
@@ -83,14 +85,14 @@ namespace {
 extern "C" void nninitStartup()
 {
      NN_LOG("An nninitStartup() function is invoked.\n");
- 
+
      // The static object constructor has not been called in nninitStartup() yet.
      // Explicitly call it using placement new.
      new( &Get(g_SampleAllocator) ) nn::mem::StandardAllocator;
- 
+
      // Initialize the allocated buffer as space for malloc.
      Get(g_SampleAllocator).Initialize(g_MallocBuffer, MemoryHeapSize);
- 
+
      NN_LOG("MallocBuffer is 0x%p - 0x%p\n\n",
                      g_MallocBuffer, g_MallocBuffer + MemoryHeapSize);
 }
@@ -100,7 +102,7 @@ extern "C" void nninitStartup()
 extern "C" void nnMain()
 {
 	// https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/index.html
-	
+
 	nn::fs::MountCacheStorage("fscache");
 
 	nn::fs::MountHost("host", ".");
