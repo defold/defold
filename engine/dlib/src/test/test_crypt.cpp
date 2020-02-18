@@ -74,7 +74,6 @@ TEST(dmCrypt, Random)
 TEST(dmCrypt, MD5)
 {
     uint8_t expected[] = {0x41,0xFB,0x5B,0x5A,0xE4,0xD5,0x7C,0x5E,0xE5,0x28,0xAD,0xB0,0x0E,0x5E,0x8E,0x74};
-    uint8_t digest[16];
     uint8_t digest[16] = {0};
     const char* s = "This is a string";
     dmCrypt::HashMd5((const uint8_t*)s, strlen(s), digest);
