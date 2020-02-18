@@ -71,7 +71,7 @@ def setup_tools_nx(conf, build_util):
     conf.env['MAKEMETA']        = '%s/MakeMeta/MakeMeta.exe' % commandline_folder
     conf.env['MAKENSO']         = '%s/MakeNso/MakeNso.exe' % commandline_folder
 
-    conf.env['TEST_LAUNCH_PATTERN'] = 'RunOnTarget.exe %s %s' # program + args
+    conf.env['TEST_LAUNCH_PATTERN'] = 'RunOnTarget.exe --pattern-failure-exit "tests FAILED" %s %s' # program + args
 
 
 def setup_vars_nx(conf, build_util):
@@ -319,8 +319,6 @@ def switch_make_app(self):
 
 
 def supports_feature_nx(platform, feature, data):
-    if feature == 'mbedtls':
-        return False
     # until we've added an implementation of dns.cpp
     if feature in [ 'test_dns',
                     'test_httpclient',
