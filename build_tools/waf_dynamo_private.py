@@ -71,7 +71,7 @@ def setup_tools_nx(conf, build_util):
     conf.env['MAKEMETA']        = '%s/MakeMeta/MakeMeta.exe' % commandline_folder
     conf.env['MAKENSO']         = '%s/MakeNso/MakeNso.exe' % commandline_folder
 
-    conf.env['TEST_LAUNCH_PATTERN'] = 'RunOnTarget.exe --pattern-failure-exit "tests FAILED" %s %s' # program + args
+    conf.env['TEST_LAUNCH_PATTERN'] = 'RunOnTarget.exe --pattern-failure-exit "tests FAILED" --working-directory . %s %s' # program + args
 
 
 def setup_vars_nx(conf, build_util):
@@ -82,7 +82,13 @@ def setup_vars_nx(conf, build_util):
     BUILDTARGET = 'NX-NXFP2-a64'
     BUILDTYPE = "Debug"
 
-    CCFLAGS="-g -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
+    opt_level =    opt_level = Options.options.opt_level
+    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    if Options.options.with_asan and opt_level != '0':
+        opt_level = 1
+
+    CCFLAGS ="-g -O%s" % opt_level
+    CCFLAGS+=" -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
     CXXFLAGS="-fno-rtti -std=gnu++14 "
 
     _set_ccflags(conf, CCFLAGS)
@@ -90,12 +96,12 @@ def setup_vars_nx(conf, build_util):
 
     DEFINES ="DM_NO_SYSTEM_FUNCTION"
     DEFINES+=" DM_NO_IPV6"
-    DEFINES+=" JC_TEST_NO_DEATH_TEST JC_TEST_FORCE_COLORS"
+    DEFINES+=" JC_TEST_NO_DEATH_TEST JC_TEST_USE_COLORS=1"
     DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
     _set_defines(conf, DEFINES)
 
-    LINKFLAGS =""
-    LINKFLAGS+=" -g -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
+    LINKFLAGS ="-g -O%s" % opt_level
+    LINKFLAGS+=" -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
     LINKFLAGS+=" -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free"
     LINKFLAGS+=" -fdiagnostics-format=msvc -Wl,-T C:/Nintendo/SDK/NintendoSDK/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
     LINKFLAGS+=" -Wl,--start-group "

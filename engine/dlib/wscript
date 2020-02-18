@@ -98,9 +98,10 @@ def shutdown():
         config.write(f)
         print("Wrote test config file: %s" % configfilepath)
 
-    waf_dynamo.run_tests(valgrind = True, configfile = configfilepath)
-
-    os.remove(configfilepath)
+    try:
+        waf_dynamo.run_tests(valgrind = True, configfile = configfilepath)
+    finally:
+        os.remove(configfilepath)
 
     # The test should work on OSX, but the CI (Catalina) just crashed with no callstack (even in lldb)
     # Postponing a fix until I've updated to Catalina on my machine as well
