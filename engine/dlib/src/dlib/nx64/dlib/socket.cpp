@@ -39,7 +39,7 @@ namespace dmSocket
         case nn::socket::Errno::EMFile:            return RESULT_MFILE;
         case nn::socket::Errno::EPipe:             return RESULT_PIPE;
         //case nn::socket::Errno::EWouldBlock:       return RESULT_WOULDBLOCK; // Equals EAgain
-        case nn::socket::Errno::EBadFd:            return RESULT_BADF;
+        case nn::socket::Errno::EBadf:             return RESULT_BADF;
         case nn::socket::Errno::ENotSock:          return RESULT_NOTSOCK;
         case nn::socket::Errno::EDestAddrReq:      return RESULT_DESTADDRREQ;
         case nn::socket::Errno::EMsgSize:          return RESULT_MSGSIZE;
@@ -216,15 +216,14 @@ namespace dmSocket
 
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
+        *socket = -1;
         if (domain == DOMAIN_MISSING || domain == DOMAIN_UNKNOWN)
             return RESULT_AFNOSUPPORT;
 
-        int sock = -1;
-        if ((sock = nn::socket::Socket(DomainToNative(domain), TypeToNative(type), ProtocolToNative(protocol))) < 0)
+        if ((*socket = nn::socket::Socket(DomainToNative(domain), TypeToNative(type), ProtocolToNative(protocol))) < 0)
         {
             return NATIVETORESULT(nn::socket::GetLastError());
         }
-        *socket = sock;
         return RESULT_OK;
     }
 
@@ -659,48 +658,64 @@ namespace dmSocket
         return result;
     }
 
+    // See SocketResolver.cpp example: https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Api/HtmlNX/_socket_resolver_8cpp-example.html#a28
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
 
-        char hostnameBuffer[nn::socket::Ni_MaxHost] = { '\0' };
-        char servicenameBuffer[nn::socket::Ni_MaxServ] = { '\0' };
-
-        // Get the current IP
-        nn::socket::InAddr ipaddr = { 0 };
-        nn::Result result = nn::nifm::GetCurrentPrimaryIpAddress(&ipaddr);
-        if (!result.IsSuccess() ) {
-            dmLogError("Failed to get IP address");
+        if (addresses == 0 || addresses_count)
             return;
-        }
 
-        nn::socket::SockAddrIn sa = { 0 };
-        sa.sin_family = nn::socket::Family::Af_Inet;
-        sa.sin_port = nn::socket::InetHtons(80);
-        sa.sin_addr = ipaddr;
+        const char* ip = "localhost";
 
-        nn::socket::AiErrno rc = nn::socket::AiErrno::EAi_Success;
-        if (nn::socket::AiErrno::EAi_Success != (rc = nn::socket::GetNameInfo((const nn::socket::SockAddr*)&sa,
-                                                                              sizeof(nn::socket::SockAddr),
-                                                                              hostnameBuffer, sizeof(hostnameBuffer),
-                                                                              servicenameBuffer, sizeof(servicenameBuffer),
-                                                                              static_cast<nn::socket::NameInfoFlag>(0))))
+        nn::socket::AiErrno rc = nn::socket::AiErrno::EAi_Success; // was -1;
+        nn::socket::AddrInfo* pAddressInfoResult = 0;
+        nn::socket::AddrInfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = nn::socket::Family::Af_Inet;
+        hints.ai_socktype = nn::socket::Type::Sock_Stream;
+
+        if (nn::socket::AiErrno::EAi_Success != (rc = nn::socket::GetAddrInfo(ip, 0, &hints, &pAddressInfoResult)))
         {
-            dmLogError("nn::socket::GetNameInfo error: %s (%d)", nn::socket::GAIStrError(rc), rc);
+            dmLogError("GetAddrInfo failed: %d", nn::socket::GetLastError());
+            nn::socket::FreeAddrInfo(pAddressInfoResult);
             return;
         }
-        // Is is enough to register the current ip?
-        // Our SSDP doesn't use the mac address nor the flags field
+        else if (0 == pAddressInfoResult)
+        {
+            dmLogError("GetAddrInfo returned no addresses");
+            return;
+        }
 
-        IfAddr* a = &addresses[*count];
-        memset(a, 0, sizeof(*a));
-        a->m_Address.m_family = DOMAIN_IPV4;
-        *IPv4(&a->m_Address) = ipaddr.S_addr;
-        dmStrlCpy(a->m_Name, servicenameBuffer, strlen(servicenameBuffer) < sizeof(a->m_Name) ? strlen(servicenameBuffer) : sizeof(a->m_Name));
+        nn::socket::SockAddrIn* pSin = 0;
+        for (nn::socket::AddrInfo* pAddrinfo = pAddressInfoResult; pAddrinfo != 0; pAddrinfo = pAddrinfo->ai_next)
+        {
+            // only nn::socket::Family::Af_Inet (IPv4) addresses are supported
+            if (nn::socket::Family::Af_Inet == pAddrinfo->ai_family)
+            {
+                pSin = (nn::socket::SockAddrIn*)pAddrinfo->ai_addr;
+                if (pSin)
+                {
+                    IfAddr* a = &addresses[*count];
+                    memset(a, 0, sizeof(IfAddr));
+                    a->m_Address.m_family = DOMAIN_IPV4;
+                    *IPv4(&a->m_Address) = pSin->sin_addr.S_addr;
 
-        *count = 1;
-        return;
-    }
+                    if (pAddrinfo->ai_canonname)
+                    {
+                        size_t namesize = strlen(pAddrinfo->ai_canonname);
+                        if (namesize > sizeof(a->m_Name))
+                            namesize = sizeof(a->m_Name);
+                        dmStrlCpy(a->m_Name, pAddrinfo->ai_canonname, namesize);
+                    }
+                    (*count)++;
+                }
+            }
+        }
+
+        if (pAddressInfoResult)
+            nn::socket::FreeAddrInfo(pAddressInfoResult);
+    };
 
     #define DM_SOCKET_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
     const char* ResultToString(Result r)
