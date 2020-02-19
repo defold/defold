@@ -1199,37 +1199,30 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    # Get archive files for a single release/sha1
-    def _get_files(self, bucket, sha1):
+    def _find_files_in_bucket(self, bucket, sha1, path, pattern):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
+        prefix = os.path.join(base_prefix, path)
         files = []
-        prefix = os.path.join(base_prefix, 'engine')
         for x in bucket.list(prefix = prefix):
             if x.name[-1] != '/':
                 # Skip directory "keys". When creating empty directories
                 # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                if re.match(pattern, x.name):
                     name = os.path.relpath(x.name, base_prefix)
                     files.append({'name': name, 'path': '/' + x.name})
+        return files
 
-        prefix = os.path.join(base_prefix, 'bob')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/bob.jar)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-
-        prefix = os.path.join(base_prefix, self.channel, 'editor')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/Defold-*)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
+    # Get archive files for a single release/sha1
+    def _get_files(self, bucket, sha1):
+        files = []
+        files = files + self._find_files_in_bucket(bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "bob", '.*(/bob.jar)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "editor", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "alpha", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "beta", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "stable", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
         return files
 
     def _get_single_release(self, version_tag, sha1):
