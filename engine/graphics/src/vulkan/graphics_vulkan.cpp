@@ -2975,7 +2975,7 @@ bail:
                 texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount,
                 VK_SAMPLE_COUNT_1_BIT, vk_color_format,
                 VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, texture_color);
             CHECK_VK_ERROR(res);
 
             SetTextureParams(texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap);
@@ -3074,7 +3074,7 @@ bail:
                 VkResult res = CreateTexture2D(g_Context->m_PhysicalDevice.m_Device, g_Context->m_LogicalDevice.m_Device,
                     width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, texture_color);
                 CHECK_VK_ERROR(res);
             }
         }
