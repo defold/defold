@@ -318,17 +318,19 @@ public class IOSBundler implements IBundler {
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
         // Copy debug symbols
-        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.Armv7Darwin.getExtenderPair());
-        File buildSymbols = new File(zipDir, "dmengine.dSYM");
-        if (buildSymbols.exists()) {
-            String symbolsDir = String.format("%s.dSYM", title);
+        for (Platform architecture : architectures) {
+            String zipDir = FilenameUtils.concat(extenderExeDir, architecture.getExtenderPair());
+            File buildSymbols = new File(zipDir, "dmengine.dSYM");
+            if (buildSymbols.exists()) {
+                String symbolsDir = String.format("%s.dSYM", title + "_" + architecture.getPair());
 
-            File bundleSymbols = new File(bundleDir, symbolsDir);
-            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
-            // Also rename the executable
-            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
-            File symbolExe = new File(bundleExeOld.getParent(), destExecutable.getName());
-            bundleExeOld.renameTo(symbolExe);
+                File bundleSymbols = new File(bundleDir, symbolsDir);
+                FileUtils.copyDirectory(buildSymbols, bundleSymbols);
+                // Also rename the executable
+                File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
+                File symbolExe = new File(bundleExeOld.getParent(), destExecutable.getName());
+                bundleExeOld.renameTo(symbolExe);
+            }
         }
 
         // Sign (only if identity and provisioning profile set)
