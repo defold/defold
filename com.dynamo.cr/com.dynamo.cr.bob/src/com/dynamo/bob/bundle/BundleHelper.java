@@ -240,6 +240,8 @@ public class BundleHelper {
     }
 
     // This is used in the step prior to upload all sources (and manifests) to the extender server
+    // Each manifest has to be named like the default name (much easier for the server), even the main manifest file
+    // This isn't an issue since there cannot be two manifests in the same folder
     public List<ExtenderResource> writeManifestFiles(Platform platform, File manifestDir) throws CompileExceptionError, IOException {
         List<ExtenderResource> resolvedManifests = new ArrayList<>();
 
@@ -247,27 +249,24 @@ public class BundleHelper {
         String exeName = BundleHelper.projectNameToBinaryName(title);
 
         IResource mainManifest;
-        String mainManifestName;
         Map<String, Object> properties = new HashMap<>();
         if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             mainManifest = getResource("osx", "infoplist");
             properties = createOSXManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_OSX;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             mainManifest = getResource("android", "manifest");
             properties = createAndroidManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             mainManifest = getResource("html5", "htmlfile");
             properties = createHtml5ManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_HTML5;
         } else {
             return resolvedManifests;
         }
+
+        String mainManifestName = getMainManifestName(platform);
 
         // First, list all extension manifests
         List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, getManifestName(platform));
@@ -307,21 +306,21 @@ public class BundleHelper {
         return null;
     }
 
+    public static String getMainManifestName(Platform platform) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+            return MANIFEST_NAME_IOS;
+        } else if (platform == Platform.X86_64Darwin) {
+            return MANIFEST_NAME_OSX;
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
+            return MANIFEST_NAME_ANDROID;
+        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            return MANIFEST_NAME_HTML5;
+        }
+        return null;
+    }
+
     // either copies the merged manifest or writes a new resolved manifest from single source file
     public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
-        File sourceManifest;
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
-            sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
-        } else if (platform == Platform.X86_64Darwin) {
-            sourceManifest = new File(projectProperties.getStringValue("osx", "infoplist"));
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            sourceManifest = new File(projectProperties.getStringValue("android", "manifest"));
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            sourceManifest = new File(projectProperties.getStringValue("html5", "htmlfile"));
-        } else {
-            return;
-        }
-
         File targetManifest = getAppManifestFile(platform, appDir);
 
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
@@ -338,8 +337,11 @@ public class BundleHelper {
                 throw new IOException("Manifest file is of wrong type");
             }
         } else {
+            // At this stage, in case of a cloud build, we've written the main manifest down in the default name.
+            String mainManifestName = getMainManifestName(platform);
+
             File extenderPlatformDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair());
-            manifestFile = new File(extenderPlatformDir, sourceManifest.getName()); // the merged manifest
+            manifestFile = new File(extenderPlatformDir, mainManifestName); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
     }
