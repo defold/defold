@@ -247,3 +247,25 @@ jobs:
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
+
+# ---- RELEASE ------------------
+
+  release:
+    needs: [build-and-notarize-editor]
+    runs-on: ubuntu-18.04
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'Release',
+        run: 'ci/ci.sh release'
+      },
+      {
+       name: 'Notify if build status changed',
+       uses: homoluctus/slatify@master,
+       if: always(),
+       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+      }]
