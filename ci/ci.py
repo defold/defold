@@ -349,6 +349,8 @@ def main(argv):
         elif command == "release":
             if make_release:
                 release(channel = engine_channel)
+            else:
+                print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:
             print("Unknown command {0}".format(command))
 
