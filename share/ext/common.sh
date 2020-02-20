@@ -36,6 +36,7 @@ TAR_INCLUDES=0
 function download() {
     mkdir -p ../download
     [ ! -f ../download/$FILE_URL ] && $CURL $BASE_URL/$FILE_URL && mv $FILE_URL ../download
+    echo "Downloaded to ../download/$FILE_URL"
 }
 
 function cmi_make() {
@@ -46,6 +47,7 @@ function cmi_make() {
 }
 
 function cmi_unpack() {
+    echo "Unpacking $SCRIPTDIR/download/$FILE_URL"
     tar xfz $SCRIPTDIR/download/$FILE_URL --strip-components=1
 }
 
@@ -71,7 +73,7 @@ function cmi_patch() {
 function cmi_do() {
     rm -rf $PREFIX
     rm -rf tmp
-    mkdir tmp
+    mkdir -p tmp
     mkdir -p $PREFIX
     pushd tmp  >/dev/null
     cmi_unpack

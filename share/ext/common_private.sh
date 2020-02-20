@@ -2,7 +2,8 @@
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-source $SCRIPTDIR/common.sh
+# No need to import it here
+# source $SCRIPTDIR/common.sh
 
 BUILDDIR=$PWD
 BUILDDIR=$(path_to_posix $BUILDDIR)
@@ -19,16 +20,16 @@ function cmi_switch_stubs() {
     local platform=$1
     local outputdir=$2
     OUTPUT=$BUILDDIR/cmi_main_no_args.o
-    FILE=$BUILDDIR/cmi_main_no_args.c
+    FILE=$BUILDDIR/cmi_main_no_args.cpp
     CODE_NO_ARGS='extern int main();\nextern "C" void nnMain() {}\n'
     echo "Writing $FILE"
     printf "$CODE_NO_ARGS" > $FILE
     $CXX $CXXFLAGS -c $FILE -o $OUTPUT
     echo "Wrote $OUTPUT"
 
-    # 
+    #
     OUTPUT=$BUILDDIR/cmi_stubs.o
-    FILE=$BUILDDIR/cmi_stubs.c
+    FILE=$BUILDDIR/cmi_stubs.cpp
     echo "Writing $FILE"
     printf '// stubs for unresolved libraries on Switch\n' > $FILE
     printf '#include <assert.h>\n' >> $FILE
@@ -48,7 +49,7 @@ function cmi_switch_stubs() {
 
 
 function cmi_private()  {
-    
+
     case $1 in
         arm64-nx64)
 
@@ -58,8 +59,6 @@ function cmi_private()  {
             BUILDTARGET="NX-NXFP2-a64"
             BUILDTYPE="Debug"
             TRIPLET="aarch64-nintendo-nx-elf"
-            # NOTE: We set this PATH in order to use libtool from iOS SDK
-            # Otherwise we get the following error "malformed object (unknown load command 1)"
 
             NINTENDOSDKROOT=$(windows_path_to_posix $NINTENDO_SDK_ROOT)
 
@@ -68,21 +67,27 @@ function cmi_private()  {
             export CPPFLAGS="--target=$TRIPLET -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
             export CXXFLAGS="${CPPFLAGS} -std=gnu++98"
             export CFLAGS="${CPPFLAGS}"
-            # not strictly necessary, since we only compile libraries
-            export LDFLAGS="-Wl,-e,_main -L$NINTENDO_SDK_ROOT\Libraries\NX-NXFP2-a64\Debug -L$NINTENDO_SDK_ROOT\Libraries\NX-NXFP2-a64\Develop -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free -fdiagnostics-format=msvc -Wl,-T $NINTENDOSDKROOT/Resources/SpecFiles/Application.aarch64.lp64.ldscript -Wl,--start-group $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/rocrt.o $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/nnApplication.o $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a -Wl,--end-group -Wl,--start-group $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss -Wl,--end-group $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/crtend.o $BUILDDIR/cmi_main_no_args.o $BUILDDIR/cmi_stubs.o -Wl,--dynamic-list=$NINTENDOSDKROOT/Resources/SpecFiles/ExportDynamicSymbol.lst"
+            # needed since some libraries also build executables
+            export LDFLAGS="-L$NINTENDO_SDK_ROOT\Libraries\NX-NXFP2-a64\Debug -L$NINTENDO_SDK_ROOT\Libraries\NX-NXFP2-a64\Develop -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free -fdiagnostics-format=msvc -Wl,-T $NINTENDOSDKROOT/Resources/SpecFiles/Application.aarch64.lp64.ldscript -Wl,--start-group $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/rocrt.o $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/nnApplication.o $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a -Wl,--end-group -Wl,--start-group $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss -Wl,--end-group $NINTENDOSDKROOT/Libraries/NX-NXFP2-a64/Develop/crtend.o $BUILDDIR/cmi_main_no_args.o $BUILDDIR/cmi_stubs.o -Wl,--dynamic-list=$NINTENDOSDKROOT/Resources/SpecFiles/ExportDynamicSymbol.lst"
 
-            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
-            # Wrong include-directories and defines are selected.
-            export CPP="$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/clang -E"
-            export CC=$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/clang
-            export CXX=$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/clang++
-            export AR=$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/llvm-ar
-            export RANLIB=$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/llvm-ranlib
+            export CPP="$(path_to_posix $NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/clang) -E"
+            export CC=$(path_to_posix $NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/clang)
+            export CXX=$(path_to_posix $NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/clang++)
+            export AR=$(path_to_posix $NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/llvm-ar)
+            export RANLIB=$(path_to_posix $NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin/llvm-ranlib)
 
-            echo "PWD $PWD"
+            # Cmake looks in the PATH, for these...
+            export CPP="clang -E"
+            export CC="clang"
+            export CXX="clang++"
+            # .. but cmake expects these to be absolute
+            #export AR=llvm-ar
+            #export RANLIB=llvm-ranlib
+
+            export PATH=$PATH:$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin
 
             # e.g. for generating
-            cmi_switch_stubs $1 
+            cmi_switch_stubs $1
 
             cmi_cross $1 arm-linux
             ;;
