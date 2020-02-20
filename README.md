@@ -1,3 +1,7 @@
+![CI - Main](https://github.com/defold/defold/workflows/CI%20-%20Main/badge.svg)
+![CI - Editor Only](https://github.com/defold/defold/workflows/CI%20-%20Editor%20Only/badge.svg)
+![CI - Engine nightly](https://github.com/defold/defold/workflows/CI%20-%20Engine%20nightly/badge.svg)
+
 # Defold
 
 Repository for the Defold engine, editor and command line tools.
