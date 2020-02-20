@@ -96,6 +96,7 @@ def setup_vars_nx(conf, build_util):
 
     DEFINES ="DM_NO_SYSTEM_FUNCTION"
     DEFINES+=" DM_NO_IPV6"
+    DEFINES+=" GOOGLE_PROTOBUF_NO_RTTI DDF_EXPOSE_DESCRIPTORS"
     DEFINES+=" JC_TEST_NO_DEATH_TEST JC_TEST_USE_COLORS=1"
     DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
     _set_defines(conf, DEFINES)
@@ -130,39 +131,6 @@ def setup_vars_nx(conf, build_util):
     # Until we support cares
     conf.env['STATICLIB_CARES'] = []
 
-
-@feature('cprogram', 'cxxprogram')
-@before('apply_core')
-@after('default_flags')
-def switch_modify_linkflags_fn(self):
-    waf_dynamo.remove_flag(self.env['LINKFLAGS'], '-Wl,--enable-auto-import', 0)
-
-@feature('cc', 'cxx')
-@before('apply_core')
-@after('default_flags')
-def switch_modify_ccflags_fn(self):
-    if 'test' in str(self.features) and self.name.startswith('test_'):
-        _set_defines(self, 'JC_TEST_NO_COLORS')
-
-Task.simple_task_type('switch_nso', '${MAKENSO} ${SRC} ${TGT}', color='YELLOW', shell=True, after='cxx_link cc_link')
-
-Task.simple_task_type('switch_meta', '${MAKEMETA} --desc ${SWITCH_DESC} --meta ${SWITCH_META} -o ${TGT} -d DefaultIs64BitInstruction=True -d DefaultProcessAddressSpace=AddressSpace64Bit',
-                                     color='YELLOW', shell=True, after='switch_nso')
-
-
-def switch_make_bundle(self):
-    shutil.copy2(self.input_main.abspath(self.env), self.bundle_main.abspath(self.env))
-    shutil.copy2(self.input_npdm.abspath(self.env), self.bundle_npdm.abspath(self.env))
-    shutil.copy2(self.input_rtld, self.bundle_rtld.abspath(self.env))
-    shutil.copy2(self.input_sdk, self.bundle_sdk.abspath(self.env))
-
-Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
-
-Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} createnspd -o ${NSPD_DIR} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
-                    color='YELLOW', shell=True, after='switch_make_bundle')
-
-Task.simple_task_type('switch_nsp', '${AUTHORINGTOOL} creatensp -o ${TGT} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
-                    color='YELLOW', shell=True, after='switch_nspd')
 
 NX64_MANIFEST="""<?xml version="1.0"?>
 <!-- From C:/Nintendo/SDK/NintendoSDK/Resources/SpecFilesApplication.aarch64.lp64.nmeta -->
@@ -213,6 +181,33 @@ def create_bundle_dirs(self, path, dir):
         bld.rescan(subdir)
         dir=subdir
     return dir
+
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+@after('default_flags')
+def switch_modify_linkflags_fn(self):
+    if self.env['PLATFORM'] in ['arm64-nx64']:
+        waf_dynamo.remove_flag(self.env['LINKFLAGS'], '-Wl,--enable-auto-import', 0)
+
+Task.simple_task_type('switch_nso', '${MAKENSO} ${SRC} ${TGT}', color='YELLOW', shell=True, after='cxx_link cc_link')
+
+Task.simple_task_type('switch_meta', '${MAKEMETA} --desc ${SWITCH_DESC} --meta ${SWITCH_META} -o ${TGT} -d DefaultIs64BitInstruction=True -d DefaultProcessAddressSpace=AddressSpace64Bit',
+                                     color='YELLOW', shell=True, after='switch_nso')
+
+
+def switch_make_bundle(self):
+    shutil.copy2(self.input_main.abspath(self.env), self.bundle_main.abspath(self.env))
+    shutil.copy2(self.input_npdm.abspath(self.env), self.bundle_npdm.abspath(self.env))
+    shutil.copy2(self.input_rtld, self.bundle_rtld.abspath(self.env))
+    shutil.copy2(self.input_sdk, self.bundle_sdk.abspath(self.env))
+
+Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
+
+Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} createnspd -o ${NSPD_DIR} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
+                    color='YELLOW', shell=True, after='switch_make_bundle')
+
+Task.simple_task_type('switch_nsp', '${AUTHORINGTOOL} creatensp -o ${TGT} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
+                    color='YELLOW', shell=True, after='switch_nspd')
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')

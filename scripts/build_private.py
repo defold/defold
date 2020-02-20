@@ -11,6 +11,8 @@ from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
 
+PACKAGES_NX64="protobuf-2.3.0".split()
+
 
 def get_target_platforms():
     return ['arm64-nx64']
@@ -23,6 +25,7 @@ def get_install_host_packages(platform):
 def get_install_target_packages(platform):
     """ Returns the packages that should be installed for the host
     """
+    if platform == 'arm64-nx64':    return PACKAGES_NX64;
     return []
 
 def install_sdk(platform):

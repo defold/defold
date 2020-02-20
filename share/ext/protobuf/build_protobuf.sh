@@ -5,7 +5,7 @@ readonly VERSION=2.3.0
 readonly BASE_URL=https://github.com/mathiaswking/protobuf-${VERSION}/archive
 readonly FILE_URL=protobuf-${VERSION}.tar.gz
 
-readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc --disable-shared"
+readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc CPPFLAGS=-DGOOGLE_PROTOBUF_NO_RTTI --disable-shared "
 
 #test the compiler
 if [ "$(uname -o)" == "Msys" ]; then
@@ -17,7 +17,6 @@ if [ "$(uname -o)" == "Msys" ]; then
 		exit 1
 	fi
 fi
-
 
 . ../common.sh
 
@@ -47,8 +46,8 @@ echo CREATING HOST TOOLS
 echo **********************
 
 set -e
-./configure && make -j8
-#make -j8
+./configure
+make -j8
 set +e
 popd >/dev/null
 
@@ -59,3 +58,4 @@ echo **********************
 cmi $1
 
 rm -rf cross_tmp
+rm *.o
