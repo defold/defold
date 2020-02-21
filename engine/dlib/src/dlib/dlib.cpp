@@ -18,6 +18,8 @@ namespace dLib
     {
 #if defined(__EMSCRIPTEN__)
         return false;
+#elif defined(__NX__) // until we've implemented all the http/dns features
+        return (features & (DM_FEATURE_BIT_THREADS)) == features;
 #else
         return (features & (DM_FEATURE_BIT_SOCKET_CLIENT_TCP |
                             DM_FEATURE_BIT_SOCKET_CLIENT_UDP |

@@ -109,4 +109,7 @@ extern "C" void nnMain()
 
     int r = main(nn::os::GetHostArgc(), nn::os::GetHostArgv());
     (void)r;
+
+    nn::fs::Unmount("fscache");
+    nn::fs::Unmount("host");
 }
