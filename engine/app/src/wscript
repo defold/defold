@@ -19,15 +19,14 @@ def build(bld):
     source_dirs = []
 
     for platform in [build_util.get_target_os(), 'common']:
-        d = os.path.join(build_util.get_target_os())
+        d = os.path.join(platform)
         if os.path.exists(os.path.join('src',d)):
-            source_dirs = [d]
-            break
+            source_dirs.extend([d])
 
     applib = bld.new_task_gen(features  = 'cc cxx cstaticlib',
                               includes  = '. ..',
                               target    = 'app',
                               defines   = defines)
     applib.find_sources_in_dirs(source_dirs)
-    
+
     bld.install_files('${PREFIX}/include/app', 'app/app.h')

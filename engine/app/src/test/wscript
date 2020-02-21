@@ -4,10 +4,12 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    test_extension = bld.new_task_gen(features = 'cxx cprogram test',
-                                      includes = '../../../src .',
-                                      uselib_local = 'app',
-                                      target = 'test_app',
-                                      source = 'test_app.cpp')
 
-    test_extension.install_path = None
+	for name in ['test_basic', 'test_app']:
+	    test = bld.new_task_gen(features = 'cxx cprogram test',
+                              includes = '../ .',
+                              uselib_local = 'app',
+                              target = name,
+                              source = name + '.cpp')
+
+	    test.install_path = None
