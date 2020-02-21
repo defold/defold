@@ -22,7 +22,7 @@ namespace dmGraphics
 	// Missing VK equivalent (use increasing number)
     const BufferType BUFFER_TYPE_COLOR_BIT       = 1;
     const BufferType BUFFER_TYPE_DEPTH_BIT       = 2;
-    const BufferType BUFFER_TYPE_STENCIL_BIT     = 3;
+    const BufferType BUFFER_TYPE_STENCIL_BIT     = 4;
 
     const State STATE_DEPTH_TEST                 = 4;
     const State STATE_SCISSOR_TEST               = 5;
@@ -38,13 +38,13 @@ namespace dmGraphics
     const Type TYPE_SAMPLER_2D                   = 13;
     const Type TYPE_SAMPLER_CUBE                 = 14;
 
-    const TextureFilter TEXTURE_FILTER_DEFAULT                = 15;
-    const TextureFilter TEXTURE_FILTER_LINEAR                 = 16;
-    const TextureFilter TEXTURE_FILTER_NEAREST                = 17;
-    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 18;
-    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 19;
-    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 20;
-    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 21;
+    const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
+    const TextureFilter TEXTURE_FILTER_NEAREST                = 1;
+    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 2;
+    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 3;
+    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 4;
+    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 5;
+    const TextureFilter TEXTURE_FILTER_LINEAR                 = 6;
 
     // Lookup table types
     const BlendFactor BLEND_FACTOR_ZERO                     = 0;

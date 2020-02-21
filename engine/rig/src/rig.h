@@ -172,7 +172,10 @@ namespace dmRig
         float z;
         float u;
         float v;
-        uint32_t rgba;
+        float r;
+        float g;
+        float b;
+        float a;
     };
 
     struct RigModelVertex

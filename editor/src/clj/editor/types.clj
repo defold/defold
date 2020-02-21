@@ -162,11 +162,20 @@
   ([path :- s/Any x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
     (Rect. path (int x) (int y) (int width) (int height))))
 
+(def ^:private sprite-trim-modes
+  (s/enum :sprite-trim-mode-off
+          :sprite-trim-mode-4
+          :sprite-trim-mode-5
+          :sprite-trim-mode-6
+          :sprite-trim-mode-7
+          :sprite-trim-mode-8))
+
 (s/defrecord Image
   [path     :- s/Any
    contents :- (s/maybe BufferedImage)
    width    :- Int32
-   height   :- Int32]
+   height   :- Int32
+   sprite-trim-mode :- sprite-trim-modes]
   ImageHolder
   (contents [this] contents))
 

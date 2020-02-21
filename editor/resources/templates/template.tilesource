@@ -12,3 +12,4 @@ animations {
   end_tile: 1
 }
 extrude_borders: 2
+sprite_trim_mode: SPRITE_TRIM_MODE_OFF

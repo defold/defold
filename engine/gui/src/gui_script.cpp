@@ -1222,7 +1222,7 @@ namespace dmGui
      * @name gui.new_pie_node
      * @param pos [type:vector3|vector4] node position
      * @param size [type:vector3] node size
-     * @return node [type:node] new box node
+     * @return node [type:node] new pie node
      */
     static int LuaNewPieNode(lua_State* L)
     {

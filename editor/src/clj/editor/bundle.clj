@@ -160,6 +160,9 @@
                           "Default-Portrait-1024h@2x.png"
                           "Default-Portrait-1024h.png"
                           "Default-Portrait-1112h@2x.png"
+                          "Default-Portrait-1194h@2x.png"
+                          "Default-Portrait-896h@2x.png"
+                          "Default-Portrait-896h@3x.png"
                           "Default-Landscape-812h@3x.png"
                           "Default-Landscape-736h@3x.png"
                           "Default-Landscape-667h@2x.png"
@@ -167,6 +170,9 @@
                           "Default-Landscape-1024h@2x.png"
                           "Default-Landscape-1024h.png"
                           "Default-Landscape-1112h@2x.png"
+                          "Default-Landscape-1194h@2x.png"
+                          "Default-Landscape-896h@2x.png"
+                          "Default-Landscape-896h@3x.png"
                           "Default-568h@2x.png"]]
       (with-open [launch-image-stream (io/input-stream (io/resource (str "bundle/ios/" launch-image)))]
         (io/copy launch-image-stream (io/file app-dir launch-image)))

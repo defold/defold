@@ -2223,22 +2223,19 @@
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)})
 
-      ;; Move cursor and prepare for box selection.
-      (and alt-key? (not shift-key?) (= 1 click-count))
-      (begin-box-selection lines layout button click-count x y)
-
       ;; Move cursor and prepare for drag-selection.
-      (and (not alt-key?) (not shift-key?) (>= 3 ^long click-count))
+      (and (not shift-key?) (>= 3 ^long click-count))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (case (long click-count)
                            1 (Cursor->CursorRange mouse-cursor)
                            2 (word-cursor-range-at-cursor lines mouse-cursor)
-                           3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))]
-        {:cursor-ranges (if shortcut-key?
-                          (concat-cursor-ranges cursor-ranges [cursor-range])
-                          [cursor-range])
+                           3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))
+            dragged-cursor-range (assoc cursor-range :dragged true)]
+        {:cursor-ranges (if alt-key?
+                          (concat-cursor-ranges cursor-ranges [dragged-cursor-range])
+                          [dragged-cursor-range])
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
-                                      :reference-cursor-range cursor-range)}))
+                                      :reference-cursor-range dragged-cursor-range)}))
 
     :middle
     (cond
@@ -2362,7 +2359,11 @@
                                (assoc reference-cursor-range
                                  :from (cursor-range-start reference-cursor-range)
                                  :to (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
-            new-cursor-ranges [cursor-range]]
+            new-cursor-ranges (merge-cursor-ranges
+                                (sort
+                                  (into [cursor-range]
+                                        (remove :dragged)
+                                        cursor-ranges)))]
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges
                   :hovered-element nil}
@@ -2423,9 +2424,10 @@
     (mouse-gesture lines cursor-ranges layout minimap-layout gesture-start x y)
     (mouse-hover lines visible-regions layout minimap-layout hovered-element x y)))
 
-(defn mouse-released [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines cursor-ranges visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
     (assoc (mouse-hover lines visible-regions layout minimap-layout ::force-evaluation x y)
+      :cursor-ranges (mapv #(dissoc % :dragged) cursor-ranges)
       :gesture-start nil)))
 
 (defn mouse-exited [^GestureInfo gesture-start hovered-element]

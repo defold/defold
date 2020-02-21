@@ -33,6 +33,11 @@ namespace dmHttpClient
 
     const int SOCKET_TIMEOUT = 500 * 1000;
 
+    // Since https post requests have an upper limit of 2^14 bytes
+    // we need to be able to handle chunked uploads.
+    // See https://tools.ietf.org/html/rfc8446, chapter 5.1
+    const uint32_t MAX_HTTPS_POST_CHUNK_SIZE = 16384;
+
     // TODO: This is not good. Singleton like stuff
     // that requires a lock for initialization
     // See comment in GetPool()
@@ -615,6 +620,7 @@ if (sock_res != dmSocket::RESULT_OK)\
     {
         dmSocket::Result sock_res;
         uint32_t send_content_length = 0;
+        int chunked = 0;
 
         HTTP_CLIENT_SENDALL_AND_BAIL(method);
         HTTP_CLIENT_SENDALL_AND_BAIL(" ")
@@ -643,20 +649,59 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
-            HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
-            char buf[64];
-            dmSnPrintf(buf, sizeof(buf), "%d", send_content_length);
-            HTTP_CLIENT_SENDALL_AND_BAIL(buf);
-            HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
+
+            if (client->m_Secure && send_content_length > MAX_HTTPS_POST_CHUNK_SIZE)
+            {
+                chunked = 1;
+            }
+
+            // If we want to send more that this, we need to send it chunked
+            if (chunked) {
+                HTTP_CLIENT_SENDALL_AND_BAIL("Transfer-Encoding: chunked\r\n");
+            } else {
+                char buf[64];
+                dmSnPrintf(buf, sizeof(buf), "Content-Length: %d\r\n", send_content_length);
+                HTTP_CLIENT_SENDALL_AND_BAIL(buf);
+            }
         }
 
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n")
 
         if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0 || strcmp(method, "PATCH") == 0)
         {
-            Result post_result = client->m_HttpWrite(response, client->m_Userdata);
-            if (post_result != RESULT_OK) {
-                goto bail;
+            if (!chunked)
+            {
+                Result post_result = client->m_HttpWrite(response, 0, send_content_length, client->m_Userdata);
+                if (post_result != RESULT_OK) {
+                    goto bail;
+                }
+            }
+            else
+            {
+                // https://en.wikipedia.org/wiki/Chunked_transfer_encoding
+                uint32_t offset = 0;
+                while (offset < send_content_length)
+                {
+                    uint32_t length = dmMath::Min(send_content_length - offset, MAX_HTTPS_POST_CHUNK_SIZE);
+
+                    // Prefix each chunk with the length in hexadecimal
+                    char buf[64];
+                    dmSnPrintf(buf, sizeof(buf), "%x\r\n", length);
+                    HTTP_CLIENT_SENDALL_AND_BAIL(buf);
+
+                    // Write the chunk payload
+                    Result post_result = client->m_HttpWrite(response, offset, length, client->m_Userdata);
+                    if (post_result != RESULT_OK) {
+                        goto bail;
+                    }
+                    offset += length;
+
+                    // Finish the chunk
+                    HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
+                }
+
+                // The terminating chunk + trailing blank line (currently no trailer properties)
+                HTTP_CLIENT_SENDALL_AND_BAIL("0\r\n\r\n");
             }
         }
 

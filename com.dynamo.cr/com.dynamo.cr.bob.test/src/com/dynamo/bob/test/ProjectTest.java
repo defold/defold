@@ -20,24 +20,24 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.codec.binary.Base64;
-import org.eclipse.core.runtime.Platform;
+
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.bio.SocketConnector;
 import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.osgi.framework.Bundle;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
-import com.dynamo.bob.OsgiResourceScanner;
-import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.util.LibraryUtil;
@@ -46,13 +46,12 @@ import com.dynamo.bob.test.util.MockFileSystem;
 public class ProjectTest {
 
     private final static int SERVER_PORT = 8081;
-    private final static String EMAIL = "test@king.com";
+    private final static String EMAIL = "unittest@defold.com";
     private final static String AUTH = "secret-auth";
     private final static String BASIC_AUTH = "user:secret";
 
     private MockFileSystem fileSystem;
     private Project project;
-    private Bundle bundle;
     private Server httpServer;
     private ArrayList<URL> libraryUrls = new ArrayList<URL>();
 
@@ -62,6 +61,7 @@ public class ProjectTest {
     public TestLibrariesRule testLibs = new TestLibrariesRule();
 
     private void initHttpServer(String serverLocation) throws IOException {
+        System.out.printf("initHttpServer start");
         httpServer = new Server();
 
         SocketConnector connector = new SocketConnector();
@@ -78,25 +78,27 @@ public class ProjectTest {
         } catch (Exception e) {
             throw new IOException("Unable to start http server", e);
         }
+        System.out.printf("initHttpServer end");
     }
 
     @Before
     public void setUp() throws Exception {
+        System.out.printf("setUp start");
         // See TestLibrariesRule.java for the creation of these zip files
         libraryUrls = new ArrayList<URL>();
         libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
         libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
         libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
 
-        bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
         project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
-        project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
+        project.scan(new ClassLoaderScanner(), "com.dynamo.bob.test");
         project.setLibUrls(libraryUrls);
 
         initHttpServer(testLibs.getServerLocation());
+        System.out.printf("setUp end");
     }
 
     @After
@@ -115,6 +117,7 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
+System.out.printf("testResolve start");
         assertEquals(0, _304Count.get());
         File lib = new File(project.getLibPath());
         if (lib.exists()) {
@@ -137,56 +140,82 @@ public class ProjectTest {
             assertTrue(libExists(filename));
         }
         assertEquals(filenames.size(), _304Count.get());
+
+        System.out.printf("testResolve end");
     }
 
     @Test
     public void testMountPoints() throws Exception {
+        System.out.printf("testMountPoints start");
         project.resolveLibUrls(new NullProgress());
-        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib5/file5.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
         assertEquals(4, results.size());
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
+        System.out.printf("end");
     }
 
     @Test
     public void testMountPointFindSources() throws Exception {
+        System.out.printf("testMountPointFindSources start");
         project.resolveLibUrls(new NullProgress());
-        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.mount(new ClassLoaderResourceScanner());
         project.findSources(".", null);
         List<TaskResult> results = build("build");
         assertFalse(results.isEmpty());
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
+
+        System.out.printf("end");
+    }
+
+    // due to bob.jar including builtins/ we get way too many resources
+    // The only test builtin, is the 'cp_test.in'
+    private List<String> filterBuiltins(List<String> allResults) {
+        List<String> results = new ArrayList<String>();
+        for (String resource : allResults) {
+            if (resource.startsWith("builtins") && !resource.endsWith("cp_test.in")) {
+                continue;
+            }
+            results.add(resource);
+        }
+        return results;
     }
 
 
     @Test
     public void testFindResourcePaths() throws Exception {
+        System.out.printf("testFindResourcePaths start");
         libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
         project.resolveLibUrls(new NullProgress());
-        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
 
         List<String> results = new ArrayList<String>();
         project.findResourcePaths(".", results);
+        results = filterBuiltins(results);
 
         assertFalse(results.isEmpty());
         assertEquals(5, results.size());
+        System.out.printf("end");
     }
 
     @Test
     public void testFindResourceDirs() throws Exception {
+        System.out.printf("testFindResourceDirs start");
         libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
         project.resolveLibUrls(new NullProgress());
-        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
 
         List<String> results = new ArrayList<String>();
         project.findResourceDirs("", results);
+
+        results = filterBuiltins(results);
 
         assertTrue(results.contains("test_lib1"));
         assertTrue(results.contains("test_lib2"));
@@ -198,6 +227,7 @@ public class ProjectTest {
         assertEquals(2, results.size());
         assertTrue(results.contains("testdir1"));
         assertTrue(results.contains("testdir2"));
+        System.out.printf("end");
     }
 
     private class FileHandler extends ResourceHandler {

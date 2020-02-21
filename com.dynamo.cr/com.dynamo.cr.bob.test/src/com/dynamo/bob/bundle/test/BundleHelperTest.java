@@ -1,6 +1,7 @@
 package com.dynamo.bob.bundle.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
 
 import java.io.ByteArrayInputStream;
@@ -11,12 +12,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.core.runtime.Platform;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.OsgiResourceScanner;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
@@ -30,7 +31,7 @@ public class BundleHelperTest {
 
     @Before
     public void setUp() throws Exception {
-        this.mp = new ClassLoaderMountPoint(null, "com/dynamo/bob/bundle/test/*", new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        this.mp = new ClassLoaderMountPoint(null, "com/dynamo/bob/bundle/test/*", new ClassLoaderResourceScanner());
         this.mp.mount();
     }
 
@@ -70,9 +71,43 @@ public class BundleHelperTest {
         return false;
     }
 
+    private static void printIssue(String resource, int lineNumber, String severity, String message) {
+        System.out.printf("ISSUE: %s : %s : %s : %s\n", resource, lineNumber, severity, message);
+    }
+
+    static protected boolean expectIssueTrue(List<ResourceInfo> issues, String resource, int lineNumber, String severity, String message) {
+        ResourceInfo info = null;
+        if (resource == null) {
+            System.out.println("Cannot test for a null resource");
+            printIssue(resource, lineNumber, severity, message);
+            return false;
+        }
+        for ( ResourceInfo i : issues) {
+            if (compareStr(i.resource, resource)) {
+                info = i;
+                break;
+            }
+        }
+
+        if (info == null) {
+            System.out.println("No such resource found!");
+            printIssue(resource, lineNumber, severity, message);
+            return false;
+        }
+
+        boolean ret = info.lineNumber == lineNumber && info.severity.equals(severity) && info.message.equals(message);
+        if (!ret) {
+            System.out.println("expected");
+            printIssue(resource, lineNumber, severity, message);
+            System.out.println("but got");
+            printIssue(info.resource, info.lineNumber, info.severity, info.message);
+        }
+        return ret;
+    }
+
     static void debugIssues(List<ResourceInfo> issues) {
         for (ResourceInfo info : issues) {
-            System.out.println(String.format("ISSUE: %s : %d: %s - \"%s\"", info.resource, info.lineNumber, info.severity, info.message));
+            System.out.printf(String.format("ISSUE: %s : %d: %s - \"%s\"\n", info.resource, info.lineNumber, info.severity, info.message));
         }
     }
 
@@ -89,7 +124,7 @@ public class BundleHelperTest {
     }
 
     @Test
-    public void testErrorLog() throws IOException {
+    public void testErrorLog() throws IOException, CompileExceptionError {
 
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogAndroid.txt");
@@ -97,13 +132,20 @@ public class BundleHelperTest {
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
             BundleHelper.parseLog("armv7-android", log, issues);
 
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 37, "error", "In constructor '{anonymous}::AttachScope::AttachScope()':\n'Attach' was not declared in this scope\n     AttachScope() : m_Env(Attach())"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main1.cpp", 37, "error", "In constructor '{anonymous}::AttachScope::AttachScope()':\n'Attach' was not declared in this scope\n     AttachScope() : m_Env(Attach())"));
             assertEquals(false, checkIssue(issues, null, 0, "warning", "[options] bootstrap class path not set in conjunction with -source 1.6"));
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "'ubar' does not name a type\n ubar g_foo = 0;"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main2.cpp", 17, "error", "'ubar' does not name a type\n ubar g_foo = 0;"));
             // Link error
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 147, "error", "undefined reference to 'Foobar()'\ncollect2: error: ld returned 1 exit status"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main3.cpp", 147, "error", "undefined reference to 'Foobar()'\ncollect2: error: ld returned 1 exit status"));
             // Main link error (missing extension symbol)
-            assertEquals(true, checkIssue(issues, "main.cpp", 44, "error", "undefined reference to 'defos'\ncollect2: error: ld returned 1 exit status"));
+            assertTrue(expectIssueTrue(issues, "main4.cpp", 44, "error", "undefined reference to 'defos'\ncollect2: error: ld returned 1 exit status"));
+
+            assertEquals(true, checkIssue(issues, null, 1, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
+
+            // make sure it strips upload/packages from the path
+            assertTrue(expectIssueTrue(issues, "ags_native/androidx-core-core-1.0.0/values/androidx-core-values.xml", 81, "error", "Attribute \"ttcIndex\" has already been defined\n"));
+            assertTrue(expectIssueTrue(issues, "AndroidManifest.xml", 142, "error", "Error: No resource found that matches the given name (at 'value' with value '@integer/google_play_services_version')."));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogWin32.txt");
@@ -111,25 +153,22 @@ public class BundleHelperTest {
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
             BundleHelper.parseLog("x86_64-win32", log, issues);
 
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "missing type specifier - int assumed. Note: C++ does not support default-int"));
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "syntax error: missing ';' before identifier 'g_foo'"));
-            assertEquals(true, checkIssue(issues, "main.cpp_0.o", 1, "error", "unresolved external symbol \"void __cdecl Foobar(void)\" (?Foobar@@YAXXZ) referenced in function \"enum dmExtension::Result __cdecl AppInitializeExtension(struct dmExtension::AppParams * __ptr64)\" (?AppInitializeExtension@@YA?AW4Result@dmExtension@@PEAUAppParams@2@@Z)"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main2.cpp", 17, "error", "missing type specifier - int assumed. Note: C++ does not support default-int"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main3.cpp", 17, "error", "syntax error: missing ';' before identifier 'g_foo'"));
+            assertTrue(expectIssueTrue(issues, "main.cpp_0.o", 1, "error", "unresolved external symbol \"void __cdecl Foobar(void)\" (?Foobar@@YAXXZ) referenced in function \"enum dmExtension::Result __cdecl AppInitializeExtension(struct dmExtension::AppParams * __ptr64)\" (?AppInitializeExtension@@YA?AW4Result@dmExtension@@PEAUAppParams@2@@Z)"));
 
-            assertEquals(true, checkIssue(issues, "MathFuncsLib.lib", 1, "error", "MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance"));
+            assertTrue(expectIssueTrue(issues, "MathFuncsLib.lib", 1, "error", "MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
 
-            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle;"));
-            assertEquals(true, checkIssue(issues, null, 0, "error", "Uncaught translation error: java.lang.IllegalArgumentException: already added: Landroid/support/v4/app/ActionBarDrawerToggle$Delegate;"));
-
-            assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
+            assertTrue(expectIssueTrue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
 
             // Clang errors
-            assertEquals(true, checkIssue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]\n"));
+            assertTrue(expectIssueTrue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]\n"));
             // lld-link error
-            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
-            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_clear_error"));
-            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _BIO_new_mem_buf"));
+            assertTrue(expectIssueTrue(issues, "222613a7-2aea-4afd-8498-68f39f62468f-1.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
+            assertTrue(expectIssueTrue(issues, "222613a7-2aea-4afd-8498-68f39f62468f-2.lib", 1, "error", "undefined symbol: _ERR_clear_error"));
+            assertTrue(expectIssueTrue(issues, "222613a7-2aea-4afd-8498-68f39f62468f-3.lib", 1, "error", "undefined symbol: _BIO_new_mem_buf"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "could not open Crypt32.Lib.lib: No such file or directory"));
         }
         {
@@ -138,8 +177,8 @@ public class BundleHelperTest {
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
             BundleHelper.parseLog("x86_64-osx", log, issues);
 
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 15, "error", "use of undeclared identifier 'Hello'\n    Hello();"));
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main1.cpp", 15, "error", "use of undeclared identifier 'Hello'\n    Hello();"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main2.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "Undefined symbols for architecture x86_64:\n  \"__Z6Foobarv\", referenced from:\n      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in libb5622585-1c2d-4455-9d8d-c29f9404a475.a(main.cpp_0.o)"));
         }
         {
@@ -148,7 +187,7 @@ public class BundleHelperTest {
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
             BundleHelper.parseLog("arm64-ios", log, issues);
 
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "Undefined symbols for architecture arm64:\n  \"__Z6Foobarv\", referenced from:\n      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in lib44391c30-91a4-4faf-aef6-2dbc429af9ed.a(main.cpp_0.o)"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "Invalid Defold SDK: 'b2ef3a19802728e76adf84d51d02e11d636791a3'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "Missing library 'engine'"));
@@ -169,8 +208,8 @@ public class BundleHelperTest {
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
             BundleHelper.parseLog("x86_64-linux", log, issues);
 
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "‘ubar’ does not name a type\n ubar g_foo = 0;"));
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 166, "error", "undefined reference to `Foobar()'\ncollect2: error: ld returned 1 exit status"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main1.cpp", 17, "error", "‘ubar’ does not name a type\n ubar g_foo = 0;"));
+            assertTrue(expectIssueTrue(issues, "androidnative/src/main2.cpp", 166, "error", "undefined reference to `Foobar()'\ncollect2: error: ld returned 1 exit status"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "cannot find -lsteam_api"));
         }
     }

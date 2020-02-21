@@ -12,8 +12,11 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.luart :as luart]
+            [editor.outline :as outline]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.types :as types]
             [editor.util :as util]
             [editor.workspace :as workspace])
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
@@ -79,7 +82,7 @@
 
 (s/def :ext-action/action #{"set" "shell"})
 (s/def :ext-action/node-id ::node-id)
-(s/def :ext-action/property #{"text"})
+(s/def :ext-action/property string?)
 (s/def :ext-action/value any?)
 (s/def :ext-action/command (s/coll-of string?))
 (defmulti action-spec :action)
@@ -97,7 +100,7 @@
 (s/def :ext-command/label string?)
 (s/def :ext-command/locations (s/coll-of #{"Edit" "View" "Assets" "Outline"}
                                          :distinct true :min-count 1))
-(s/def :ext-command/type #{"resource"})
+(s/def :ext-command/type #{"resource" "outline"})
 (s/def :ext-command/cardinality #{"one" "many"})
 (s/def :ext-command/selection (s/keys :req-un [:ext-command/type :ext-command/cardinality]))
 (s/def :ext-command/query (s/keys :opt-un [:ext-command/selection]))
@@ -117,7 +120,7 @@
 
 (def ^:private ^:dynamic *execution-context*
   "A map with following keys:
-   - `:project-id`
+   - `:project`
    - `:evaluation-context`
    - `:ui` - instance of UI protocol
    - `:request-sync` - volatile with boolean indicating whether extension
@@ -181,7 +184,9 @@
           (case unqualified
             (coll? vector?) "is not an array"
             int? "is not an integer"
+            number? "is not a number"
             string? "is not a string"
+            boolean? "is not a boolean"
             lua-fn? "is not a function"
             action-spec (str "needs \"action\" key to be "
                              (->> (.getMethodTable ^MultiFn action-spec)
@@ -203,6 +208,9 @@
 
         (coll? pred)
         (cond
+          (= '(= (count %)) (take 2 pred))
+          (str "needs to have " (last pred) " element" (when (< 1 (last pred)) "s"))
+
           (= '(contains? %) (take 2 pred))
           (str "needs " (->lua-string (last pred)) " key")
 
@@ -333,23 +341,7 @@
                             (error-reporting/report-exception! ex)))))
 
 (defn- node-id->type-keyword [node-id ec]
-  (let [{:keys [basis]} ec]
-    (:k (g/node-type basis (g/node-by-id basis node-id)))))
-
-(defmulti ext-get (fn [node-id property ec]
-                    [(node-id->type-keyword node-id ec) property]))
-
-(defmethod ext-get :default [node-id property ec]
-  (throw (LuaError. (str (name (node-id->type-keyword node-id ec))
-                         " has no \""
-                         property
-                         "\" property"))))
-
-(defmethod ext-get [:editor.code.resource/CodeEditorResourceNode "text"] [node-id _ ec]
-  (clojure.string/join \newline (g/node-value node-id :lines ec)))
-
-(defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
-  (resource/resource->proj-path (g/node-value node-id :resource ec)))
+  (g/node-type-kw (:basis ec) node-id))
 
 (defn- node-id-or-path->node-id [node-id-or-path project evaluation-context]
   (if (string? node-id-or-path)
@@ -359,12 +351,91 @@
       node-id)
     node-id-or-path))
 
+(defn- ensuring-converter [spec]
+  (fn [value _outline-property _execution-context]
+    (ensure-spec spec value)))
+
+(defn- resource-converter [node-id-or-path outline-property execution-context]
+  (ensure-spec (s/or :nothing #{""} :resource ::node-id) node-id-or-path)
+  (when-not (= node-id-or-path "")
+    (let [{:keys [project evaluation-context]} execution-context
+          node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
+          resource (g/node-value node-id :resource evaluation-context)
+          ext (:ext (properties/property-edit-type outline-property))]
+      (when (seq ext)
+        (ensure-spec (set ext) (resource/type-ext resource)))
+      resource)))
+
+(def ^:private edit-type-id->value-converter
+  {g/Str {:to identity :from (ensuring-converter string?)}
+   g/Bool {:to identity :from (ensuring-converter boolean?)}
+   g/Num {:to identity :from (ensuring-converter number?)}
+   g/Int {:to identity :from (ensuring-converter int?)}
+   types/Vec2 {:to identity :from (ensuring-converter (s/tuple number? number?))}
+   types/Vec3 {:to identity :from (ensuring-converter (s/tuple number? number? number?))}
+   types/Vec4 {:to identity :from (ensuring-converter (s/tuple number? number? number? number?))}
+   'editor.resource.Resource {:to resource/proj-path :from resource-converter}})
+
+(defn- multi-responds? [^MultiFn multi & args]
+  (some? (.getMethod multi (apply (.-dispatchFn multi) args))))
+
+(defn- property->prop-kw [property]
+  (if (string/starts-with? property "__")
+    (keyword property)
+    (keyword (string/replace property "_" "-"))))
+
+(defn- outline-property [node-id property ec]
+  (when (g/node-instance? (:basis ec) outline/OutlineNode node-id)
+    (let [prop-kw (property->prop-kw property)
+          outline-property (-> node-id
+                               (g/node-value :_properties ec)
+                               (get-in [:properties prop-kw]))]
+      (when (and outline-property
+                 (properties/visible? outline-property)
+                 (edit-type-id->value-converter (properties/edit-type-id outline-property)))
+        (cond-> outline-property
+                (not (contains? outline-property :prop-kw))
+                (assoc :prop-kw prop-kw))))))
+
+(defmulti ext-get (fn [node-id property ec]
+                    [(node-id->type-keyword node-id ec) property]))
+
+(defmethod ext-get [:editor.code.resource/CodeEditorResourceNode "text"] [node-id _ ec]
+  (clojure.string/join \newline (g/node-value node-id :lines ec)))
+
+(defmethod ext-get [:editor.resource/ResourceNode "path"] [node-id _ ec]
+  (resource/resource->proj-path (g/node-value node-id :resource ec)))
+
+(defn- ext-value-getter [node-id property evaluation-context]
+  (if (multi-responds? ext-get node-id property evaluation-context)
+    #(ext-get node-id property evaluation-context)
+    (if-let [outline-property (outline-property node-id property evaluation-context)]
+      (when-let [to (-> outline-property
+                        properties/edit-type-id
+                        edit-type-id->value-converter
+                        :to)]
+        #(some-> (properties/value outline-property) to))
+      nil)))
+
 (defn- do-ext-get [node-id-or-path property]
   (ensure-spec-in-api-call "editor.get()" ::node-id node-id-or-path)
-  (let [{:keys [evaluation-context project]} *execution-context*]
-    (ext-get (node-id-or-path->node-id node-id-or-path project evaluation-context)
-             property
-             evaluation-context)))
+  (ensure-spec-in-api-call "editor.get()" string? property)
+  (let [{:keys [evaluation-context project]} *execution-context*
+        node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
+        getter (ext-value-getter node-id property evaluation-context)]
+    (if getter
+      (getter)
+      (throw (LuaError. (str (name (node-id->type-keyword node-id evaluation-context))
+                             " has no \""
+                             property
+                             "\" property"))))))
+
+(defn- do-ext-can-get [node-id-or-path property]
+  (ensure-spec-in-api-call "editor.can_get()" ::node-id node-id-or-path)
+  (ensure-spec-in-api-call "editor.can_get()" string? property)
+  (let [{:keys [evaluation-context project]} *execution-context*
+        node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)]
+    (some? (ext-value-getter node-id property evaluation-context))))
 
 (defn- transact! [txs execution-context]
   (on-transact-thread (:ui execution-context) #(g/transact txs)))
@@ -397,22 +468,14 @@
         (throw (ex-info (str "Command \"" (string/join " " cmd+args) "\" aborted") {:cmd cmd+args}))))
     (reload-resources! ui)))
 
-(defmulti transaction-action->txs (fn [action evaluation-context]
-                                    [(:action action)
-                                     (node-id->type-keyword (:node-id action) evaluation-context)
-                                     (:property action)]))
+(defmulti ext-setter
+  "Returns a function that receives value and returns txs"
+  (fn [node-id property evaluation-context]
+    [(node-id->type-keyword node-id evaluation-context) property]))
 
-(defmethod transaction-action->txs :default [action evaluation-context]
-  (throw (LuaError.
-           (format "Can't %s \"%s\" property of %s"
-                   (:action action)
-                   (:property action)
-                   (name (node-id->type-keyword (:node-id action) evaluation-context))))))
-
-(defmethod transaction-action->txs ["set" :editor.code.resource/CodeEditorResourceNode "text"]
-  [action _]
-  (let [node-id (:node-id action)
-        value (:value action)]
+(defmethod ext-setter [:editor.code.resource/CodeEditorResourceNode "text"]
+  [node-id _ _]
+  (fn [value]
     [(g/set-property node-id :modified-lines (code.util/split-lines value))
      (g/update-property node-id :invalidated-rows conj 0)
      (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
@@ -421,14 +484,42 @@
 (defmulti action->batched-executor+input (fn [action _execution-context]
                                            (:action action)))
 
+(defn- ext-value-setter [node-id property execution-context]
+  (let [{:keys [evaluation-context]} execution-context]
+    (if (multi-responds? ext-setter node-id property evaluation-context)
+      (ext-setter node-id property evaluation-context)
+      (if-let [outline-property (outline-property node-id property evaluation-context)]
+        (when-not (properties/read-only? outline-property)
+          (when-let [from (-> outline-property
+                              properties/edit-type-id
+                              edit-type-id->value-converter
+                              :from)]
+            #(properties/set-value evaluation-context
+                                   outline-property
+                                   (from % outline-property execution-context))))
+        nil))))
+
 (defmethod action->batched-executor+input "set" [action execution-context]
-  (let [{:keys [project evaluation-context]} execution-context]
-    [transact! (transaction-action->txs
-                 (update action :node-id node-id-or-path->node-id project evaluation-context)
-                 evaluation-context)]))
+  (let [{:keys [project evaluation-context]} execution-context
+        node-id (node-id-or-path->node-id (:node-id action) project evaluation-context)
+        property (:property action)
+        setter (ext-value-setter node-id property execution-context)]
+    (if setter
+      [transact! (setter (:value action))]
+      (throw (LuaError.
+               (format "Can't set \"%s\" property of %s"
+                       property
+                       (name (node-id->type-keyword node-id evaluation-context))))))))
 
 (defmethod action->batched-executor+input "shell" [action _]
   [shell! (:command action)])
+
+(defn- do-ext-can-set [node-id-or-path property]
+  (ensure-spec-in-api-call "editor.can_set()" ::node-id node-id-or-path)
+  (ensure-spec-in-api-call "editor.can_set()" string? property)
+  (let [{:keys [evaluation-context project]} *execution-context*
+        node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)]
+    (some? (ext-value-setter node-id property *execution-context*))))
 
 (defn- perform-actions! [actions execution-context]
   (ensure-spec ::actions actions)
@@ -530,6 +621,13 @@
                                  (->> (keep #(project/get-resource-node project % evaluation-context)))
                                  (node-ids->lua-selection q)))]
         (cont assoc :selection res)))))
+
+(defmethod gen-selection-query "outline" [q acc _]
+  (gen-query acc [env cont]
+    (when-let [res (some-> (:selection env)
+                           (handler/adapt-every outline/OutlineNode)
+                           (node-ids->lua-selection q))]
+      (cont assoc :selection res))))
 
 (defn- compile-query [q project]
   (reduce-kv
@@ -660,6 +758,8 @@
                     :open-file #(open-file project-path %1 %2)
                     :out #(display-output! ui %1 %2)
                     :globals {"editor" {"get" do-ext-get
+                                        "can_get" do-ext-can-get
+                                        "can_set" do-ext-can-set
                                         "platform" (.getPair (Platform/getHostPlatform))}
                               "package" {"config" (string/join "\n" [File/pathSeparatorChar \; \? \! \-])}
                               "io" {"tmpfile" nil}

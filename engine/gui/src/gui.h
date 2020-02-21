@@ -77,27 +77,20 @@ namespace dmGui
 
         inline void Init()
         {
-            m_State.m_OriginalTextureWidth = 0;
-            m_State.m_OriginalTextureHeight = 0;
-            m_State.m_Start = 0;
-            m_State.m_End = 0;
-            m_State.m_FPS = 0;
+            memset(this, 0, sizeof(*this));
             m_State.m_Playback = PLAYBACK_ONCE_FORWARD;
-            m_TexCoords = 0;
-            m_FlipHorizontal = 0;
-            m_FlipVertical = 0;
         }
 
         struct State
         {
             inline bool IsEqual(const TextureSetAnimDesc::State other)
             {
-                return m_Start              == other.m_Start &&
-                    m_End                   == other.m_End &&
-                    m_OriginalTextureWidth  == other.m_OriginalTextureWidth &&
-                    m_OriginalTextureHeight == other.m_OriginalTextureHeight &&
-                    m_FPS                   == other.m_FPS &&
-                    m_Playback              == other.m_Playback;
+                return  m_Start                 == other.m_Start &&
+                        m_End                   == other.m_End &&
+                        m_OriginalTextureWidth  == other.m_OriginalTextureWidth &&
+                        m_OriginalTextureHeight == other.m_OriginalTextureHeight &&
+                        m_FPS                   == other.m_FPS &&
+                        m_Playback              == other.m_Playback;
             }
 
             uint32_t m_Start : 13;
@@ -110,6 +103,7 @@ namespace dmGui
         } m_State;
 
         const float* m_TexCoords;
+        const void*  m_TextureSet;
         uint8_t m_FlipHorizontal : 1;
         uint8_t m_FlipVertical : 1;
         uint8_t : 6;
@@ -974,6 +968,8 @@ namespace dmGui
     dmhash_t GetNodeFlipbookAnimId(HScene scene, HNode node);
     const float* GetNodeFlipbookAnimUV(HScene scene, HNode node);
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical);
+    int32_t GetNodeAnimationFrame(HScene scene, HNode node);
+    TextureSetAnimDesc* GetNodeTextureSet(HScene scene, HNode node);
 
     void* GetNodeFont(HScene scene, HNode node);
     dmhash_t GetNodeFontId(HScene scene, HNode node);

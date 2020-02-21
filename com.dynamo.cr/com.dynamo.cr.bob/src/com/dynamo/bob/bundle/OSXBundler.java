@@ -28,7 +28,7 @@ public class OSXBundler implements IBundler {
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
         String name = projectProperties.getStringValue("osx", "app_icon");
-        if (name != null) {
+        if (name != null && name.trim().length() > 0) {
             File inFile = new File(projectRoot, name);
             File outFile = new File(resourcesDir, ICON_NAME);
             FileUtils.copyFile(inFile, outFile);
@@ -40,6 +40,8 @@ public class OSXBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Darwin;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
@@ -74,12 +76,12 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -95,10 +97,7 @@ public class OSXBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("exe-name", exeName);
-        IResource sourceManifestFile = helper.getResource("osx", "infoplist");
-        helper.format(infoData, sourceManifestFile, new File(contentsDir, "Info.plist"));
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -128,9 +127,12 @@ public class OSXBundler implements IBundler {
         // Strip executable
         if( strip_executable )
         {
-            Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
-            if (stripResult.ret != 0) {
-                logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+            // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+            if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+                Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
+                if (stripResult.ret != 0) {
+                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+                }
             }
         }
     }

@@ -1,36 +1,38 @@
 (ns integration.save-test
-  (:require [clojure.test :refer :all]
-            [clojure.data :as data]
+  (:require [clojure.data :as data]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system spit-until-new-mtime touch-until-new-mtime]]
+            [editor.asset-browser :as asset-browser]
             [editor.defold-project :as project]
+            [editor.disk :as disk]
             [editor.fs :as fs]
             [editor.git :as git]
             [editor.git-test :refer [with-git]]
-            [editor.workspace :as workspace]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.asset-browser :as asset-browser]
-            [editor.disk :as disk]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [util.text-util :as text-util]
-            [service.log :as log])
-  (:import [java.io StringReader File]
-           [com.dynamo.render.proto Font$FontDesc]
-           [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
+            [service.log :as log]
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
+            [util.text-util :as text-util])
+  (:import [com.dynamo.atlas.proto AtlasProto$Atlas]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.model.proto ModelProto$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc]
+           [com.dynamo.render.proto Font$FontDesc]
+           [com.dynamo.spine.proto Spine$SpineModelDesc Spine$SpineSceneDesc]
            [com.dynamo.tile.proto Tile$TileSet]
+           [java.io StringReader File]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
 
-(def ^:private ext->proto {"font" Font$FontDesc
+(def ^:private ext->proto {"atlas" AtlasProto$Atlas
+                           "font" Font$FontDesc
                            "go" GameObject$PrototypeDesc
                            "collection" GameObject$CollectionDesc
                            "gui" Gui$SceneDesc
@@ -39,6 +41,7 @@
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
                            "spinemodel" Spine$SpineModelDesc
+                           "tileset" Tile$TileSet
                            "tilesource" Tile$TileSet})
 
 (deftest save-all
@@ -88,34 +91,33 @@
                  "**/test.model"
                  "**/empty_mesh.model"
                  "**/test.label"
-                 "**/with_collection.collectionproxy"]]
+                 "**/with_collection.collectionproxy"
+                 "**/ice.tilesource"
+                 "**/level.tilesource"
+                 "**/test.tileset"]]
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
+            project (test-util/setup-project! workspace)
             save-data (group-by :resource (project/all-save-data project))]
         (doseq [query queries]
           (testing (format "Saving %s" query)
-                   (let [[resource _] (first (project/find-resources project query))
-                        save (first (get save-data resource))
-                        file (slurp resource)
-                        pb-class (-> resource resource/resource-type :ext ext->proto)]
-                    (if pb-class
-                      (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
-                            pb-disk (protobuf/read-text pb-class resource)
-                            path []
-                            [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
-                        (is (nil? disk))
-                        (is (nil? save)))
-                      (is (= file (:content save)))))))))))
+            (let [[resource _] (first (project/find-resources project query))
+                  save (first (get save-data resource))
+                  file (slurp resource)
+                  pb-class (-> resource resource/resource-type :ext ext->proto)]
+              (if pb-class
+                (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
+                      pb-disk (protobuf/read-text pb-class resource)
+                      path []
+                      [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
+                  (is (nil? disk))
+                  (is (nil? save)))
+                (is (= file (:content save)))))))))))
 
 (deftest save-all-literal-equality
   (let [paths ["/collection/embedded_instances.collection"
                "/editor1/test.collection"
                "/game_object/embedded_components.go"
-               "/editor1/level.tilesource"
-               "/editor1/test.tileset"
-               ;; TODO - fix as part of DEFEDIT-432
-               #_"/editor1/ice.tilesource"
                "/editor1/ship_thruster_trail.particlefx"
                "/editor1/camera_fx.gui"
                "/editor1/body_font.font"

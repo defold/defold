@@ -17,7 +17,7 @@
 #endif
 
 #include "graphics_opengl_defines.h"
-#include "../graphics.h"
+#include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
@@ -367,6 +367,13 @@ static void LogFrameBufferError(GLenum status)
             g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
     }
 
+    static void OnWindowIconify(int iconify)
+    {
+        assert(g_Context);
+        if (g_Context->m_WindowIconifyCallback != 0x0)
+            g_Context->m_WindowIconifyCallback(g_Context->m_WindowIconifyCallbackUserData, iconify);
+    }
+
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
         assert(extension && extensions);
@@ -621,15 +628,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwSetWindowSizeCallback(OnWindowResize);
         glfwSetWindowCloseCallback(OnWindowClose);
         glfwSetWindowFocusCallback(OnWindowFocus);
+        glfwSetWindowIconifyCallback(OnWindowIconify);
         glfwSwapInterval(1);
         CHECK_GL_ERROR
 
-        context->m_WindowResizeCallback         = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback          = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData  = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback          = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData  = params->m_FocusCallbackUserData;
+        context->m_WindowResizeCallback           = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData   = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback            = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData    = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback            = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
+        context->m_WindowIconifyCallback          = params->m_IconifyCallback;
+        context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
         context->m_WindowOpened = 1;
         context->m_Width = params->m_Width;
         context->m_Height = params->m_Height;
@@ -1527,18 +1537,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type)
-    {
-        // Not supported
-        return 0;
-    }
-
-    int32_t GetUniformLocation(HProgram prog, dmhash_t name)
-    {
-        // Not supported
-        return -1;
-    }
-
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
@@ -1967,13 +1965,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         *out_handle = &texture->m_Texture;
 
         return HANDLE_RESULT_OK;
-    }
-
-    static inline uint32_t GetTextureFormatBPP(TextureFormat format)
-    {
-        static TextureFormatToBPP g_TextureFormatToBPP;
-        assert(format < TEXTURE_FORMAT_COUNT);
-        return g_TextureFormatToBPP.m_FormatToBPP[format];
     }
 
     void SetTexture(HTexture texture, const TextureParams& params)

@@ -1,7 +1,6 @@
 #ifndef DM_GAMESYS_COMP_SPRITE_H
 #define DM_GAMESYS_COMP_SPRITE_H
 
-#include <stdint.h>
 #include <gameobject/gameobject.h>
 
 namespace dmGameSystem

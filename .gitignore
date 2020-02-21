@@ -37,6 +37,9 @@ editor/eastwood-warnings.txt
 editor/resources/sorted_clojure_ns_list.edn
 ci/env.sh
 
+com.dynamo.cr/com.dynamo.cr.bob.test/test/build
+com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.java
+
 *.nss
 *.nso
 *.nro
@@ -45,5 +48,4 @@ ci/env.sh
 *.nspd_root
 *.npdm
 *.o
-
 

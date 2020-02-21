@@ -137,29 +137,4 @@ public class LibraryUtil {
         }
         return result;
     }
-
-    public static List<URL> getLibraryUrlsFromProject(String rootPath) throws LibraryException {
-        rootPath = FilenameUtils.normalizeNoEndSeparator(rootPath, true);
-        List<URL> urls = new ArrayList<URL>();
-        BobProjectProperties properties = new BobProjectProperties();
-        File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));
-        if (!projectProps.exists()) {
-            // Silently ignore if game.project does not exist, probably a test
-            return urls;
-        }
-        InputStream input = null;
-        try {
-            input = new BufferedInputStream(new FileInputStream(projectProps));
-            properties.load(input);
-        } catch (Exception e) {
-            throw new LibraryException("Failed to parse game.project", e);
-        } finally {
-            IOUtils.closeQuietly(input);
-        }
-        String dependencies = properties.getStringValue("project", "dependencies", null);
-        if (dependencies != null) {
-            urls = parseLibraryUrls(dependencies);
-        }
-        return urls;
-    }
 }

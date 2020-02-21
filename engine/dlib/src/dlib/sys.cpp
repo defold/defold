@@ -466,34 +466,43 @@ namespace dmSys
 
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-        ssize_t ret = readlink("/proc/self/exe", path_out, path_len);
-        if (ret < 0 || ret > path_len)
+        // try to read the full path of the exe using readlink()
+        // we need a new buffer that is slightly larger than the
+        // path length so that we can detect if path_len will be
+        // enough or not
+        char* path = (char*)malloc(path_len + 2);
+        ssize_t ret = readlink("/proc/self/exe", path, path_len + 2);
+        if (ret >= 0 && ret <= path_len + 1)
         {
-            const char* relative_path = (const char*)getauxval(AT_EXECFN); // Pathname used to execute program
-            if (!relative_path)
-            {
-                path_out[0] = '.';
-                path_out[1] = '\n';
-            }
-            else
-            {
-                char *absolute_path = realpath(relative_path, NULL); // realpath() resolve a pathname
-                if (!absolute_path)
-                {
-                    path_out[0] = '.';
-                    path_out[1] = '\n';
-                }
-                else
-                {
-                    if (dmStrlCpy(path_out, dirname(absolute_path), path_len) >= path_len) // dirname() returns the string up to, but not including, the final '/'
-                    {
-                        path_out[0] = '.';
-                        path_out[1] = '\n';
-                    }
-                    free(absolute_path);
-                }
-            }
+            path[ret] = '\0';
+            dmStrlCpy(path_out, dirname(path), path_len);
+            free(path);
+            return RESULT_OK;
         }
+        free(path);
+
+        // get the pathname (relative) used to execute the program
+        // from the auxilary vector
+        const char* relative_path = (const char*)getauxval(AT_EXECFN);
+        if (!relative_path)
+        {
+            path_out[0] = '.';
+            path_out[1] = '\0';
+            return RESULT_OK;
+        }
+
+        // convert the relative pathname to an absolute pathname
+        char* absolute_path = realpath(relative_path, NULL);
+        if (!absolute_path)
+        {
+            path_out[0] = '.';
+            path_out[1] = '\0';
+            return RESULT_OK;
+        }
+
+        // get the directory from the pathname (ie remove exe name)
+        dmStrlCpy(path_out, dirname(absolute_path), path_len);
+        free(absolute_path);
         return RESULT_OK;
     }
 

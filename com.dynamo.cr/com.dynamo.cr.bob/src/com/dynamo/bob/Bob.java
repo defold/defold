@@ -38,6 +38,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.bob.util.BobProjectProperties;
 
 public class Bob {
 
@@ -387,6 +388,10 @@ public class Bob {
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
+        // debug options
+        options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
+
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -403,26 +408,31 @@ public class Bob {
         return cmd;
     }
 
-    public static Project createProject(String sourceDirectory, String rootDirectory, String buildDirectory, boolean resolveLibraries, String email, String auth) throws IOException, LibraryException, CompileExceptionError {
+    private static Project createProject(String rootDirectory, String buildDirectory, String email, String auth) {
         Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
         project.setOption("email", email);
         project.setOption("auth", auth);
 
+        return project;
+    }
+
+    private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
         ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        String cwd = new File(".").getAbsolutePath();
-        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
+        BobProjectProperties projectProperties = project.getProjectProperties();
+        String dependencies = projectProperties.getStringValue("project", "dependencies", "");
+
+        List<URL> libUrls = LibraryUtil.parseLibraryUrls(dependencies);
+        project.setLibUrls(libUrls);
         if (resolveLibraries) {
             project.resolveLibUrls(new ConsoleProgress());
         }
         project.mount(new ClassLoaderResourceScanner());
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
         project.findSources(sourceDirectory, skipDirs);
-
-        return project;
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileException, URISyntaxException, LibraryException {
@@ -469,7 +479,18 @@ public class Bob {
 
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
-        Project project = createProject(sourceDirectory, rootDirectory, buildDirectory, shouldResolveLibs, email, auth);
+        Project project = createProject(rootDirectory, buildDirectory, email, auth);
+
+        if (cmd.hasOption("settings")) {
+            for (String filepath : cmd.getOptionValues("settings")) {
+                project.addPropertyFile(filepath);
+            }
+        }
+        project.loadProjectFile();
+
+        // resolves libraries and finds all sources
+        setupProject(project, shouldResolveLibs, sourceDirectory);
+
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
@@ -547,12 +568,6 @@ public class Bob {
 
         if (cmd.hasOption("use-vanilla-lua")) {
             project.setOption("use-vanilla-lua", "true");
-        }
-
-        if (cmd.hasOption("settings")) {
-            for (String filepath : cmd.getOptionValues("settings")) {
-                project.addPropertyFile(filepath);
-            }
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

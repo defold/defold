@@ -954,7 +954,11 @@ namespace dmGameObject
 
     /*# sets the parent for a specific game object instance
      * Sets the parent for a game object instance. This means that the instance will exist in the geometrical space of its parent,
-     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world space.
+     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world
+     * space.
+     * This function will generate a `set_parent` message. It is not until the message has been processed that the change actually takes effect. This
+     * typically happens later in the same frame or the beginning of the next frame. Refer to the manual to learn how messages are processed by the
+     * engine.
      *
      * @name go.set_parent
      * @param [id] [type:string|hash|url] optional id of the game object instance to set parent for, defaults to the instance containing the calling script

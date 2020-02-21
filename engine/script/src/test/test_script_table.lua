@@ -15,6 +15,12 @@ local function save(path)
 	t["hash"] 	= hash("hashed value")
 	t["url"] 	= msg.url("a", "b", "c")
 
+	if TABLE_VERSION_CURRENT > 2 then
+		-- test negative numeric keys
+		t[-123] = "minus_onetwothree"
+		t[123] 	= "plus_oneonetwothree"
+	end
+
 	-- note that the binary strings won't print ok before the fix
 	pprint(t)
 
@@ -51,6 +57,11 @@ local function load(path)
 	assert( t["number"] == 0.5 )
 	assert( t["hash"] == hash("hashed value") )
 	assert( t["url"] == msg.url("a", "b", "c") )
+
+	if TABLE_VERSION_CURRENT > 2 then
+		assert( t[-123] == "minus_onetwothree" )
+		assert( t[123] == "plus_onetwothree" )
+	end
 
 end
 

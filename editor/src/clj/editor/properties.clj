@@ -287,9 +287,18 @@
                    [k (persistent! v)]))
             decl))))
 
-(defn- property-edit-type [property]
+(defn property-edit-type [property]
   (or (get property :edit-type)
       {:type (:type property)}))
+
+(defn edit-type-id [property]
+  (let [t (:type (property-edit-type property))]
+    (if (:on-interface t)
+      (:on t)
+      t)))
+
+(defn value [property]
+  ((get-in property [:edit-type :to-type] identity) (:value property)))
 
 (def ^:private links #{:link :override})
 
@@ -370,13 +379,16 @@
         (recur (rest display-order) result))
       result)))
 
+(defn visible? [property]
+  (:visible property true))
+
 (defn coalesce [properties]
   (let [properties (mapv flatten-properties properties)
         display-orders (mapv :display-order properties)
         properties (mapv :properties properties)
         node-count (count properties)
         ; Filter out invisible properties
-        visible-props (mapcat (fn [p] (filter (fn [[k v]] (get v :visible true)) p)) properties)
+        visible-props (mapcat (fn [p] (filter (fn [[k v]] (visible? v)) p)) properties)
         ; Filter out properties not common to *all* property sets
         ; Heuristic is to compare count and also type
         common-props (filter (fn [[k v]] (and (= node-count (count v)) (apply = (map property-edit-type v))))
@@ -414,15 +426,29 @@
           (:values property)
           (:original-values property (repeat nil)))))
 
+(defn- set-value-txs [evaluation-context node-id prop-kw key set-fn old-value new-value]
+  (cond
+    set-fn (set-fn evaluation-context node-id old-value new-value)
+    (vector? key) (g/update-property node-id prop-kw assoc-in (rest key) new-value)
+    :else (g/set-property node-id prop-kw new-value)))
+
+(defn set-value [evaluation-context un-coalesced-property new-value]
+  (let [{:keys [key value node-id edit-type prop-kw]} un-coalesced-property
+        set-fn (:set-fn edit-type)
+        from-fn (:from-type edit-type identity)
+        new-value (from-fn new-value)]
+    (set-value-txs evaluation-context node-id prop-kw key set-fn value new-value)))
+
 (defn- set-values [evaluation-context property values]
   (let [key (:key property)
         set-fn (get-in property [:edit-type :set-fn])
         from-fn (get-in property [:edit-type :from-type] identity)]
-    (for [[node-id prop-kw old-value new-value] (map vector (:node-ids property) (:prop-kws property) (:values property) (map from-fn values))]
-      (cond
-        set-fn (set-fn evaluation-context node-id old-value new-value)
-        (vector? key) (g/update-property node-id prop-kw assoc-in (rest key) new-value)
-        true (g/set-property node-id prop-kw new-value)))))
+    (for [[node-id prop-kw old-value new-value] (map vector
+                                                     (:node-ids property)
+                                                     (:prop-kws property)
+                                                     (:values property)
+                                                     (map from-fn values))]
+      (set-value-txs evaluation-context node-id prop-kw key set-fn old-value new-value))))
 
 (defn keyword->name [kw]
   (-> kw
