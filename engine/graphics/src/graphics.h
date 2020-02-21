@@ -24,6 +24,8 @@ namespace dmGraphics
 
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
 
+    typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
+
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -285,7 +287,8 @@ namespace dmGraphics
             m_Width(0),
             m_Height(0),
             m_OriginalWidth(0),
-            m_OriginalHeight(0)
+            m_OriginalHeight(0),
+            m_MipMapCount(1)
         {}
 
         TextureType m_Type;
@@ -293,6 +296,7 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+        uint8_t     m_MipMapCount;
     };
 
     struct TextureParams
@@ -347,6 +351,10 @@ namespace dmGraphics
         WindowFocusCallback     m_FocusCallback;
         /// User data supplied to the callback function
         void*                   m_FocusCallbackUserData;
+        /// Window iconify callback
+        WindowIconifyCallback   m_IconifyCallback;
+        /// User data supplied to the callback function
+        void*                   m_IconifyCallbackUserData;
         /// Window width, 640 by default
         uint32_t                m_Width;
         /// Window height, 480 by default
@@ -583,10 +591,8 @@ namespace dmGraphics
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
 
     uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
-    uint32_t GetUniformName(HProgram prog, uint32_t index, dmhash_t* hash, Type* type);
     uint32_t GetUniformCount(HProgram prog);
     int32_t  GetUniformLocation(HProgram prog, const char* name);
-    int32_t  GetUniformLocation(HProgram prog, dmhash_t name);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
@@ -638,7 +644,6 @@ namespace dmGraphics
      */
     void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
 
-    uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint32_t GetTextureResourceSize(HTexture texture);
     uint16_t GetTextureWidth(HTexture texture);

@@ -6,7 +6,7 @@
 
 #include "graphics.h"
 #include "graphics_private.h"
-#include "null/graphics_null.h"
+#include "null/graphics_null_private.h"
 
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u

@@ -28,12 +28,14 @@ public class TextureSetLayout {
     }
 
     public static class Rect {
-        public Object id;
+        public String id;
+        public int index; // for easier keeping the original order
         public int x, y, width, height;
         public boolean rotated;
 
-        public Rect(Object id, int x, int y, int width, int height) {
+        public Rect(String id, int index, int x, int y, int width, int height) {
             this.id = id;
+            this.index = index;
             this.x = x;
             this.y = y;
             this.width = width;
@@ -41,8 +43,9 @@ public class TextureSetLayout {
             this.rotated = false;
         }
 
-        public Rect(Object id, int width, int height) {
+        public Rect(String id, int index, int width, int height) {
             this.id = id;
+            this.index = index;
             this.x = -1;
             this.y = -1;
             this.width = width;
@@ -52,6 +55,7 @@ public class TextureSetLayout {
 
         public Rect(Rect other) {
             this.id = other.id;
+            this.index = other.index;
             this.x = other.x;
             this.y = other.y;
             this.width = other.width;

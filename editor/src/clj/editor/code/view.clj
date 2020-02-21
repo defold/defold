@@ -1498,6 +1498,7 @@
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-released (get-property view-node :lines)
+                                        (get-property view-node :cursor-ranges)
                                         (get-property view-node :visible-regions)
                                         (get-property view-node :layout)
                                         (get-property view-node :minimap-layout)

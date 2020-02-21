@@ -1,21 +1,20 @@
 (ns editor.pipeline.texture-set-gen
-  (:require [editor.protobuf :as protobuf])
+  (:require [editor.image-util :as image-util]
+            [editor.protobuf :as protobuf]
+            [editor.workspace :as workspace])
   (:import [com.defold.editor.pipeline
             ConvexHull
             TextureSetGenerator
-            TextureSetGenerator$AnimIterator
             TextureSetGenerator$AnimDesc
-            TextureSetGenerator$UVTransform
+            TextureSetGenerator$AnimIterator
             TextureSetGenerator$TextureSetResult
-            TextureSetGenerator$LayoutResult
-            TextureSetLayout$Rect
             TextureSetLayout$Grid
+            TextureSetLayout$Rect
             TextureUtil
             TileSetUtil
             TileSetUtil$Metrics]
-           [com.dynamo.tile.proto Tile$Playback Tile$TileSet Tile$ConvexHull]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet$Builder]
-           [java.util ArrayList]
+           [com.dynamo.tile.proto Tile$ConvexHull Tile$Playback]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -27,11 +26,13 @@
 
 (defn- map->Rect
   [{:keys [path width height]}]
-  (TextureSetLayout$Rect. path (int width) (int height)))
+  ;; NOTE: The other attributes do not matter for our use case.
+  (TextureSetLayout$Rect. path -1 (int width) (int height)))
 
 (defn- Rect->map
   [^TextureSetLayout$Rect rect]
   {:path (.id rect)
+   :index (.index rect)
    :x (.x rect)
    :y (.y rect)
    :width (.width rect)
@@ -60,9 +61,18 @@
   [layout-result id->image]
   (TextureSetGenerator/layoutImages layout-result id->image))
 
+(defn- sprite-trim-mode->hull-vertex-count
+  ^long [sprite-trim-mode]
+  (case sprite-trim-mode
+    :sprite-trim-mode-off 0
+    :sprite-trim-mode-4 4
+    :sprite-trim-mode-5 5
+    :sprite-trim-mode-6 6
+    :sprite-trim-mode-7 7
+    :sprite-trim-mode-8 8))
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders]
+  [animations images margin inner-padding extrude-borders workspace]
   (let [img-to-index (into {} (map-indexed #(vector %2 (Integer. ^int %1)) images))
         anims-atom (atom animations)
         anim-imgs-atom (atom [])
@@ -79,9 +89,16 @@
                         (rewind [this]
                           (reset! anims-atom animations)
                           (reset! anim-imgs-atom [])))
+        rects (map map->Rect images)
+        sprite-geometries (map (fn [{:keys [path sprite-trim-mode] :as _image}]
+                                 (let [image-resource (workspace/find-resource workspace path)
+                                       buffered-image (image-util/read-image image-resource)
+                                       hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
+                                   (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))
+                               images)
         result (TextureSetGenerator/calculateLayout
-                 (map map->Rect images) anim-iterator margin inner-padding extrude-borders
-                 false false true false nil)]
+                 rects sprite-geometries anim-iterator margin inner-padding extrude-borders
+                 true false nil)]
     (doto (.builder result)
       (.setTexture "unknown"))
     (TextureSetResult->result result)))
@@ -111,13 +128,20 @@
 (defn- split-rects
   [{:keys [width height tiles-per-column tiles-per-row] :as tile-source-attributes}]
   (for [tile-y (range tiles-per-column)
-        tile-x (range tiles-per-row)]
-    (TextureSetLayout$Rect. (+ tile-x (* tile-y tiles-per-row)) (int width) (int height))))
+        tile-x (range tiles-per-row)
+        :let [index (+ tile-x (* tile-y tiles-per-row))
+              name (format "tile%d" index)]]
+    (TextureSetLayout$Rect. name
+                            index
+                            (* tile-x width)
+                            (* tile-y height)
+                            (int width)
+                            (int height))))
 
 (defn- tile-anim->AnimDesc [anim]
   (when anim
     (TextureSetGenerator$AnimDesc. (:id anim) (protobuf/val->pb-enum Tile$Playback (:playback anim)) (:fps anim)
-               (not= 0 (:flip-horizontal anim)) (not= 0 (:flip-vertical anim)))))
+                                   (not= 0 (:flip-horizontal anim)) (not= 0 (:flip-vertical anim)))))
 
 
 (defn calculate-convex-hulls
@@ -137,7 +161,7 @@
   [image-size {:keys [width height margin spacing] :as tile-properties} collision-size]
   (Metrics->map (TileSetUtil/calculateMetrics (map->Rect image-size) width height margin spacing (when collision-size (map->Rect collision-size)) 1 0)))
 
-(defn- add-convex-hulls!
+(defn- add-collision-hulls!
   [^TextureSetProto$TextureSet$Builder builder convex-hulls collision-groups]
   (.addAllCollisionGroups builder collision-groups)
   (when convex-hulls
@@ -147,10 +171,10 @@
                                        (.setCount count)
                                        (.setCollisionGroup (or collision-group ""))))
 
-            (run! #(.addConvexHullPoints builder %) points))
+            (run! #(.addCollisionHullPoints builder %) points))
           convex-hulls)))
 
-(defn tile-source->texture-set-data [tile-source-attributes convex-hulls collision-groups animations]
+(defn tile-source->texture-set-data [tile-source-attributes image-resource convex-hulls collision-groups animations]
   (let [image-rects (split-rects tile-source-attributes)
         anims-atom (atom animations)
         anim-indices-atom (atom [])
@@ -170,24 +194,30 @@
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
+        buffered-image (image-util/read-image image-resource)
+        hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
+        sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
+                                 (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
+                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
+                               image-rects)
         result (TextureSetGenerator/calculateLayout
                  image-rects
+                 sprite-geometries
                  anim-iterator
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)
                  (:extrude-borders tile-source-attributes)
-                 false false false true grid)]
+                 false true grid)]
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))
-      (add-convex-hulls! convex-hulls collision-groups)
+      (add-collision-hulls! convex-hulls collision-groups)
       ;; "This will be supplied later when producing the byte data for the pipeline"
       ;; TODO: check what that means and if it's true
       (.setTexture "unknown"))
     (TextureSetResult->result result)))
 
-
 (defn layout-tile-source
   [layout-result ^BufferedImage image tile-source-attributes]
-  (let [id->image (zipmap (range) (split-image image tile-source-attributes))]
+  (let [id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
     (TextureSetGenerator/layoutImages layout-result id->image)))

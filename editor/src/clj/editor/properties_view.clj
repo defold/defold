@@ -19,6 +19,7 @@
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane HBox VBox Priority ColumnConstraints Region]
            [javafx.scene.paint Color]
+           [javafx.util Duration]
            [editor.properties CurveSpread Curve]))
 
 (set! *warn-on-reflection* true)
@@ -458,14 +459,19 @@
       (update-message-tooltip ctrl)
       (hide-message-tooltip ctrl))))
 
-(defn- create-property-label [label]
+(defn- create-property-label [label key]
   (doto (Label. label)
+    (.setTooltip (doto (Tooltip.)
+                   (.setText (format "Available as `%s` in editor scripts"
+                                     (string/replace (name key) \- \_)))
+                   (.setHideDelay Duration/ZERO)
+                   (.setShowDuration (Duration/seconds 30))))
     (ui/add-style! "property-label")
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
 (defn- create-properties-row [context ^GridPane grid key property row property-fn]
-  (let [^Label label (create-property-label (properties/label property))
+  (let [^Label label (create-property-label (properties/label property) key)
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))

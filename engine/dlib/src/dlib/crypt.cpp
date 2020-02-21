@@ -16,6 +16,9 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 
+
+#include <dlib/log.h> // For debugging the manifest verification issue
+
 namespace dmCrypt
 {
     const uint32_t NUM_ROUNDS = 32;
@@ -106,12 +109,14 @@ namespace dmCrypt
         int ret;
         if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen(pers) ) ) != 0 )
         {
+            dmLogError("Decrypt: mbedtls_ctr_drbg_seed failed: %d", ret);
             result = RESULT_ERROR;
             goto exit;
         }
 
         if ((ret = mbedtls_pk_parse_public_key(&pk, key, keylen) != 0))
         {
+            dmLogError("Decrypt: mbedtls_pk_parse_public_key failed: %d", ret);
             result = RESULT_ERROR;
             goto exit;
         }
@@ -123,6 +128,7 @@ namespace dmCrypt
                     (uint8_t*)*output, &_outputlen, signature_hash_len,
                     mbedtls_ctr_drbg_random, &ctr_drbg )) != 0)
         {
+            dmLogError("Decrypt: rsa_alt_decrypt_public_wrap failed: %d", ret);
             free(*output);
             result = RESULT_ERROR;
             goto exit;

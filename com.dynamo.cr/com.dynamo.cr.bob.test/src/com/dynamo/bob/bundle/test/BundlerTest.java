@@ -3,6 +3,8 @@ package com.dynamo.bob.bundle.test;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.FileSystem;
@@ -20,6 +22,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -29,19 +33,20 @@ import javax.imageio.ImageIO;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
-import org.eclipse.swt.widgets.Display;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-import org.osgi.framework.FrameworkUtil;
 
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
-import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
@@ -61,12 +66,57 @@ public class BundlerTest {
     private String contentRootUnused;
     private Platform platform;
 
+    @Parameters
+    public static Collection<Platform[]> data() {
+        List<Platform[]> data = new ArrayList<>();
+
+        data.add(new Platform[]{Platform.X86Win32});
+        data.add(new Platform[]{Platform.X86_64Win32});
+        data.add(new Platform[]{Platform.X86_64Darwin});
+        data.add(new Platform[]{Platform.X86_64Linux});
+        data.add(new Platform[]{Platform.Armv7Android});
+        data.add(new Platform[]{Platform.JsWeb});
+
+            // Can only do this on OSX machines currently
+        if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+            data.add(new Platform[]{Platform.Armv7Darwin});
+            data.add(new Platform[]{Platform.Arm64Darwin});
+            data.add(new Platform[]{Platform.X86_64Ios});
+        }
+        return data;
+    }
+
+    private File getOutputDirFile(String outputDir, String projectName) {
+        String folderName = projectName;
+        switch (platform)
+        {
+            case X86_64Darwin:
+            case Armv7Darwin:
+            case Arm64Darwin:
+            case X86_64Ios:
+                    folderName = projectName + ".app";
+            break;
+        }
+        return new File(outputDir, folderName);
+    }
+
+    private String getBundleAppFolder(String projectName) {
+        switch (platform)
+        {
+            case Armv7Darwin:
+            case Arm64Darwin:
+            case X86_64Ios:
+                return String.format("Payload/%s.app/", projectName);
+        }
+        return "";
+    }
+
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
     private void verifyEngineBinaries() throws IOException
     {
         String projectName = "unnamed";
         String exeName = BundleHelper.projectNameToBinaryName(projectName);
-        File outputDirFile = new File(outputDir, projectName);
+        File outputDirFile = getOutputDirFile(outputDir, projectName);
         assertTrue(outputDirFile.exists());
         switch (platform)
         {
@@ -84,6 +134,15 @@ public class BundlerTest {
                 FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
                 Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArmv7));
+                Path classesDexPath = apkZip.getPath("classes.dex");
+                assertTrue(Files.isReadable(classesDexPath));
+            }
+            break;
+            case Arm64Android:
+            {
+                File outputApk = new File(outputDirFile, projectName + ".apk");
+                assertTrue(outputApk.exists());
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
                 Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
                 assertTrue(Files.isReadable(enginePathArm64));
                 Path classesDexPath = apkZip.getPath("classes.dex");
@@ -100,60 +159,91 @@ public class BundlerTest {
                 assertTrue(wasmFile.exists());
             }
             break;
+            case Armv7Darwin:
+            case Arm64Darwin:
+            case X86_64Ios:
+            {
+                List<String> names = Arrays.asList(
+                    exeName,
+                    "Info.plist",
+                    "Icon.png",
+                    "Icon@2x.png",
+                    "Icon-60@2x.png",
+                    "Icon-60@3x.png",
+                    "Icon-72.png",
+                    "Icon-72@2x.png",
+                    "Icon-76.png",
+                    "Icon-76@2x.png",
+                    "Icon-167.png"
+                );
+                for (String name : names) {
+                    File file = new File(outputDirFile, name);
+                    assertTrue(file.exists());
+                }
+            }
+            break;
+            case X86_64Darwin:
+                List<String> names = Arrays.asList(
+                    String.format("Contents/MacOS/%s", exeName),
+                    "Contents/Info.plist"
+                );
+                for (String name : names) {
+                    File file = new File(outputDirFile, name);
+                    assertTrue(file.exists());
+                }
+                break;
+            case X86_64Linux:
+                break;
             default:
                 throw new IOException("Verifying engine binaries not implemented for platform: " + platform.toString());
         }
     }
 
+    private List<String> getZipFiles(File zipFile) throws IOException {
+        List<String> files = new ArrayList<String>();
+        InputStream inputStream = new FileInputStream(zipFile);
+        try (ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
+            ZipEntry zipEntry = zipInputStream.getNextEntry();
+
+            while (zipEntry != null) {
+                if (!zipEntry.isDirectory()) {
+                    files.add(zipEntry.getName());
+                }
+
+                zipInputStream.closeEntry();
+                zipEntry = zipInputStream.getNextEntry();
+            }
+        }
+        return files;
+    }
+
     private List<String> getBundleFiles() throws IOException {
         String projectName = "unnamed";
-        File outputDirFile = new File(outputDir, projectName);
+        File outputDirFile = getOutputDirFile(outputDir, projectName);
         assertTrue(outputDirFile.exists());
 
-        final ArrayList<String> files = new ArrayList<String>();
+        List<String> files = new ArrayList<String>();
 
-        if (platform == Platform.Armv7Android)
+        if (platform == Platform.Armv7Android || platform == Platform.Arm64Android)
         {
-            File outputApk = new File(outputDirFile, projectName + ".apk");
-            assertTrue(outputApk.exists());
-            FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
-            final Path root = apkZip.getPath("/");
-
-            Files.walkFileTree(root, new SimpleFileVisitor<Path>(){
-                @Override
-                public FileVisitResult visitFile(Path file,
-                        BasicFileAttributes attrs) throws IOException {
-                    files.add(file.getFileName().toString());
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir,
-                        BasicFileAttributes attrs) throws IOException {
-
-                    // Only list root directory
-                    if (dir.toAbsolutePath().toString().equals("/")) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    return FileVisitResult.SKIP_SUBTREE;
-                }
-                });
-        } else {
-            for (File f : outputDirFile.listFiles())
-            {
-                if (f.isFile()) {
-                    files.add(f.getName().toString());
-                }
+            File zip = new File(outputDirFile, projectName + ".apk");
+            assertTrue(zip.exists());
+            files = getZipFiles(zip);
+        }
+        else if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios)
+        {
+            File zip = new File(outputDirFile.getParentFile(), projectName + ".ipa");
+            assertTrue(zip.exists());
+            files = getZipFiles(zip);
+        }
+        else {
+            for (File file : FileUtils.listFiles(outputDirFile, new RegexFileFilter(".*"), DirectoryFileFilter.DIRECTORY)) {
+                String relative = outputDirFile.toURI().relativize(file.toURI()).getPath();
+                files.add(relative);
             }
         }
 
         return files;
-    }
-
-    @Parameters
-    public static Collection<Platform[]> data() {
-        Platform[][] data = new Platform[][] { {Platform.X86Win32}, {Platform.X86_64Win32}, {Platform.Armv7Android}, {Platform.JsWeb}};
-        return Arrays.asList(data);
     }
 
     public BundlerTest(Platform platform) {
@@ -162,18 +252,12 @@ public class BundlerTest {
 
     @Before
     public void setUp() throws Exception {
-        contentRoot = Files.createTempDirectory(null).toFile().getAbsolutePath();
-        outputDir = Files.createTempDirectory(null).toFile().getAbsolutePath();
+        contentRoot = Files.createTempDirectory("defoldtest").toFile().getAbsolutePath();
+        outputDir = Files.createTempDirectory("defoldtest").toFile().getAbsolutePath();
         createFile(contentRoot, "game.project", "[display]\nwidth=640\nheight=480\n");
 
-        contentRootUnused = Files.createTempDirectory(null).toFile().getAbsolutePath();
+        contentRootUnused = Files.createTempDirectory("defoldtest").toFile().getAbsolutePath();
         createFile(contentRootUnused, "game.project", "[display]\nwidth=640\nheight=480\n[bootstrap]\nmain_collection = /main.collectionc\n");
-
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
 
         BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_4BYTE_ABGR);
         ImageIO.write(image, "png", new File(contentRoot, "test.png"));
@@ -190,14 +274,15 @@ public class BundlerTest {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", platform.getPair());
-        project.setOption("archive", "true");
-        project.setOption("bundle-output", outputDir);
-        project.findSources(contentRoot, new HashSet<String>());
+        setProjectProperties(project);
+
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
+
+        project.findSources(contentRoot, skipDirs);
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
@@ -264,8 +349,7 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
-        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_DEV_HEAD}}} {{{DEFOLD_DEV_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
-
+        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;
     }
 
@@ -283,6 +367,21 @@ public class BundlerTest {
         return file.getAbsolutePath();
     }
 
+    private void setProjectProperties(Project project) {
+        Platform buildPlatform = platform;
+        if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
+            buildPlatform = Platform.Armv7Android;
+        }
+        else if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+            buildPlatform = Platform.Armv7Darwin;
+        }
+
+        project.setOption("platform", buildPlatform.getPair());
+        project.setOption("architectures", platform.getPair());
+        project.setOption("archive", "true");
+        project.setOption("bundle-output", outputDir);
+    }
+
     @Test
     public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         int builtins_count = createDefaultFiles(contentRootUnused);
@@ -292,13 +391,13 @@ public class BundlerTest {
         Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        OsgiScanner scanner = new OsgiScanner(FrameworkUtil.getBundle(Project.class));
+        ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", platform.getPair());
+        setProjectProperties(project);
         project.setOption("keep-unused", "true");
-        project.setOption("archive", "true");
+
         project.findSources(contentRootUnused, new HashSet<String>());
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
         for (TaskResult taskResult : result) {
@@ -355,7 +454,6 @@ public class BundlerTest {
         final HashAlgorithm hashAlgo = HashAlgorithm.HASH_SHA1;
         final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
         final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
-
         int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", expectedData);
@@ -404,12 +502,70 @@ public class BundlerTest {
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("defold_sound.swf");
+                expectedFiles.add("archive/game.arcd0");
+                expectedFiles.add("archive/game.arci0");
+                expectedFiles.add("archive/game.dmanifest0");
+                expectedFiles.add("archive/game.projectc0");
+                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/archive_files.json");
                 break;
             case Armv7Android:
+            case Arm64Android:
                 expectedFiles.add("classes.dex");
-                expectedFiles.add("resources.arsc");
+                expectedFiles.add("lib/armeabi-v7a/libunnamed.so");
                 expectedFiles.add("AndroidManifest.xml");
+                expectedFiles.add("assets/game.arcd");
+                expectedFiles.add("assets/game.arci");
+                expectedFiles.add("assets/game.dmanifest");
+                expectedFiles.add("assets/game.projectc");
+                expectedFiles.add("assets/game.public.der");
+                expectedFiles.add("META-INF/CERT.RSA");
+                expectedFiles.add("META-INF/CERT.SF");
+                expectedFiles.add("META-INF/MANIFEST.MF");
+                expectedFiles.add("res/drawable-hdpi-v4/icon.png");
+                expectedFiles.add("res/drawable-ldpi-v4/icon.png");
+                expectedFiles.add("res/drawable-mdpi-v4/icon.png");
+                expectedFiles.add("res/drawable-xhdpi-v4/icon.png");
+                expectedFiles.add("res/drawable-xxhdpi-v4/icon.png");
+                expectedFiles.add("res/drawable-xxxhdpi-v4/icon.png");
+                expectedFiles.add("resources.arsc");
+                break;
+            case Armv7Darwin:
+            case Arm64Darwin:
+            case X86_64Ios:
+                expectedFiles.add("Payload/unnamed.app/unnamed");
+                expectedFiles.add("Payload/unnamed.app/Info.plist");
+                expectedFiles.add("Payload/unnamed.app/game.arcd");
+                expectedFiles.add("Payload/unnamed.app/game.arci");
+                expectedFiles.add("Payload/unnamed.app/game.dmanifest");
+                expectedFiles.add("Payload/unnamed.app/game.projectc");
+                expectedFiles.add("Payload/unnamed.app/game.public.der");
+                expectedFiles.add("Payload/unnamed.app/Icon-167.png");
+                expectedFiles.add("Payload/unnamed.app/Icon-60@2x.png");
+                expectedFiles.add("Payload/unnamed.app/Icon-60@3x.png");
+                expectedFiles.add("Payload/unnamed.app/Icon-72.png");
+                expectedFiles.add("Payload/unnamed.app/Icon-72@2x.png");
+                expectedFiles.add("Payload/unnamed.app/Icon-76.png");
+                expectedFiles.add("Payload/unnamed.app/Icon-76@2x.png");
+                expectedFiles.add("Payload/unnamed.app/Icon.png");
+                expectedFiles.add("Payload/unnamed.app/Icon@2x.png");
+                break;
+            case X86_64Darwin:
+                expectedFiles.add("Contents/MacOS/unnamed");
+                expectedFiles.add("Contents/Info.plist");
+                expectedFiles.add("Contents/Resources/game.arcd");
+                expectedFiles.add("Contents/Resources/game.arci");
+                expectedFiles.add("Contents/Resources/game.dmanifest");
+                expectedFiles.add("Contents/Resources/game.projectc");
+                expectedFiles.add("Contents/Resources/game.public.der");
+                break;
+            case X86_64Linux:
+                expectedFiles.add("unnamed.x86_64");
+                expectedFiles.add("game.arcd");
+                expectedFiles.add("game.arci");
+                expectedFiles.add("game.dmanifest");
+                expectedFiles.add("game.projectc");
+                expectedFiles.add("game.public.der");
                 break;
             default:
                 System.err.println("Expected file set is not implemented for this platform.");
@@ -466,7 +622,9 @@ public class BundlerTest {
             actualFiles.add(file);
         }
         assertEquals(expectedFiles.size(), files.size());
-        assertTrue(expectedFiles.equals(actualFiles));
+        assertEquals(expectedFiles, actualFiles);
+
+        String appFolder = getBundleAppFolder("unnamed");
 
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
@@ -477,10 +635,10 @@ public class BundlerTest {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add("s1-1.txt");
-        expectedFiles.add("s1-2.txt");
+        expectedFiles.add(appFolder + "s1-1.txt");
+        expectedFiles.add(appFolder + "s1-2.txt");
         assertEquals(expectedFiles.size(), files.size());
-        assertTrue(expectedFiles.equals(actualFiles));
+        assertEquals(expectedFiles, actualFiles);
 
 
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
@@ -492,11 +650,12 @@ public class BundlerTest {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add("s1-1.txt");
-        expectedFiles.add("s1-2.txt");
-        expectedFiles.add("s2-1.txt");
-        expectedFiles.add("s2-2.txt");
+        expectedFiles.add(appFolder + "s1-1.txt");
+        expectedFiles.add(appFolder + "s1-2.txt");
+        expectedFiles.add(appFolder + "s2-1.txt");
+        expectedFiles.add(appFolder + "s2-2.txt");
+
         assertEquals(expectedFiles.size(), files.size());
-        assertTrue(expectedFiles.equals(actualFiles));
+        assertEquals(expectedFiles, actualFiles);
     }
 }

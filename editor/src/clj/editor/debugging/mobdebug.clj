@@ -223,20 +223,33 @@
 (defn- classify-type [x]
   (cond (number? x) :number
         (string? x) :string
+        (instance? Comparable x) :comparable
         :else :other))
 
-(defn- sort-entries [map-entries]
-  (let [{:keys [number string other]} (group-by (comp classify-type key) map-entries)]
-    (concat (sort-by key number)
-            (sort-by key string)
-            other)))
+(defn- compare-keys [a b]
+  (let [a-type (classify-type a)
+        b-type (classify-type b)]
+    (case a-type
+      :number (case b-type
+                :number (compare a b)
+                (:string :comparable :other) -1)
+      :string (case b-type
+                :number 1
+                :string (compare a b)
+                (:comparable :other) -1)
+      :comparable (case b-type
+                    (:number :string) 1
+                    :comparable (compare a b)
+                    :other -1)
+      :other (case b-type
+               (:number :string :comparable) 1
+               :other (compare (System/identityHashCode a)
+                               (System/identityHashCode b))))))
 
 (def ^:private lua-readers
   {'lua/table (fn [{:keys [content string]}]
-                (with-meta (into (array-map)
-                                 (->> content
-                                      sequence->map-entries
-                                      sort-entries))
+                (with-meta (into (sorted-map-by compare-keys)
+                                 (sequence->map-entries content))
                            {:string string}))
    'lua/ref (fn [address]
               (LuaRef. address))

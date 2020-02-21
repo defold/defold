@@ -1,5 +1,6 @@
 package com.defold.editor.pipeline;
 
+
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -35,12 +36,17 @@ public class TextureUtil {
     public static int getImageType(BufferedImage image) {
         int type = image.getType();
         if (type == 0) {
-            switch (image.getColorModel().getNumComponents()) {
-            case 4:
-                type = BufferedImage.TYPE_4BYTE_ABGR;
-                break;
+            switch (image.getColorModel().getNumColorComponents()) {
             case 3:
-                type = BufferedImage.TYPE_3BYTE_BGR;
+                if(image.getColorModel().getComponentSize(0) < 8) {
+                    type = BufferedImage.TYPE_USHORT_565_RGB;
+                } else {
+                    if(image.getColorModel().hasAlpha()) {
+                        type = BufferedImage.TYPE_4BYTE_ABGR;
+                    } else {
+                        type = BufferedImage.TYPE_3BYTE_BGR;
+                    }
+                }
                 break;
             case 1:
                 type = BufferedImage.TYPE_BYTE_GRAY;

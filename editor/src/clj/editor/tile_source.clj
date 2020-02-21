@@ -33,7 +33,7 @@
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
   (:import [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-           [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
+           [com.dynamo.tile.proto Tile$TileSet Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
            [java.awt.image BufferedImage]
@@ -124,7 +124,7 @@
 
 (g/defnk produce-pb
   [image tile-width tile-height tile-margin tile-spacing collision material-tag
-   cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding]
+   cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding sprite-trim-mode]
   {:image (resource/resource->proj-path image)
    :tile-width tile-width
    :tile-height tile-height
@@ -140,7 +140,8 @@
    :collision-groups (sort collision-groups)
    :animations (sort-by :id animation-ddfs)
    :extrude-borders extrude-borders
-   :inner-padding inner-padding})
+   :inner-padding inner-padding
+   :sprite-trim-mode sprite-trim-mode})
 
 (defn- build-texture-set [resource dep-resources user-data]
   (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
@@ -499,7 +500,7 @@
              tile->collision-group-node))
 
 (g/defnk produce-tile-source-attributes
-  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size]
+  [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size sprite-trim-mode]
   (or (validation/prop-error :fatal _node-id :image validation/prop-nil? image-resource "Image")
       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image-resource "Image")
       (let [properties {:width tile-width
@@ -507,7 +508,8 @@
                         :margin tile-margin
                         :spacing tile-spacing
                         :extrude-borders extrude-borders
-                        :inner-padding inner-padding}
+                        :inner-padding inner-padding
+                        :sprite-trim-mode sprite-trim-mode}
             metrics (texture-set-gen/calculate-tile-metrics image-size properties collision-size)]
         (when metrics
           (merge properties metrics)))
@@ -523,8 +525,8 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [tile-source-attributes animation-ddfs collision-groups convex-hulls collision]}]
-  (texture-set-gen/tile-source->texture-set-data tile-source-attributes convex-hulls collision-groups animation-ddfs))
+(defn- generate-texture-set-data [{:keys [tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+  (texture-set-gen/tile-source->texture-set-data tile-source-attributes image-resource convex-hulls collision-groups animation-ddfs))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -588,6 +590,9 @@
 
   (property material-tag g/Str (default "tile") (dynamic visible (g/constantly false)))
   (property original-convex-hulls g/Any (dynamic visible (g/constantly false)))
+  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-off)
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
+
   (property tile->collision-group-node g/Any (dynamic visible (g/constantly false)))
 
   (input build-settings g/Any)
@@ -610,14 +615,16 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls collision tile-count :as args]
+  (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
                                                  (let [animation-ddfs (mapv :ddf-message animation-data)]
                                                    {:f generate-texture-set-data
                                                     :args (-> args
                                                               (dissoc :animation-data)
-                                                              (assoc :animation-ddfs animation-ddfs))}))))
+                                                              (assoc
+                                                                :animation-ddfs animation-ddfs
+                                                                :image-resource image-resource))}))))
 
   (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))
@@ -914,7 +921,7 @@
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
-      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
+      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding :sprite-trim-mode]]
         (g/set-property self field (field tile-source)))
       (g/set-property self :original-convex-hulls (load-convex-hulls tile-source))
       (g/set-property self :tile->collision-group-node (make-tile->collision-group-node tile-source collision-group-nodes))

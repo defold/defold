@@ -179,7 +179,7 @@ message ShaderDesc
 
     message ResourceBinding
     {
-        required uint64         name    = 1;
+        required string         name    = 1;
         required ShaderDataType type    = 2;
         optional uint32         set     = 3 [default=0];
         optional uint32         binding = 4 [default=0];

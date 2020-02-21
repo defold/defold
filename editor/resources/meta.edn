@@ -476,13 +476,43 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X portrait launch image (.png)",
+   :help "iPad Pro 11 portrait launch image (.png)",
+   :path ["ios" "launch_image_1668x2388"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 11 landscape launch image (.png)",
+   :path ["ios" "launch_image_2388x1668"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone X and XS portrait launch image (.png)",
    :path ["ios" "launch_image_1125x2436"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X landscape launch image (.png)",
+   :help "iPhone X and XS landscape launch image (.png)",
    :path ["ios" "launch_image_2436x1125"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XR portrait launch image (.png)",
+   :path ["ios" "launch_image_828x1792"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XR landscape launch image (.png)",
+   :path ["ios" "launch_image_1792x828"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XS Max portrait launch image (.png)",
+   :path ["ios" "launch_image_1242x2688"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XS Max landscape launch image (.png)",
+   :path ["ios" "launch_image_2688x1242"]}
   {:type :boolean,
    :help "set to true if the icons are prerendered",
    :default false,

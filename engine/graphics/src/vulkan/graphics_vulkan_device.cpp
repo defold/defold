@@ -1,3 +1,4 @@
+#include <math.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 
@@ -31,14 +32,14 @@ namespace dmGraphics
     VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
     {
         assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
-        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorIndex];
+        *vk_descriptor_set_out  = &m_Handle.m_DescriptorSets[m_DescriptorIndex];
         m_DescriptorIndex      += setCount;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
-        vk_descriptor_set_alloc.descriptorPool     = m_PoolHandle;
+        vk_descriptor_set_alloc.descriptorPool     = m_Handle.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
 
         return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
@@ -48,20 +49,35 @@ namespace dmGraphics
     {
         if (m_DescriptorIndex > 0)
         {
-            vkFreeDescriptorSets(vk_device, m_PoolHandle, m_DescriptorIndex, m_DescriptorSets);
+            vkFreeDescriptorSets(vk_device, m_Handle.m_DescriptorPool, m_DescriptorIndex, m_Handle.m_DescriptorSets);
             m_DescriptorIndex = 0;
         }
     }
 
-    VkResult ScratchBuffer::MapMemory(VkDevice vk_device)
+    const VulkanResourceType DescriptorAllocator::GetType()
     {
-        return vkMapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle, 0, m_DeviceBuffer.m_MemorySize, 0, &m_MappedDataPtr);
+        return RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR;
     }
 
-    void ScratchBuffer::UnmapMemory(VkDevice vk_device)
+    VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
+    {
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
+    }
+
+    void DeviceBuffer::UnmapMemory(VkDevice vk_device)
     {
         assert(m_MappedDataPtr);
-        vkUnmapMemory(vk_device, m_DeviceBuffer.m_MemoryHandle);
+        vkUnmapMemory(vk_device, m_Handle.m_Memory);
+    }
+
+    const VulkanResourceType DeviceBuffer::GetType()
+    {
+        return RESOURCE_TYPE_DEVICE_BUFFER;
+    }
+
+    const VulkanResourceType Texture::GetType()
+    {
+        return RESOURCE_TYPE_TEXTURE;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -140,7 +156,7 @@ namespace dmGraphics
     // Tiling is related to how an image is laid out in memory, either in 'optimal' or 'linear' fashion.
     // Optimal is always sought after since it should be the most performant (depending on hardware),
     // but is not always supported.
-    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, VkFormat* vk_format_candidates,
+    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags)
     {
         for (uint32_t i=0; i < vk_num_format_candidates; i++)
@@ -160,8 +176,42 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount)
+    {
+        VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
+
+        if (bufferFlags & BUFFER_TYPE_COLOR_BIT)
+        {
+            vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
+        }
+
+        if (bufferFlags & BUFFER_TYPE_DEPTH_BIT)
+        {
+            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferColorSampleCounts);
+        }
+
+        if (bufferFlags & BUFFER_TYPE_STENCIL_BIT)
+        {
+            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
+        }
+
+        const uint8_t sample_count_index_requested = (uint8_t) log2f((float) sampleCount);
+        const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
+        const VkSampleCountFlagBits vk_count_bits[] = {
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_SAMPLE_COUNT_2_BIT,
+            VK_SAMPLE_COUNT_4_BIT,
+            VK_SAMPLE_COUNT_8_BIT,
+            VK_SAMPLE_COUNT_16_BIT,
+            VK_SAMPLE_COUNT_32_BIT,
+            VK_SAMPLE_COUNT_64_BIT,
+        };
+
+        return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
+    }
+
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout)
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel, uint32_t levelCount)
     {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
@@ -185,8 +235,8 @@ namespace dmGraphics
         vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         vk_memory_barrier.image                           = vk_image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = 0;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
+        vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
+        vk_memory_barrier.subresourceRange.levelCount     = levelCount;
         vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
         vk_memory_barrier.subresourceRange.layerCount     = 1;
 
@@ -194,10 +244,20 @@ namespace dmGraphics
         VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
 
         // These stage changes are explicit in our case:
-        //   1) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   2) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   3) undefined -> depth stencil. This transition is used when creating a depth buffer.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
+        //   2) undefined -> transfer. This transition is used for staging buffers when uploading texture data
+        //   3) transfer  -> shader read. This transition is used when the staging transfer is complete.
+        //   4) undefined -> depth stencil. This transition is used when creating a depth buffer attachment.
+        //   5) undefined -> color attachment. This transition is used when creating a color buffer attachment.
+        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
         {
             vk_memory_barrier.srcAccessMask = 0;
             vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -220,6 +280,14 @@ namespace dmGraphics
 
             vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        {
+            vk_memory_barrier.srcAccessMask = 0;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
         else
         {
@@ -249,14 +317,11 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    VkResult UploadToDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-        VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
+    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
     {
-        assert(vk_command_buffer != VK_NULL_HANDLE);
         assert(buffer);
 
-        void* mapped_data_ptr;
-        VkResult res = vkMapMemory(vk_device, buffer->m_MemoryHandle, offset, size, 0, &mapped_data_ptr);
+        VkResult res = buffer->MapMemory(vk_device, offset, size);
 
         if (res != VK_SUCCESS)
         {
@@ -265,14 +330,14 @@ namespace dmGraphics
 
         if (data == 0)
         {
-            memset(mapped_data_ptr, 0, (size_t) size);
+            memset(buffer->m_MappedDataPtr, 0, (size_t) size);
         }
         else
         {
-            memcpy(mapped_data_ptr, data, (size_t) size);
+            memcpy(buffer->m_MappedDataPtr, data, (size_t) size);
         }
 
-        vkUnmapMemory(vk_device, buffer->m_MemoryHandle);
+        buffer->UnmapMemory(vk_device);
 
         return res;
     }
@@ -337,15 +402,13 @@ namespace dmGraphics
         dmHashUpdateBuffer64(&shader_hash_state, source, (uint32_t) sourceSize);
         shaderModuleOut->m_Hash = dmHashFinal64(&shader_hash_state);
 
-        return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);;
+        return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);
     }
 
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
-        assert(bufferOut);
-        assert(bufferOut->m_BufferHandle == VK_NULL_HANDLE);
-        assert(vk_size < 0x80000000); // bit count is 31 in graphics_vulkan_private.h
+        assert(vk_size < 0x80000000); // must match max bit count in graphics_vulkan_private.h
 
         VkBufferCreateInfo vk_buffer_create_info;
         memset(&vk_buffer_create_info, 0, sizeof(vk_buffer_create_info));
@@ -355,7 +418,7 @@ namespace dmGraphics
         vk_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         vk_buffer_create_info.usage       = bufferOut->m_Usage;
 
-        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_BufferHandle);
+        VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_Handle.m_Buffer);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -363,7 +426,7 @@ namespace dmGraphics
 
         // Allocate GPU memory to hold buffer
         VkMemoryRequirements vk_buffer_memory_req;
-        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_BufferHandle, &vk_buffer_memory_req);
+        vkGetBufferMemoryRequirements(vk_device, bufferOut->m_Handle.m_Buffer, &vk_buffer_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -381,50 +444,50 @@ namespace dmGraphics
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_MemoryHandle);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &bufferOut->m_Handle.m_Memory);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindBufferMemory(vk_device, bufferOut->m_BufferHandle, bufferOut->m_MemoryHandle, 0);
+        res = vkBindBufferMemory(vk_device, bufferOut->m_Handle.m_Buffer, bufferOut->m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
             return res;
         }
 
         bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
+        bufferOut->m_Destroyed  = 0;
 
         return VK_SUCCESS;
 bail:
-        DestroyDeviceBuffer(vk_device, bufferOut);
+        DestroyDeviceBuffer(vk_device, &bufferOut->m_Handle);
         return res;
     }
 
-    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, uint8_t swapChainIndex, DescriptorAllocator* descriptorAllocator)
+    VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        assert(descriptorAllocator && descriptorAllocator->m_DescriptorSets == 0x0);
-        assert(descriptor_count < 0x8000); // bit count is 15 in graphics_vulkan_private.h
+        assert(descriptor_count < 0x8000); // Should match the bit count in graphics_vulkan_private.h
 
         VkDescriptorPoolSize vk_pool_size[] = {
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
         };
 
-        descriptorAllocator->m_DescriptorSets  = new VkDescriptorSet[descriptor_count];
-        descriptorAllocator->m_DescriptorMax   = descriptor_count;
-        descriptorAllocator->m_DescriptorIndex = 0;
-        descriptorAllocator->m_SwapChainIndex  = swapChainIndex;
+        descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
+        descriptorAllocator->m_DescriptorMax           = descriptor_count;
+        descriptorAllocator->m_DescriptorIndex         = 0;
+        descriptorAllocator->m_Destroyed               = 0;
 
-        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_PoolHandle);
+        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_Handle.m_DescriptorPool);
     }
 
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut)
     {
-        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
-        assert(scratchBufferOut->m_DeviceBuffer.m_BufferHandle == VK_NULL_HANDLE);
         scratchBufferOut->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+        DeviceBuffer& device_buffer = scratchBufferOut->m_DeviceBuffer;
 
         // Note: While scratch buffer creates and initializes the device buffer for
         //       backing, it does not reset it or tear it down.
@@ -437,17 +500,17 @@ bail:
 
         if (clearData)
         {
-            res = scratchBufferOut->MapMemory(vk_device);
+            res = device_buffer.MapMemory(vk_device);
 
             if (res != VK_SUCCESS)
             {
-                DestroyDeviceBuffer(vk_device, &scratchBufferOut->m_DeviceBuffer);
+                DestroyDeviceBuffer(vk_device, &device_buffer.m_Handle);
                 return res;
             }
 
             // Clear buffer data
-            memset(scratchBufferOut->m_MappedDataPtr, 0, bufferSize);
-            scratchBufferOut->UnmapMemory(vk_device);
+            memset(device_buffer.m_MappedDataPtr, 0, bufferSize);
+            device_buffer.UnmapMemory(vk_device);
         }
 
         scratchBufferOut->m_DescriptorAllocator = descriptorAllocator;
@@ -455,14 +518,22 @@ bail:
         return VK_SUCCESS;
     }
 
-    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
-        VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage,
-        VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, Texture* textureOut)
+    VkResult CreateTexture2D(
+        VkPhysicalDevice      vk_physical_device,
+        VkDevice              vk_device,
+        uint32_t              imageWidth,
+        uint32_t              imageHeight,
+        uint16_t              imageMips,
+        VkSampleCountFlagBits vk_sample_count,
+        VkFormat              vk_format,
+        VkImageTiling         vk_tiling,
+        VkImageUsageFlags     vk_usage,
+        VkMemoryPropertyFlags vk_memory_flags,
+        VkImageAspectFlags    vk_aspect,
+        VkImageLayout         vk_initial_layout,
+        Texture*              textureOut)
     {
-        assert(textureOut);
-        assert(textureOut->m_ImageView == VK_NULL_HANDLE);
-        assert(textureOut->m_MemoryHandle == VK_NULL_HANDLE && textureOut->m_MemorySize == 0);
+        DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -476,13 +547,13 @@ bail:
         vk_image_create_info.arrayLayers   = 1;
         vk_image_create_info.format        = vk_format;
         vk_image_create_info.tiling        = vk_tiling;
-        vk_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        vk_image_create_info.initialLayout = vk_initial_layout;
         vk_image_create_info.usage         = vk_usage;
-        vk_image_create_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+        vk_image_create_info.samples       = vk_sample_count;
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
-        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Image);
+        VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -490,7 +561,7 @@ bail:
 
         // Allocate GPU memory to hold texture
         VkMemoryRequirements vk_memory_req;
-        vkGetImageMemoryRequirements(vk_device, textureOut->m_Image, &vk_memory_req);
+        vkGetImageMemoryRequirements(vk_device, textureOut->m_Handle.m_Image, &vk_memory_req);
 
         VkMemoryAllocateInfo vk_memory_alloc_info;
         memset(&vk_memory_alloc_info, 0, sizeof(vk_memory_alloc_info));
@@ -508,49 +579,88 @@ bail:
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &textureOut->m_MemoryHandle);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &device_buffer.m_Handle.m_Memory);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Image, textureOut->m_MemoryHandle, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Handle.m_Image, device_buffer.m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        textureOut->m_MemorySize = vk_memory_req.size;
+        device_buffer.m_MemorySize = vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
 
         vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        vk_view_create_info.image                           = textureOut->m_Image;
+        vk_view_create_info.image                           = textureOut->m_Handle.m_Image;
         vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
         vk_view_create_info.format                          = vk_format;
         vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
-        vk_view_create_info.subresourceRange.levelCount     = 1;
+        vk_view_create_info.subresourceRange.levelCount     = imageMips;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
         vk_view_create_info.subresourceRange.layerCount     = 1;
 
-        textureOut->m_Format = vk_format;
+        textureOut->m_Format                   = vk_format;
+        textureOut->m_Destroyed                = 0;
+        textureOut->m_DeviceBuffer.m_Destroyed = 0;
 
-        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_ImageView);
+        if (imageMips == 0)
+        {
+            textureOut->m_Width  = imageWidth;
+            textureOut->m_Height = imageHeight;
+        }
+
+        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
 bail:
-        DestroyTexture(vk_device, textureOut);
+        DestroyTexture(vk_device, &textureOut->m_Handle);
         return res;
     }
 
-    VkResult CreateRenderPass(VkDevice vk_device, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, VkRenderPass* renderPassOut)
+    VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, VkSampler* vk_sampler_out)
+    {
+        VkSamplerCreateInfo vk_sampler_create_info;
+        memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
+
+        vk_sampler_create_info.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        vk_sampler_create_info.magFilter               = vk_mag_filter;
+        vk_sampler_create_info.minFilter               = vk_min_filter;
+        vk_sampler_create_info.addressModeU            = vk_wrap_u;
+        vk_sampler_create_info.addressModeV            = vk_wrap_v;
+        vk_sampler_create_info.addressModeW            = vk_wrap_u;
+        vk_sampler_create_info.maxAnisotropy           = 0; // TODO
+        vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        vk_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+        vk_sampler_create_info.compareEnable           = VK_FALSE;
+        vk_sampler_create_info.compareOp               = VK_COMPARE_OP_ALWAYS;
+        vk_sampler_create_info.mipmapMode              = vk_mipmap_mode;
+        vk_sampler_create_info.mipLodBias              = 0.0f;
+        vk_sampler_create_info.minLod                  = minLod;
+        vk_sampler_create_info.maxLod                  = maxLod;
+
+        return vkCreateSampler(vk_device, &vk_sampler_create_info, 0, vk_sampler_out);
+    }
+
+    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
+        RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
+        RenderPassAttachment* depthStencilAttachment,
+        RenderPassAttachment* resolveAttachment,
+        VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
 
-        uint8_t num_attachments  = numColorAttachments + (depthStencilAttachment ? 1 : 0);
-        VkAttachmentDescription* vk_attachment_desc    = new VkAttachmentDescription[num_attachments];
-        VkAttachmentReference* vk_attachment_color_ref = new VkAttachmentReference[numColorAttachments];
-        VkAttachmentReference vk_attachment_depth_ref  = {};
+        const uint8_t num_depth_attachments = (depthStencilAttachment ? 1 : 0);
+        const uint8_t num_attachments       = numColorAttachments + num_depth_attachments + (resolveAttachment ? 1 : 0);
+        VkAttachmentDescription* vk_attachment_desc     = new VkAttachmentDescription[num_attachments];
+        VkAttachmentReference* vk_attachment_color_ref  = new VkAttachmentReference[numColorAttachments];
+        VkAttachmentReference vk_attachment_depth_ref   = {};
+        VkAttachmentReference vk_attachment_resolve_ref = {};
 
         memset(vk_attachment_desc, 0, sizeof(VkAttachmentDescription) * num_attachments);
         memset(vk_attachment_color_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
@@ -560,7 +670,7 @@ bail:
             VkAttachmentDescription& attachment_color = vk_attachment_desc[i];
 
             attachment_color.format         = colorAttachments[i].m_Format;
-            attachment_color.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_color.samples        = vk_sample_flags;
             attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -578,7 +688,7 @@ bail:
             VkAttachmentDescription& attachment_depth = vk_attachment_desc[numColorAttachments];
 
             attachment_depth.format         = depthStencilAttachment->m_Format;
-            attachment_depth.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_depth.samples        = vk_sample_flags;
             attachment_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -588,6 +698,23 @@ bail:
 
             vk_attachment_depth_ref.attachment = numColorAttachments;
             vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+
+        if (resolveAttachment)
+        {
+            const uint8_t resolve_index = numColorAttachments + num_depth_attachments;
+            VkAttachmentDescription& attachment_resolve = vk_attachment_desc[resolve_index];
+            attachment_resolve.format         = resolveAttachment->m_Format;
+            attachment_resolve.samples        = VK_SAMPLE_COUNT_1_BIT;
+            attachment_resolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_resolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_resolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            attachment_resolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment_resolve.finalLayout    = resolveAttachment->m_ImageLayout;
+
+            vk_attachment_resolve_ref.attachment = resolve_index;
+            vk_attachment_resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
 
         // Subpass dependencies describe access patterns between several 'sub-passes',
@@ -615,6 +742,7 @@ bail:
         vk_sub_pass_description.colorAttachmentCount    = numColorAttachments;
         vk_sub_pass_description.pColorAttachments       = vk_attachment_color_ref;
         vk_sub_pass_description.pDepthStencilAttachment = depthStencilAttachment ? &vk_attachment_depth_ref : 0;
+        vk_sub_pass_description.pResolveAttachments     = resolveAttachment ? &vk_attachment_resolve_ref : 0;
 
         VkRenderPassCreateInfo render_pass_create_info;
         memset(&render_pass_create_info, 0, sizeof(render_pass_create_info));
@@ -684,7 +812,9 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer, HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+        PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
+        HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -756,7 +886,7 @@ bail:
 
         vk_multisampling.sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         vk_multisampling.sampleShadingEnable   = VK_FALSE;
-        vk_multisampling.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT;
+        vk_multisampling.rasterizationSamples  = vk_sample_count;
         vk_multisampling.minSampleShading      = 1.0f;
         vk_multisampling.pSampleMask           = 0;
         vk_multisampling.alphaToCoverageEnable = VK_FALSE;
@@ -819,19 +949,14 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
 
-        const VkDynamicState vk_dynamic_states[] =
-        {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_STENCIL_REFERENCE,
-            VK_DYNAMIC_STATE_SCISSOR
-        };
+        const VkDynamicState vk_dynamic_state = VK_DYNAMIC_STATE_VIEWPORT;
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         vk_dynamic_state_create_info.pNext             = NULL;
         vk_dynamic_state_create_info.flags             = 0;
-        vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_states) / sizeof(VkDynamicState);
-        vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_states;
+        vk_dynamic_state_create_info.dynamicStateCount = 1;
+        vk_dynamic_state_create_info.pDynamicStates    = &vk_dynamic_state;
 
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
@@ -880,19 +1005,19 @@ bail:
         memset((void*)device, 0, sizeof(*device));
     }
 
-    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* descriptorAllocator)
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle)
     {
-        assert(descriptorAllocator);
-        if (descriptorAllocator->m_DescriptorSets)
+        assert(handle);
+        if (handle->m_DescriptorSets)
         {
-            delete[] descriptorAllocator->m_DescriptorSets;
-            descriptorAllocator->m_DescriptorSets = 0x0;
+            delete[] handle->m_DescriptorSets;
+            handle->m_DescriptorSets = 0x0;
         }
 
-        if (descriptorAllocator->m_PoolHandle != VK_NULL_HANDLE)
+        if (handle->m_DescriptorPool != VK_NULL_HANDLE)
         {
-            vkDestroyDescriptorPool(vk_device, descriptorAllocator->m_PoolHandle, 0);
-            descriptorAllocator->m_PoolHandle = VK_NULL_HANDLE;
+            vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
+            handle->m_DescriptorPool = VK_NULL_HANDLE;
         }
     }
 
@@ -913,44 +1038,46 @@ bail:
         }
     }
 
-    void DestroyTexture(VkDevice vk_device, Texture* texture)
+    void DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle)
     {
-        assert(texture);
-        if (texture->m_ImageView != VK_NULL_HANDLE)
+        assert(handle);
+        if (handle->m_ImageView != VK_NULL_HANDLE)
         {
-            vkDestroyImageView(vk_device, texture->m_ImageView, 0);
-            texture->m_ImageView = VK_NULL_HANDLE;
+            vkDestroyImageView(vk_device, handle->m_ImageView, 0);
+            handle->m_ImageView = VK_NULL_HANDLE;
         }
 
-        if (texture->m_Image != VK_NULL_HANDLE)
+        if (handle->m_Image != VK_NULL_HANDLE)
         {
-            vkDestroyImage(vk_device, texture->m_Image, 0);
-            texture->m_Image = VK_NULL_HANDLE;
-        }
-
-        if (texture->m_MemoryHandle != VK_NULL_HANDLE)
-        {
-            vkFreeMemory(vk_device, texture->m_MemoryHandle, 0);
-            texture->m_MemoryHandle = VK_NULL_HANDLE;
-            texture->m_MemorySize   = 0;
+            vkDestroyImage(vk_device, handle->m_Image, 0);
+            handle->m_Image = VK_NULL_HANDLE;
         }
     }
 
-    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer* buffer)
+    void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler)
     {
-        assert(buffer);
-
-        if (buffer->m_BufferHandle != VK_NULL_HANDLE)
+        assert(sampler);
+        if (sampler->m_Sampler != VK_NULL_HANDLE)
         {
-            vkDestroyBuffer(vk_device, buffer->m_BufferHandle, 0);
-            buffer->m_BufferHandle = VK_NULL_HANDLE;
+            vkDestroySampler(vk_device, sampler->m_Sampler, 0);
+            sampler->m_Sampler = VK_NULL_HANDLE;
+        }
+    }
+
+    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
+    {
+        assert(handle);
+
+        if (handle->m_Buffer != VK_NULL_HANDLE)
+        {
+            vkDestroyBuffer(vk_device, handle->m_Buffer, 0);
+            handle->m_Buffer = VK_NULL_HANDLE;
         }
 
-        if (buffer->m_MemoryHandle != VK_NULL_HANDLE)
+        if (handle->m_Memory != VK_NULL_HANDLE)
         {
-            vkFreeMemory(vk_device, buffer->m_MemoryHandle, 0);
-            buffer->m_MemoryHandle = VK_NULL_HANDLE;
-            buffer->m_MemorySize   = 0;
+            vkFreeMemory(vk_device, handle->m_Memory, 0);
+            handle->m_Memory = VK_NULL_HANDLE;
         }
     }
 

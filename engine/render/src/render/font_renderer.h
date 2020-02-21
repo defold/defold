@@ -43,13 +43,13 @@ namespace dmRender
     struct DM_ALIGNED(16) GlyphVertex
     {
         // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
-        float    m_Position[4];
-        float    m_UV[2];
-        uint32_t m_FaceColor;
-        uint32_t m_OutlineColor;
-        uint32_t m_ShadowColor;
-        float    m_SdfParams[4];
-        uint8_t  m_LayerMasks[3];
+        float m_Position[4];
+        float m_UV[2];
+        float m_FaceColor[4];
+        float m_OutlineColor[4];
+        float m_ShadowColor[4];
+        float m_SdfParams[4];
+        float m_LayerMasks[3];
     };
 
     /**

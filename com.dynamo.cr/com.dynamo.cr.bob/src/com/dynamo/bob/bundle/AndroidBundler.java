@@ -66,6 +66,9 @@ public class AndroidBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         Bob.initAndroid(); // extract resources
 
+        final Platform platform = Platform.Armv7Android;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
@@ -94,12 +97,6 @@ public class AndroidBundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         ArrayList<File> classesDex = new ArrayList<File>();
-
-        List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "armv7-android,arm64-android").split(",");
-        for (int i = 0; i < architecturesStrings.length; i++) {
-            architectures.add(Platform.get(architecturesStrings[i]));
-        }
 
         for (Platform architecture : architectures) {
             List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
@@ -152,28 +149,17 @@ public class AndroidBundler implements IBundler {
         }
 
         Platform targetPlatform = Platform.Armv7Android;
-        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "", variant);
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, variant);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
 
-        File manifestFile = new File(appDir, "AndroidManifest.xml"); // the final, merged manifest
-        IResource sourceManifestFile = helper.getResource("android", "manifest");
-
-        Map<String, Object> properties = helper.createAndroidManifestProperties(project.getRootDirectory(), resDir, exeName);
-        try {
-            helper.mergeManifests(properties, sourceManifestFile, manifestFile);
-        } catch (CompileExceptionError e) {
-            // Pass along
-            throw e;
-        } catch (Exception e) {
-            throw new CompileExceptionError(sourceManifestFile, -1, e);
-        }
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Create properties and output icon resources (if available)
-        helper.generateAndroidResources(project, resDir, manifestFile, ap1, tmpResourceDir);
+        helper.copyAndroidResources(architectures.get(0), appDir);
+        helper.aaptMakePackage(architectures.get(0), appDir, ap1);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -183,7 +169,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, targetPlatform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 
