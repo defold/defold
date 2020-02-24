@@ -56,6 +56,7 @@ namespace dmGraphics
         , m_OriginalHeight(0)
         , m_MipMapCount(0)
         , m_TextureSamplerIndex(0)
+        , m_NeedsResolve(0)
         , m_Destroyed(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
@@ -77,7 +78,8 @@ namespace dmGraphics
         uint16_t       m_OriginalWidth;
         uint16_t       m_OriginalHeight;
         uint16_t       m_MipMapCount         : 5;
-        uint16_t       m_TextureSamplerIndex : 10;
+        uint16_t       m_TextureSamplerIndex : 9;
+        uint16_t       m_NeedsResolve        : 1;
         uint32_t       m_Destroyed           : 1;
 
         const VulkanResourceType GetType();
@@ -397,7 +399,10 @@ namespace dmGraphics
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
-        RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
+        RenderPassAttachment* resolveAttachment,
+        VkSubpassDependency*  sub_pass_dependencies,
+        uint8_t               sub_pass_dependencies_count,
+        VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,

@@ -651,6 +651,8 @@ bail:
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
         RenderPassAttachment* resolveAttachment,
+        VkSubpassDependency*  sub_pass_dependencies,
+        uint8_t               sub_pass_dependencies_count,
         VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
@@ -717,22 +719,6 @@ bail:
             vk_attachment_resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
 
-        // Subpass dependencies describe access patterns between several 'sub-passes',
-        // e.g for a post-processing stack you would likely have a dependency chain between
-        // the results of various draw calls, which could then be specefied as subpass dependencies
-        // which could yield optimal performance. We don't have any way of describing the access flow
-        // yet so for now we just create a single subpass that connects an external source
-        // (anything that has happend before this call) to the color output of the render pass,
-        // which should be fine in most cases.
-        VkSubpassDependency vk_sub_pass_dependency;
-        memset(&vk_sub_pass_dependency, 0, sizeof(vk_sub_pass_dependency));
-        vk_sub_pass_dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        vk_sub_pass_dependency.dstSubpass    = 0;
-        vk_sub_pass_dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.srcAccessMask = 0;
-        vk_sub_pass_dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
         // The subpass description connects the input attachments to the render pass,
         // in a MRT situation writing to specific color outputs (gl_FragData[x]) match these numbers.
         VkSubpassDescription vk_sub_pass_description;
@@ -752,8 +738,8 @@ bail:
         render_pass_create_info.pAttachments    = vk_attachment_desc;
         render_pass_create_info.subpassCount    = 1;
         render_pass_create_info.pSubpasses      = &vk_sub_pass_description;
-        render_pass_create_info.dependencyCount = 1;
-        render_pass_create_info.pDependencies   = &vk_sub_pass_dependency;
+        render_pass_create_info.dependencyCount = sub_pass_dependencies_count;
+        render_pass_create_info.pDependencies   = sub_pass_dependencies;
 
         VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
 

@@ -581,7 +581,17 @@ namespace dmGraphics
             attachment_resolve = &attachments[2];
         }
 
-        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
+        // Sub pass dependency from external -> attachment output
+        VkSubpassDependency vk_sub_pass_dependency;
+        memset(&vk_sub_pass_dependency, 0, sizeof(vk_sub_pass_dependency));
+        vk_sub_pass_dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
+        vk_sub_pass_dependency.dstSubpass    = 0;
+        vk_sub_pass_dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        vk_sub_pass_dependency.srcAccessMask = 0;
+        vk_sub_pass_dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        vk_sub_pass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &vk_sub_pass_dependency, 1, &context->m_MainRenderPass);
         CHECK_VK_ERROR(res);
 
         res = CreateMainRenderTarget(context);
@@ -2907,7 +2917,27 @@ bail:
             fb_attachments[fb_attachment_count++] = depthStencilTexture->m_Handle.m_ImageView;
         }
 
-        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
+        VkSubpassDependency vk_sub_pass_dependencies[2];
+
+        // External -> Shader write
+        vk_sub_pass_dependencies[0].srcSubpass      = VK_SUBPASS_EXTERNAL;
+        vk_sub_pass_dependencies[0].dstSubpass      = 0;
+        vk_sub_pass_dependencies[0].srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        vk_sub_pass_dependencies[0].dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        vk_sub_pass_dependencies[0].srcAccessMask   = VK_ACCESS_SHADER_READ_BIT;
+        vk_sub_pass_dependencies[0].dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        vk_sub_pass_dependencies[0].dependencyFlags = 0;
+
+        // Shader write -> external
+        vk_sub_pass_dependencies[1].srcSubpass      = 0;
+        vk_sub_pass_dependencies[1].dstSubpass      = VK_SUBPASS_EXTERNAL;
+        vk_sub_pass_dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        vk_sub_pass_dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        vk_sub_pass_dependencies[1].srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        vk_sub_pass_dependencies[1].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT;
+        vk_sub_pass_dependencies[1].dependencyFlags = 0;
+
+        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, 0, vk_sub_pass_dependencies, 2, &rtOut->m_RenderPass);
         if (res != VK_SUCCESS)
         {
             return res;
