@@ -1234,8 +1234,7 @@ namespace dmGameObject
 
     void LuaCurveRelease(dmEasing::Curve* curve)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)curve->userdata1;
-        lua_State* L = GetLuaState(script_instance);
+        lua_State *L = (lua_State*)curve->userdata1;
 
         int top = lua_gettop(L);
         (void) top;
@@ -1404,7 +1403,7 @@ namespace dmGameObject
 
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
-            curve.userdata1 = i;
+            curve.userdata1 = L;
             curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
