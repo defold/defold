@@ -16,6 +16,7 @@
     #endif
 #elif ANDROID
 	#define VK_USE_PLATFORM_ANDROID_KHR
+	#define VK_NO_PROTOTYPES
 #elif WIN32
 	#define VK_USE_PLATFORM_WIN32_KHR
 #elif __linux__
@@ -23,6 +24,10 @@
 #endif
 
 #include <vulkan/vulkan.h>
+
+#ifdef ANDROID
+	#include "android/graphics_vulkan_android.h"
+#endif
 
 #define DMGRAPHICS_STATE_WRITE_R (0x1)
 #define DMGRAPHICS_STATE_WRITE_G (0x2)

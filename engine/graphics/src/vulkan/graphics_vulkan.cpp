@@ -931,6 +931,14 @@ bail:
     {
         if (g_Context == 0x0)
         {
+        #if ANDROID
+            if (!LoadVulkanLibrary())
+            {
+                dmLogError("Could not load Vulkan functions.");
+                return 0x0;
+            }
+        #endif
+
             if (glfwInit() == 0)
             {
                 dmLogError("Could not initialize glfw.");
@@ -951,6 +959,10 @@ bail:
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
             }
+
+        #if ANDROID
+            LoadVulkanFunctions(vk_instance);
+        #endif
 
             g_Context = new Context(params, vk_instance);
 
@@ -2165,7 +2177,6 @@ bail:
 
             for (uint32_t i=0; i < ddf->m_Uniforms.m_Count; i++)
             {
-                uint32_t name_len          = strlen(ddf->m_Uniforms[i].m_Name);
                 ShaderResourceBinding& res = shader->m_Uniforms[i];
                 res.m_Binding              = ddf->m_Uniforms[i].m_Binding;
                 res.m_Set                  = ddf->m_Uniforms[i].m_Set;

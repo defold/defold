@@ -90,10 +90,6 @@ namespace dmEngineVersion
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STATICLIB_CPP_RUNTIME'] = 'c++_static'
-
-        # For Vulkan
-        if Options.options.with_vulkan:
-            conf.env.append_value('LINKFLAGS', ['-lvulkan'])
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
 
