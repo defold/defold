@@ -21,6 +21,7 @@ namespace dmApp
                 engine = params->m_EngineCreate(argc, argv);
                 if (!engine)
                 {
+                    exit_code = 1;
                     break;
                 }
             }

@@ -1256,8 +1256,9 @@ def js_web_link_flags(self):
 @before('apply_core')
 @feature('test')
 def test_flags(self):
-# When building tests for the web, we disable emission of emscripten js.mem init files,
-# as the assumption when these are loaded is that the cwd will contain these items.
+    self.install_path = None # the tests shouldn't be installed
+    # When building tests for the web, we disable emission of emscripten js.mem init files,
+    # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             self.env.append_value(f, ['--memory-init-file', '0'])
