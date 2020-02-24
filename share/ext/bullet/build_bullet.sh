@@ -26,7 +26,12 @@ function convert_line_endings() {
 }
 
 function cmi_unpack() {
-    unzip ../../download/$FILE_URL
+
+    echo "******************"
+    echo "**  cmi_unpack  **"
+    echo "******************"
+
+    unzip -q ../../download/$FILE_URL
 
     pushd ${PRODUCT}-${VERSION}
 
@@ -39,11 +44,17 @@ function cmi_unpack() {
 }
 
 function cmi_configure() {
+    BULLET_CMAKE_BUILD_TYPE=RELEASE
+    BULLET_CMAKE_COMMON="-DCMAKE_BUILD_TYPE=$BULLET_CMAKE_BUILD_TYPE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF"
+    BULLET_CMAKE_COMPILERS="-DCMAKE_C_COMPILER=$CC -DCMAKE_CPP_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB"
+
+    echo "BULLET_CMAKE_COMPILERS:" $BULLET_CMAKE_COMPILERS
+    
     pushd ${PRODUCT}-${VERSION}
     case $1 in
          *linux)
             # tested with cmake 3.5.0
-            cmake -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            cmake $BULLET_CMAKE_COMMON
             ;;
 
          *win32)
@@ -55,21 +66,26 @@ function cmi_configure() {
             fi
             CXXFLAGS="${CXXFLAGS} /NODEFAULTLIB:library"
             CFLAGS="${CXXFLAGS} /NODEFAULTLIB:library"
-            cmake -G "Visual Studio 14 2015${ARCH}" . -DCMAKE_BUILD_TYPE=RELEASE -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            cmake -G "Visual Studio 14 2015${ARCH}" . $BULLET_CMAKE_COMMON
             ;;
          arm64-android)
             # tested with cmake 3.13.2
-            cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            cmake -G "Unix Makefiles" $BULLET_CMAKE_COMPILERS $BULLET_CMAKE_COMMON
             ;;
          x86_64-ios)
-            cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF -DCMAKE_OSX_SYSROOT="$ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"  -DCMAKE_FRAMEWORK_PATH="${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/Developer/Library/Frameworks" -DCMAKE_C_COMPILER=$CC -DCMAKE_CPP_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB
+            cmake -G "Unix Makefiles" $BULLET_CMAKE_COMPILERS $BULLET_CMAKE_COMMON -DCMAKE_OSX_SYSROOT="$ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk" -DCMAKE_FRAMEWORK_PATH="${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/System/Library/Frameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/System/Library/PrivateFrameworks;${ARM_DARWIN_ROOT}/SDKs/MacOSX10.13.sdk/Developer/Library/Frameworks"
             ;;
          x86_64-darwin)
-            cmake -G "Unix Makefiles" -DCMAKE_OSX_SYSROOT=$ARM_DARWIN_ROOT/SDKs/MacOSX10.13.sdk -DCMAKE_C_COMPILER=$CC -DCMAKE_CPP_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            cmake -G "Unix Makefiles" $BULLET_CMAKE_COMPILERS $BULLET_CMAKE_COMMON -DCMAKE_OSX_SYSROOT=$ARM_DARWIN_ROOT/SDKs/MacOSX10.13.sdk 
             ;;
+         arm64-nx64)
+            # tested with cmake 3.16.3
+            cmake -G "Unix Makefiles" $BULLET_CMAKE_COMPILERS $BULLET_CMAKE_COMMON -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=arm -DCMAKE_CROSSCOMPILING=1 -DCMAKE_C_COMPILER_WORKS=1 -DCMAKE_CXX_COMPILER_WORKS=1
+            ;;
+
          *)
             # tested with cmake 3.7.1
-            cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            cmake -G "Unix Makefiles" $BULLET_CMAKE_COMPILERS $BULLET_CMAKE_COMMON
             ;;
     esac
 
@@ -135,5 +151,14 @@ case $CONF_TARGET in
         ;;
 esac
 
-download
+echo "******************"
+echo "**   DOWNLOAD   **"
+echo "******************"
+
+#download
+
+echo "******************"
+echo "**   COMPILE    **"
+echo "******************"
+
 cmi $1

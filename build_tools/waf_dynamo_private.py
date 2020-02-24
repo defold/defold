@@ -73,11 +73,23 @@ def setup_tools_nx(conf, build_util):
 
     conf.env['TEST_LAUNCH_PATTERN'] = 'RunOnTarget.exe --pattern-failure-exit "tests FAILED" --working-directory . %s %s' # program + args
 
+def get_sdk_root():
+    return os.environ['NINTENDO_SDK_ROOT']
+
+def get_lib_paths(buildtype, buildtarget):
+    sdk_root = get_sdk_root()
+    paths = []
+    if buildtype in ['Debug', 'Develop']:
+        paths.append("%s/Libraries/%s/Debug" % (sdk_root, buildtarget))
+        paths.append("%s/Libraries/%s/Develop" % (sdk_root, buildtarget))
+    else:
+        paths.append("%s/Libraries/%s/Release" % (sdk_root, buildtarget))
+    return paths
 
 def setup_vars_nx(conf, build_util):
 
     # until we have the package on S3
-    NINTENDO_SDK_ROOT = os.environ['NINTENDO_SDK_ROOT']
+    NINTENDO_SDK_ROOT = get_sdk_root()
 
     BUILDTARGET = 'NX-NXFP2-a64'
     BUILDTYPE = "Debug"
@@ -104,8 +116,9 @@ def setup_vars_nx(conf, build_util):
     LINKFLAGS ="-g -O%s" % opt_level
     LINKFLAGS+=" -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
     LINKFLAGS+=" -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free"
-    LINKFLAGS+=" -fdiagnostics-format=msvc -Wl,-T C:/Nintendo/SDK/NintendoSDK/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
-    LINKFLAGS+=" -Wl,--start-group "
+    LINKFLAGS+=" -fdiagnostics-format=msvc"
+    LINKFLAGS+=" -Wl,-T C:/Nintendo/SDK/NintendoSDK/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
+    LINKFLAGS+=" -Wl,--start-group"
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/rocrt.o" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/nnApplication.o" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a" % NINTENDO_SDK_ROOT
@@ -116,20 +129,23 @@ def setup_vars_nx(conf, build_util):
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" -Wl,--end-group"
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/crtend.o" % NINTENDO_SDK_ROOT
+    LINKFLAGS+=" -fuse-ld=lld.exe"
+    LINKFLAGS+=" -Wl,--export-dynamic"
     _set_linkflags(conf, LINKFLAGS)
 
-    LIBPATHS ="%s/Libraries/%s/%s" % (NINTENDO_SDK_ROOT, BUILDTARGET, BUILDTYPE)
+    LIBPATHS = ' '.join(get_lib_paths(BUILDTYPE, BUILDTARGET))
     _set_libpath(conf, LIBPATHS)
 
     CPPPATH ="%s/Include" % (NINTENDO_SDK_ROOT,)
     CPPPATH+=" %s/Common/Configs/Targets/%s/Include" % (NINTENDO_SDK_ROOT, BUILDTARGET)
     _set_includes(conf, CPPPATH)
 
-    conf.env.program_PATTERN = '%s.nss'
+    conf.env.program_PATTERN = '%s.nsp'
     conf.env.bundle_PATTERN = '%s.nspd'
 
     # Until we support cares
     conf.env['STATICLIB_CARES'] = []
+    conf.env['SHLIB_VULKAN']    = ['vulkan', 'opengl']
 
 
 NX64_MANIFEST="""<?xml version="1.0"?>
@@ -201,6 +217,12 @@ def switch_make_bundle(self):
     shutil.copy2(self.input_rtld, self.bundle_rtld.abspath(self.env))
     shutil.copy2(self.input_sdk, self.bundle_sdk.abspath(self.env))
 
+    dir = self.bundle_rtld.parent
+    for i, path in enumerate(self.nx_shared_libs):
+        dst = self.nx_shared_library_outputs[i]
+        print "copy2", path, "->", dst.abspath(self.env)
+        shutil.copy2(path, dst.abspath(self.env))
+
 Task.task_type_from_func('switch_make_bundle', func = switch_make_bundle, color = 'blue', after  = 'switch_meta')
 
 Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} createnspd -o ${NSPD_DIR} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
@@ -215,6 +237,28 @@ def switch_make_app(self):
     for task in self.tasks:
         if task.name in ['cxx_link', 'cc_link']:
             break
+
+    NINTENDO_SDK_ROOT = get_sdk_root()
+    BUILDTARGET = 'NX-NXFP2-a64'
+    BUILDTYPE = "Debug"
+
+    lib_paths = get_lib_paths(BUILDTYPE, BUILDTARGET)
+    nss_files = []
+    shared_libs = []
+    for name in self.uselib.split():
+        key = 'SHLIB_%s' % name
+        shlibs = getattr(self.env, key, [])
+        for name in shlibs:
+            for libpath in lib_paths:
+                path = os.path.join(libpath, '%s.nso' % name)
+                if os.path.exists(path):
+                    nss_files.append(os.path.join(libpath, '%s.nss' % name))
+                    shared_libs.append(path)
+                    break
+
+    index = self.env['LINKFLAGS'].index('-Wl,--end-group')
+    for path in reversed(nss_files):
+        self.env['LINKFLAGS'].insert(index, path)
 
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
     app_icon = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/NintendoSDK_Application.bmp')
@@ -261,9 +305,14 @@ def switch_make_app(self):
     bundle_rtld = bundle_parent.exclusive_build_node(code_dir+'/rtld')
     bundle_sdk  = bundle_parent.exclusive_build_node(code_dir+'/sdk')
 
+    shared_library_outputs = []
+    for i, path in enumerate(shared_libs):
+        lib = bundle_parent.exclusive_build_node(code_dir+'/subsdk%d' % i)
+        shared_library_outputs.append(lib)
+
     bundletask = self.create_task('switch_make_bundle')
     bundletask.set_inputs([nso, npdm])
-    bundletask.set_outputs([bundle_main, bundle_npdm, bundle_rtld, bundle_sdk])
+    bundletask.set_outputs([bundle_main, bundle_npdm, bundle_rtld, bundle_sdk] + shared_library_outputs)
     # explicit variables makes it easier to maintain/read
     bundletask.bundle_main = bundle_main
     bundletask.bundle_npdm = bundle_npdm
@@ -273,6 +322,8 @@ def switch_make_app(self):
     bundletask.input_npdm = npdm
     bundletask.input_rtld = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Libraries/NX-NXFP2-a64/Develop/nnrtld.nso')
     bundletask.input_sdk = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nso')
+    bundletask.nx_shared_libs = shared_libs
+    bundletask.nx_shared_library_outputs = shared_library_outputs
 
     # TODO: Add some mechanic to copy app data to the bundle (e.g. icon)
     authorize_control_dir   = create_bundle_dirs(self, nspd_dir+'/control0.ncd/data', bundle_parent)
@@ -334,6 +385,9 @@ def supports_feature_nx(platform, feature, data):
         return False
     # until we've figured out a way to test it host<->switch
     if feature in ['test_webserver']:
+        return False
+
+    if feature in ['opengl']:
         return False
     return True
 

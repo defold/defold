@@ -25,10 +25,14 @@ def get_install_host_packages(platform):
 def get_install_target_packages(platform):
     """ Returns the packages that should be installed for the host
     """
-    if platform == 'arm64-nx64':    return PACKAGES_NX64;
+    if platform == 'arm64-nx64':    return PACKAGES_NX64
     return []
 
 def install_sdk(platform):
     """ Installs the sdk for the private platform
     """
     pass
+
+def is_library_supported(platform, library):
+    if platform == 'arm64-nx64':    return library not in ['GLFW']
+    return True

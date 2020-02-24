@@ -29,7 +29,6 @@ LINKFLAGS="-nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -
 
 LIBPATHS="-L$NINTENDO_SDK_ROOT/Libraries/$BUILDTARGET/$BUILDTYPE"
 
-#GCC="$NINTENDO_SDK_ROOT/Compilers/NX/bin/nx-clang++"
 CLANG="$NINTENDO_SDK_ROOT/Compilers/NX/nx/aarch64/bin/clang++"
 MAKENSO="$NINTENDO_SDK_ROOT\Tools\CommandLineTools\MakeNso\MakeNso.exe"
 MAKEMETA="$NINTENDO_SDK_ROOT\Tools\CommandLineTools\MakeMeta\MakeMeta.exe"

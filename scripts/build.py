@@ -16,6 +16,12 @@ from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
 
+BASE_PLATFORMS = [  'x86_64-linux',
+                    'x86_64-darwin',
+                    'win32', 'x86_64-win32',
+                    'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
+                    'armv7-android', 'arm64-android',
+                    'js-web', 'wasm-web']
 try:
     import build_private
 except:
@@ -32,15 +38,13 @@ except:
         @classmethod
         def install_sdk(cls, platform): # Installs the sdk for the private platform
             pass
+        @classmethod
+        def is_library_supported(cls, platform, library):
+            return True
 
 
 def get_target_platforms():
-    return ['x86_64-linux',
-            'x86_64-darwin',
-            'win32', 'x86_64-win32',
-            'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
-            'armv7-android', 'arm64-android',
-            'js-web', 'wasm-web'] + build_private.get_target_platforms()
+    return BASE_PLATFORMS + build_private.get_target_platforms()
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.5 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
@@ -879,12 +883,12 @@ class Configuration(object):
         if host == 'darwin':
             host = 'x86_64-darwin'
         # Make sure we build these for the host platform for the toolchain (bob light)
-        #for lib in ['dlib', 'texc']:
-        #    skip_tests = host != self.target_platform
-        #    self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
-        #if not self.skip_bob_light:
-        #    # We must build bob-light, which builds content during the engine build
-        #    self.build_bob_light()
+        for lib in ['dlib', 'texc']:
+            skip_tests = host != self.target_platform
+            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+        if not self.skip_bob_light:
+            # We must build bob-light, which builds content during the engine build
+            self.build_bob_light()
         # Target libs to build
 
         engine_libs = list(ENGINE_LIBS)
@@ -893,6 +897,8 @@ class Configuration(object):
             if self.is_desktop_target():
                 engine_libs.insert(1, 'texc')
         for lib in engine_libs:
+            if not build_private.is_library_supported(target_platform, lib):
+                continue
             self._build_engine_lib(args, lib, target_platform)
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:

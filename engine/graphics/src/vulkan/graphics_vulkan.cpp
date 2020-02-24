@@ -1,5 +1,3 @@
-#include <graphics/glfw/glfw.h>
-#include <graphics/glfw/glfw_native.h>
 
 #include <dlib/math.h>
 #include <dlib/hashtable.h>
@@ -26,99 +24,7 @@ namespace dmGraphics
         } \
     }
 
-    // Validation layers to enable
-    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
-    static const uint8_t g_validation_layer_count     = 1;
-    // Validation layer extensions
-    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
-    static const uint8_t g_validation_layer_ext_count = 1;
-    // In flight frames - number of concurrent frames being processed
-    static const uint8_t g_max_frames_in_flight       = 2;
-
-    typedef dmHashTable64<Pipeline>    PipelineCache;
-    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
-
-    static struct Context
-    {
-        Context(const ContextParams& params, const VkInstance vk_instance)
-        : m_MainRenderTarget(0)
-        {
-            memset(this, 0, sizeof(*this));
-            m_Instance                = vk_instance;
-            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
-            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
-            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-        }
-
-        ~Context()
-        {
-            if (m_Instance != VK_NULL_HANDLE)
-            {
-                vkDestroyInstance(m_Instance, 0);
-                m_Instance = VK_NULL_HANDLE;
-            }
-        }
-
-        Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
-        PipelineCache                   m_PipelineCache;
-        PipelineState                   m_PipelineState;
-        SwapChain*                      m_SwapChain;
-        SwapChainCapabilities           m_SwapChainCapabilities;
-        PhysicalDevice                  m_PhysicalDevice;
-        LogicalDevice                   m_LogicalDevice;
-        FrameResource                   m_FrameResources[g_max_frames_in_flight];
-        VkInstance                      m_Instance;
-        VkSurfaceKHR                    m_WindowSurface;
-        dmArray<TextureSampler>         m_TextureSamplers;
-        uint32_t*                       m_DynamicOffsetBuffer;
-        uint16_t                        m_DynamicOffsetBufferSize;
-        // Window callbacks
-        WindowResizeCallback            m_WindowResizeCallback;
-        void*                           m_WindowResizeCallbackUserData;
-        WindowCloseCallback             m_WindowCloseCallback;
-        void*                           m_WindowCloseCallbackUserData;
-        WindowFocusCallback             m_WindowFocusCallback;
-        void*                           m_WindowFocusCallbackUserData;
-        WindowIconifyCallback           m_WindowIconifyCallback;
-        void*                           m_WindowIconifyCallbackUserData;
-        // Main device rendering constructs
-        dmArray<VkFramebuffer>          m_MainFrameBuffers;
-        dmArray<VkCommandBuffer>        m_MainCommandBuffers;
-        VkCommandBuffer                 m_MainCommandBufferUploadHelper;
-        ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
-        dmArray<ScratchBuffer>          m_MainScratchBuffers;
-        dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
-        VkRenderPass                    m_MainRenderPass;
-        Texture                         m_MainTextureDepthStencil;
-        RenderTarget                    m_MainRenderTarget;
-        Viewport                        m_MainViewport;
-        // Rendering state
-        RenderTarget*                   m_CurrentRenderTarget;
-        DeviceBuffer*                   m_CurrentVertexBuffer;
-        VertexDeclaration*              m_CurrentVertexDeclaration;
-        Program*                        m_CurrentProgram;
-        // Misc state
-        TextureFilter                   m_DefaultTextureMinFilter;
-        TextureFilter                   m_DefaultTextureMagFilter;
-        uint32_t                        m_TextureFormatSupport;
-        uint32_t                        m_Width;
-        uint32_t                        m_Height;
-        uint32_t                        m_WindowWidth;
-        uint32_t                        m_WindowHeight;
-        uint32_t                        m_FrameBegun           : 1;
-        uint32_t                        m_CurrentFrameInFlight : 1;
-        uint32_t                        m_WindowOpened         : 1;
-        uint32_t                        m_VerifyGraphicsCalls  : 1;
-        uint32_t                        m_ViewportChanged      : 1;
-        uint32_t                        m_CullFaceChanged      : 1;
-        uint32_t                                               : 26;
-    } *g_Context = 0;
+    Context* g_Context = 0;
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -368,7 +274,7 @@ namespace dmGraphics
         return -1;
     }
 
-    static void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
+    void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
     {
         DestroyPipeline(context->m_LogicalDevice.m_Device, value);
     }
@@ -708,7 +614,7 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    static void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
+    void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
     {
         if (resource_list->Size() > 0)
         {
@@ -761,7 +667,7 @@ namespace dmGraphics
         return false;
     }
 
-    static bool InitializeVulkan(HContext context, const WindowParams* params)
+    bool InitializeVulkan(HContext context, const WindowParams* params)
     {
         VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, params->m_HighDPI);
         if (res != VK_SUCCESS)
@@ -848,6 +754,9 @@ namespace dmGraphics
         const bool want_vsync   = true;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
+        uint16_t validation_layers_count;
+        const char** validation_layers = GetValidationLayers(&validation_layers_count);
+
         if (selected_device == NULL)
         {
             dmLogError("Could not select a suitable Vulkan device.");
@@ -883,7 +792,7 @@ namespace dmGraphics
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), device_extensions.Size(),
-            g_validation_layers, g_validation_layer_count, &logical_device);
+            validation_layers, validation_layers_count, &logical_device);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
@@ -931,27 +840,45 @@ bail:
     {
         if (g_Context == 0x0)
         {
-            if (glfwInit() == 0)
+            if (!NativeInit())
             {
-                dmLogError("Could not initialize glfw.");
                 return 0x0;
             }
 
-            uint16_t validation_layer_count = 0;
+printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
 
+
+            uint16_t extension_names_count;
+            const char** extension_names = GetExtensionNames(&extension_names_count);
+            uint16_t validation_layers_count;
+            const char** validation_layers = GetValidationLayers(&validation_layers_count);
+            uint16_t validation_layers_ext_count;
+            const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
+
+printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+#if defined(WIN32) || defined(__MACH__) || defined(__linux__)
             const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
             if (env_vulkan_validation != 0x0)
             {
-                validation_layer_count = strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
+                uint16_t count = (uint16_t)strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
+                if (count > validation_layers_count)
+                    count = validation_layers_count;
+                validation_layers_count = count;
             }
+#endif
 
+printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
             VkInstance vk_instance;
-            if (CreateInstance(&vk_instance, g_validation_layers, validation_layer_count, g_validation_layer_ext, g_validation_layer_ext_count) != VK_SUCCESS)
+            if (CreateInstance(&vk_instance,
+                                extension_names, extension_names_count,
+                                validation_layers, validation_layers_count,
+                                validation_layers_ext, validation_layers_ext_count) != VK_SUCCESS)
             {
                 dmLogError("Could not create Vulkan instance");
                 return 0x0;
             }
 
+printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
             g_Context = new Context(params, vk_instance);
 
             return g_Context;
@@ -970,12 +897,24 @@ bail:
 
     bool Initialize()
     {
-        return glfwInit() ? true : false;
+        return NativeInit();
     }
 
     void Finalize()
     {
-        glfwTerminate();
+        NativeExit();
+    }
+
+    uint32_t GetWidth(HContext context)
+    {
+        assert(context);
+        return context->m_Width;
+    }
+
+    uint32_t GetHeight(HContext context)
+    {
+        assert(context);
+        return context->m_Height;
     }
 
     static void OnWindowResize(int width, int height)
@@ -1011,208 +950,6 @@ bail:
         }
     }
 
-    uint32_t GetWindowRefreshRate(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            return glfwGetWindowRefreshRate();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
-    WindowResult OpenWindow(HContext context, WindowParams* params)
-    {
-        assert(context->m_WindowSurface == VK_NULL_HANDLE);
-
-        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
-
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
-
-        if (!InitializeVulkan(context, params))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
-
-    #if !defined(__EMSCRIPTEN__)
-        glfwSetWindowTitle(params->m_Title);
-    #endif
-
-        glfwSetWindowSizeCallback(OnWindowResize);
-        glfwSetWindowCloseCallback(OnWindowClose);
-        glfwSetWindowFocusCallback(OnWindowFocus);
-
-        context->m_WindowOpened                  = 1;
-        context->m_Width                         = params->m_Width;
-        context->m_Height                        = params->m_Height;
-        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
-        context->m_WindowResizeCallback          = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback           = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData   = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback           = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
-        context->m_WindowIconifyCallback         = params->m_IconifyCallback;
-        context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
-
-        return WINDOW_RESULT_OK;
-    }
-
-    void CloseWindow(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            VkDevice vk_device = context->m_LogicalDevice.m_Device;
-
-            SynchronizeDevice(vk_device);
-
-            glfwCloseWindow();
-
-            context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
-
-            DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
-            DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-
-            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
-
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
-
-            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-            {
-                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
-            }
-
-            for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
-            {
-                DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
-            }
-
-            for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
-            {
-                DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
-            }
-
-            for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
-            {
-                DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i].m_Handle);
-            }
-
-            for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
-            {
-                FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
-            }
-
-            for (size_t i = 0; i < g_max_frames_in_flight; i++) {
-                FrameResource& frame_resource = context->m_FrameResources[i];
-                vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
-                vkDestroySemaphore(vk_device, frame_resource.m_ImageAvailable, 0);
-                vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
-            }
-
-            DestroySwapChain(vk_device, context->m_SwapChain);
-            DestroyLogicalDevice(&context->m_LogicalDevice);
-            DestroyPhysicalDevice(&context->m_PhysicalDevice);
-
-            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
-
-            DestroyInstance(&context->m_Instance);
-
-            context->m_WindowOpened = 0;
-
-            if (context->m_DynamicOffsetBuffer)
-            {
-                free(context->m_DynamicOffsetBuffer);
-            }
-
-            delete context->m_SwapChain;
-        }
-    }
-
-    void IconifyWindow(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            glfwIconifyWindow();
-        }
-    }
-
-    uint32_t GetWindowState(HContext context, WindowState state)
-    {
-        if (context->m_WindowOpened)
-        {
-            return glfwGetWindowParam(state);
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
-    uint32_t GetDisplayDpi(HContext context)
-    {
-        return 0;
-    }
-
-    uint32_t GetWidth(HContext context)
-    {
-        return context->m_Width;
-    }
-
-    uint32_t GetHeight(HContext context)
-    {
-        return context->m_Height;
-    }
-
-    uint32_t GetWindowWidth(HContext context)
-    {
-        return context->m_WindowWidth;
-    }
-
-    uint32_t GetWindowHeight(HContext context)
-    {
-        return context->m_WindowHeight;
-    }
-
-    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
-    {
-        if (context->m_WindowOpened)
-        {
-            context->m_Width  = width;
-            context->m_Height = height;
-            glfwSetWindowSize((int)width, (int)height);
-            int window_width, window_height;
-            glfwGetWindowSize(&window_width, &window_height);
-            context->m_WindowWidth  = window_width;
-            context->m_WindowHeight = window_height;
-
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
-
-            // The callback is not called from glfw when the size is set manually
-            if (context->m_WindowResizeCallback)
-            {
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
-            }
-        }
-    }
-
-    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
-    {
-        if (context->m_WindowOpened)
-        {
-            glfwSetWindowSize((int)width, (int)height);
-        }
-    }
-
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;
@@ -1235,8 +972,8 @@ bail:
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                int width, height;
-                glfwGetWindowSize(&width, &height);
+                uint32_t width, height;
+                GetNativeWindowSize(&width, &height);
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
@@ -1332,33 +1069,8 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % g_max_frames_in_flight;
         context->m_FrameBegun           = 0;
 
-    #if (defined(__arm__) || defined(__arm64__))
-        glfwSwapBuffers();
-    #endif
+        SwapBuffers();
     }
-
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
-    {}
-
-    #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
-
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIWindow);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSView);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSOpenGLContext);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(HWND, WindowsHWND);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(HGLRC, WindowsHGLRC);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLContext, AndroidEGLContext);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
-
-    #undef WRAP_GLFW_NATIVE_HANDLE_CALL
 
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -3468,19 +3180,4 @@ bail:
 
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {}
-
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
-#endif
-    }
-
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-    {
-        while (0 != is_running(user_data))
-        {
-            step_method(user_data);
-        }
-    }
 }

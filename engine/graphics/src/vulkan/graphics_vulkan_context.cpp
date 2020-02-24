@@ -7,6 +7,8 @@
 #include "../graphics.h"
 #include "graphics_vulkan_private.h"
 
+#include <stdio.h>
+
 namespace dmGraphics
 {
     static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = NULL;
@@ -100,10 +102,9 @@ namespace dmGraphics
 
         bool all_layers_found = true;
 
-        for(uint16_t ext=0; ext < validationLayersCount && validationLayers[ext] != NULL; ext++)
+        for(uint16_t ext=0; ext < validationLayersCount; ext++)
         {
             bool layer_found = false;
-
             for(uint32_t layer_index=0; layer_index < vk_layer_count; ++layer_index)
             {
                 if (strcmp(vk_layer_properties[layer_index].layerName, validationLayers[ext]) == 0)
@@ -144,7 +145,10 @@ namespace dmGraphics
         *vkInstance = VK_NULL_HANDLE;
     }
 
-    VkResult CreateInstance(VkInstance* vkInstanceOut, const char** validationLayers, uint16_t validationLayerCount, const char** validationLayerExtensions, uint16_t validationLayerExtensionCount)
+    VkResult CreateInstance(VkInstance* vkInstanceOut,
+                            const char** extensionNames, uint16_t extensionNameCount,
+                            const char** validationLayers, uint16_t validationLayerCount,
+                            const char** validationLayerExtensions, uint16_t validationLayerExtensionCount)
     {
         VkApplicationInfo    vk_application_info     = {};
         VkInstanceCreateInfo vk_instance_create_info = {};
@@ -157,22 +161,12 @@ namespace dmGraphics
         vk_application_info.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
         vk_application_info.apiVersion         = VK_API_VERSION_1_0;
 
-        vk_required_extensions.SetCapacity(3);
-        vk_required_extensions.Push(VK_KHR_SURFACE_EXTENSION_NAME);
+        vk_required_extensions.SetCapacity(extensionNameCount + validationLayerExtensionCount);
 
-    #if defined(VK_USE_PLATFORM_WIN32_KHR)
-        vk_required_extensions.Push(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-    #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-        vk_required_extensions.Push(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-    #elif defined(VK_USE_PLATFORM_XCB_KHR)
-        vk_required_extensions.Push(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-    #elif defined(VK_USE_PLATFORM_MACOS_MVK)
-        vk_required_extensions.Push(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
-    #elif defined(VK_USE_PLATFORM_IOS_MVK)
-        vk_required_extensions.Push(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
-    #elif defined(VK_USE_PLATFORM_METAL_EXT)
-        vk_required_extensions.Push(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
-    #endif
+        for (uint16_t i = 0; i < extensionNameCount; ++i)
+        {
+            vk_required_extensions.Push(extensionNames[i]);
+        }
 
         int32_t enabled_layer_count = 0;
 

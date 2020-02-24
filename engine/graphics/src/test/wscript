@@ -1,20 +1,20 @@
 #! /usr/bin/env python
 
+from waf_dynamo import platform_supports_feature
+
 def build(bld):
-    test_graphics = bld.new_task_gen(features = 'cxx cprogram test',
-                                 includes = ['../../src', '../../proto'],
-                                 source = 'test_graphics.cpp',
-                                 uselib = 'DDF DLIB',
-                                 uselib_local = "graphics_null",
-                                 target = 'test_graphics')
+    for name in ['test_graphics', 'test_glsl_uniform_parser']:
+        bld.new_task_gen(features = 'cxx cprogram test',
+                         includes = ['../../src', '../../proto'],
+                         source = name + '.cpp',
+                         uselib = 'APP DDF DLIB',
+                         uselib_local = 'graphics_null',
+                         target = name)
 
-    test_graphics.install_path = None
-
-    test_glsl_uniform_parser = bld.new_task_gen(features = 'cxx cprogram test',
-                                 includes = ['../../src', '../../proto'],
-                                 source = 'test_glsl_uniform_parser.cpp',
-                                 uselib = 'DDF DLIB',
-                                 uselib_local = "graphics_null",
-                                 target = 'test_glsl_uniform_parser')
-
-    test_glsl_uniform_parser.install_path = None
+    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
+	    bld.new_task_gen(features = 'cxx cprogram test',
+	                     includes = ['../../src', '../../proto'],
+	                     source = 'test_app_vulkan.cpp',
+	                     uselib = 'APP DDF DLIB VULKAN',
+	                     uselib_local = 'graphics_vulkan',
+	                     target = 'test_app_vulkan')
