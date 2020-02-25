@@ -19,6 +19,7 @@
 #include "graphics_opengl_defines.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_adapter.h"
 #include "async/job_queue.h"
 #include "graphics_opengl_private.h"
 
@@ -264,6 +265,10 @@ static void LogFrameBufferError(GLenum status)
         } \
     } \
 
+    static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
+    static bool                         OpenGLIsSupported();
+    static GraphicsAdapter g_opengl_adapter(OpenGLIsSupported, OpenGLRegisterFunctionTable, 1);
+
     struct TextureParamsAsync
     {
         HTexture m_Texture;
@@ -302,7 +307,12 @@ static void LogFrameBufferError(GLenum status)
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
-    HContext NewContext(const ContextParams& params)
+    static bool OpenGLIsSupported()
+    {
+        return Initialize();
+    }
+
+    static HContext OpenGLNewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
         {
@@ -1011,7 +1021,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     #undef WRAP_GLFW_NATIVE_HANDLE_CALL
 
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HVertexBuffer OpenGLNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
@@ -2495,4 +2505,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         // nop
     }
 
+    static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable()
+    {
+        GraphicsAdapterFunctionTable fn_table;
+        fn_table.m_NewContext         = OpenGLNewContext;
+        fn_table.m_NewVertexBuffer    = OpenGLNewVertexBuffer;
+        return fn_table;
+    }
 }

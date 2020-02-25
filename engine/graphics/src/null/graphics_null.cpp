@@ -9,6 +9,7 @@
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_adapter.h"
 #include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
@@ -36,6 +37,10 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
+    static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
+    static bool                         NullIsSupported();
+    static GraphicsAdapter g_null_adapter(NullIsSupported, NullRegisterFunctionTable, 2);
+
     bool Initialize()
     {
         return true;
@@ -60,7 +65,7 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
-    HContext NewContext(const ContextParams& params)
+    static HContext NullNewContext(const ContextParams& params)
     {
         if (!g_ContextCreated)
         {
@@ -71,6 +76,11 @@ namespace dmGraphics
         {
             return 0x0;
         }
+    }
+
+    static bool NullIsSupported()
+    {
+        return true;
     }
 
     void DeleteContext(HContext context)
@@ -307,7 +317,7 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();
         vb->m_Buffer = new char[size];
@@ -1146,5 +1156,12 @@ namespace dmGraphics
         g_ForceVertexReloadFail = should_fail;
     }
 
+    static GraphicsAdapterFunctionTable NullRegisterFunctionTable()
+    {
+        GraphicsAdapterFunctionTable fn_table;
+        fn_table.m_NewContext         = NullNewContext;
+        fn_table.m_NewVertexBuffer    = NullNewVertexBuffer;
+        return fn_table;
+    }
 }
 

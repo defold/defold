@@ -8,6 +8,15 @@ namespace dmGraphics
     GraphicsAdapter* g_adapter_list = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
+    GraphicsAdapter::GraphicsAdapter(GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int priority)
+    : m_Next(g_adapter_list)
+    , m_RegisterCb(register_functions_cb)
+    , m_IsSupportedCb(is_supported_cb)
+    , m_Priority(priority)
+    {
+        g_adapter_list = this;
+    }
+
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
     , m_ResizeCallbackUserData(0x0)
@@ -76,7 +85,7 @@ namespace dmGraphics
         GraphicsAdapter* selected = next;
         while(next)
         {
-            if (next->m_Priority < selected->m_Priority)
+            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
             {
                 selected = next;
             }

@@ -18,8 +18,9 @@
 
 namespace dmGraphics
 {
-    static GraphicsAdapterFunctionTable RegisterFunctionTable();
-    static GraphicsAdapter g_vulkan_adapter(RegisterFunctionTable, 0);
+    static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
+    static bool                         VulkanIsSupported();
+    static GraphicsAdapter g_vulkan_adapter(VulkanIsSupported, VulkanRegisterFunctionTable, 0);
 
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
@@ -929,6 +930,14 @@ bail:
         if (device_list)
             delete[] device_list;
         return false;
+    }
+
+    static bool VulkanIsSupported()
+    {
+        VkInstance inst;
+        VkResult res = CreateInstance(&inst, 0, 0, 0, 0);
+        DestroyInstance(&inst);
+        return res == VK_SUCCESS;
     }
 
     static HContext VulkanNewContext(const ContextParams& params)
@@ -3488,11 +3497,11 @@ bail:
         }
     }
 
-    static GraphicsAdapterFunctionTable RegisterFunctionTable()
+    static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table;
-        fn_table.m_NewContext      = VulkanNewContext;
-        fn_table.m_NewVertexBuffer = VulkanNewVertexBuffer;
+        fn_table.m_NewContext         = VulkanNewContext;
+        fn_table.m_NewVertexBuffer    = VulkanNewVertexBuffer;
         return fn_table;
     }
 }
