@@ -12,11 +12,15 @@
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_adapter.h"
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
+    static GraphicsAdapterFunctionTable RegisterFunctionTable();
+    static GraphicsAdapter g_vulkan_adapter(RegisterFunctionTable, 0);
+
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
     { \
@@ -927,7 +931,7 @@ bail:
         return false;
     }
 
-    HContext NewContext(const ContextParams& params)
+    static HContext VulkanNewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
         {
@@ -1538,7 +1542,7 @@ bail:
         return cached_pipeline;
     }
 
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HVertexBuffer VulkanNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
@@ -3482,5 +3486,13 @@ bail:
         {
             step_method(user_data);
         }
+    }
+
+    static GraphicsAdapterFunctionTable RegisterFunctionTable()
+    {
+        GraphicsAdapterFunctionTable fn_table;
+        fn_table.m_NewContext      = VulkanNewContext;
+        fn_table.m_NewVertexBuffer = VulkanNewVertexBuffer;
+        return fn_table;
     }
 }

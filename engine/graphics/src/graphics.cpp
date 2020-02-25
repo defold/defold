@@ -1,9 +1,13 @@
 #include "graphics.h"
+#include "graphics_adapter.h"
 #include <string.h>
 #include <assert.h>
 
 namespace dmGraphics
 {
+    GraphicsAdapter* g_adapter_list = 0;
+    static GraphicsAdapterFunctionTable g_functions;
+
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
     , m_ResizeCallbackUserData(0x0)
@@ -66,6 +70,26 @@ namespace dmGraphics
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }
 
+    HContext NewContext(const ContextParams& params)
+    {
+        GraphicsAdapter* next     = g_adapter_list;
+        GraphicsAdapter* selected = next;
+        while(next)
+        {
+            if (next->m_Priority < selected->m_Priority)
+            {
+                selected = next;
+            }
+
+            next = next->m_Next;
+        }
+
+        assert(selected);
+        g_functions = selected->m_RegisterCb();
+
+        return g_functions.m_NewContext(params);
+    }
+
     static inline BufferType GetAttachmentBufferType(RenderTargetAttachment attachment)
     {
         static AttachmentToBufferType g_AttachmentToBufferType;
@@ -98,5 +122,10 @@ namespace dmGraphics
         static TextureFormatToBPP g_TextureFormatToBPP;
         assert(format < TEXTURE_FORMAT_COUNT);
         return g_TextureFormatToBPP.m_FormatToBPP[format];
+    }
+
+    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        return g_functions.m_NewVertexBuffer(context, size, data, buffer_usage);
     }
 }
