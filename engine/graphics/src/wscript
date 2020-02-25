@@ -10,7 +10,6 @@ def set_options(opt):
 
 def _get_native_source(target_os, feature):
     native_source = '%s/graphics_native.cpp' % target_os
-    print native_source, os.path.exists(native_source)
     if not os.path.exists(os.path.join('src',native_source)):
         native_source = '%s/graphics_native.cpp' % feature
     return native_source
@@ -59,8 +58,6 @@ def build(bld):
             obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
-
-        print "PLATFORM", bld.env.PLATFORM
 
     obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                            includes = ['. null', '../proto'],

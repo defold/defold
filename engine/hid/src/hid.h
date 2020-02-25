@@ -7,8 +7,8 @@
 
 #include <stdint.h>
 
-// Let glfw decide the constants
-#include "hid_glfw_defines.h"
+// Let the build system decide the constants
+#include <hid_native_defines.h>
 
 namespace dmHID
 {
@@ -25,17 +25,15 @@ namespace dmHID
     const HGamepad INVALID_GAMEPAD_HANDLE = 0;
 
     /// Maximum number of gamepads supported
-    const static uint32_t MAX_GAMEPAD_COUNT = HID_MAX_GAMEPAD_COUNT;
+    const static uint32_t MAX_GAMEPAD_COUNT = HID_NATIVE_MAX_GAMEPAD_COUNT;
     /// Maximum number of gamepad axis supported
-    const static uint32_t MAX_GAMEPAD_AXIS_COUNT = 32;
+    const static uint32_t MAX_GAMEPAD_AXIS_COUNT = HID_NATIVE_MAX_GAMEPAD_AXIS_COUNT;
     /// Maximum number of gamepad buttons supported
-    const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = 32;
+    const static uint32_t MAX_GAMEPAD_BUTTON_COUNT = HID_NATIVE_MAX_GAMEPAD_BUTTON_COUNT;
     /// Maximum number of gamepad hats supported
-    const static uint32_t MAX_GAMEPAD_HAT_COUNT = 4;
-
+    const static uint32_t MAX_GAMEPAD_HAT_COUNT = HID_NATIVE_MAX_GAMEPAD_HAT_COUNT;
     /// Maximum number of simultaneous touches supported
-    // An iPad supports a maximum of 11 simultaneous touches
-    const static uint32_t MAX_TOUCH_COUNT = 11;
+    const static uint32_t MAX_TOUCH_COUNT = HID_NATIVE_MAX_TOUCH_COUNT;
 
     enum Key
     {

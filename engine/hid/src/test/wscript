@@ -1,12 +1,20 @@
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+#!/usr/bin/env python
+import os
+from BuildUtility import create_build_utility
 
 def build(bld):
-    test_hid = bld.new_task_gen(features = 'cxx cprogram test',
-                                includes = '../../../src .',
-                                uselib = 'DLIB PLATFORM_SOCKET LUA SCRIPT',
-                                uselib_local = 'hid_null',
-                                target = 'test_hid',
-                                source = 'test_hid.cpp')
+    build_util = create_build_utility(bld.env)
 
-    test_hid.install_path = None
+    bld.new_task_gen(features = 'cxx cprogram test',
+                    includes = ['../%s' % build_util.get_target_os(), '..', '.'],
+                    uselib = 'APP DLIB PLATFORM_SOCKET LUA SCRIPT',
+                    uselib_local = 'hid_null',
+                    target = 'test_hid',
+                    source = 'test_hid.cpp')
+
+    bld.new_task_gen(features = 'cxx cprogram test',
+                    includes = ['../%s' % build_util.get_target_os(), '..', '.'],
+                    uselib = 'APP DLIB PLATFORM_SOCKET LUA SCRIPT',
+                    uselib_local = 'hid',
+                    target = 'test_app_hid',
+                    source = 'test_app_hid.cpp')
