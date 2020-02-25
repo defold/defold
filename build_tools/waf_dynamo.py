@@ -1648,7 +1648,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
-    if build_util.get_target_os() == 'web':
+    if build_util.get_target_os() == 'web' or not waf_dynamo_private.supports_feature(build_util.get_target_platform(), 'luajit', {}):
         use_vanilla = True
 
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'

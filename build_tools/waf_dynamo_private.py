@@ -387,7 +387,7 @@ def supports_feature_nx(platform, feature, data):
     if feature in ['test_webserver']:
         return False
 
-    if feature in ['opengl']:
+    if feature in ['opengl', 'luajit']:
         return False
     return True
 

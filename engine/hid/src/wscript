@@ -1,25 +1,42 @@
 #! /usr/bin/env python
 import os
+from BuildUtility import create_build_utility
+
+def _get_native_source(target_os):
+    native_source = '%s/hid_native.cpp' % target_os
+    if not os.path.exists(os.path.join('src',native_source)):
+        native_source = 'hid_native.cpp'
+        print native_source
+    print native_source
+    return native_source
+
 
 def set_options(opt):
     pass
 
 def build(bld):
+    build_util = create_build_utility(bld.env)
+
     hid = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = '.',
+                           includes = '.'.split(),
                            target = 'hid',
-                           source = 'hid.cpp hid_glfw.cpp')
+                           source = ['hid.cpp'])
+
+    hid.includes.insert(0, '%s' % build_util.get_target_os())
+    hid.source.append(_get_native_source(build_util.get_target_os()))
 
     hid_null = bld.new_task_gen(features = 'cxx cstaticlib',
-                                includes = ['. null'],
+                                includes = ['.', 'null'],
                                 proto_gen_py = True,
                                 target = 'hid_null',
-                                source = 'hid.cpp hid_null.cpp')
+                                source = ['hid.cpp', 'hid_null.cpp'])
+    hid_null.includes.insert(0, '%s' % build_util.get_target_os())
 
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
-    bld.install_files('${PREFIX}/include/hid', 'hid_glfw_defines.h')
+    bld.install_files('${PREFIX}/include/hid', 'hid_native_defines.h')
+    # cwd=bld.path.find_dir('builtins'), relative_trick=True
 
 def configure(conf):
     pass
