@@ -2,10 +2,10 @@
 import os
 from BuildUtility import create_build_utility
 
-def _get_native_source(target_os):
-    native_source = '%s/hid_native.cpp' % target_os
+def _get_native_file(target_os, name):
+    native_source = '%s/%s' % (target_os, name)
     if not os.path.exists(os.path.join('src',native_source)):
-        native_source = 'hid_native.cpp'
+        native_source = name
         print native_source
     print native_source
     return native_source
@@ -23,7 +23,7 @@ def build(bld):
                            source = ['hid.cpp'])
 
     hid.includes.insert(0, '%s' % build_util.get_target_os())
-    hid.source.append(_get_native_source(build_util.get_target_os()))
+    hid.source.append(_get_native_file(build_util.get_target_os(), 'hid_native.cpp'))
 
     hid_null = bld.new_task_gen(features = 'cxx cstaticlib',
                                 includes = ['.', 'null'],
@@ -35,8 +35,9 @@ def build(bld):
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
-    bld.install_files('${PREFIX}/include/hid', 'hid_native_defines.h')
-    # cwd=bld.path.find_dir('builtins'), relative_trick=True
+
+    header = _get_native_file(build_util.get_target_os(), 'hid_native_defines.h')
+    bld.install_as('${PREFIX}/include/hid/hid_native_defines.h', header)
 
 def configure(conf):
     pass
