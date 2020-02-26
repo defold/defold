@@ -1119,9 +1119,19 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
     }
     else
     {
+        const char* fs_path = factory_path;
+        char fs_mount_path[RESOURCE_PATH_MAX];
+        if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(fs_mount_path, sizeof(fs_mount_path), factory_path))
+        {
+            // on some platforms, performing operations on non existing files will halt the engine
+            // so we're better off returning here immediately
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        fs_path = fs_mount_path;
+
         // Load over local file system
         uint32_t file_size;
-        dmSys::Result r = dmSys::ResourceSize(factory_path, &file_size);
+        dmSys::Result r = dmSys::ResourceSize(fs_path, &file_size);
         if (r != dmSys::RESULT_OK) {
             if (r == dmSys::RESULT_NOENT)
                 return RESULT_RESOURCE_NOT_FOUND;
@@ -1134,7 +1144,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         }
         buffer->SetSize(0);
 
-        r = dmSys::LoadResource(factory_path, buffer->Begin(), file_size, &file_size);
+        r = dmSys::LoadResource(fs_path, buffer->Begin(), file_size, &file_size);
         if (r == dmSys::RESULT_OK) {
             buffer->SetSize(file_size);
             *resource_size = file_size;

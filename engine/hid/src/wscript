@@ -6,8 +6,6 @@ def _get_native_file(target_os, name):
     native_source = '%s/%s' % (target_os, name)
     if not os.path.exists(os.path.join('src',native_source)):
         native_source = name
-        print native_source
-    print native_source
     return native_source
 
 
