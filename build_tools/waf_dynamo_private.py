@@ -130,7 +130,6 @@ def setup_vars_nx(conf, build_util):
     LINKFLAGS+=" -Wl,--end-group"
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/crtend.o" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" -fuse-ld=lld.exe"
-    LINKFLAGS+=" -Wl,--export-dynamic"
     _set_linkflags(conf, LINKFLAGS)
 
     LIBPATHS = ' '.join(get_lib_paths(BUILDTYPE, BUILDTARGET))
