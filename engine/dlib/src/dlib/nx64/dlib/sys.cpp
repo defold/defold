@@ -160,6 +160,23 @@ namespace dmSys
         }
     }
 
+    Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        const char* initial_slash = path[0] != '/' ? "/" : "";
+
+        if (dLib::IsDebugMode())
+        {
+            dmSnPrintf(buffer, buffer_size, "host:%s%s", initial_slash, path);
+            if (dmSys::ResourceExists(buffer))
+                return RESULT_OK;
+        }
+
+        dmSnPrintf(buffer, buffer_size, "data:%s%s", initial_slash, path);
+        if (dmSys::ResourceExists(buffer))
+            return RESULT_OK;
+
+        return RESULT_NOENT;
+    }
 } // namespace
 
 // Used in mbedtls to generate random numbers

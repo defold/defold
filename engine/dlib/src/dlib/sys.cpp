@@ -166,6 +166,14 @@ namespace dmSys
 
 #endif
 
+    Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        dmSnPrintf(buffer, buffer_size, "%s", path);
+        if (dmSys::ResourceExists(buffer))
+            return RESULT_OK;
+        return RESULT_NOENT;
+    }
+
 #if defined(__MACH__)
 
 // NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
