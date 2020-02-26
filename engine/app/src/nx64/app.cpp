@@ -102,9 +102,6 @@ extern "C" void nninitStartup()
 extern "C" void nnMain()
 {
 	// https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/index.html
-
-printf("MAWE: hello!\n");
-
     size_t mount_rom_cache_size = 0;
     nn::fs::QueryMountRomCacheSize(&mount_rom_cache_size);
     void* mount_rom_cache_buffer = malloc(mount_rom_cache_size);
