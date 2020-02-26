@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 // Let the build system decide the constants
-#include <hid_native_defines.h>
+#include <hid/hid_native_defines.h>
 
 namespace dmHID
 {
