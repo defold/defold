@@ -327,9 +327,12 @@ def switch_make_app(self):
     # TODO: Add some mechanic to copy app data to the bundle (e.g. icon)
     authorize_control_dir   = create_bundle_dirs(self, nspd_dir+'/control0.ncd/data', bundle_parent)
     authorize_control       = authorize_control_dir.find_or_declare(['control.nacp'])
-    authorize_data_dir  = bundle_parent.exclusive_build_node(data_dir).abspath(task.env)
+    authorize_data_dir      = bundle_parent.exclusive_build_node(data_dir).abspath(task.env)
     if not os.path.exists(authorize_data_dir):
         os.makedirs(authorize_data_dir)
+
+    with open(os.path.join(authorize_data_dir, 'dummy'), 'wb') as f:
+        f.write("created to avoid an empty folder which trips up the bundler")
 
     self.bld.rescan(bundle_main.parent)
 
@@ -341,6 +344,7 @@ def switch_make_app(self):
     nspdtask.env['NSPD_DIR'] = bundle_npsd.abspath(task.env)
     nspdtask.env['CODE_DIR'] = bundle_main.parent.abspath(task.env)
     nspdtask.env['DATA_DIR'] = authorize_data_dir
+
     # TODO: Make this variable drive by the app creation task/generator
     ## check if the directory is empty
     #if not os.listdir(nsptask.env['DATA_DIR']):
@@ -356,12 +360,7 @@ def switch_make_app(self):
     nsptask.env['SWITCH_META'] = manifest.abspath(task.env)
     nsptask.env['SWITCH_DESC'] = descfile
     nsptask.env['CODE_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/code').abspath(task.env)
-
-    # TODO: Make this variable drive by the app creation task/generator
-    #nsptask.env['DATA_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/data').abspath(task.env)
-    ## check if the directory is empty
-    #if not os.listdir(nsptask.env['DATA_DIR']):
-    #    nsptask.env['DATA_DIR'] = None
+    nsptask.env['DATA_DIR'] = bundle_npsd.exclusive_build_node('program0.ncd/data').abspath(task.env)
 
     task.bundle_output = bundle_nsp.abspath(task.env)
 
