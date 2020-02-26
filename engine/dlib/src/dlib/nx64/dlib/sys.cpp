@@ -9,6 +9,7 @@
 #include <sys/utsname.h>
 #include <sys/stat.h>
 
+#include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/path.h>
@@ -73,34 +74,8 @@ namespace dmSys
 
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-        ssize_t ret = readlink("/proc/self/exe", path_out, path_len);
-        if (ret < 0 || ret > path_len)
-        {
-            const char* relative_path = (const char*)getauxval(AT_EXECFN); // Pathname used to execute program
-            if (!relative_path)
-            {
-                path_out[0] = '.';
-                path_out[1] = '\n';
-            }
-            else
-            {
-                char *absolute_path = realpath(relative_path, NULL); // realpath() resolve a pathname
-                if (!absolute_path)
-                {
-                    path_out[0] = '.';
-                    path_out[1] = '\n';
-                }
-                else
-                {
-                    if (dmStrlCpy(path_out, dirname(absolute_path), path_len) >= path_len) // dirname() returns the string up to, but not including, the final '/'
-                    {
-                        path_out[0] = '.';
-                        path_out[1] = '\n';
-                    }
-                    free(absolute_path);
-                }
-            }
-        }
+        if (dmStrlCpy(path_out, "data:/", path_len) >= path_len)
+            return RESULT_INVAL;
         return RESULT_OK;
     }
 
@@ -145,6 +120,12 @@ namespace dmSys
         }
     }
 
+    bool ResourceExists(const char* path)
+    {
+        struct stat file_stat;
+        return stat(path, &file_stat) == 0;
+    }
+
     Result ResourceSize(const char* path, uint32_t* resource_size)
     {
         struct stat file_stat;
@@ -158,6 +139,16 @@ namespace dmSys
         } else {
             return RESULT_NOENT;
         }
+    }
+
+    Result MoveFile(const char* dst_filename, const char* src_filename)
+    {
+        bool rename_result = rename(src_filename, dst_filename) != -1;
+        if (rename_result)
+        {
+            return RESULT_OK;
+        }
+        return RESULT_UNKNOWN;
     }
 
     Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
@@ -177,6 +168,7 @@ namespace dmSys
 
         return RESULT_NOENT;
     }
+
 } // namespace
 
 // Used in mbedtls to generate random numbers
