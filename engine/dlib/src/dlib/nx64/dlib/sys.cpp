@@ -15,6 +15,7 @@
 #include <dlib/sys.h>
 
 #include <nn/oe.h> // language
+#include <nn/crypto.h>
 
 // void nn::fs::SetSaveDataRootPath	(	const char * 	rootPath	)
 // https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Api/HtmlNX/namespacenn_1_1fs.html#a90c27aaf70aec66968715663cd8c5415
@@ -160,3 +161,9 @@ namespace dmSys
     }
 
 } // namespace
+
+// Used in mbedtls to generate random numbers
+extern "C" void dlib_get_random(void* output, size_t len)
+{
+    nn::crypto::GenerateCryptographicallyRandomBytes(output, len);
+}
