@@ -178,6 +178,8 @@ namespace dmSys
 
     /**
      * Get the path where the application (exe) is located
+     * Example paths:
+     * Switch: data://
      * @param path path buffer
      * @path path_len path buffer length
      * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Other error results are also possible.
@@ -206,6 +208,7 @@ namespace dmSys
      * OSX: ~/Library/Application Support/APPLICATION_NAME
      * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
      * Linux: ~/.APPLICATION_NAME
+     * Switch: save://
      * @param application_name application name to get path for. This is the name of "your" application.
      * @param path path buffer
      * @param path_len path buffer length
