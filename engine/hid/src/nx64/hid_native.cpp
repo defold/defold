@@ -165,10 +165,10 @@ namespace dmHID
 
         outpad->m_AxisCount = 4; // left (X/Y), right (X/Y)
 
-        packet.m_Axis[0] = state->analogStickL.x / (float)0x7FFF;
-        packet.m_Axis[1] = state->analogStickL.y / (float)0x7FFF;
-        packet.m_Axis[2] = state->analogStickR.x / (float)0x7FFF;
-        packet.m_Axis[3] = state->analogStickR.y / (float)0x7FFF;
+        packet.m_Axis[0] = state->analogStickL.y / (float)0x7FFF;
+        packet.m_Axis[1] = state->analogStickL.x / (float)0x7FFF;
+        packet.m_Axis[2] = state->analogStickR.y / (float)0x7FFF;
+        packet.m_Axis[3] = state->analogStickR.x / (float)0x7FFF;
 
         // Buttons: file:///C:/Nintendo/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/structnn_1_1hid_1_1_npad_full_key_state.html&highlighttext=NpadFullKeyState
         outpad->m_HatCount = 0;
