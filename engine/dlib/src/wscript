@@ -6,6 +6,12 @@ from TaskGen import feature, after
 from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature
 from BuildUtility import BuildUtilityException, create_build_utility
 
+def _get_native_file(target_os, name):
+    native_source = 'dlib/%s/dlib/%s' % (target_os, name)
+    if not os.path.exists(os.path.join('src',native_source)):
+        native_source = name
+    return native_source
+
 def set_options(opt):
     pass
 
@@ -241,7 +247,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dns.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
+    bld.install_as('${PREFIX}/include/dlib/endian.h', _get_native_file(build_util.get_target_os(), 'endian.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
@@ -256,7 +262,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
+    bld.install_as('${PREFIX}/include/dlib/mutex.h', _get_native_file(build_util.get_target_os(), 'mutex.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
@@ -266,7 +272,9 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
+    bld.install_as('${PREFIX}/include/dlib/sockettypes.h', _get_native_file(build_util.get_target_os(), 'sockettypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
+    bld.install_as('${PREFIX}/include/dlib/spinlocktypes.h', _get_native_file(build_util.get_target_os(), 'spinlocktypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp_private.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/static_assert.h')
@@ -274,6 +282,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
+    bld.install_as('${PREFIX}/include/dlib/threadtypes.h', _get_native_file(build_util.get_target_os(), 'threadtypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
