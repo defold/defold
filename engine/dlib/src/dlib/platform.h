@@ -7,6 +7,7 @@
 #define DM_PLATFORM_WEB     "web"
 #define DM_PLATFORM_ANDROID "android"
 #define DM_PLATFORM_IOS 	"ios"
+#define DM_PLATFORM_SWITCH 	"switch"
 
 #if defined(ANDROID)
 #define DM_PLATFORM DM_PLATFORM_ANDROID
@@ -20,6 +21,8 @@
 #define DM_PLATFORM DM_PLATFORM_WINDOWS
 #elif defined(__EMSCRIPTEN__)
 #define DM_PLATFORM DM_PLATFORM_WEB
+#elif defined(__NX__)
+#define DM_PLATFORM DM_PLATFORM_SWITCH
 #else
 #error "Unsupported platform"
 #endif
