@@ -171,6 +171,12 @@ namespace dmSys
     Result MoveFile(const char* dst_filename, const char* src_filename);
 
     /**
+     * Given a path, resolves the path to the path that is first found, given the current file mounts
+     * @return RESULT_NOENT if no such file
+     */
+    Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path);
+
+    /**
      * Get the path where the application (exe) is located
      * @param path path buffer
      * @path path_len path buffer length
