@@ -524,4 +524,8 @@ namespace dmGraphics
     {
         g_functions.m_RunApplicationLoop(user_data, step_method, is_running);
     }
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    {
+        return g_functions.m_GetTextureHandle(texture, out_handle);
+    }
 }

@@ -803,7 +803,8 @@ namespace dmGraphics
         assert(context);
     }
 
-    static const Vector4& NullGetConstantV4Ptr(HContext context, int base_register)
+    // Tests Only
+    const Vector4& GetConstantV4Ptr(HContext context, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);
@@ -992,7 +993,8 @@ namespace dmGraphics
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
     }
 
-    static uint8_t* NullGetTextureData(HTexture texture)
+    // Not used?
+    uint8_t* GetTextureData(HTexture texture)
     {
         return 0x0;
     }
@@ -1130,12 +1132,14 @@ namespace dmGraphics
         assert(context);
     }
 
-    static bool NullAcquireSharedContext()
+    // Not used?
+    bool AcquireSharedContext()
     {
         return false;
     }
 
-    static void NullUnacquireContext()
+    // Not used?
+    void UnacquireContext()
     {
 
     }
@@ -1150,12 +1154,14 @@ namespace dmGraphics
         return TEXTURE_STATUS_OK;
     }
 
-    static void NullSetForceFragmentReloadFail(bool should_fail)
+    // Tests only
+    void SetForceFragmentReloadFail(bool should_fail)
     {
         g_ForceFragmentReloadFail = should_fail;
     }
 
-    static void NullSetForceVertexReloadFail(bool should_fail)
+    // Tests only
+    void SetForceVertexReloadFail(bool should_fail)
     {
         g_ForceVertexReloadFail = should_fail;
     }
@@ -1262,6 +1268,9 @@ namespace dmGraphics
         fn_table.m_GetTextureStatusFlags = NullGetTextureStatusFlags;
         fn_table.m_ReadPixels = NullReadPixels;
         fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
+        fn_table.m_GetTextureHandle = NullGetTextureHandle;
+        fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
+        fn_table.m_GetDrawCount = NullGetDrawCount;
         return fn_table;
     }
 }

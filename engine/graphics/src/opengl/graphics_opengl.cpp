@@ -280,7 +280,7 @@ static void LogFrameBufferError(GLenum status)
     dmArray<TextureParamsAsync> g_TextureParamsAsyncArray;
     dmIndexPool16 g_TextureParamsAsyncArrayIndices;
     dmArray<HTexture> g_PostDeleteTexturesArray;
-    void PostDeleteTextures(bool);
+    static void PostDeleteTextures(bool);
 
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
@@ -1864,7 +1864,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return (HTexture) tex;
     }
 
-    static void OpenGLPostDeleteTextures(bool force_delete)
+    static void PostDeleteTextures(bool force_delete)
     {
         uint32_t i = 0;
         while(i < g_PostDeleteTexturesArray.Size())
@@ -2497,17 +2497,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GL_TEXTURE31
     };
 
-    // Nop functions, exist in graphics_private.h but only used for tests.
-    void SetForceFragmentReloadFail(bool should_fail)
-    {
-        // nop
-    }
-
-    void SetForceVertexReloadFail(bool should_fail)
-    {
-        // nop
-    }
-
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table;
@@ -2605,6 +2594,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetTextureStatusFlags = OpenGLGetTextureStatusFlags;
         fn_table.m_ReadPixels = OpenGLReadPixels;
         fn_table.m_RunApplicationLoop = OpenGLRunApplicationLoop;
+        fn_table.m_GetTextureHandle = OpenGLGetTextureHandle;
+        fn_table.m_GetMaxElementsIndices = OpenGLGetMaxElementIndices;
         return fn_table;
     }
 }
