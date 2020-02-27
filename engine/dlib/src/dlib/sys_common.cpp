@@ -197,4 +197,9 @@ namespace dmSys
 
     }
 
+    void PumpMessageQueue() {
+#if defined(__EMSCRIPTEN__)
+        dmSysPumpMessageQueue();
+#endif
+    }
 } // namespace

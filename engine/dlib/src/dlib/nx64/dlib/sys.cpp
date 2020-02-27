@@ -16,6 +16,7 @@
 #include <dlib/sys.h>
 
 #include <nn/oe.h> // language
+#include <nn/nifm.h>
 #include <nn/crypto.h>
 
 // void nn::fs::SetSaveDataRootPath	(	const char * 	rootPath	)
@@ -167,6 +168,18 @@ namespace dmSys
             return RESULT_OK;
 
         return RESULT_NOENT;
+    }
+
+    void SetNetworkConnectivityHost(const char* host)
+    {
+        (void)host;
+    }
+
+    NetworkConnectivity GetNetworkConnectivity()
+    {
+        if (nn::nifm::IsNetworkRequestOnHold())
+            return NETWORK_DISCONNECTED;
+        return nn::nifm::IsNetworkAvailable() ? NETWORK_CONNECTED : NETWORK_DISCONNECTED;
     }
 
 } // namespace
