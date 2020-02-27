@@ -139,7 +139,7 @@ def setup_vars_nx(conf, build_util):
     CPPPATH+=" %s/Common/Configs/Targets/%s/Include" % (NINTENDO_SDK_ROOT, BUILDTARGET)
     _set_includes(conf, CPPPATH)
 
-    conf.env.program_PATTERN = '%s.nsp'
+    conf.env.program_PATTERN = '%s.nss'
     conf.env.bundle_PATTERN = '%s.nspd'
 
     # Until we support cares
