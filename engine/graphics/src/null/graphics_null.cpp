@@ -605,7 +605,8 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
-    static uint64_t NullGetDrawCount()
+    // For tests
+    uint64_t GetDrawCount()
     {
         return g_DrawCount;
     }
@@ -1270,7 +1271,6 @@ namespace dmGraphics
         fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
         fn_table.m_GetTextureHandle = NullGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
-        fn_table.m_GetDrawCount = NullGetDrawCount;
         return fn_table;
     }
 }

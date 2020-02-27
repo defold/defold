@@ -133,7 +133,6 @@ namespace dmGraphics
     typedef void (*ReadPixelsFn)(HContext context, void* buffer, uint32_t buffer_size);
     typedef void (*RunApplicationLoopFn)(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
     typedef HandleResult (*GetTextureHandleFn)(HTexture texture, void** out_handle);
-    typedef uint64_t (*GetDrawCountFn)();
 
     struct GraphicsAdapterFunctionTable
     {
@@ -237,7 +236,6 @@ namespace dmGraphics
         ReadPixelsFn m_ReadPixels;
         RunApplicationLoopFn m_RunApplicationLoop;
         GetTextureHandleFn m_GetTextureHandle;
-        GetDrawCountFn m_GetDrawCount;
     };
 }
 
