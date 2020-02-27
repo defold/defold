@@ -5,16 +5,16 @@
 
 namespace dmGraphics
 {
-    GraphicsAdapter* g_adapter_list = 0;
+    static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
-    GraphicsAdapter::GraphicsAdapter(GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int priority)
-    : m_Next(g_adapter_list)
-    , m_RegisterCb(register_functions_cb)
-    , m_IsSupportedCb(is_supported_cb)
-    , m_Priority(priority)
+    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority)
     {
-        g_adapter_list = this;
+        adapter->m_Next          = g_adapter_list;
+        adapter->m_IsSupportedCb = is_supported_cb;
+        adapter->m_RegisterCb    = register_functions_cb;
+        adapter->m_Priority      = priority;
+        g_adapter_list           = adapter;
     }
 
     WindowParams::WindowParams()

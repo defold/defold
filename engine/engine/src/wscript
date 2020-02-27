@@ -59,6 +59,9 @@ def build(bld):
     graphics_lib = 'GRAPHICS'
     if Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
+        exported_symbols.append('GraphicsAdapterVulkan')
+    else:
+        exported_symbols.append('GraphicsAdapterOpenGL')
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
@@ -156,7 +159,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB LIVEUPDATE SOUND_NULL CRASH CARES %s' % (additional_libs,),
-        exported_symbols = ['ProfilerExt'],
+        exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'],
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         includes = '../build ../proto . ..',

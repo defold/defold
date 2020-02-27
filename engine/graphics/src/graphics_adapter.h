@@ -6,22 +6,32 @@
 namespace dmGraphics
 {
     struct GraphicsAdapterFunctionTable;
-    struct GraphicsAdapter;
-    extern GraphicsAdapter* g_adapter_list;
-
-
     typedef GraphicsAdapterFunctionTable (*GraphicsAdapterRegisterFunctionsCb)();
     typedef bool                         (*GraphicsAdapterIsSupportedCb)();
 
     struct GraphicsAdapter
     {
-        GraphicsAdapter(GraphicsAdapterIsSupportedCb is_supported_cb,
-            GraphicsAdapterRegisterFunctionsCb register_functions_cb, int priority);
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
-        int                                m_Priority;
+        int8_t                             m_Priority;
     };
+
+    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority);
+
+    // This snippet is taken from extension.h (SDK)
+    #ifdef __GNUC__
+        #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void __attribute__((constructor)) adapter_name () { \
+            RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
+        }
+    #else
+        #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void adapter_name () { \
+            RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
+            }\
+            int adapter_name ## Wrapper(void) { adapter_name(); return 0; } \
+            __pragma(section(".CRT$XCU",read)) \
+            __declspec(allocate(".CRT$XCU")) int (* _Fp ## adapter_name)(void) = adapter_name ## Wrapper;
+    #endif
 
     typedef HContext (*NewContextFn)(const ContextParams& params);
     typedef void (*DeleteContextFn)(HContext context);

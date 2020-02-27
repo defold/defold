@@ -267,7 +267,10 @@ static void LogFrameBufferError(GLenum status)
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
-    static GraphicsAdapter g_opengl_adapter(OpenGLIsSupported, OpenGLRegisterFunctionTable, 1);
+    static int8_t          g_null_adapter_priority = 1;
+    static GraphicsAdapter g_opengl_adapter;
+
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
     struct TextureParamsAsync
     {
@@ -328,7 +331,7 @@ static void LogFrameBufferError(GLenum status)
         return 0x0;
     }
 
-    void DeleteContext(HContext context)
+    static void OpenGLDeleteContext(HContext context)
     {
         if (context != 0x0)
         {
@@ -341,18 +344,18 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    bool Initialize()
+    static bool OpenGLInitialize()
     {
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
         return (glfwInit() == GL_TRUE);
     }
 
-    void Finalize()
+    static void OpenGLFinalize()
     {
         glfwTerminate();
     }
 
-    void OnWindowResize(int width, int height)
+    static void OnWindowResize(int width, int height)
     {
         assert(g_Context);
         g_Context->m_WindowWidth = (uint32_t)width;
@@ -361,7 +364,7 @@ static void LogFrameBufferError(GLenum status)
             g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
     }
 
-    int OnWindowClose()
+    static int OnWindowClose()
     {
         assert(g_Context);
         if (g_Context->m_WindowCloseCallback != 0x0)
@@ -524,7 +527,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    WindowResult OpenWindow(HContext context, WindowParams *params)
+    static WindowResult OpenGLOpenWindow(HContext context, WindowParams *params)
     {
         assert(context);
         assert(params);
@@ -829,7 +832,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return WINDOW_RESULT_OK;
     }
 
-    void CloseWindow(HContext context)
+    static void OpenGLCloseWindow(HContext context)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -846,7 +849,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    void IconifyWindow(HContext context)
+    static void OpenGLIconifyWindow(HContext context)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -855,14 +858,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    static void OpenGLAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
         glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
 #endif
     }
 
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
+    static void OpenGLRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         #ifdef __EMSCRIPTEN__
         while (0 != is_running(user_data))
@@ -878,7 +881,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #endif
     }
 
-    uint32_t GetWindowState(HContext context, WindowState state)
+    static uint32_t OpenGLGetWindowState(HContext context, WindowState state)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -887,7 +890,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return 0;
     }
 
-    uint32_t GetWindowRefreshRate(HContext context)
+    static uint32_t OpenGLGetWindowRefreshRate(HContext context)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -896,37 +899,37 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return 0;
     }
 
-    uint32_t GetDisplayDpi(HContext context)
+    static uint32_t OpenGLGetDisplayDpi(HContext context)
     {
         assert(context);
         return context->m_Dpi;
     }
 
-    uint32_t GetWidth(HContext context)
+    static uint32_t OpenGLGetWidth(HContext context)
     {
         assert(context);
         return context->m_Width;
     }
 
-    uint32_t GetHeight(HContext context)
+    static uint32_t OpenGLGetHeight(HContext context)
     {
         assert(context);
         return context->m_Height;
     }
 
-    uint32_t GetWindowWidth(HContext context)
+    static uint32_t OpenGLGetWindowWidth(HContext context)
     {
         assert(context);
         return context->m_WindowWidth;
     }
 
-    uint32_t GetWindowHeight(HContext context)
+    static uint32_t OpenGLGetWindowHeight(HContext context)
     {
         assert(context);
         return context->m_WindowHeight;
     }
 
-    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    static void OpenGLSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -946,7 +949,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    static void OpenGLResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -955,13 +958,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
+    static void OpenGLGetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;
         out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
+    static void OpenGLClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
         DM_PROFILE(Graphics, "Clear");
@@ -983,12 +986,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void BeginFrame(HContext context)
+    static void OpenGLBeginFrame(HContext context)
     {
         // NOP
     }
 
-    void Flip(HContext context)
+    static void OpenGLFlip(HContext context)
     {
         DM_PROFILE(VSync, "Wait");
         PostDeleteTextures(false);
@@ -996,7 +999,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    static void OpenGLSetSwapInterval(HContext context, uint32_t swap_interval)
     {
         glfwSwapInterval(swap_interval);
     }
@@ -1030,14 +1033,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return buffer;
     }
 
-    void DeleteVertexBuffer(HVertexBuffer buffer)
+    static void OpenGLDeleteVertexBuffer(HVertexBuffer buffer)
     {
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(Graphics, "SetVertexBufferData");
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
@@ -1052,7 +1055,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetVertexBufferSubData");
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
@@ -1063,12 +1066,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    uint32_t GetMaxElementsVertices(HContext context)
+    static uint32_t OpenGLGetMaxElementsVertices(HContext context)
     {
         return context->m_MaxElementVertices;
     }
 
-    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HIndexBuffer OpenGLNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
@@ -1077,14 +1080,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return buffer;
     }
 
-    void DeleteIndexBuffer(HIndexBuffer buffer)
+    static void OpenGLDeleteIndexBuffer(HIndexBuffer buffer)
     {
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(Graphics, "SetIndexBufferData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
@@ -1095,7 +1098,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetIndexBufferSubData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
@@ -1106,12 +1109,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return (context->m_IndexBufferFormatSupport & (1 << format)) != 0;
     }
 
-    uint32_t GetMaxElementIndices(HContext context)
+    static uint32_t OpenGLGetMaxElementIndices(HContext context)
     {
         return context->m_MaxElementIndices;
     }
@@ -1135,14 +1138,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return 0;
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
         HVertexDeclaration vd = NewVertexDeclaration(context, element, count);
         vd->m_Stride = stride;
         return vd;
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration OpenGLNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
@@ -1166,12 +1169,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return vd;
     }
 
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    static void OpenGLDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete vertex_declaration;
     }
 
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void OpenGLEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
         assert(vertex_buffer);
@@ -1224,7 +1227,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         vertex_declaration->m_ModificationVersion = context->m_ModificationVersion;
     }
 
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void OpenGLEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
     {
         assert(context);
         assert(vertex_buffer);
@@ -1261,7 +1264,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #undef BUFFER_OFFSET
     }
 
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void OpenGLDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         assert(context);
         assert(vertex_declaration);
@@ -1280,7 +1283,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     }
 
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -1294,7 +1297,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context);
         DM_PROFILE(Graphics, "Draw");
@@ -1335,19 +1338,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return s;
     }
 
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
         return CreateShader(GL_VERTEX_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
         return CreateShader(GL_FRAGMENT_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         IncreaseModificationVersion(context);
 
@@ -1384,7 +1387,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return p;
     }
 
-    void DeleteProgram(HContext context, HProgram program)
+    static void OpenGLDeleteProgram(HContext context, HProgram program)
     {
         (void) context;
         glDeleteProgram(program);
@@ -1422,7 +1425,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);
         assert(ddf);
@@ -1443,7 +1446,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return success;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);
         assert(ddf);
@@ -1464,33 +1467,33 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return success;
     }
 
-    void DeleteVertexProgram(HVertexProgram program)
+    static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
         glDeleteShader(program);
         CHECK_GL_ERROR
     }
 
-    void DeleteFragmentProgram(HFragmentProgram program)
+    static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         glDeleteShader(program);
         CHECK_GL_ERROR
     }
 
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
     {
         return ShaderDesc::LANGUAGE_GLSL;
     }
 
-    void EnableProgram(HContext context, HProgram program)
+    static void OpenGLEnableProgram(HContext context, HProgram program)
     {
         (void) context;
         glUseProgram(program);
         CHECK_GL_ERROR
     }
 
-    void DisableProgram(HContext context)
+    static void OpenGLDisableProgram(HContext context)
     {
         (void) context;
         glUseProgram(0);
@@ -1527,7 +1530,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return success;
     }
 
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool OpenGLReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         if (!TryLinkProgram(vert_program, frag_program))
         {
@@ -1539,7 +1542,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-    uint32_t GetUniformCount(HProgram prog)
+    static uint32_t OpenGLGetUniformCount(HProgram prog)
     {
         GLint count;
         glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
@@ -1547,7 +1550,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return count;
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
         GLenum uniform_type;
@@ -1558,7 +1561,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return (uint32_t)uniform_name_length;
     }
 
-    int32_t GetUniformLocation(HProgram prog, const char* name)
+    static int32_t OpenGLGetUniformLocation(HProgram prog, const char* name)
     {
         GLint location = glGetUniformLocation(prog, name);
         if (location == -1)
@@ -1569,7 +1572,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return (uint32_t) location;
     }
 
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
 
@@ -1577,7 +1580,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetConstantV4(HContext context, const Vector4* data, int base_register)
+    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
 
@@ -1585,21 +1588,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
         CHECK_GL_ERROR
     }
 
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    static void OpenGLSetSampler(HContext context, int32_t location, int32_t unit)
     {
         assert(context);
         glUniform1i(location, unit);
         CHECK_GL_ERROR
     }
 
-    void SetDepthStencilRenderBuffer(RenderTarget* rt, bool update_current = false)
+    static void OpenGLSetDepthStencilRenderBuffer(RenderTarget* rt, bool update_current = false)
     {
         uint32_t param_buffer_index = rt->m_BufferTypeFlags & dmGraphics::BUFFER_TYPE_DEPTH_BIT ?  GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT) :  GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
 
@@ -1661,7 +1664,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     }
 
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    static HRenderTarget OpenGLNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget;
         memset(rt, 0, sizeof(RenderTarget));
@@ -1713,7 +1716,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     CHECK_GL_ERROR
                 }
             }
-            SetDepthStencilRenderBuffer(rt);
+            OpenGLSetDepthStencilRenderBuffer(rt);
         }
 
         // Disable color buffer
@@ -1738,7 +1741,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     }
 
 
-    void DeleteRenderTarget(HRenderTarget render_target)
+    static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
     {
         glDeleteFramebuffers(1, &render_target->m_Id);
         if (render_target->m_ColorBufferTexture)
@@ -1753,7 +1756,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         delete render_target;
     }
 
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void OpenGLSetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         if(PFN_glInvalidateFramebuffer != NULL)
         {
@@ -1793,14 +1796,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_FRAMEBUFFER_ERROR
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
         if(buffer_type != BUFFER_TYPE_COLOR_BIT)
             return 0;
         return render_target->m_ColorBufferTexture;
     }
 
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         assert(render_target);
         uint32_t i = GetBufferTypeIndex(buffer_type);
@@ -1809,7 +1812,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void OpenGLSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         assert(render_target);
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
@@ -1822,20 +1825,20 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     SetTexture(render_target->m_ColorBufferTexture, render_target->m_BufferTextureParams[i]);
             }
         }
-        SetDepthStencilRenderBuffer(render_target, true);
+        OpenGLSetDepthStencilRenderBuffer(render_target, true);
     }
 
-    bool IsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format)
     {
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
-    uint32_t GetMaxTextureSize(HContext context)
+    static uint32_t OpenGLGetMaxTextureSize(HContext context)
     {
         return context->m_MaxTextureSize;
     }
 
-    HTexture NewTexture(HContext context, const TextureCreationParams& params)
+    static HTexture OpenGLNewTexture(HContext context, const TextureCreationParams& params)
     {
         GLuint t;
         glGenTextures( 1, &t );
@@ -1861,7 +1864,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return (HTexture) tex;
     }
 
-    void PostDeleteTextures(bool force_delete)
+    static void OpenGLPostDeleteTextures(bool force_delete)
     {
         uint32_t i = 0;
         while(i < g_PostDeleteTexturesArray.Size())
@@ -1881,7 +1884,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    void DeleteTexture(HTexture texture)
+    static void OpenGLDeleteTexture(HTexture texture)
     {
         assert(texture);
         if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
@@ -1900,7 +1903,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         delete texture;
     }
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
         GLenum type = (GLenum) texture->m_Type;
 
@@ -1917,7 +1920,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    uint32_t GetTextureStatusFlags(HTexture texture)
+    static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
         uint32_t flags = TEXTURE_STATUS_OK;
         if(texture->m_DataState)
@@ -1925,7 +1928,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return flags;
     }
 
-    void DoSetTextureAsync(void* context)
+    static void OpenGLDoSetTextureAsync(void* context)
     {
         uint16_t param_array_index = (uint16_t) (size_t) context;
         TextureParamsAsync ap;
@@ -1939,7 +1942,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         ap.m_Texture->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
     }
 
-    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         texture->m_DataState |= 1<<params.m_MipMap;
         uint16_t param_array_index;
@@ -1959,12 +1962,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         JobDesc j;
         j.m_Context = (void*)(size_t)param_array_index;
-        j.m_Func = DoSetTextureAsync;
+        j.m_Func = OpenGLDoSetTextureAsync;
         j.m_FuncComplete = 0;
         JobQueuePush(j);
     }
 
-    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
 
@@ -1977,7 +1980,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return HANDLE_RESULT_OK;
     }
 
-    void SetTexture(HTexture texture, const TextureParams& params)
+    static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
         // validate write accessibility for format. Some format are not garuanteed to be writeable
         switch (params.m_Format)
@@ -2266,7 +2269,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     }
 
-    uint32_t GetTextureResourceSize(HTexture texture)
+    static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
         uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Params.m_Format)) >> 3;
@@ -2282,27 +2285,27 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return size_total + sizeof(Texture);
     }
 
-    uint16_t GetTextureWidth(HTexture texture)
+    static uint16_t OpenGLGetTextureWidth(HTexture texture)
     {
         return texture->m_Width;
     }
 
-    uint16_t GetTextureHeight(HTexture texture)
+    static uint16_t OpenGLGetTextureHeight(HTexture texture)
     {
         return texture->m_Height;
     }
 
-    uint16_t GetOriginalTextureWidth(HTexture texture)
+    static uint16_t OpenGLGetOriginalTextureWidth(HTexture texture)
     {
         return texture->m_OriginalWidth;
     }
 
-    uint16_t GetOriginalTextureHeight(HTexture texture)
+    static uint16_t OpenGLGetOriginalTextureHeight(HTexture texture)
     {
         return texture->m_OriginalHeight;
     }
 
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void OpenGLEnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
         assert(texture);
@@ -2326,7 +2329,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
     }
 
-    void DisableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
 
@@ -2347,7 +2350,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {
         uint32_t w = dmGraphics::GetWidth(context);
         uint32_t h = dmGraphics::GetHeight(context);
@@ -2358,7 +2361,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                      buffer);
     }
 
-    void EnableState(HContext context, State state)
+    static void OpenGLEnableState(HContext context, State state)
     {
         assert(context);
     #if defined(GL_HAS_RENDERDOC_SUPPORT)
@@ -2372,7 +2375,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void DisableState(HContext context, State state)
+    static void OpenGLDisableState(HContext context, State state)
     {
         assert(context);
     #if defined(GL_HAS_RENDERDOC_SUPPORT)
@@ -2386,70 +2389,70 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
+    static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
         glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
         CHECK_GL_ERROR
     }
 
-    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
+    static void OpenGLSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
         glColorMask(red, green, blue, alpha);
         CHECK_GL_ERROR
     }
 
-    void SetDepthMask(HContext context, bool mask)
+    static void OpenGLSetDepthMask(HContext context, bool mask)
     {
         assert(context);
         glDepthMask(mask);
         CHECK_GL_ERROR
     }
 
-    void SetDepthFunc(HContext context, CompareFunc func)
+    static void OpenGLSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
         glDepthFunc((GLenum) func);
         CHECK_GL_ERROR
     }
 
-    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void OpenGLSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
         glScissor((GLint)x, (GLint)y, (GLint)width, (GLint)height);
         CHECK_GL_ERROR
     }
 
-    void SetStencilMask(HContext context, uint32_t mask)
+    static void OpenGLSetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
         glStencilMask(mask);
         CHECK_GL_ERROR
     }
 
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
+    static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         glStencilFunc((GLenum) func, ref, mask);
         CHECK_GL_ERROR
     }
 
-    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
         glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
         CHECK_GL_ERROR
     }
 
-    void SetCullFace(HContext context, FaceType face_type)
+    static void OpenGLSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
         glCullFace(face_type);
         CHECK_GL_ERROR
     }
 
-    void SetPolygonOffset(HContext context, float factor, float units)
+    static void OpenGLSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
         glPolygonOffset(factor, units);
@@ -2508,8 +2511,100 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table;
-        fn_table.m_NewContext         = OpenGLNewContext;
-        fn_table.m_NewVertexBuffer    = OpenGLNewVertexBuffer;
+        fn_table.m_NewContext = OpenGLNewContext;
+        fn_table.m_DeleteContext = OpenGLDeleteContext;
+        fn_table.m_Initialize = OpenGLInitialize;
+        fn_table.m_Finalize = OpenGLFinalize;
+        fn_table.m_AppBootstrap = OpenGLAppBootstrap;
+        fn_table.m_GetWindowRefreshRate = OpenGLGetWindowRefreshRate;
+        fn_table.m_OpenWindow = OpenGLOpenWindow;
+        fn_table.m_CloseWindow = OpenGLCloseWindow;
+        fn_table.m_IconifyWindow = OpenGLIconifyWindow;
+        fn_table.m_GetWindowState = OpenGLGetWindowState;
+        fn_table.m_GetDisplayDpi = OpenGLGetDisplayDpi;
+        fn_table.m_GetWidth = OpenGLGetWidth;
+        fn_table.m_GetHeight = OpenGLGetHeight;
+        fn_table.m_GetWindowWidth = OpenGLGetWindowWidth;
+        fn_table.m_GetWindowHeight = OpenGLGetWindowHeight;
+        fn_table.m_SetWindowSize = OpenGLSetWindowSize;
+        fn_table.m_ResizeWindow = OpenGLResizeWindow;
+        fn_table.m_GetDefaultTextureFilters = OpenGLGetDefaultTextureFilters;
+        fn_table.m_BeginFrame = OpenGLBeginFrame;
+        fn_table.m_Flip = OpenGLFlip;
+        fn_table.m_SetSwapInterval = OpenGLSetSwapInterval;
+        fn_table.m_Clear = OpenGLClear;
+        fn_table.m_NewVertexBuffer = OpenGLNewVertexBuffer;
+        fn_table.m_DeleteVertexBuffer = OpenGLDeleteVertexBuffer;
+        fn_table.m_SetVertexBufferData = OpenGLSetVertexBufferData;
+        fn_table.m_SetVertexBufferSubData = OpenGLSetVertexBufferSubData;
+        fn_table.m_GetMaxElementsVertices = OpenGLGetMaxElementsVertices;
+        fn_table.m_NewIndexBuffer = OpenGLNewIndexBuffer;
+        fn_table.m_DeleteIndexBuffer = OpenGLDeleteIndexBuffer;
+        fn_table.m_SetIndexBufferData = OpenGLSetIndexBufferData;
+        fn_table.m_SetIndexBufferSubData = OpenGLSetIndexBufferSubData;
+        fn_table.m_IsIndexBufferFormatSupported = OpenGLIsIndexBufferFormatSupported;
+        fn_table.m_NewVertexDeclaration = OpenGLNewVertexDeclaration;
+        fn_table.m_NewVertexDeclarationStride = OpenGLNewVertexDeclarationStride;
+        fn_table.m_DeleteVertexDeclaration = OpenGLDeleteVertexDeclaration;
+        fn_table.m_EnableVertexDeclaration = OpenGLEnableVertexDeclaration;
+        fn_table.m_EnableVertexDeclarationProgram = OpenGLEnableVertexDeclarationProgram;
+        fn_table.m_DisableVertexDeclaration = OpenGLDisableVertexDeclaration;
+        fn_table.m_DrawElements = OpenGLDrawElements;
+        fn_table.m_Draw = OpenGLDraw;
+        fn_table.m_NewVertexProgram = OpenGLNewVertexProgram;
+        fn_table.m_NewFragmentProgram = OpenGLNewFragmentProgram;
+        fn_table.m_NewProgram = OpenGLNewProgram;
+        fn_table.m_DeleteProgram = OpenGLDeleteProgram;
+        fn_table.m_ReloadVertexProgram = OpenGLReloadVertexProgram;
+        fn_table.m_ReloadFragmentProgram = OpenGLReloadFragmentProgram;
+        fn_table.m_DeleteVertexProgram = OpenGLDeleteVertexProgram;
+        fn_table.m_DeleteFragmentProgram = OpenGLDeleteFragmentProgram;
+        fn_table.m_GetShaderProgramLanguage = OpenGLGetShaderProgramLanguage;
+        fn_table.m_EnableProgram = OpenGLEnableProgram;
+        fn_table.m_DisableProgram = OpenGLDisableProgram;
+        fn_table.m_ReloadProgram = OpenGLReloadProgram;
+        fn_table.m_GetUniformName = OpenGLGetUniformName;
+        fn_table.m_GetUniformCount = OpenGLGetUniformCount;
+        fn_table.m_GetUniformLocation = OpenGLGetUniformLocation;
+        fn_table.m_SetConstantV4 = OpenGLSetConstantV4;
+        fn_table.m_SetConstantM4 = OpenGLSetConstantM4;
+        fn_table.m_SetSampler = OpenGLSetSampler;
+        fn_table.m_SetViewport = OpenGLSetViewport;
+        fn_table.m_EnableState = OpenGLEnableState;
+        fn_table.m_DisableState = OpenGLDisableState;
+        fn_table.m_SetBlendFunc = OpenGLSetBlendFunc;
+        fn_table.m_SetColorMask = OpenGLSetColorMask;
+        fn_table.m_SetDepthMask = OpenGLSetDepthMask;
+        fn_table.m_SetDepthFunc = OpenGLSetDepthFunc;
+        fn_table.m_SetScissor = OpenGLSetScissor;
+        fn_table.m_SetStencilMask = OpenGLSetStencilMask;
+        fn_table.m_SetStencilFunc = OpenGLSetStencilFunc;
+        fn_table.m_SetStencilOp = OpenGLSetStencilOp;
+        fn_table.m_SetCullFace = OpenGLSetCullFace;
+        fn_table.m_SetPolygonOffset = OpenGLSetPolygonOffset;
+        fn_table.m_NewRenderTarget = OpenGLNewRenderTarget;
+        fn_table.m_DeleteRenderTarget = OpenGLDeleteRenderTarget;
+        fn_table.m_SetRenderTarget = OpenGLSetRenderTarget;
+        fn_table.m_GetRenderTargetTexture = OpenGLGetRenderTargetTexture;
+        fn_table.m_GetRenderTargetSize = OpenGLGetRenderTargetSize;
+        fn_table.m_SetRenderTargetSize = OpenGLSetRenderTargetSize;
+        fn_table.m_IsTextureFormatSupported = OpenGLIsTextureFormatSupported;
+        fn_table.m_NewTexture = OpenGLNewTexture;
+        fn_table.m_DeleteTexture = OpenGLDeleteTexture;
+        fn_table.m_SetTexture = OpenGLSetTexture;
+        fn_table.m_SetTextureAsync = OpenGLSetTextureAsync;
+        fn_table.m_SetTextureParams = OpenGLSetTextureParams;
+        fn_table.m_GetTextureResourceSize = OpenGLGetTextureResourceSize;
+        fn_table.m_GetTextureWidth = OpenGLGetTextureWidth;
+        fn_table.m_GetTextureHeight = OpenGLGetTextureHeight;
+        fn_table.m_GetOriginalTextureWidth = OpenGLGetOriginalTextureWidth;
+        fn_table.m_GetOriginalTextureHeight = OpenGLGetOriginalTextureHeight;
+        fn_table.m_EnableTexture = OpenGLEnableTexture;
+        fn_table.m_DisableTexture = OpenGLDisableTexture;
+        fn_table.m_GetMaxTextureSize = OpenGLGetMaxTextureSize;
+        fn_table.m_GetTextureStatusFlags = OpenGLGetTextureStatusFlags;
+        fn_table.m_ReadPixels = OpenGLReadPixels;
+        fn_table.m_RunApplicationLoop = OpenGLRunApplicationLoop;
         return fn_table;
     }
 }

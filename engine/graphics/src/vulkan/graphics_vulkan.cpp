@@ -20,7 +20,10 @@ namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
-    static GraphicsAdapter g_vulkan_adapter(VulkanIsSupported, VulkanRegisterFunctionTable, 0);
+    static const int8_t    g_vulkan_adapter_priority = 0;
+    static GraphicsAdapter g_vulkan_adapter;
+
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
 
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
@@ -1599,18 +1602,6 @@ bail:
         DeviceBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
     }
 
-    static void* VulkanMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return 0;
-    }
-
-    static bool VulkanUnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return true;
-    }
-
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
     {
         return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
@@ -1656,18 +1647,6 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
-    }
-
-    static void* VulkanMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return 0;
-    }
-
-    static bool VulkanUnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return true;
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -3500,6 +3479,7 @@ bail:
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table;
+        memset(&fn_table,0,sizeof(fn_table));
         fn_table.m_NewContext = VulkanNewContext;
         fn_table.m_DeleteContext = VulkanDeleteContext;
         fn_table.m_Initialize = VulkanInitialize;
@@ -3526,15 +3506,11 @@ bail:
         fn_table.m_DeleteVertexBuffer = VulkanDeleteVertexBuffer;
         fn_table.m_SetVertexBufferData = VulkanSetVertexBufferData;
         fn_table.m_SetVertexBufferSubData = VulkanSetVertexBufferSubData;
-        fn_table.m_MapVertexBuffer = VulkanMapVertexBuffer;
-        fn_table.m_UnmapVertexBuffer = VulkanUnmapVertexBuffer;
         fn_table.m_GetMaxElementsVertices = VulkanGetMaxElementsVertices;
         fn_table.m_NewIndexBuffer = VulkanNewIndexBuffer;
         fn_table.m_DeleteIndexBuffer = VulkanDeleteIndexBuffer;
         fn_table.m_SetIndexBufferData = VulkanSetIndexBufferData;
         fn_table.m_SetIndexBufferSubData = VulkanSetIndexBufferSubData;
-        fn_table.m_MapIndexBuffer = VulkanMapIndexBuffer;
-        fn_table.m_UnmapIndexBuffer = VulkanUnmapIndexBuffer;
         fn_table.m_IsIndexBufferFormatSupported = VulkanIsIndexBufferFormatSupported;
         fn_table.m_NewVertexDeclaration = VulkanNewVertexDeclaration;
         fn_table.m_NewVertexDeclarationStride = VulkanNewVertexDeclarationStride;
