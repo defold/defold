@@ -184,7 +184,7 @@ namespace dmSys
     {
         return GetApplicationSupportPath(application_name, path, path_len);
     }
-    
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         char tmp_path[MAX_PATH];
@@ -905,12 +905,6 @@ namespace dmSys
         } else {
             return NativeToResult(errno);
         }
-#endif
-    }
-
-    void PumpMessageQueue() {
-#if defined(__EMSCRIPTEN__)
-        dmSysPumpMessageQueue();
 #endif
     }
 }
