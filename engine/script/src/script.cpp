@@ -18,7 +18,9 @@
 #include "script_http.h"
 #include "script_zlib.h"
 #include "script_html5.h"
+#if !defined(DM_DISABLE_LUASOCKET)
 #include "script_luasocket.h"
+#endif
 #include "script_bitop.h"
 #include "script_timer.h"
 #include "script_extensions.h"
@@ -155,7 +157,9 @@ namespace dmScript
         InitializeJson(L);
         InitializeZlib(L);
         InitializeHtml5(L);
+        #if !defined(DM_DISABLE_LUASOCKET)
         InitializeLuasocket(L);
+        #endif
         InitializeBitop(L);
 
         lua_register(L, "print", LuaPrint);

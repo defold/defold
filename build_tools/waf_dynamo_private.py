@@ -94,7 +94,7 @@ def setup_vars_nx(conf, build_util):
     BUILDTARGET = 'NX-NXFP2-a64'
     BUILDTYPE = "Debug"
 
-    opt_level =    opt_level = Options.options.opt_level
+    opt_level = Options.options.opt_level
     # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
     if Options.options.with_asan and opt_level != '0':
         opt_level = 1
@@ -106,7 +106,7 @@ def setup_vars_nx(conf, build_util):
     _set_ccflags(conf, CCFLAGS)
     _set_cxxflags(conf, CXXFLAGS)
 
-    DEFINES ="DM_NO_SYSTEM_FUNCTION"
+    DEFINES ="DM_NO_SYSTEM_FUNCTION LUA_NO_SYSTEM LUA_NO_TMPFILE LUA_NO_TMPNAM"
     DEFINES+=" DM_NO_IPV6"
     DEFINES+=" GOOGLE_PROTOBUF_NO_RTTI DDF_EXPOSE_DESCRIPTORS"
     DEFINES+=" JC_TEST_NO_DEATH_TEST JC_TEST_USE_COLORS=1"
@@ -375,7 +375,8 @@ def supports_feature_nx(platform, feature, data):
                     'test_httpserver',
                     'test_ssdp',
                     'test_httpcache',
-                    'test_ssdp_internals']:
+                    'test_ssdp_internals',
+                    'luasocket']:
         return False
 
     # until we've added an implementation of memprofile.cpp
