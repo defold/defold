@@ -56,12 +56,11 @@ def build(bld):
         exported_symbols.append('IAPExt')
 
     # Set graphics library to use (at some point both GL/VK should be used)
-    graphics_lib = 'GRAPHICS'
+    graphics_libs = ['GRAPHICS']
+    exported_symbols.append('GraphicsAdapterOpenGL')
     if Options.options.with_vulkan:
-        graphics_lib = 'GRAPHICS_VULKAN'
+        graphics_libs.append('GRAPHICS_VULKAN')
         exported_symbols.append('GraphicsAdapterVulkan')
-    else:
-        exported_symbols.append('GraphicsAdapterOpenGL')
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
@@ -85,6 +84,7 @@ def build(bld):
         sound_lib = 'SOUND OPENAL'
 
     additional_libs = ' '.join(additional_libs)
+    graphics_libs = ' '.join(graphics_libs)
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
@@ -98,7 +98,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_libs, sound_lib, additional_libs),
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
@@ -127,7 +127,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_lib, sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS %s GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI CRASH LIVEUPDATE CARES %s X %s' % (graphics_libs, sound_lib, additional_libs),
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
         exported_symbols = exported_symbols,
