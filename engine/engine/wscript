@@ -65,13 +65,11 @@ namespace dmEngineVersion
     glfw_lib = 'dmglfw'
 
     if operating_sys == 'osx':
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
         if Options.options.with_vulkan and architecture == 'x86_64':
-            glfw_lib = 'dmglfw_vulkan'
-
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface'])
+            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
             # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
             validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))

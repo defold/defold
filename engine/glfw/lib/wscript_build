@@ -6,14 +6,11 @@ dmglfw = bld.new_task_gen(features = 'cc cstaticlib',
                           target   = 'dmglfw')
 
 platform = bld.env.PLATFORM
-darwin_vulkan_desktop = False
 darwin_vulkan_mobile  = False
 
 if platform == 'darwin' or platform == 'x86_64-darwin':
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
-    dmglfw.source.remove(os.path.join('cocoa','cocoa_window_vulkan.m'))
-    darwin_vulkan_desktop = True
 elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios ios/app')
     dmglfw.includes = '. ios'
@@ -31,16 +28,10 @@ elif 'win32' in platform:
 elif 'web' in platform:
     dmglfw.find_sources_in_dirs('js-web')
     dmglfw.includes = 'js-web .'
-
-if darwin_vulkan_desktop or darwin_vulkan_mobile:
+if darwin_vulkan_mobile:
     dmglfw = bld.new_task_gen(features = 'cc cstaticlib',
                               defines  = ['DM_USE_VULKAN'],
                               target   = 'dmglfw_vulkan')
-    if darwin_vulkan_desktop:
-        dmglfw.find_sources_in_dirs('. cocoa')
-        dmglfw.includes = '. cocoa'
-        dmglfw.source.remove(os.path.join('cocoa','cocoa_window.m'))
-    elif darwin_vulkan_mobile:
-        dmglfw.find_sources_in_dirs('. ios ios/app')
-        dmglfw.includes = '. ios'
-        dmglfw.source.remove(os.path.join('ios','app','EAGLView.m'))
+    dmglfw.find_sources_in_dirs('. ios ios/app')
+    dmglfw.includes = '. ios'
+    dmglfw.source.remove(os.path.join('ios','app','EAGLView.m'))
