@@ -16,6 +16,7 @@
 #include <dlib/sys.h>
 
 #include <nn/oe.h> // language
+#include <nn/fs.h>
 #include <nn/nifm.h>
 #include <nn/crypto.h>
 
@@ -144,12 +145,60 @@ namespace dmSys
 
     Result MoveFile(const char* dst_filename, const char* src_filename)
     {
-        bool rename_result = rename(src_filename, dst_filename) != -1;
-        if (rename_result)
-        {
+        nn::Result result = nn::fs::RenameFile(src_filename, dst_filename);
+
+        if (result.IsSuccess()) {
             return RESULT_OK;
         }
-        return RESULT_UNKNOWN;
+
+        if (nn::fs::ResultPathNotFound::Includes(result)) {
+            dmLogError("Failed to rename '%s' to '%s'. Source does not exist", src_filename, dst_filename);
+            return RESULT_UNKNOWN;
+        }
+
+        if (nn::fs::ResultTargetLocked::Includes(result)) {
+            dmLogError("Failed to rename '%s' to '%s'. Target was locked", src_filename, dst_filename);
+            return RESULT_UNKNOWN;
+        }
+
+        if (!nn::fs::ResultPathAlreadyExists::Includes(result)) {
+            dmLogError("Failed to rename '%s' to '%s'", src_filename, dst_filename);
+            return RESULT_UNKNOWN;
+        }
+
+        // This behavior is specific to the NX platform
+        // We need to handle renaming files gracefully
+
+        char temp_file[DMPATH_MAX_PATH];
+        dmSnPrintf(temp_file, sizeof(temp_file), "%s.mvtmp", dst_filename);
+
+        // Move the target file to the temp file
+        result = nn::fs::RenameFile(dst_filename, temp_file);
+        if (result.IsFailure())
+        {
+            dmLogError("Failed to rename '%s' to '%s'. Couldn't move existing target to temp file '%s'", src_filename, dst_filename, temp_file);
+            return RESULT_UNKNOWN;
+        }
+
+        // Move the source file to the target file
+        result = nn::fs::RenameFile(src_filename, dst_filename);
+
+        if (result.IsFailure()) {
+            // If we failed, we need to move the original target file back
+            result = nn::fs::RenameFile(temp_file, dst_filename);
+            if (result.IsFailure()) {
+                dmLogError("Failed to rename '%s' back to '%s'. And also failed to revert the naming of the old file '%s' back to '%s'", src_filename, dst_filename, temp_file, dst_filename);
+            }
+            else {
+                dmLogError("Failed to rename '%s' to '%s'. Was able to restore old target file '%s' to '%s'", src_filename, dst_filename, temp_file, dst_filename);
+            }
+            return RESULT_UNKNOWN;
+        }
+
+        // We succeeded in renaming the sve file
+        // We can now remove the temp file
+        dmSys::Unlink(temp_file);
+        return RESULT_OK;
     }
 
     Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
