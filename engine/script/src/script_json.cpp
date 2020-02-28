@@ -72,6 +72,16 @@ namespace dmScript
                 uint32_t bytes_read = 0;
                 double value = 0.0f;
                 int result = sscanf(buffer, "%lf%n", &value, &bytes_read);
+
+#if defined(__NX__)
+                if (result == 1 && bytes_read == l+1 && value == 0)
+                {
+                    // for some reason, if the value happens to be a 0, or -0 it seems the sscanf code is stepping
+                    // one character too far. However, as long as the result is ok,
+                    // and since the last character is a \0 , we'll let it slide
+                    bytes_read--;
+                }
+#endif
                 if (result == 1 && bytes_read == dmMath::Min(buffer_len - 1, l))
                 {
                     lua_pushnumber(L, value);
