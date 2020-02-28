@@ -18,6 +18,12 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS
+#endif
+
 class ScriptTest : public jc_test_base_class
 {
 protected:
@@ -94,7 +100,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));

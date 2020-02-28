@@ -2,7 +2,7 @@
 
 import Task, TaskGen
 from TaskGen import extension, declare_extension
-from waf_dynamo import new_copy_task
+from waf_dynamo import new_copy_task, platform_supports_feature
 
 new_copy_task('luascript', '.lua', '.luac')
 new_copy_task('save_file', '.sav', '.savc')
@@ -121,14 +121,15 @@ def build(bld):
                                        source = 'test_script_json.cpp test_json.lua')
 
     if not 'web' in bld.env['PLATFORM']:
-        test_script_http = bld.new_task_gen(features = flist,
-                                           includes = '..',
-                                           uselib = libs,
-                                           uselib_local = 'script',
-                                           web_libs = web_libs,
-                                           proto_gen_py = True,
-                                           target = 'test_script_http',
-                                           source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
+        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+            bld.new_task_gen(features = flist,
+                                       includes = '..',
+                                       uselib = libs,
+                                       uselib_local = 'script',
+                                       web_libs = web_libs,
+                                       proto_gen_py = True,
+                                       target = 'test_script_http',
+                                       source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
     test_script_zlib = bld.new_task_gen(features = flist,
                                        includes = '..',
@@ -166,14 +167,15 @@ def build(bld):
                                        target = 'test_script_user_type',
                                        source = 'test_script_user_type.cpp')
 
-    test_script_luasocket = bld.new_task_gen(features = flist,
-                                       includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
-                                       web_libs = web_libs,
-                                       proto_gen_py = True,
-                                       target = 'test_script_luasocket',
-                                       source = 'test_script_luasocket.cpp test_luasocket.lua')
+    if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
+        bld.new_task_gen(features = flist,
+                        includes = '..',
+                        uselib = libs,
+                        uselib_local = 'script',
+                        web_libs = web_libs,
+                        proto_gen_py = True,
+                        target = 'test_script_luasocket',
+                        source = 'test_script_luasocket.cpp test_luasocket.lua')
 
     test_script_bitop = bld.new_task_gen(features = flist,
                                        includes = '..',
