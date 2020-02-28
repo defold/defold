@@ -197,7 +197,7 @@ def create_bundle_dirs(self, path, dir):
         dir=subdir
     return dir
 
-@feature('cprogram', 'cxxprogram')
+@feature('cprogram', 'cxxprogram', 'cshlib')
 @before('apply_core')
 @after('default_flags')
 def switch_modify_linkflags_fn(self):
