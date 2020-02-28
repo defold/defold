@@ -140,6 +140,20 @@ namespace dmSys
         bool m_Installed;
     };
 
+    struct UserInfo
+    {
+        void* m_NativeInfo;
+        const char* m_Name;
+    };
+
+    enum UserResult
+    {
+        RESULT_USER_OK,
+        RESULT_USER_CANCELLED,
+        RESULT_USER_NOT_EXIST,
+        RESULT_USER_ERROR,
+    };
+
     /**
      * Create directory.
      * @param path path to directory to create
@@ -208,7 +222,7 @@ namespace dmSys
      * OSX: ~/Library/Application Support/APPLICATION_NAME
      * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
      * Linux: ~/.APPLICATION_NAME
-     * Switch: save://
+     * Switch: save:/
      * @param application_name application name to get path for. This is the name of "your" application.
      * @param path path buffer
      * @param path_len path buffer length
@@ -324,6 +338,27 @@ namespace dmSys
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)
      */
     void PumpMessageQueue();
+
+    /**
+     * Initialize the user system
+     */
+    UserResult InitUser();
+
+    /**
+     * Keep this alive during user operations (e.g. save)
+     */
+    UserResult SelectUser(UserInfo* info);
+
+    /**
+     * Keep this alive during user operations (e.g. save)
+     * Currently used for unit tests
+     */
+    UserResult OpenLastUser(UserInfo* info);
+
+    /**
+     *
+     */
+    void CloseUser(UserInfo* info);
 
     // private functions
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
