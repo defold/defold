@@ -10,6 +10,10 @@ function assert_error(js, expected)
         print("  Actual         : call succeeded")
         assert(false)
     else
+        -- replace any known mounts that might confuse this test
+        msg = string.gsub(msg, "host:/", "")
+        msg = string.gsub(msg, "save:/", "")
+        msg = string.gsub(msg, "data:/", "")
         local start = string.find(msg, ":", string.find(msg, ":") + 1) + 2
         local errmsg = string.sub(msg, start, string.len(msg))
         if not startswith(expected, errmsg) then

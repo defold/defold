@@ -3,6 +3,11 @@
 #include "../script.h"
 #include "../script_timer_private.h"
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS
+#endif
 
 struct TimerTestCallback
 {
@@ -45,7 +50,7 @@ class ScriptTimerTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
         m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
         dmScript::Initialize(m_Context);
@@ -122,7 +127,7 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
         1u
     };
 
-    dmScript::HTimer handles[] = 
+    dmScript::HTimer handles[] =
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[0], 0x0),
@@ -158,7 +163,7 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
         2u
     };
 
-    dmScript::HTimer handles[] = 
+    dmScript::HTimer handles[] =
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[1], 0x0),
@@ -605,7 +610,7 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
     cancelled = dmScript::CancelTimer(timer_world, inner_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
-    
+
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(4u, TimerTestCallback::callback_count);
 
@@ -778,7 +783,7 @@ static int ScriptInstanceIsValid(lua_State* L)
     lua_pushboolean(L, i != 0x0 && i->m_ContextTableReference != LUA_NOREF);
     return 1;
 }
-    
+
 static const luaL_reg ScriptInstance_methods[] =
 {
     {0,0}
@@ -861,7 +866,7 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
     ASSERT_TRUE(RunString(L, post_script));
     ASSERT_EQ(top, lua_gettop(L));
 
-    FinalizeInstance(script_world);    
+    FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);
@@ -922,7 +927,7 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     ASSERT_TRUE(RunString(L, post_script));
     ASSERT_EQ(top, lua_gettop(L));
 
-    FinalizeInstance(script_world);    
+    FinalizeInstance(script_world);
 
     dmScript::GetInstance(L);
     DeleteScriptInstance(L);

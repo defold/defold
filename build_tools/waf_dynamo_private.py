@@ -376,6 +376,7 @@ def supports_feature_nx(platform, feature, data):
                     'test_ssdp',
                     'test_httpcache',
                     'test_ssdp_internals',
+                    'test_script_http',
                     'luasocket']:
         return False
 
