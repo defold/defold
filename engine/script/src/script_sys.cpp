@@ -103,27 +103,26 @@ union SaveLoadBuffer
         }
 
         FILE* file = fopen(tmp_filename, "wb");
-        if (file != 0x0)
+        if (!file)
         {
-            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
-#if defined(_WIN32)
-                bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
-#else
-                bool rename_result = rename(tmp_filename, filename) != -1;
-#endif
-                if (rename_result)
-                {
-                    lua_pushboolean(L, result);
-                    return 1;
-                }
-            }
-
-            dmSys::Unlink(tmp_filename);
+            return luaL_error(L, "Could not open the file %s.", tmp_filename);
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
+
+        bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
+        result = (fclose(file) == 0) && result;
+
+        if (!result)
+        {
+            dmSys::Unlink(tmp_filename);
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+
+        if (dmSys::MoveFile(filename, tmp_filename) == dmSys::RESULT_OK)
+        {
+            lua_pushboolean(L, result);
+            return 1;
+        }
+        return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
     }
 
 #else // __EMSCRIPTEN__
