@@ -355,13 +355,12 @@ def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
         test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                          includes = '../../../src . .. ../../../proto',
-                                         uselib = 'RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG CARES',
+                                         uselib = 'APP RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG CARES',
                                          uselib_local = 'gameobject',
                                          web_libs = ['library_sys.js', 'library_script.js'],
                                          proto_gen_py = True,
-                                         target = '%s/test_gameobject_%s' % (dir, dir))
+                                         target = 'test_gameobject_%s' % dir)
         test_task_gen.find_sources_in_dirs(dir, exts)
-        test_task_gen.install_path = None
 
     new_test('anim')
     new_test('bones', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])
