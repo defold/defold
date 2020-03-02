@@ -676,7 +676,12 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             return 0;
         }
     }
-    else if (strcmp(factory->m_UriParts.m_Scheme, "file") == 0)
+    else if (strcmp(factory->m_UriParts.m_Scheme, "file") == 0
+#if defined(__NX__)
+        || strcmp(factory->m_UriParts.m_Scheme, "data") == 0
+        || strcmp(factory->m_UriParts.m_Scheme, "host") == 0
+#endif
+        )
     {
         // Ok
     }
