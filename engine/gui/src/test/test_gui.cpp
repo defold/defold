@@ -24,6 +24,11 @@ extern "C"
 extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
 
 // Basic
 //  - Create scene
@@ -5596,7 +5601,7 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
