@@ -176,7 +176,7 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount)
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlags, uint8_t sampleCount)
     {
         VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
 
@@ -409,6 +409,7 @@ namespace dmGraphics
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
         assert(vk_size < 0x80000000); // must match max bit count in graphics_vulkan_private.h
+        assert(vk_size > 0); // must not be 0
 
         VkBufferCreateInfo vk_buffer_create_info;
         memset(&vk_buffer_create_info, 0, sizeof(vk_buffer_create_info));

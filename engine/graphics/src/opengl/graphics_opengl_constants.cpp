@@ -3,6 +3,7 @@
 
 namespace dmGraphics
 {
+    /*
     const Type TYPE_BYTE           = GL_BYTE;
     const Type TYPE_UNSIGNED_BYTE  = GL_UNSIGNED_BYTE;
     const Type TYPE_SHORT          = GL_SHORT;
@@ -14,10 +15,14 @@ namespace dmGraphics
     const Type TYPE_FLOAT_MAT4     = GL_FLOAT_MAT4;
     const Type TYPE_SAMPLER_2D     = GL_SAMPLER_2D;
     const Type TYPE_SAMPLER_CUBE   = GL_SAMPLER_CUBE;
+    */
 
+    /*
     const TextureType TEXTURE_TYPE_2D       = GL_TEXTURE_2D;
     const TextureType TEXTURE_TYPE_CUBE_MAP = GL_TEXTURE_CUBE_MAP;
+    */
 
+    /*
     const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
     const TextureFilter TEXTURE_FILTER_LINEAR                 = GL_LINEAR;
     const TextureFilter TEXTURE_FILTER_NEAREST                = GL_NEAREST;
@@ -25,7 +30,9 @@ namespace dmGraphics
     const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = GL_NEAREST_MIPMAP_LINEAR;
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = GL_LINEAR_MIPMAP_NEAREST;
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = GL_LINEAR_MIPMAP_LINEAR;
+    */
 
+    /*
 #ifndef GL_ARB_multitexture
     const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER = 0x812D;
     const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE   = 0x812F;
@@ -36,7 +43,9 @@ namespace dmGraphics
     const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT = GL_MIRRORED_REPEAT;
 #endif
     const TextureWrap TEXTURE_WRAP_REPEAT          = GL_REPEAT;
+    */
 
+    /*
     const BlendFactor BLEND_FACTOR_ZERO                     = GL_ZERO;
     const BlendFactor BLEND_FACTOR_ONE                      = GL_ONE;
     const BlendFactor BLEND_FACTOR_SRC_COLOR                = GL_SRC_COLOR;
@@ -60,7 +69,9 @@ namespace dmGraphics
     const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA           = GL_CONSTANT_ALPHA;
     const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = GL_ONE_MINUS_CONSTANT_ALPHA;
 #endif
+*/
 
+    /*
     const State STATE_DEPTH_TEST            = GL_DEPTH_TEST;
     const State STATE_SCISSOR_TEST          = GL_SCISSOR_TEST;
     const State STATE_STENCIL_TEST          = GL_STENCIL_TEST;
@@ -74,7 +85,9 @@ namespace dmGraphics
     const State STATE_BLEND                 = GL_BLEND;
     const State STATE_CULL_FACE             = GL_CULL_FACE;
     const State STATE_POLYGON_OFFSET_FILL   = GL_POLYGON_OFFSET_FILL;
+    */
 
+    /*
     const CompareFunc COMPARE_FUNC_NEVER    = GL_NEVER;
     const CompareFunc COMPARE_FUNC_LESS     = GL_LESS;
     const CompareFunc COMPARE_FUNC_LEQUAL   = GL_LEQUAL;
@@ -83,7 +96,9 @@ namespace dmGraphics
     const CompareFunc COMPARE_FUNC_EQUAL    = GL_EQUAL;
     const CompareFunc COMPARE_FUNC_NOTEQUAL = GL_NOTEQUAL;
     const CompareFunc COMPARE_FUNC_ALWAYS   = GL_ALWAYS;
+    */
 
+    /*
     const StencilOp STENCIL_OP_KEEP         = GL_KEEP;
     const StencilOp STENCIL_OP_ZERO         = GL_ZERO;
     const StencilOp STENCIL_OP_REPLACE      = GL_REPLACE;
@@ -92,15 +107,21 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_DECR         = GL_DECR;
     const StencilOp STENCIL_OP_DECR_WRAP    = GL_DECR_WRAP;
     const StencilOp STENCIL_OP_INVERT       = GL_INVERT;
+    */
 
+    /*
     const PrimitiveType PRIMITIVE_LINES          = GL_LINES;
     const PrimitiveType PRIMITIVE_TRIANGLES      = GL_TRIANGLES;
     const PrimitiveType PRIMITIVE_TRIANGLE_STRIP = GL_TRIANGLE_STRIP;
+    */
 
+    /*
     const BufferType BUFFER_TYPE_COLOR_BIT       = GL_COLOR_BUFFER_BIT;
     const BufferType BUFFER_TYPE_DEPTH_BIT       = GL_DEPTH_BUFFER_BIT;
     const BufferType BUFFER_TYPE_STENCIL_BIT     = GL_STENCIL_BUFFER_BIT;
+    */
 
+    /*
 #if !defined (GL_ARB_vertex_buffer_object)
     const BufferUsage BUFFER_USAGE_STREAM_DRAW  = 0x88E0;
     const BufferUsage BUFFER_USAGE_STATIC_DRAW  = 0x88E4;
@@ -120,4 +141,5 @@ namespace dmGraphics
     const FaceType FACE_TYPE_FRONT           = GL_FRONT;
     const FaceType FACE_TYPE_BACK            = GL_BACK;
     const FaceType FACE_TYPE_FRONT_AND_BACK  = GL_FRONT_AND_BACK;
+    */
 }

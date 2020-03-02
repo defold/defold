@@ -18,6 +18,9 @@
 
 namespace dmGraphics
 {
+    static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params);
+
+    // Vulkan Graphics Adapter
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static const int8_t    g_vulkan_adapter_priority = 0;
@@ -45,6 +48,33 @@ namespace dmGraphics
 
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
+
+    Texture::Texture()
+    : m_Type(TEXTURE_TYPE_2D)
+    , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
+    , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
+    , m_Width(0)
+    , m_Height(0)
+    , m_OriginalWidth(0)
+    , m_OriginalHeight(0)
+    , m_MipMapCount(0)
+    , m_TextureSamplerIndex(0)
+    , m_Destroyed(0)
+    {
+        memset(&m_Handle, 0, sizeof(m_Handle));
+    }
+
+    RenderTarget::RenderTarget(const uint32_t rtId)
+    : m_TextureColor(0)
+    , m_TextureDepthStencil(0)
+    , m_RenderPass(VK_NULL_HANDLE)
+    , m_Framebuffer(VK_NULL_HANDLE)
+    , m_Id(rtId)
+    , m_IsBound(0)
+    {
+        m_Extent.width  = 0;
+        m_Extent.height = 0;
+    }
 
     static struct Context
     {
@@ -275,6 +305,17 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
+    static VkSamplerAddressMode GetVulkanSamplerAddressMode(TextureWrap wrap)
+    {
+        const VkSamplerAddressMode address_mode_lut[] = {
+            VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+        };
+        return address_mode_lut[wrap];
+    }
+
     static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
     {
         VkFilter             vk_mag_filter;
@@ -282,8 +323,8 @@ namespace dmGraphics
         VkSamplerMipmapMode  vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         // No conversions needed for wrap modes
         float max_lod                  = (float) maxLod;
-        VkSamplerAddressMode vk_wrap_u = (VkSamplerAddressMode) uwrap;
-        VkSamplerAddressMode vk_wrap_v = (VkSamplerAddressMode) vwrap;
+        VkSamplerAddressMode vk_wrap_u = GetVulkanSamplerAddressMode(uwrap);
+        VkSamplerAddressMode vk_wrap_v = GetVulkanSamplerAddressMode(vwrap);
 
         // Convert mag filter to Vulkan type
         if (magfilter == TEXTURE_FILTER_NEAREST)
@@ -663,7 +704,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1);
+        CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
         return res;
     }
@@ -2942,7 +2983,7 @@ bail:
                 vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
             }
 
-            texture_color = NewTexture(context, creation_params[color_buffer_index]);
+            texture_color = VulkanNewTexture(context, creation_params[color_buffer_index]);
             VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount,
                 VK_SAMPLE_COUNT_1_BIT, vk_color_format,
@@ -2978,7 +3019,7 @@ bail:
                 GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_stencil_format, &vk_depth_tiling);
             }
 
-            texture_depth_stencil = NewTexture(context, creation_params[depth_buffer_index]);
+            texture_depth_stencil = VulkanNewTexture(context, creation_params[depth_buffer_index]);
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_depth_tiling,
                 fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
@@ -3085,7 +3126,7 @@ bail:
 
     static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params)
     {
-        Texture* tex       = new Texture;
+        Texture* tex       = new Texture();
         tex->m_Type        = params.m_Type;
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
