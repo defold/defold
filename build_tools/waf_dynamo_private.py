@@ -244,7 +244,8 @@ def switch_make_app(self):
     lib_paths = get_lib_paths(BUILDTYPE, BUILDTARGET)
     nss_files = []
     shared_libs = []
-    for name in self.uselib.split():
+    libs = self.uselib.split() if isinstance(type(self.uselib), str) else self.uselib
+    for name in libs:
         key = 'SHLIB_%s' % name
         shlibs = getattr(self.env, key, [])
         for name in shlibs:
