@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <dlib/thread.h>
 #include <dlib/log.h>
+#include <dlib/memory.h>
 
 #include <nn/nn_Result.h>
 #include <nn/os/os_ThreadTypes.h>
@@ -21,7 +22,9 @@ namespace dmThread
 
         // We simply pass it in here, leaving it as is.
         // Currently no way to get stack pointer, but do we really need to free it when the app goes down?
-        void* stack = malloc(stack_size);
+        void* stack;
+        dmMemory::Result memresult = dmMemory::AlignedMalloc(&stack, nn::os::StackRegionAlignment, stack_size);
+        assert(memresult == dmMemory::RESULT_OK);
 
         nn::Result result = nn::os::CreateThread(thread, (nn::os::ThreadFunction)thread_start, arg, stack, stack_size, nn::os::DefaultThreadPriority);
         if (!result.IsSuccess())
@@ -39,6 +42,8 @@ namespace dmThread
     void Join(Thread thread)
     {
         nn::os::WaitThread(thread);
+        nn::os::DestroyThread(thread);
+        free(thread);
     }
 
     Thread GetCurrentThread()
