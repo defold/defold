@@ -21,7 +21,7 @@ namespace dmMutex
         // // multiple times). If this happens, no other thread can satisfy the condition of the predicate.
 
         Mutex* mutex = (Mutex*)malloc(sizeof(Mutex));
-        nn::os::InitializeMutex(&mutex->m_NativeHandle, false, 0);
+        nn::os::InitializeMutex(&mutex->m_NativeHandle, true, 0);
         return mutex;
     }
 
