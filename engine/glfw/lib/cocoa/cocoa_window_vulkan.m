@@ -82,11 +82,15 @@
 - (void)windowDidMiniaturize:(NSNotification *)notification
 {
     _glfwWin.iconified = GL_TRUE;
+    if(_glfwWin.windowIconifyCallback)
+        _glfwWin.windowIconifyCallback(1);
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)notification
 {
     _glfwWin.iconified = GL_FALSE;
+    if(_glfwWin.windowIconifyCallback)
+        _glfwWin.windowIconifyCallback(0);
 }
 
 - (void)windowDidBecomeKey:(NSNotification *)notification
@@ -334,6 +338,8 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
 - (void)mouseMoved:(NSEvent *)event
 {
+    float contentScale = [[[_glfwWin.window contentView] layer] contentsScale];
+
     if( _glfwWin.mouseLock )
     {
         _glfwInput.MousePosX += [event deltaX];
@@ -347,10 +353,10 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
         // Need convert mouse coord into backing coords
         // which will be different for retina windows.
-        p = [self convertPointToBacking:p];
+        p = [self convertPointFromLayer:p];
 
-        _glfwInput.MousePosX = p.x;
-        _glfwInput.MousePosY = p.y;
+        _glfwInput.MousePosX = p.x * contentScale;
+        _glfwInput.MousePosY = p.y * contentScale;
     }
 
     if( _glfwWin.mousePosCallback )

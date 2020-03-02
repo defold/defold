@@ -164,6 +164,19 @@ namespace dmEngine
         dmGameSystem::OnWindowFocus(focus != 0);
     }
 
+    static void OnWindowIconify(void* user_data, uint32_t iconify)
+    {
+        Engine* engine = (Engine*)user_data;
+        dmExtension::Params params;
+        params.m_ConfigFile = engine->m_Config;
+        params.m_L          = 0;
+        dmExtension::Event event;
+        event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
+        dmExtension::DispatchEvent( &params, &event );
+
+        dmGameSystem::OnWindowIconify(iconify != 0);
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -565,6 +578,8 @@ namespace dmEngine
         window_params.m_CloseCallbackUserData = engine;
         window_params.m_FocusCallback = OnWindowFocus;
         window_params.m_FocusCallbackUserData = engine;
+        window_params.m_IconifyCallback = OnWindowIconify;
+        window_params.m_IconifyCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
@@ -590,6 +605,8 @@ namespace dmEngine
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
+
+        dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
         uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
@@ -1066,8 +1083,6 @@ namespace dmEngine
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
-        dmGameSystem::OnWindowResized(physical_width, physical_height);
-
         return true;
 
 bail:
@@ -1210,7 +1225,10 @@ bail:
                     engine->m_PreviousFrameTime = time - i_dt;
                 }
 
-                engine->m_WasIconified = true;
+                if (!engine->m_WasIconified)
+                {
+                    engine->m_WasIconified = true;
+                }
                 return;
             }
             else

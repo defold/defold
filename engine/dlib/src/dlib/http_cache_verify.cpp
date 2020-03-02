@@ -96,7 +96,7 @@ namespace dmHttpCacheVerify
         return verify_context->m_BytesWritten;
     }
 
-    static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
+    static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* user_data)
     {
         VerifyContext* verify_context = (VerifyContext*) user_data;
         verify_context->m_DryRun = false;

@@ -739,7 +739,6 @@ class Configuration(object):
                     self.upload_file(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
             if 'web' in self.target_platform:
-                self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
@@ -935,7 +934,7 @@ class Configuration(object):
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
-        js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
+        js_files = {}
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
@@ -1118,34 +1117,6 @@ class Configuration(object):
                self.notarization_password,
                self.notarization_itc_provider]
         self.run_editor_script(cmd)
-
-    def release_editor2(self):
-        if not self.channel:
-            self._log("Tried to release with no channel specified, aborting")
-            return
-
-        sha1 = self._git_sha1()
-
-        self._log("Releasing editor2 '%s' for channel '%s'" % (sha1, self.channel))
-
-        # Rather than accessing S3 from its web end-point, we always go through the CDN
-        archive_url = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(archive_url.hostname)
-
-        key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
-        key_v3.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
-        key_v3.set_contents_from_string(json.dumps({'sha1': sha1}))
-
-        # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
-        # For example;
-        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
-        for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
-            redirect = '/archive/%s/%s/editor2/%s' % (sha1, self.channel, name)
-            self._log('Creating link from %s -> %s' % (key_name, redirect))
-            key = bucket.new_key(key_name)
-            key.set_redirect(redirect)
 #
 # END: EDITOR 2
 # ------------------------------------------------------------
@@ -1200,37 +1171,30 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    # Get archive files for a single release/sha1
-    def _get_files(self, bucket, sha1):
+    def _find_files_in_bucket(self, bucket, sha1, path, pattern):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
+        prefix = os.path.join(base_prefix, path)
         files = []
-        prefix = os.path.join(base_prefix, 'engine')
         for x in bucket.list(prefix = prefix):
             if x.name[-1] != '/':
                 # Skip directory "keys". When creating empty directories
                 # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                if re.match(pattern, x.name):
                     name = os.path.relpath(x.name, base_prefix)
                     files.append({'name': name, 'path': '/' + x.name})
+        return files
 
-        prefix = os.path.join(base_prefix, 'bob')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/bob.jar)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-
-        prefix = os.path.join(base_prefix, self.channel, 'editor')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/Defold-*)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
+    # Get archive files for a single release/sha1
+    def _get_files(self, bucket, sha1):
+        files = []
+        files = files + self._find_files_in_bucket(bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "bob", '.*(/bob.jar)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "editor", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "alpha", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "beta", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "stable", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
         return files
 
     def _get_single_release(self, version_tag, sha1):
@@ -1358,26 +1322,6 @@ class Configuration(object):
 </html>
 """
 
-        artifacts = """<?xml version='1.0' encoding='UTF-8'?>
-<?compositeArtifactRepository version='1.0.0'?>
-<repository name='"Defold"'
-    type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
-    version='1.0.0'>
-  <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
-  </children>
-</repository>"""
-
-        content = """<?xml version='1.0' encoding='UTF-8'?>
-<?compositeMetadataRepository version='1.0.0'?>
-<repository name='"Defold"'
-    type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
-    version='1.0.0'>
-  <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
-  </children>
-</repository>
-"""
         if self.exec_shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
@@ -1445,22 +1389,23 @@ class Configuration(object):
         key.set_contents_from_string(json.dumps({'version': self.version,
                                                  'sha1' : release_sha1}))
 
-        # Create redirection keys for editor
+        # Editor update-v3.json
+        key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.channel)
+        key_v3.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
+        key_v3.set_contents_from_string(json.dumps({'sha1': release_sha1}))
+
+        # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
+        # Used by www.defold.com/download
+        # For example;
+        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
         for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
-            key_name = '%s/%s' % (self.channel, name)
+            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
             redirect = '/archive/%s/%s/editor2/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
-        for name, template in [['compositeArtifacts.xml', artifacts], ['compositeContent.xml', content]]:
-            full_name = '%s/update/%s' % (self.channel, name)
-            self._log('Uploading %s' % full_name)
-            key = bucket.new_key(full_name)
-            key.content_type = 'text/xml'
-            key.set_contents_from_string(template % {'host': host,
-                                                     'sha1': release_sha1,
-                                                     'channel': self.channel})
 #
 # END: RELEASE
 # ------------------------------------------------------------

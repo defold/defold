@@ -7,6 +7,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +37,7 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -688,6 +690,22 @@ public class Project {
                     allSource.remove(src);
                 }
                 allSource.add(manifest);
+            }
+
+            boolean debugUploadZip = this.hasOption("debug-ne-upload");
+
+            if (debugUploadZip) {
+                File debugZip = new File(buildDir, "upload.zip");
+                ZipOutputStream zipOut = null;
+                try {
+                    zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
+                    ExtenderUtil.writeResourcesToZip(allSource, zipOut);
+                    System.out.printf("Wrote debug upload zip file to: %s", debugZip);
+                } catch (Exception e) {
+                    throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
+                } finally {
+                    zipOut.close();
+                }
             }
 
             // Located in the same place as the log file in the unpacked successful build

@@ -27,10 +27,15 @@ typedef uint16_t uint16_t_1_align;
 typedef uint32_t uint32_t_1_align;
 #endif
 
+// custom type when writing negative numbers as keys
+// the rest of the types used when serializing a table come from lua.h
+// make sure this type has a value quite a bit higher than the types in lua.h
+#define LUA_TNEGATIVENUMBER 64
+
 namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
-    const uint32_t TABLE_VERSION_CURRENT = 2;
+    const uint32_t TABLE_VERSION_CURRENT = 3;
 
     /*
      * Original table serialization format:
@@ -167,6 +172,7 @@ namespace dmScript
         case 0:
         case 1:
         case 2:
+        case 3:
             supported = true;
             break;
         default:
@@ -175,22 +181,34 @@ namespace dmScript
         return supported;
     }
 
-    static char* WriteEncodedNumber(lua_State* L, const TableHeader& header, char* buffer, const char* buffer_end)
+    static char* WriteEncodedIndex(lua_State* L, lua_Number index, const TableHeader& header, char* buffer, const char* buffer_end)
     {
         if (0 == header.m_Version)
         {
             if (buffer_end - buffer < 2)
                 luaL_error(L, "table too large");
-            lua_Number index = lua_tonumber(L, -2);
             if (index > 0xffff)
                 luaL_error(L, "index out of bounds, max is %d", 0xffff);
             uint16_t key = (uint16_t)index;
             *((uint16_t_1_align *)buffer) = key;
             buffer += 2;
         }
+        else if (3 == header.m_Version)
+        {
+            if (buffer_end - buffer < 4)
+                luaL_error(L, "table too large");
+            if (index < 0)
+                index = -index;
+            if (index > 0xffffffff)
+                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
+            uint32_t key = (uint32_t)index;
+            *buffer++ = (uint8_t)(key & 0xFF);
+            *buffer++ = (uint8_t)((key >> 8) & 0xFF);
+            *buffer++ = (uint8_t)((key >> 16) & 0xFF);
+            *buffer++ = (uint8_t)((key >> 24) & 0xFF);
+        }
         else
         {
-            lua_Number index = lua_tonumber(L, -2);
             if (index > 0xffffffff) {
                 luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
@@ -296,16 +314,18 @@ namespace dmScript
                 luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
             }
 
-            (*buffer++) = (char) key_type;
-            (*buffer++) = (char) value_type;
-
             if (key_type == LUA_TSTRING)
             {
+                (*buffer++) = (char) LUA_TSTRING;
+                (*buffer++) = (char) value_type;
                 buffer += SaveTSTRING(L, -2, buffer, buffer_size, buffer_end, count);
             }
             else if (key_type == LUA_TNUMBER)
             {
-                buffer = WriteEncodedNumber(L, header, buffer, buffer_end);
+                lua_Number key = lua_tonumber(L, -2);
+                (*buffer++) = (char) (key >= 0 ? LUA_TNUMBER : LUA_TNEGATIVENUMBER);
+                (*buffer++) = (char) value_type;
+                buffer = WriteEncodedIndex(L, key, header, buffer, buffer_end);
             }
 
             switch (value_type)
@@ -534,19 +554,45 @@ namespace dmScript
         return buffer;
     }
 
-    static const char* ReadEncodedNumber(lua_State* L, const TableHeader& header, const char* buffer)
+    static const char* ReadEncodedIndex(lua_State* L, char key_type, const TableHeader& header, const char* buffer)
     {
         if (0 == header.m_Version)
         {
+            if (key_type != LUA_TNUMBER)
+            {
+                luaL_error(L, "Unknown key type %d", key_type);
+            }
             lua_pushnumber(L, *((uint16_t_1_align *)buffer));
             buffer += 2;
         }
+        else if (3 == header.m_Version)
+        {
+            if (key_type != LUA_TNUMBER && key_type != LUA_TNEGATIVENUMBER)
+            {
+                luaL_error(L, "Unknown key type %d", key_type);
+            }
+            uint8_t b1 = (uint8_t)*buffer++;
+            uint8_t b2 = (uint8_t)*buffer++;
+            uint8_t b3 = (uint8_t)*buffer++;
+            uint8_t b4 = (uint8_t)*buffer++;
+            uint32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
+            lua_Number number = index;
+            if (key_type == LUA_TNEGATIVENUMBER)
+            {
+                number = -number;
+            }
+            lua_pushnumber(L, number);
+        }
         else
         {
-            uint32_t value;
-            if(DecodeMSB(value, buffer))
+            if (key_type != LUA_TNUMBER)
             {
-                lua_pushnumber(L, value);
+                luaL_error(L, "Unknown key type %d", key_type);
+            }
+            uint32_t index;
+            if(DecodeMSB(index, buffer))
+            {
+                lua_pushnumber(L, index);
             }
             else
             {
@@ -659,11 +705,11 @@ namespace dmScript
 
                 CHECK_PUSHTABLE_OOB("key string", logger, buffer, buffer_end, count, depth);
             }
-            else if (key_type == LUA_TNUMBER)
+            else if (key_type == LUA_TNUMBER || key_type == LUA_TNEGATIVENUMBER)
             {
                 PushTableLogString(logger, "KN");
 
-                buffer = ReadEncodedNumber(L, header, buffer);
+                buffer = ReadEncodedIndex(L, key_type, header, buffer);
                 CHECK_PUSHTABLE_OOB("key number", logger, buffer, buffer_end, count, depth);
             }
 
@@ -849,4 +895,3 @@ namespace dmScript
     }
 
 }
-

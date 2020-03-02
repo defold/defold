@@ -7,9 +7,9 @@
 * Start XCode
 * When asked, enable “Developer mode” on your mac
 * In Preferences -> Accounts
-    ** Add a new account, use your apple ID
-    ** You should now see account and that it’s a member of the Midasplayer team
-* You also need to set up a Provisional Profile. This is done in Xcode->Preferences->Accounts. "Team Midasplayer AB" should be visible in the list. Double-click and  a window should appear with IDs in the top half and Provisioning Profiles in the bottom half. Select the profile you want (e.g. "iOS Team Provision Profile: *". Use the downloaded profile when deploying to an iOS device.
+    ** Add a new account, use your Apple ID
+    ** You should now see the account and that its team membership
+* You also need to set up a Provisioning Profile. This is done in Xcode->Preferences->Accounts. Double-click and a window should appear with IDs in the top half and Provisioning Profiles in the bottom half. Select the profile you want (e.g. "iOS Team Provision Profile: *"). Use the downloaded profile when deploying to an iOS device.
 
 After installation of XCode (and each update!) you need to create a symbolic link to iOS sdk:
 
@@ -108,8 +108,7 @@ extract it properly!
 
 Upload package to S3:
 
-* Login in to sso.king.com
-* Click 'Amazon Web Services'
+* Login in to 'Amazon Web Services' using the Defold service account (see LastPass)
 * Click S3
 * Click 'defold-packages'
 * Upload package (default settings)

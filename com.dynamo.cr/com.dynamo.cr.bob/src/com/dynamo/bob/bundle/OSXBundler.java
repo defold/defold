@@ -28,7 +28,7 @@ public class OSXBundler implements IBundler {
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
         String name = projectProperties.getStringValue("osx", "app_icon");
-        if (name != null) {
+        if (name != null && name.trim().length() > 0) {
             File inFile = new File(projectRoot, name);
             File outFile = new File(resourcesDir, ICON_NAME);
             FileUtils.copyFile(inFile, outFile);
@@ -40,6 +40,8 @@ public class OSXBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Darwin;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
@@ -79,7 +81,7 @@ public class OSXBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 

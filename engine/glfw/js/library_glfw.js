@@ -35,6 +35,7 @@ var LibraryGLFW = {
     closeFunc: null,
     refreshFunc: null,
     focusFunc: null,
+    iconifyFunc: null,
     touchFunc: null,
     params: null,
     initTime: null,
@@ -294,8 +295,8 @@ var LibraryGLFW = {
         }
         // Audio is blocked by default in some browsers until a user performs an interaction,
         // so we need to try to resume it here (on mouse button up and touch end).
-        // We must also check that the sound device is not null since it could have been stripped
-        if (DefoldSoundDevice != null) {
+        // We must also check that the sound device hasn't been stripped
+        if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
             DefoldSoundDevice.TryResumeAudio();
         }
 
@@ -393,8 +394,8 @@ var LibraryGLFW = {
 
       // Audio is blocked by default in some browsers until a user performs an interaction,
       // so we need to try to resume it here (on mouse button up and touch end).
-      // We must also check that the sound device is not null since it could have been stripped
-      if (DefoldSoundDevice != null) {
+      // We must also check that the sound device hasn't been stripped
+      if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
           DefoldSoundDevice.TryResumeAudio();
       }
     },
@@ -655,8 +656,8 @@ var LibraryGLFW = {
 
   glfwOpenWindowHint: function(target, hint) {
     GLFW.params[target] = hint;
-    // if display._high_dpi flag is on in game.project 
-    // we get information about the current pixel ratio from browser 
+    // if display._high_dpi flag is on in game.project
+    // we get information about the current pixel ratio from browser
     if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
       if (hint != 0) {
         GLFW.dpi = window.devicePixelRatio || 1;
@@ -734,6 +735,10 @@ var LibraryGLFW = {
 
   glfwSetWindowFocusCallback: function(cbfun) {
     GLFW.focusFunc = cbfun;
+  },
+
+  glfwSetWindowIconifyCallback: function(cbfun) {
+    GLFW.iconifyFunc = cbfun;
   },
 
   /* Video mode functions */

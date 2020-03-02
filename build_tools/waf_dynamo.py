@@ -1629,11 +1629,6 @@ def configure(conf):
 
 old = Build.BuildContext.exec_command
 def exec_command(self, cmd, **kw):
-    if getattr(Options.options, 'eclipse', False):
-        if isinstance(cmd, list):
-            print >>sys.stderr, ' '.join(cmd)
-        else:
-            print >>sys.stderr, cmd
     return old(self, cmd, **kw)
 
 Build.BuildContext.exec_command = exec_command
@@ -1642,7 +1637,6 @@ def set_options(opt):
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
 
-    opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')

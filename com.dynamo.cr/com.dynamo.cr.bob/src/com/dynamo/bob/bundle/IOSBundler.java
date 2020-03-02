@@ -114,6 +114,27 @@ public class IOSBundler implements IBundler {
         return file.getPath();
     }
 
+    private void lipoBinaries(File resultFile, List<File> binaries)
+    throws IOException, CompileExceptionError {
+        String exe = resultFile.getPath();
+        List<String> lipoArgList = new ArrayList<String>();
+        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
+        lipoArgList.add("-create");
+        for (File bin : binaries) {
+            lipoArgList.add(bin.getAbsolutePath());
+        }
+        lipoArgList.add("-output");
+        lipoArgList.add(exe);
+
+        Result lipoResult = Exec.execResult(lipoArgList.toArray(new String[0]));
+        if (lipoResult.ret == 0) {
+            logger.log(Level.INFO, "Result of lipo command is a universal binary: " + getFileDescription(resultFile));
+        }
+        else {
+            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
+        }
+    }
+
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
@@ -121,25 +142,13 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        String tmpPlatform = project.option("platform", null);
-        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("x86_64-ios");
+        final Platform platform = Platform.Armv7Darwin;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
-        Map<String, IResource> bundleResources = null;
-        if (simulatorBinary) {
-            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.X86_64Ios);
-        } else {
-            // Collect bundle/package resources to be included in .App directory
-            bundleResources = ExtenderUtil.collectBundleResources(project, Platform.Arm64Darwin);
-        }
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
-
-        List<Platform> architectures = new ArrayList<Platform>();
-        String[] architecturesStrings = project.option("architectures", "").split(",");
-        for (int i = 0; i < architecturesStrings.length; i++) {
-            architectures.add(Platform.get(architecturesStrings[i]));
-        }
 
         // If a custom engine was built we need to copy it
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
@@ -291,22 +300,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Run lipo on supplied architecture binaries.
-        List<String> lipoArgList = new ArrayList<String>();
-        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
-        lipoArgList.add("-create");
-        for (File bin : binaries) {
-            lipoArgList.add(bin.getAbsolutePath());
-        }
-        lipoArgList.add("-output");
-        lipoArgList.add(exe);
-
-        Result lipoResult = Exec.execResult( lipoArgList.toArray(new String[0]) );
-        if (lipoResult.ret == 0) {
-            logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
-        }
-        else {
-            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
-        }
+        lipoBinaries(tmpFile, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
         // Strip executable
@@ -330,18 +324,33 @@ public class IOSBundler implements IBundler {
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
         // Copy debug symbols
-        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.Armv7Darwin.getExtenderPair());
-        File buildSymbols = new File(zipDir, "dmengine.dSYM");
-        if (buildSymbols.exists()) {
-            String symbolsDir = String.format("%s.dSYM", title);
+        // Create list of dSYM binaries
+        List<File> dSYMBinaries = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+            String zipDir = FilenameUtils.concat(extenderExeDir, architecture.getExtenderPair());
+            File buildSymbols = new File(zipDir, "dmengine.dSYM");
+            if (buildSymbols.exists()) {
+                dSYMBinaries.add(new File(buildSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine")))));
+            }
+        }
 
+        if (dSYMBinaries.size() > 0)
+        {
+            // Copy one of debug symbols and use it as result for lipo
+            String zipDir = FilenameUtils.concat(extenderExeDir, architectures.get(0).getExtenderPair());
+            File buildSymbols = new File(zipDir, "dmengine.dSYM");
+            String symbolsDir = String.format("%s.dSYM", title);
             File bundleSymbols = new File(bundleDir, symbolsDir);
             FileUtils.copyDirectory(buildSymbols, bundleSymbols);
-            // Also rename the executable
             File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
+
+            lipoBinaries(bundleExeOld, dSYMBinaries);
+            // Also rename the executable
             File symbolExe = new File(bundleExeOld.getParent(), destExecutable.getName());
             bundleExeOld.renameTo(symbolExe);
         }
+
+        BundleHelper.throwIfCanceled(canceled);
 
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
