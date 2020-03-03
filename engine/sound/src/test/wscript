@@ -130,47 +130,44 @@ def build(bld):
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = bld.path.ant_glob('**/*.ogg'))
 
-    extra_libs = ''
-    if 'web' not in bld.env['PLATFORM'] and 'win32' not in bld.env['PLATFORM']:
-        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo"]
-        extra_libs = ' TREMOLO'
-        use_tremolo = True
-    else:
+    soundlibs = []
+    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64']:
         exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis"]
-        use_tremolo = False
+    else:
+        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderTremolo"]
+        soundlibs.append('TREMOLO')
 
-    if use_tremolo:
-        test_sound_perf = bld.new_task_gen(features = 'cxx cprogram embed test',
-                                      includes = '../../../src .',
-                                      uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL CARES' + extra_libs ,
-                                      uselib_local = 'sound embedded_wavs embedded_oggs',
-                                      web_libs = ['library_sound.js'],
-                                      exported_symbols = exported_symbols,
-                                      target = 'test_sound_perf',
-                                      source = 'test_sound_perf.cpp')
-        test_sound_perf.install_path = None
+    if bld.env.PLATFORM in ['arm64-nx64']:
+        pass
+    else:
+        soundlibs.append('OPENAL')
 
-    test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
-                                  includes = '../../../src .',
-                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET OPENAL CARES' + extra_libs,
-                                  uselib_local = 'sound embedded_wavs embedded_oggs',
-                                  web_libs = ['library_sound.js'],
-                                  exported_symbols = exported_symbols,
-                                  target = 'test_sound',
-                                  source = 'test_sound.cpp')
+    if 'TREMOLO' in soundlibs:
+        bld.new_task_gen(features = 'cxx cprogram embed test',
+                          includes = '../../../src .',
+                          uselib = 'APP DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
+                          uselib_local = 'sound embedded_wavs embedded_oggs',
+                          web_libs = ['library_sound.js'],
+                          exported_symbols = exported_symbols,
+                          target = 'test_sound_perf',
+                          source = 'test_sound_perf.cpp')
 
-    test_sound.install_path = None
+    bld.new_task_gen(features = 'cxx cprogram embed test',
+                    includes = '../../../src .',
+                    uselib = 'APP DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
+                    uselib_local = 'sound embedded_wavs embedded_oggs',
+                    web_libs = ['library_sound.js'],
+                    exported_symbols = exported_symbols,
+                    target = 'test_sound',
+                    source = 'test_sound.cpp')
 
     # test that the linkage doesn't break again
     exported_symbols = 'NullSoundDevice TestNullDevice'
-    extra_libs = ''
-    test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
-                                  includes = '../../../src .',
-                                  uselib = 'DMGLFW DLIB PLATFORM_SOCKET CARES' + extra_libs,
-                                  uselib_local = 'sound_null embedded_wavs embedded_oggs',
-                                  web_libs = ['library_sound.js'],
-                                  exported_symbols = exported_symbols,
-                                  target = 'test_sound_null',
-                                  source = 'test_sound_null.cpp')
-
-    test_sound_null.install_path = None
+    bld.new_task_gen(features = 'cxx cprogram embed test',
+                    includes = '../../../src .',
+                    uselib = 'APP DLIB PLATFORM_SOCKET CARES',
+                    uselib_local = 'sound_null embedded_wavs embedded_oggs',
+                    web_libs = ['library_sound.js'],
+                    exported_symbols = exported_symbols,
+                    target = 'test_sound_null',
+                    source = 'test_sound_null.cpp')

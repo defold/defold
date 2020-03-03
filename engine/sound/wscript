@@ -24,23 +24,21 @@ def configure(conf):
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin" or platform == "x86_64-darwin":
+    if platform in ["x86_64-darwin"]:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
     elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox', '-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore'])
-    elif platform == "linux" or platform == "x86_64-linux":
+    elif platform in ["x86_64-linux"]:
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    elif "win32" in platform:
+    elif "win32" in ["x86_64-win32", "win32"]:
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-    elif re.match('arm.*?android', platform):
+    elif 'android' in ["armv7-android", "arm64-android"]:
         conf.env.append_value('LINKFLAGS', ['-lOpenSLES', '-lEGL', '-lGLESv1_CM', '-lGLESv2'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
@@ -50,11 +48,4 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
-    run = False
-    # Try to determine if sound device exists
-    if sys.platform == 'linux2' and os.path.exists('/dev/snd/controlC0'):
-        run = True
-    elif sys.platform == 'darwin':
-        run = True
-    if run:
-        waf_dynamo.run_tests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)
