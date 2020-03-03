@@ -310,76 +310,6 @@ static void LogFrameBufferError(GLenum status)
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
-    static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
-    {
-        const GLenum primitive_type_lut[] = {
-            GL_LINES,
-            GL_TRIANGLES,
-            GL_TRIANGLE_STRIP
-        };
-        return primitive_type_lut[prim_type];
-    }
-
-    static GLenum GetOpenGLType(Type type)
-    {
-        const GLenum type_lut[] = {
-            GL_BYTE,
-            GL_UNSIGNED_BYTE,
-            GL_SHORT,
-            GL_UNSIGNED_SHORT,
-            GL_INT,
-            GL_UNSIGNED_INT,
-            GL_FLOAT,
-            GL_FLOAT_VEC4,
-            GL_FLOAT_MAT4,
-            GL_SAMPLER_2D,
-            GL_SAMPLER_CUBE,
-        };
-        return type_lut[type];
-    }
-
-    static GLenum GetOpenGLTextureType(TextureType type)
-    {
-        const GLenum texture_type_lut[] = {
-            GL_TEXTURE_2D,
-            GL_TEXTURE_CUBE_MAP,
-        };
-
-        return texture_type_lut[type];
-    }
-
-    static Type GetGraphicsType(GLenum type)
-    {
-        switch(type)
-        {
-            case GL_BYTE:
-                return TYPE_BYTE;
-            case GL_UNSIGNED_BYTE:
-                return TYPE_UNSIGNED_BYTE;
-            case GL_SHORT:
-                return TYPE_SHORT;
-            case GL_UNSIGNED_SHORT:
-                return TYPE_UNSIGNED_SHORT;
-            case GL_INT:
-                return TYPE_INT;
-            case GL_UNSIGNED_INT:
-                return TYPE_UNSIGNED_INT;
-            case GL_FLOAT:
-                return TYPE_FLOAT;
-            case GL_FLOAT_VEC4:
-                return TYPE_FLOAT_VEC4;
-            case GL_FLOAT_MAT4:
-                return TYPE_FLOAT_MAT4;
-            case GL_SAMPLER_2D:
-                return TYPE_SAMPLER_2D;
-            case GL_SAMPLER_CUBE:
-                return TYPE_SAMPLER_CUBE;
-            default:break;
-        }
-
-        return (Type) -1;
-    }
-
     static bool OpenGLIsSupported()
     {
         return Initialize();
@@ -1052,11 +982,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glClearStencil(stencil);
         CHECK_GL_ERROR
 
-        GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR_BIT)   ? GL_COLOR_BUFFER_BIT : 0;
-        gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT : 0;
-        gl_flags           |= (flags & BUFFER_TYPE_STENCIL_BIT) ? GL_STENCIL_BUFFER_BIT : 0;
-
-        glClear(gl_flags);
+        glClear(flags);
         CHECK_GL_ERROR
     }
 
@@ -1076,23 +1002,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetSwapInterval(HContext context, uint32_t swap_interval)
     {
         glfwSwapInterval(swap_interval);
-    }
-
-    static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
-    {
-        GLenum buffer_usage_lut[] = {
-        #if !defined (GL_ARB_vertex_buffer_object)
-            0x88E0,
-            0x88E4,
-            0x88E8,
-        #else
-            GL_STREAM_DRAW,
-            GL_STATIC_DRAW,
-            GL_DYNAMIC_DRAW,
-        #endif
-        };
-
-        return buffer_usage_lut[buffer_usage];
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1120,7 +1029,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
-        glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
         CHECK_GL_ERROR
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
@@ -1163,7 +1072,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         DM_PROFILE(Graphics, "SetIndexBufferData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
-        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, buffer_usage);
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
@@ -1262,7 +1171,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glVertexAttribPointer(
                     vertex_declaration->m_Streams[i].m_LogicalIndex,
                     vertex_declaration->m_Streams[i].m_Size,
-                    GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
+                    vertex_declaration->m_Streams[i].m_Type,
                     vertex_declaration->m_Streams[i].m_Normalize,
                     vertex_declaration->m_Stride,
             BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
@@ -1323,7 +1232,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 glVertexAttribPointer(
                         vertex_declaration->m_Streams[i].m_PhysicalIndex,
                         vertex_declaration->m_Streams[i].m_Size,
-                        GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
+                        vertex_declaration->m_Streams[i].m_Type,
                         vertex_declaration->m_Streams[i].m_Normalize,
                         vertex_declaration->m_Stride,
                 BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
@@ -1353,6 +1262,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
@@ -1363,7 +1273,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
 
-        glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
+        glDrawElements(prim_type, count, type, (GLvoid*)(uintptr_t) first);
         CHECK_GL_ERROR
     }
 
@@ -1372,7 +1282,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         DM_PROFILE(Graphics, "Draw");
         DM_COUNTER("DrawCalls", 1);
-        glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
+        glDrawArrays(prim_type, first, count);
         CHECK_GL_ERROR
     }
 
@@ -1626,7 +1536,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLenum uniform_type;
         GLsizei uniform_name_length;
         glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
-        *type = (Type) GetGraphicsType(uniform_type);
+        *type = (Type) uniform_type;
         CHECK_GL_ERROR
         return (uint32_t)uniform_name_length;
     }
@@ -1973,52 +1883,20 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         delete texture;
     }
 
-    static GLenum GetOpenGLTextureFilter(TextureFilter filter)
-    {
-        const GLenum texture_filter_lut[] = {
-            0,
-            GL_LINEAR,
-            GL_NEAREST,
-            GL_NEAREST_MIPMAP_NEAREST,
-            GL_NEAREST_MIPMAP_LINEAR,
-            GL_LINEAR_MIPMAP_NEAREST,
-            GL_LINEAR_MIPMAP_LINEAR,
-        };
-
-        return texture_filter_lut[filter];
-    }
-
-    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
-    {
-        GLenum texture_wrap_lut[] = {
-        #ifndef GL_ARB_multitexture
-            0x812D,
-            0x812F,
-            0x8370,
-        #else
-            GL_CLAMP_TO_BORDER,
-            GL_CLAMP_TO_EDGE,
-            GL_MIRRORED_REPEAT,
-        #endif
-            GL_REPEAT,
-        };
-        return texture_wrap_lut[wrap];
-    }
-
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
-        GLenum type = GetOpenGLTextureType(texture->m_Type);
+        GLenum type = (GLenum) texture->m_Type;
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GetOpenGLTextureFilter(magfilter));
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
+        glTexParameteri(type, GL_TEXTURE_WRAP_S, uwrap);
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
+        glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
         CHECK_GL_ERROR
     }
 
@@ -2124,7 +2002,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        GLenum type = GetOpenGLTextureType(texture->m_Type);
+        GLenum type = (GLenum) texture->m_Type;
         glBindTexture(type, texture->m_Texture);
         CHECK_GL_ERROR
 
@@ -2140,7 +2018,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         GLenum gl_format;
-        GLenum gl_type = GL_UNSIGNED_BYTE;
+        GLenum gl_type = dmGraphics::TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format = -1;
         switch (params.m_Format)
@@ -2205,7 +2083,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             break;
         case TEXTURE_FORMAT_RGB32F:
-            gl_type = GL_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
             break;
@@ -2215,7 +2093,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
-            gl_type = GL_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
@@ -2225,7 +2103,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_R32F:
-            gl_type = GL_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
@@ -2235,7 +2113,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_RG32F:
-            gl_type = GL_FLOAT;
+            gl_type = dmGraphics::TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
@@ -2425,7 +2303,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
-        glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_Texture);
+        glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
         CHECK_GL_ERROR
 
         SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
@@ -2448,7 +2326,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
-        glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
+        glBindTexture((GLenum) texture->m_Type, 0);
         CHECK_GL_ERROR
     }
 
@@ -2463,30 +2341,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                      buffer);
     }
 
-    static GLenum GetOpenGLState(State state)
-    {
-        GLenum state_lut[] = {
-            GL_DEPTH_TEST,
-            GL_SCISSOR_TEST,
-            GL_STENCIL_TEST,
-        #if !defined(GL_ES_VERSION_2_0)
-            GL_ALPHA_TEST,
-        #else
-            0x0BC0,
-        #endif
-            GL_BLEND,
-            GL_CULL_FACE,
-            GL_POLYGON_OFFSET_FILL,
-        #if !defined(GL_ES_VERSION_2_0)
-            1,
-        #else
-            0,
-        #endif
-        };
-
-        return state_lut[state];
-    }
-
     static void OpenGLEnableState(HContext context, State state)
     {
         assert(context);
@@ -2497,7 +2351,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return;
         }
     #endif
-        glEnable(GetOpenGLState(state));
+        glEnable(state);
         CHECK_GL_ERROR
     }
 
@@ -2518,33 +2372,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
-
-        GLenum blend_factor_lut[] = {
-            GL_ZERO,
-            GL_ONE,
-            GL_SRC_COLOR,
-            GL_ONE_MINUS_SRC_COLOR,
-            GL_DST_COLOR,
-            GL_ONE_MINUS_DST_COLOR,
-            GL_SRC_ALPHA,
-            GL_ONE_MINUS_SRC_ALPHA,
-            GL_DST_ALPHA,
-            GL_ONE_MINUS_DST_ALPHA,
-            GL_SRC_ALPHA_SATURATE,
-        #if !defined (GL_ARB_imaging)
-            0x8001,
-            0x8002,
-            0x8003,
-            0x8004,
-        #else
-            GL_CONSTANT_COLOR,
-            GL_ONE_MINUS_CONSTANT_COLOR,
-            GL_CONSTANT_ALPHA,
-            GL_ONE_MINUS_CONSTANT_ALPHA,
-        #endif
-        };
-
-        glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
+        glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
         CHECK_GL_ERROR
     }
 
@@ -2562,26 +2390,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
-    static GLenum GetOpenGLCompareFunc(CompareFunc func)
-    {
-        GLenum func_lut[] = {
-            GL_NEVER,
-            GL_LESS,
-            GL_LEQUAL,
-            GL_GREATER,
-            GL_GEQUAL,
-            GL_EQUAL,
-            GL_NOTEQUAL,
-            GL_ALWAYS,
-        };
-
-        return func_lut[func];
-    }
-
     static void OpenGLSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
-        glDepthFunc(GetOpenGLCompareFunc(func));
+        glDepthFunc((GLenum) func);
         CHECK_GL_ERROR
     }
 
@@ -2602,39 +2414,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
+        glStencilFunc((GLenum) func, ref, mask);
         CHECK_GL_ERROR
     }
 
     static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-
-        GLenum stencil_op_lut[] = {
-            GL_KEEP,
-            GL_ZERO,
-            GL_REPLACE,
-            GL_INCR,
-            GL_INCR_WRAP,
-            GL_DECR,
-            GL_DECR_WRAP,
-            GL_INVERT,
-        };
-
-        glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
+        glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
         CHECK_GL_ERROR
     }
 
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
-        GLenum face_type_lut[] = {
-            GL_FRONT,
-            GL_BACK,
-            GL_FRONT_AND_BACK,
-        };
-
-        glCullFace(face_type_lut[face_type]);
+        glCullFace(face_type);
         CHECK_GL_ERROR
     }
 
