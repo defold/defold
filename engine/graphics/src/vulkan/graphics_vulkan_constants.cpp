@@ -81,10 +81,6 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_DECR_WRAP    = 6;
     const StencilOp STENCIL_OP_INVERT       = 7;
 
-    const PrimitiveType PRIMITIVE_LINES          = 0;
-    const PrimitiveType PRIMITIVE_TRIANGLES      = 1;
-    const PrimitiveType PRIMITIVE_TRIANGLE_STRIP = 2;
-
     const BufferUsage BUFFER_USAGE_STREAM_DRAW  = 0;
     const BufferUsage BUFFER_USAGE_STATIC_DRAW  = 1;
     const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW = 2;

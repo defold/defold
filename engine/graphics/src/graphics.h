@@ -57,10 +57,12 @@ namespace dmGraphics
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
     // primitive type
-    typedef uint32_t PrimitiveType;
-    extern const PrimitiveType PRIMITIVE_LINES;
-    extern const PrimitiveType PRIMITIVE_TRIANGLES;
-    extern const PrimitiveType PRIMITIVE_TRIANGLE_STRIP;
+    enum PrimitiveType
+    {
+        PRIMITIVE_LINES          = 0,
+        PRIMITIVE_TRIANGLES      = 1,
+        PRIMITIVE_TRIANGLE_STRIP = 2,
+    };
 
     // buffer clear types, each value is guaranteed to be separate bits
     typedef uint32_t BufferType;

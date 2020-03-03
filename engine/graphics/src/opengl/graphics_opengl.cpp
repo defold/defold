@@ -310,6 +310,16 @@ static void LogFrameBufferError(GLenum status)
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
+    static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
+    {
+        const GLenum primitive_type_lut[] = {
+            GL_LINES,
+            GL_TRIANGLES,
+            GL_TRIANGLE_STRIP
+        };
+        return primitive_type_lut[prim_type];
+    }
+
     static bool OpenGLIsSupported()
     {
         return Initialize();
@@ -1273,7 +1283,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
 
-        glDrawElements(prim_type, count, type, (GLvoid*)(uintptr_t) first);
+        glDrawElements(GetOpenGLPrimitiveType(prim_type), count, type, (GLvoid*)(uintptr_t) first);
         CHECK_GL_ERROR
     }
 
@@ -1282,7 +1292,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         DM_PROFILE(Graphics, "Draw");
         DM_COUNTER("DrawCalls", 1);
-        glDrawArrays(prim_type, first, count);
+        glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
         CHECK_GL_ERROR
     }
 
