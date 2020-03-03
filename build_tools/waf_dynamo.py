@@ -435,6 +435,11 @@ def osx_64_luajit(self):
 def asan_skip(self):
     self.skip_asan = True
 
+@feature('skip_test')
+@before('apply_core')
+def test_skip(self):
+    self.skip_test = True
+
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @before('apply_core')
 @after('skip_asan')
@@ -1209,6 +1214,9 @@ def run_tests(valgrind = False, configfile = None):
 
     for t in Build.bld.all_task_gen:
         if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
+            if getattr(t, 'skip_test', False):
+                continue
+
             output = t.path
             launch_pattern = '%s %s'
             if 'TEST_LAUNCH_PATTERN' in t.env:
