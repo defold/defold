@@ -103,7 +103,11 @@ TEST_F(LiveUpdate, TestAsync)
 
     ASSERT_TRUE(dmLiveUpdate::AddAsyncResourceRequest(request));
     while(!g_TestAsyncCallbackComplete)
+    {
         dmLiveUpdate::AsyncUpdate();
+
+        dmTime::Sleep(1000);
+    }
 
     dmLiveUpdate::AsyncFinalize();
 }
@@ -139,7 +143,11 @@ TEST_F(LiveUpdate, TestAsyncInvalidResource)
 
     ASSERT_TRUE(dmLiveUpdate::AddAsyncResourceRequest(request));
     while(!g_TestAsyncCallbackComplete)
+    {
         dmLiveUpdate::AsyncUpdate();
+
+        dmTime::Sleep(1000);
+    }
 
     dmLiveUpdate::AsyncFinalize();
 }
