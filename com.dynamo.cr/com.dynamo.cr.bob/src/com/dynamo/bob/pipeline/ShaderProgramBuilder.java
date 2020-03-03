@@ -468,6 +468,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
                 case Armv7Android:
                 case Arm64Android:
+                {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
                     ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
@@ -475,12 +476,26 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                     {
                         shaderDescBuilder.addShaders(builder);
                     }
+                }
                 break;
 
                 case JsWeb:
                 case WasmWeb:
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                 break;
+
+                case Arm64NX64:
+                {
+                    shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
+                    is.reset();
+                    ShaderDesc.Shader.Builder builder = compileGLSLToSPIRV(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                    if (builder != null)
+                    {
+                        shaderDescBuilder.addShaders(builder);
+                    }
+                }
+                break;
+
                 default:
                     System.err.println("Unsupported platform for shader program builder: " + platformKey);
                 break;

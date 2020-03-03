@@ -21,7 +21,8 @@ public enum Platform {
     Armv7Android("armv7", "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
     Arm64Android("arm64", "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "arm64-android"}, PlatformArchitectures.Android, "arm64-android"),
     JsWeb("js", "web", new String[] {".js"}, "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web"),
-    WasmWeb("wasm", "web", new String[] {".js", ".wasm"}, "", "lib", "", new String[] {"web", "wasm-web"}, PlatformArchitectures.Web, "wasm-web");
+    WasmWeb("wasm", "web", new String[] {".js", ".wasm"}, "", "lib", "", new String[] {"web", "wasm-web"}, PlatformArchitectures.Web, "wasm-web"),
+    Arm64NX64("arm64", "nx64", new String[] {".nsp"}, "", "lib", ".nso", new String[] {"nx64", "arm64-nx64"}, PlatformArchitectures.NX64, "arm64-nx64");
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
@@ -32,6 +33,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(armv7-darwin)|(arm64-darwin)|(x86_64-ios)$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^arm((v7)|(64))-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_SWITCH,  "^(arm64-nx64)$");
     }
 
 
