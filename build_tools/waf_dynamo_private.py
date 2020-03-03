@@ -237,6 +237,9 @@ def switch_make_app(self):
         if task.name in ['cxx_link', 'cc_link']:
             break
 
+    if task.hasrun:
+        return
+
     NINTENDO_SDK_ROOT = get_sdk_root()
     BUILDTARGET = 'NX-NXFP2-a64'
     BUILDTYPE = "Debug"
@@ -244,7 +247,7 @@ def switch_make_app(self):
     lib_paths = get_lib_paths(BUILDTYPE, BUILDTARGET)
     nss_files = []
     shared_libs = []
-    libs = self.uselib.split() if isinstance(type(self.uselib), str) else self.uselib
+    libs = Utils.to_list(self.uselib)
     for name in libs:
         key = 'SHLIB_%s' % name
         shlibs = getattr(self.env, key, [])
@@ -388,8 +391,14 @@ def supports_feature_nx(platform, feature, data):
     if feature in ['test_webserver']:
         return False
 
-    if feature in ['opengl', 'luajit', 'bullet3d']:
+    # until implemented
+    if feature in ['luajit', 'bullet3d']:
         return False
+
+    # we're not featuring these
+    if feature in ['openal', 'opengl']:
+        return False
+
     return True
 
 #*******************************************************************************************************

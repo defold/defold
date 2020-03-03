@@ -1671,6 +1671,12 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
     conf.env['STATICLIB_APP'] = ['app']
+
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
+
+    if build_util.get_target_os() in ['win32', 'darwin', 'android', 'linux', 'web']:
+        conf.env['STATICLIB_APP'].append('dmglfw')
+
     conf.env['STATICLIB_CARES'] = []
     if platform != 'web':
         conf.env['STATICLIB_CARES'].append('cares')
