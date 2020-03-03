@@ -992,7 +992,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glClearStencil(stencil);
         CHECK_GL_ERROR
 
-        glClear(flags);
+        GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR_BIT)   ? GL_COLOR_BUFFER_BIT : 0;
+        gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT : 0;
+        gl_flags           |= (flags & BUFFER_TYPE_STENCIL_BIT) ? GL_STENCIL_BUFFER_BIT : 0;
+
+        glClear(gl_flags);
         CHECK_GL_ERROR
     }
 

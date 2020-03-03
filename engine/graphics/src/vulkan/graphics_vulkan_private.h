@@ -425,7 +425,7 @@ namespace dmGraphics
     QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount);
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
     // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,

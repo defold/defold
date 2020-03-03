@@ -93,10 +93,6 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_DECR_WRAP    = GL_DECR_WRAP;
     const StencilOp STENCIL_OP_INVERT       = GL_INVERT;
 
-    const BufferType BUFFER_TYPE_COLOR_BIT       = GL_COLOR_BUFFER_BIT;
-    const BufferType BUFFER_TYPE_DEPTH_BIT       = GL_DEPTH_BUFFER_BIT;
-    const BufferType BUFFER_TYPE_STENCIL_BIT     = GL_STENCIL_BUFFER_BIT;
-
 #if !defined (GL_ARB_vertex_buffer_object)
     const BufferUsage BUFFER_USAGE_STREAM_DRAW  = 0x88E0;
     const BufferUsage BUFFER_USAGE_STATIC_DRAW  = 0x88E4;

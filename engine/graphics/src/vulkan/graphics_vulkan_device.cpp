@@ -176,21 +176,21 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount)
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
     {
         VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
 
-        if (bufferFlags & BUFFER_TYPE_COLOR_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_COLOR_BIT)
         {
             vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
         }
 
-        if (bufferFlags & BUFFER_TYPE_DEPTH_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_DEPTH_BIT)
         {
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferColorSampleCounts);
         }
 
-        if (bufferFlags & BUFFER_TYPE_STENCIL_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_STENCIL_BIT)
         {
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
         }

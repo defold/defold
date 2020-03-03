@@ -20,10 +20,6 @@ namespace dmGraphics
     const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 
 	// Missing VK equivalent (use increasing number)
-    const BufferType BUFFER_TYPE_COLOR_BIT       = 1;
-    const BufferType BUFFER_TYPE_DEPTH_BIT       = 2;
-    const BufferType BUFFER_TYPE_STENCIL_BIT     = 4;
-
     const State STATE_DEPTH_TEST                 = 4;
     const State STATE_SCISSOR_TEST               = 5;
     const State STATE_STENCIL_TEST               = 6;

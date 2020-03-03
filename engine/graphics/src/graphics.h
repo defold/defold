@@ -65,11 +65,13 @@ namespace dmGraphics
     };
 
     // buffer clear types, each value is guaranteed to be separate bits
-    typedef uint32_t BufferType;
-    extern const BufferType BUFFER_TYPE_COLOR_BIT;
-    extern const BufferType BUFFER_TYPE_DEPTH_BIT;
-    extern const BufferType BUFFER_TYPE_STENCIL_BIT;
-    static const BufferType MAX_BUFFER_TYPE_COUNT = 3;
+    enum BufferType
+    {
+        BUFFER_TYPE_COLOR_BIT   = 0x1,
+        BUFFER_TYPE_DEPTH_BIT   = 0x2,
+        BUFFER_TYPE_STENCIL_BIT = 0x4,
+        MAX_BUFFER_TYPE_COUNT   = 3,
+    };
 
     // render states
     typedef uint32_t State;
