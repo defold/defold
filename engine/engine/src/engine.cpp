@@ -65,6 +65,12 @@ extern uint32_t DEBUG_FPC_SIZE;
 
 using namespace Vectormath::Aos;
 
+#if defined(__NX__)
+    #define HOSTFS "host:/"
+#else
+    #define HOSTFS ""
+#endif
+
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
@@ -374,8 +380,8 @@ namespace dmEngine
             char* paths[] = { p1, p2, p3 };
             uint32_t count = 0;
 
-            dmStrlCpy(p1, "./game.projectc", sizeof(p1));
-            dmStrlCpy(p2, "build/default/game.projectc", sizeof(p2));
+            dmStrlCpy(p1, HOSTFS "game.projectc", sizeof(p1));
+            dmStrlCpy(p2, HOSTFS "build/default/game.projectc", sizeof(p2));
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
@@ -1031,7 +1037,7 @@ namespace dmEngine
 
         engine->m_LastReloadMTime = 0;
         struct stat file_stat;
-        if (stat("build/default/content/reload", &file_stat) == 0)
+        if (stat(HOSTFS "build/default/content/reload", &file_stat) == 0)
         {
             engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
         }
@@ -1185,6 +1191,7 @@ bail:
     {
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
 
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
@@ -1457,6 +1464,7 @@ bail:
     {
         engine->m_Alive = false;
         engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -1494,6 +1502,7 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
+    /*
     static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
@@ -1548,6 +1557,7 @@ bail:
         }
         return run_result.m_ExitCode;
     }
+    */
 
     void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
@@ -1788,31 +1798,29 @@ void dmEngineDestroy(dmEngine::HEngine engine)
     Delete(engine);
 }
 
-int dmEngineUpdate(dmEngine::HEngine engine)
+static dmApp::Result GetAppResultFromAction(int action)
+{
+    switch(action) {
+    case dmEngine::RunResult::REBOOT:   return dmApp::RESULT_REBOOT;
+    case dmEngine::RunResult::EXIT:     return dmApp::RESULT_EXIT;
+    default:                            return dmApp::RESULT_OK;
+    }
+}
+
+dmApp::Result dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
     {
         dmEngine::PerformStep(engine);
     }
 
-    if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
-    {
-        return 1;
-    }
-    else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
-    {
-        return -1;
-    }
-    else
-    {
-        return 0;
-    }
+    return GetAppResultFromAction(engine->m_RunResult.m_Action);
 }
 
 void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
 {
     if (run_action)
-        *run_action = engine->m_RunResult.m_Action;
+        *run_action = (int)GetAppResultFromAction(engine->m_RunResult.m_Action);
     if (exit_code)
         *exit_code = engine->m_RunResult.m_ExitCode;
 

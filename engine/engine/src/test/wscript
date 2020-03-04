@@ -12,7 +12,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB DMGLFW LIVEUPDATE CARES',
+        uselib = 'APP RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES',
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine engine_service',
         web_libs = ['library_sys.js', 'library_script.js'],
@@ -21,16 +21,15 @@ def build(bld):
         source = 'test_engine.cpp',
         target = 'test_engine')
 
-    obj.install_path = None
-
     # Psapi.lib is needed by ProfilerExt
-    if 'win32' in bld.env.BUILD_PLATFORM:
+    if 'win32' in bld.env.PLATFORM:
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
 
     bob_flags = []
+    bob_flags.append("--platform=%s" % bld.env.PLATFORM)
     if Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")
 

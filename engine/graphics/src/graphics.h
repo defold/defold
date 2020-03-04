@@ -692,14 +692,6 @@ namespace dmGraphics
         else
             return ~0u;
     }
-
-    /**
-     * Iterates the application loop until it should be terminated.
-     * @param user_data user data supplied to both the step and is running methods.
-     * @param stepMethod the method to be used when executing a single iteration of the application loop.
-     * @param isRunning the method used when determining whether iteration of the application loop should continue.
-     */
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
 }
 
 #endif // DM_GRAPHICS_H

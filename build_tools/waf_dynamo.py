@@ -1671,17 +1671,31 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
     conf.env['STATICLIB_APP'] = ['app']
+    if build_util.get_target_os() in ['win32', 'darwin', 'android', 'linux', 'web']:
+
+        if Options.options.with_vulkan:
+            conf.env['STATICLIB_APP'].append('dmglfw_vulkan')
+        else:
+            conf.env['STATICLIB_APP'].append('dmglfw')
 
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
-
-    if build_util.get_target_os() in ['win32', 'darwin', 'android', 'linux', 'web']:
-        conf.env['STATICLIB_APP'].append('dmglfw')
+    conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_CARES'] = []
-    if platform != 'web':
+    if platform not in ('js-web', 'wasm-web'):
         conf.env['STATICLIB_CARES'].append('cares')
     if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_CARES'].append('resolv')
+
+    conf.env['STATICLIB_CRASH'] = 'crashext'
+    conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'
+
+    if ('record' not in Options.options.disable_features) and platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin'):
+        conf.env['STATICLIB_RECORD'] = 'record vpx'
+    else:
+        Logs.info("record disabled")
+        conf.env['STATICLIB_RECORD'] = 'record_null'
+    conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
 def configure(conf):
     detect(conf)
