@@ -19,15 +19,6 @@ namespace dmGraphics
     const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE   = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 
-	// Missing VK equivalent (use increasing number)
-    const State STATE_DEPTH_TEST                 = 4;
-    const State STATE_SCISSOR_TEST               = 5;
-    const State STATE_STENCIL_TEST               = 6;
-    const State STATE_ALPHA_TEST                 = 7;
-    const State STATE_BLEND                      = 8;
-    const State STATE_CULL_FACE                  = 9;
-    const State STATE_POLYGON_OFFSET_FILL        = 10;
-
     const TextureType TEXTURE_TYPE_2D            = 11;
     const TextureType TEXTURE_TYPE_CUBE_MAP      = 12;
 

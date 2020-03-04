@@ -320,6 +320,31 @@ static void LogFrameBufferError(GLenum status)
         return primitive_type_lut[prim_type];
     }
 
+    static GLenum GetOpenGLState(State state)
+    {
+        GLenum state_lut[] = {
+            GL_DEPTH_TEST,
+            GL_SCISSOR_TEST,
+            GL_STENCIL_TEST,
+        #if !defined(GL_ES_VERSION_2_0)
+            GL_ALPHA_TEST,
+        #else
+            0x0BC0,
+        #endif
+            GL_BLEND,
+            GL_CULL_FACE,
+            GL_POLYGON_OFFSET_FILL,
+            // Alpha test enabled
+        #if !defined(GL_ES_VERSION_2_0)
+            1,
+        #else
+            0,
+        #endif
+        };
+
+        return state_lut[state];
+    }
+
     static bool OpenGLIsSupported()
     {
         return Initialize();
@@ -2365,7 +2390,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return;
         }
     #endif
-        glEnable(state);
+        glEnable(GetOpenGLState(state));
         CHECK_GL_ERROR
     }
 
@@ -2379,7 +2404,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return;
         }
     #endif
-        glDisable(state);
+        glDisable(GetOpenGLState(state));
         CHECK_GL_ERROR
     }
 

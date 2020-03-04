@@ -74,15 +74,17 @@ namespace dmGraphics
     };
 
     // render states
-    typedef uint32_t State;
-    extern const State STATE_DEPTH_TEST;
-    extern const State STATE_SCISSOR_TEST;
-    extern const State STATE_STENCIL_TEST;
-    extern const State STATE_ALPHA_TEST;
-    extern const State STATE_BLEND;
-    extern const State STATE_CULL_FACE;
-    extern const State STATE_POLYGON_OFFSET_FILL;
-    extern const bool  STATE_ALPHA_TEST_SUPPORTED;
+    enum State
+    {
+        STATE_DEPTH_TEST           = 0,
+        STATE_SCISSOR_TEST         = 1,
+        STATE_STENCIL_TEST         = 2,
+        STATE_ALPHA_TEST           = 3,
+        STATE_BLEND                = 4,
+        STATE_CULL_FACE            = 5,
+        STATE_POLYGON_OFFSET_FILL  = 6,
+        STATE_ALPHA_TEST_SUPPORTED = 7,
+    };
 
     // data types
     typedef uint32_t Type;
