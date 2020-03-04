@@ -55,12 +55,15 @@ def build(bld):
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
 
-    # Set graphics library to use (at some point both GL/VK should be used)
+    # Set graphics library to use
     graphics_libs = ['GRAPHICS']
-    exported_symbols.append('GraphicsAdapterOpenGL')
+    graphics_libs_symbols = 'GraphicsAdapterOpenGL'
     if Options.options.with_vulkan:
-        graphics_libs.append('GRAPHICS_VULKAN')
-        exported_symbols.append('GraphicsAdapterVulkan')
+        graphics_libs = ['GRAPHICS_VULKAN']
+        graphics_libs_symbols = 'GraphicsAdapterVulkan'
+
+    # To add both vulkan and opengl adapters, append both libraries symbols and libs
+    exported_symbols.append(graphics_libs_symbols)
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
