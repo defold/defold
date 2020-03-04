@@ -244,9 +244,18 @@ namespace dmGraphics
     {
         assert(context);
         if (context->m_WindowOpened)
-            return 0;
-        else
-            return 0;
+        {
+            switch(state) {
+            case WINDOW_STATE_OPENED:    return 1;
+            case WINDOW_STATE_ICONIFIED: return 0; // not supported
+            default:
+                {
+                    printf("UNKNOWN WINDOW STATE: %d\n", state);
+                    return 1;
+                }
+            }
+        }
+        return 0;
     }
 
     uint32_t GetWindowRefreshRate(HContext context)

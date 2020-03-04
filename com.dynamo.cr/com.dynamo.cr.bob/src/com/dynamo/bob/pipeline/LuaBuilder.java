@@ -45,7 +45,7 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
-    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.Arm64NX64));
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {

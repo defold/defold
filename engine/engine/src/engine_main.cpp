@@ -1,3 +1,4 @@
+#include <app/app.h>
 #include <dlib/dlib.h>
 #include <dlib/socket.h>
 #include <dlib/dns.h>
@@ -11,8 +12,9 @@
 #include "engine.h"
 #include "engine_version.h"
 
-int engine_main(int argc, char *argv[])
+static void AppCreate(void* _ctx)
 {
+    (void)_ctx;
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
 #if DM_RELEASE
@@ -28,30 +30,30 @@ int engine_main(int argc, char *argv[])
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmLogParams params;
     dmLogInitialize(&params);
+}
 
-    // Delay initialize the window and graphics context creation until the app has started
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-    int exit_code = 0;
-    dmGraphics::AppBootstrap(argc, argv,
-                (dmGraphics::EngineCreate) dmEngineCreate,
-                (dmGraphics::EngineDestroy) dmEngineDestroy,
-                (dmGraphics::EngineUpdate) dmEngineUpdate,
-                (dmGraphics::EngineGetResult) dmEngineGetResult);
-#else
-    if (!dmGraphics::Initialize())
-    {
-        dmLogError("Could not initialize graphics.");
-        return 0x0;
-    }
-
-    int exit_code = dmEngine::Launch(argc, argv, 0, 0, 0);
-#endif
-
+static void AppDestroy(void* _ctx)
+{
+    (void)_ctx;
     dmGraphics::Finalize();
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmDNS::Finalize();
     dmSocket::Finalize();
-    return exit_code;
+}
+
+int engine_main(int argc, char *argv[])
+{
+    dmApp::Params params;
+    params.m_Argc = argc;
+    params.m_Argv = argv;
+    params.m_AppCtx = 0;
+    params.m_AppCreate = AppCreate;
+    params.m_AppDestroy = AppDestroy;
+    params.m_EngineCreate = (dmApp::EngineCreate)dmEngineCreate;
+    params.m_EngineDestroy = (dmApp::EngineDestroy)dmEngineDestroy;
+    params.m_EngineUpdate = (dmApp::EngineUpdate)dmEngineUpdate;
+    params.m_EngineGetResult = (dmApp::EngineGetResult)dmEngineGetResult;
+    return dmApp::Run(&params);
 }

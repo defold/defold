@@ -142,9 +142,13 @@ def setup_vars_nx(conf, build_util):
     conf.env.program_PATTERN = '%s.nss'
     conf.env.bundle_PATTERN = '%s.nspd'
 
+    conf.env['SHLIB_VULKAN']    = ['vulkan', 'opengl']
+
     # Until we support cares
     conf.env['STATICLIB_CARES'] = []
-    conf.env['SHLIB_VULKAN']    = ['vulkan', 'opengl']
+
+    # Until we've implemented the crash module
+    conf.env['STATICLIB_CRASH'] = ['crashext_null']
 
 
 NX64_MANIFEST="""<?xml version="1.0"?>

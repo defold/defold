@@ -107,9 +107,6 @@ namespace dmEngineVersion
     elif 'web' in operating_sys:
         pass
 
-    conf.env['STATICLIB_CRASH'] = 'crashext'
-    conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
@@ -119,7 +116,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_GAMESYS'] = 'gamesys'
     conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_DMGLFW'] = glfw_lib
     conf.env['STATICLIB_GUI'] = 'gui'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_RIG'] = 'rig'
@@ -142,16 +138,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
-
-    if ('record' not in Options.options.disable_features) and operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
-        conf.env['STATICLIB_RECORD'] = 'record'
-        conf.env['LIB_VPX'] = 'vpx'
-    else:
-        Logs.info("record disabled")
-        conf.env['STATICLIB_RECORD'] = 'record_null'
-        conf.env['LIB_VPX'] = ''
-
-    conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
     if operating_sys == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
@@ -197,5 +183,4 @@ def build(bld):
 
 def shutdown():
     # unit tests disabled on win32 for now
-    if sys.platform != "win32":
-        waf_dynamo.run_tests(valgrind = True)
+    waf_dynamo.run_tests(valgrind = True)

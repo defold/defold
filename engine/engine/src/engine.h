@@ -1,16 +1,12 @@
 #ifndef DM_ENGINE_H
 #define DM_ENGINE_H
 
+#include <app/app.h>
 #include <stdint.h>
 
 namespace dmEngine
 {
     typedef struct Engine* HEngine;
-
-    typedef void (*PreRun)(HEngine engine, void* context);
-    typedef void (*PostRun)(HEngine engine, void* context);
-
-    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context);
 
     uint16_t GetHttpPort(HEngine engine);
     uint32_t GetFrameCount(HEngine engine);
@@ -26,7 +22,7 @@ void                dmEngineDestroy(dmEngine::HEngine engine);
  *   0: Valid for more updates
  * !=0: Engine want to exit or reboot
  */
-int                 dmEngineUpdate(dmEngine::HEngine engine);
+dmApp::Result      dmEngineUpdate(dmEngine::HEngine engine);
 
 /* Gets the result from the engine
  *      run_action: 0 == update, 1 == reboot, -1 == exit
