@@ -1301,11 +1301,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR(glBindBufferARB);
 
-        printf("MAWE: DrawElements:\n");
-        printf("MAWE: prim_type: %d\n", prim_type);
-        printf("MAWE: count: %u  %08x\n", count, count);
-        printf("MAWE: type: %d\n", type);
-        printf("MAWE: first: %u  %08x\n", first, first);
+        dmLogWarning("MAWE: DrawElements:\n");
+        dmLogWarning("MAWE: prim_type: %d\n", prim_type);
+        dmLogWarning("MAWE: count: %u  %08x\n", count, count);
+        dmLogWarning("MAWE: type: %d\n", type);
+        dmLogWarning("MAWE: first: %u  %08x\n", first, first);
 
         glDrawElements(prim_type, count, type, (GLvoid*)(uintptr_t) first);
         CHECK_GL_ERROR(glDrawElements);
