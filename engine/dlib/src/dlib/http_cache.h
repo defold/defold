@@ -1,6 +1,7 @@
 #ifndef DM_HTTP_CACHE_H
 #define DM_HTTP_CACHE_H
 
+#include <stdio.h>
 #include <dlib/uri.h>
 
 namespace dmHttpCache

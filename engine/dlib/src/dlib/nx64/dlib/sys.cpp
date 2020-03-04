@@ -97,9 +97,8 @@ namespace dmSys
 
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
     {
-        assert(path_len > 0);
-        path[0] = '\0';
-        dmPath::Dirname(argv[0], path, path_len);
+        if (dmStrlCpy(path, "data:/", path_len) >= path_len)
+            return RESULT_INVAL;
         return RESULT_OK;
     }
 
