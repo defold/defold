@@ -5,7 +5,7 @@
 #include "profile.h"
 #include "memprofile.h"
 
-#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__))
+#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__))
 
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -529,6 +529,6 @@ DM_DLLEXPORT void operator delete[](void* ptr)
     free(ptr);
 }
 
-#endif // _MSC_VER
+#endif // SUPPORTED?
 
 #endif

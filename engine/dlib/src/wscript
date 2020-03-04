@@ -102,7 +102,6 @@ def build(bld):
     lib_features = {
                     'CONDITIONVARIABLE':    os.path.join('dlib', 'condition_variable.cpp'),
                     'DNS':                  os.path.join('dlib', 'dns.cpp'),
-                    'MEMPROFILE':           os.path.join('dlib', 'memprofile.cpp'),
                     'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
                     'SYS':                  os.path.join('dlib', 'sys.cpp'),
                     'SOCKET':               os.path.join('dlib', 'socket.cpp'),
@@ -133,8 +132,6 @@ def build(bld):
         lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
 
     if is_platform_private(bld.env.PLATFORM):
-        del lib_features['MEMPROFILE'] # no support for "execinfo.h"
-
         # Until implemented
         #lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
         lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
