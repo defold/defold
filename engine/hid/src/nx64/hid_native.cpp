@@ -26,6 +26,9 @@ namespace dmHID
     struct NativeContext
     {
         nn::hid::TouchScreenState<nn::hid::TouchStateCountMax> m_PrevTouchState;
+        dmHID::Touch    m_SingleTouch;
+        uint8_t         m_SingleTouchPressed:1;
+        uint8_t         m_SingleTouchReleased:1;
     };
 
     static const nn::hid::NpadIdType g_NPadIDS[] = {
@@ -124,12 +127,8 @@ namespace dmHID
             for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
             {
                 Gamepad& gamepad = context->m_Gamepads[i];
+                memset(&gamepad, 0, sizeof(GamepadPacket));
                 gamepad.m_Index = i;
-                gamepad.m_Connected = 0;
-                gamepad.m_AxisCount = 0;
-                gamepad.m_ButtonCount = 0;
-                gamepad.m_HatCount = 0;
-                memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
             }
             return true;
         }
@@ -222,6 +221,8 @@ namespace dmHID
 
     void Update(HContext context)
     {
+        NativeContext* native_context = (NativeContext*)context->m_NativeContext;
+
         if (!context->m_IgnoreGamepads)
         {
             for (int i = 0; i < g_NumNPadIDS; ++i)
@@ -263,7 +264,6 @@ namespace dmHID
             TouchDevicePacket* packet = &context->m_TouchDevicePacket;
             packet->m_TouchCount = state.count;
 
-            NativeContext* native_context = (NativeContext*)context->m_NativeContext;
             nn::hid::TouchScreenState<nn::hid::TouchStateCountMax>* prev_state = &native_context->m_PrevTouchState;
 
             for (int i = 0; i < state.count; ++i)
@@ -279,6 +279,25 @@ namespace dmHID
                 packet->m_Touches[i].m_DX = prev_touch ? (touch->x - prev_touch->x) : 0;
                 packet->m_Touches[i].m_DY = prev_touch ? (touch->y - prev_touch->y) : 0;
 
+                if (prev_state->count == 0 && !native_context->m_SingleTouchPressed)
+                {
+                    // First frame
+                    native_context->m_SingleTouch = packet->m_Touches[i];
+                    native_context->m_SingleTouchPressed = 1;
+                }
+                else if (native_context->m_SingleTouchPressed)
+                {
+                    // Intermediate frames
+                    nn::hid::TouchState* t = FindFromFingerId(state.count, state.touches, native_context->m_SingleTouch.m_Id);
+                    if (t)
+                    {
+                        native_context->m_SingleTouch.m_DX = native_context->m_SingleTouch.m_X - t->x;
+                        native_context->m_SingleTouch.m_DY = native_context->m_SingleTouch.m_Y - t->y;
+                        native_context->m_SingleTouch.m_X = t->x;
+                        native_context->m_SingleTouch.m_Y = t->y;
+                    }
+                }
+
 /*
                 printf("packet: f: %d  x/y: %d, %d  dx/dy: %d, %d  phase: %d   prev: %p  x/y: %d, %d\n", packet->m_Touches[i].m_Id,
                         packet->m_Touches[i].m_X, packet->m_Touches[i].m_Y,
@@ -290,6 +309,7 @@ namespace dmHID
                 */
             }
 
+            // Since we don't get an event when a finger is released
             for (int pi = 0; pi < prev_state->count; ++pi)
             {
                 int i = state.count + pi;
@@ -310,6 +330,11 @@ namespace dmHID
                 packet->m_Touches[i].m_DX = 0;  // TODO: fix the delta from the previous known position
                 packet->m_Touches[i].m_DY = 0;
 
+                if (prev_touch->fingerId == native_context->m_SingleTouch.m_Id) {
+                    native_context->m_SingleTouchPressed = 0;
+                    native_context->m_SingleTouchReleased = 1;
+                }
+
 /*
                 printf("packet: f: %d  x/y: %d, %d  dx/dy: %d, %d  phase: %d\n", packet->m_Touches[i].m_Id,
                         packet->m_Touches[i].m_X, packet->m_Touches[i].m_Y,
@@ -323,30 +348,25 @@ namespace dmHID
             memcpy(&native_context->m_PrevTouchState, &state, sizeof(state));
         }
 
-        // Update keyboard
-        /*
-        if (!context->m_IgnoreKeyboard)
-        {
-            // TODO: Actually detect if the keyboard is present
-            context->m_KeyboardConnected = 1;
-            for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
-            {
-                uint32_t mask = 1;
-                mask <<= i % 32;
-                int key = glfwGetKey(i);
-                if (key == GLFW_PRESS)
-                    context->m_KeyboardPacket.m_Keys[i / 32] |= mask;
-                else
-                    context->m_KeyboardPacket.m_Keys[i / 32] &= ~mask;
-            }
-        }
-
-        // Update mouse
+        // Update mouse (since the single "touch" event is generated as a mouse event)
         if (!context->m_IgnoreMouse)
         {
-            // TODO: Actually detect if the keyboard is present, this is important for mouse input and touch input to not interfere
             context->m_MouseConnected = 1;
             MousePacket& packet = context->m_MousePacket;
+
+            if (native_context->m_SingleTouchPressed || native_context->m_SingleTouchReleased)
+            {
+                int i = dmHID::MOUSE_BUTTON_LEFT;
+                if (native_context->m_SingleTouchPressed)
+                    packet.m_Buttons[i / 32] |= 1 << (i % 32);
+                else
+                    packet.m_Buttons[i / 32] &= ~(1 << (i % 32));
+
+                packet.m_PositionX = native_context->m_SingleTouch.m_X;
+                packet.m_PositionY = native_context->m_SingleTouch.m_Y;
+                native_context->m_SingleTouchReleased = 0;
+            }
+            /*
             for (uint32_t i = 0; i < MAX_MOUSE_BUTTON_COUNT; ++i)
             {
                 uint32_t mask = 1;
@@ -364,6 +384,26 @@ namespace dmHID
             }
             packet.m_Wheel = wheel;
             glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
+            */
+        }
+
+
+        // Update keyboard
+        /*
+        if (!context->m_IgnoreKeyboard)
+        {
+            // TODO: Actually detect if the keyboard is present
+            context->m_KeyboardConnected = 1;
+            for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
+            {
+                uint32_t mask = 1;
+                mask <<= i % 32;
+                int key = glfwGetKey(i);
+                if (key == GLFW_PRESS)
+                    context->m_KeyboardPacket.m_Keys[i / 32] |= mask;
+                else
+                    context->m_KeyboardPacket.m_Keys[i / 32] &= ~mask;
+            }
         }
 
         if (!context->m_IgnoreAcceleration)
