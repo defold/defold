@@ -21,7 +21,9 @@ BASE_PLATFORMS = [  'x86_64-linux',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
                     'armv7-android', 'arm64-android',
-                    'js-web', 'wasm-web']
+                    'js-web', 'wasm-web',
+                    'arm64-nx64']
+
 try:
     import build_private
 except:
@@ -1047,7 +1049,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
+        platforms = BASE_PLATFORMS
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
