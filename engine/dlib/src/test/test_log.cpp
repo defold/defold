@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include "../dlib/array.h"
+#include "../dlib/dlib.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/dstrings.h"
@@ -80,9 +81,15 @@ TEST(dmLog, Client)
 
 TEST(dmLog, LogFile)
 {
+    if (!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    {
+        printf("Test disabled due to platform not supporting TCP");
+        return;
+    }
+
     char path[DMPATH_MAX_PATH];
     dmSys::GetLogPath(path, sizeof(path));
-    dmStrlCat(path, "/log.txt", sizeof(path));
+    dmStrlCat(path, "log.txt", sizeof(path));
 
     dmLogParams params;
     dmLogInitialize(&params);
@@ -93,10 +100,12 @@ TEST(dmLog, LogFile)
     char tmp[1024];
     FILE* f = fopen(path, "rb");
     ASSERT_NE((FILE*) 0, f);
-    fread(tmp, 1, sizeof(tmp), f);
-    ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
+    if (f) {
+        fread(tmp, 1, sizeof(tmp), f);
+        ASSERT_STREQ("TESTING LOG", tmp);
+        fclose(f);
+    }
     dmSys::Unlink(path);
-    fclose(f);
 }
 
 static void TestLogCaptureCallback(void* user_data, const char* log)
