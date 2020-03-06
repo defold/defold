@@ -13,8 +13,27 @@
 #include <nn/mem.h>
 #include <nn/fs.h>
 #include <nn/os.h>
+#include <nn/htc.h> // For host getenv
 
 extern "C" int main(int argc, char** argv);
+
+// TODO: Move the mount stuff to the actual App Create
+static char* GetEnv(const char* name)
+{
+    nn::htc::Initialize();
+
+    size_t readSize;
+    const size_t bufferSize = 64;
+    static char buffer[bufferSize];
+    if( nn::htc::GetEnvironmentVariable( &readSize, buffer, bufferSize, name ).IsSuccess() )
+    {
+        return buffer;
+    }
+
+    nn::htc::Finalize();
+
+    return getenv(name);
+}
 
 
 namespace {
@@ -108,7 +127,10 @@ extern "C" void nnMain()
     nn::fs::MountRom("data", mount_rom_cache_buffer, mount_rom_cache_size);
 
 	nn::fs::MountCacheStorage("fscache");
-	nn::fs::MountHost("host", ".");
+
+    bool has_host_mount = GetEnv("DM_MOUNT_HOST") != 0;
+    if (has_host_mount)
+        nn::fs::MountHost("host", ".");
 
     int r = main(nn::os::GetHostArgc(), nn::os::GetHostArgv());
     (void)r;

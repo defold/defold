@@ -16,10 +16,11 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
-#include <nn/oe.h> // language
+#include <nn/htc.h> // For host getenv
 #include <nn/fs.h>
 #include <nn/nifm.h>
 #include <nn/crypto.h>
+#include <nn/oe.h> // language
 #include <nn/account/account_Api.h>
 #include <nn/account/account_ApiForApplications.h>
 #include <nn/account/account_Result.h>
@@ -233,6 +234,26 @@ namespace dmSys
         if (nn::nifm::IsNetworkRequestOnHold())
             return NETWORK_DISCONNECTED;
         return nn::nifm::IsNetworkAvailable() ? NETWORK_CONNECTED : NETWORK_DISCONNECTED;
+    }
+
+    char* GetEnv(const char* name)
+    {
+        if (dLib::IsDebugMode())
+        {
+            nn::htc::Initialize();
+
+            size_t readSize;
+            const size_t bufferSize = 64;
+            static char buffer[bufferSize];
+            if( nn::htc::GetEnvironmentVariable( &readSize, buffer, bufferSize, name ).IsSuccess() )
+            {
+                return buffer;
+            }
+
+            nn::htc::Finalize();
+        }
+
+        return getenv(name);
     }
 
 
