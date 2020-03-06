@@ -120,23 +120,24 @@ extern "C" void nninitStartup()
 
 extern "C" void nnMain()
 {
+    bool has_host_mount = GetEnv("DM_MOUNT_HOST") != 0;
+    if (has_host_mount)
+        nn::fs::MountHost("host", ".");
+
 	// https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/index.html
     size_t mount_rom_cache_size = 0;
     nn::fs::QueryMountRomCacheSize(&mount_rom_cache_size);
     void* mount_rom_cache_buffer = malloc(mount_rom_cache_size);
     nn::fs::MountRom("data", mount_rom_cache_buffer, mount_rom_cache_size);
 
-	nn::fs::MountCacheStorage("fscache");
-
-    bool has_host_mount = GetEnv("DM_MOUNT_HOST") != 0;
-    if (has_host_mount)
-        nn::fs::MountHost("host", ".");
+	nn::fs::MountCacheStorage("cache");
 
     int r = main(nn::os::GetHostArgc(), nn::os::GetHostArgv());
     (void)r;
 
-    nn::fs::Unmount("fscache");
-    nn::fs::Unmount("host");
+    nn::fs::Unmount("cache");
     nn::fs::Unmount("data");
+    if (has_host_mount)
+        nn::fs::Unmount("host");
     free(mount_rom_cache_buffer);
 }

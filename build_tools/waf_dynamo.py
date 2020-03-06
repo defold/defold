@@ -1217,6 +1217,14 @@ def run_tests(valgrind = False, configfile = None):
             if getattr(t, 'skip_test', False):
                 continue
 
+            env = dict(os.environ)
+            merged_table = t.env.get_merged_dict()
+            keys=list(merged_table.keys())
+            for key in keys:
+                v = merged_table[key]
+                if isinstance(v, str):
+                    env[key] = v
+
             output = t.path
             launch_pattern = '%s %s'
             if 'TEST_LAUNCH_PATTERN' in t.env:
@@ -1239,7 +1247,7 @@ def run_tests(valgrind = False, configfile = None):
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-            proc = subprocess.Popen(cmd, shell = True)
+            proc = subprocess.Popen(cmd, shell = True, env = env)
             ret = proc.wait()
             if ret != 0:
                 print("test failed %s" %(t.target) )
