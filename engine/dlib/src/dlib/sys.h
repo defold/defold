@@ -206,7 +206,7 @@ namespace dmSys
      * OSX: ~/Library/Application Support/APPLICATION_NAME
      * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
      * Linux: ~/.APPLICATION_NAME
-     * Switch: fscache://
+     * Switch: cache://
      * @param application_name application name to get path for. This is the name of "your" application.
      * @param path path buffer
      * @param path_len path buffer length

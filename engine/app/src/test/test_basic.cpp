@@ -21,7 +21,7 @@ TEST(dmApp, malloc)
 TEST(dmApp, fopen)
 {
 	// Just to see that basic file mounts work
-	FILE* f = fopen("fscache://test.txt", "wb");
+	FILE* f = fopen("cache://test.txt", "wb");
     ASSERT_NE((FILE*)0, f);
     fclose(f);
 }
