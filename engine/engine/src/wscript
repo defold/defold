@@ -77,7 +77,7 @@ def build(bld):
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
     if 'arm64-nx64' in bld.env.PLATFORM:
-        sound_lib  = 'SOUND'
+        sound_lib  = 'SOUND_NULL'
     else:
         sound_lib = 'SOUND OPENAL'
 
