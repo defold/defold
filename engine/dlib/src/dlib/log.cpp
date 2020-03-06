@@ -323,7 +323,6 @@ static void CloseLogFile()
     if (g_LogFile) {
         fclose(g_LogFile);
         g_LogFile = 0;
-        printf("Closed logfile\n");
     }
 }
 
