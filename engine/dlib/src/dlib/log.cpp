@@ -318,10 +318,22 @@ void dmLogInitialize(const dmLogParams* params)
     dmLogInfo("Log server started on port %u", (unsigned int) port);
 }
 
+static void CloseLogFile()
+{
+    if (g_LogFile) {
+        fclose(g_LogFile);
+        g_LogFile = 0;
+        printf("Closed logfile\n");
+    }
+}
+
 void dmLogFinalize()
 {
     if (!g_dmLogServer)
+    {
+        CloseLogFile();
         return;
+    }
     dmLogServer* self = g_dmLogServer;
 
     dmLogMessage msg;
@@ -353,10 +365,7 @@ void dmLogFinalize()
 
     delete self;
     g_dmLogServer = 0;
-    if (g_LogFile) {
-        fclose(g_LogFile);
-        g_LogFile = 0;
-    }
+    CloseLogFile();
 }
 
 uint16_t dmLogGetPort()
