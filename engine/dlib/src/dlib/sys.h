@@ -363,6 +363,11 @@ namespace dmSys
     // private functions
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
     Result NativeToResult(int r);
+
+    /**
+     *
+     */
+    char* GetEnv(const char* name);
 }
 
 #endif

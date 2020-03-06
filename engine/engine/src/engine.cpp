@@ -65,12 +65,6 @@ extern uint32_t DEBUG_FPC_SIZE;
 
 using namespace Vectormath::Aos;
 
-#if defined(__NX__)
-    #define HOSTFS "host:/"
-#else
-    #define HOSTFS ""
-#endif
-
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
 // before the keyboard is brought up. This choice is stored as a
@@ -377,19 +371,27 @@ namespace dmEngine
             char p2[DMPATH_MAX_PATH];
             char p3[DMPATH_MAX_PATH];
             char tmp[DMPATH_MAX_PATH];
-            char* paths[] = { p1, p2, p3 };
+            char* paths[3];
             uint32_t count = 0;
 
-            dmStrlCpy(p1, HOSTFS "game.projectc", sizeof(p1));
-            dmStrlCpy(p2, HOSTFS "build/default/game.projectc", sizeof(p2));
+            bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+#if defined(__NX__)
+            // there's no way to check for a named mount, and it will assert
+            // So we'll only enter here if it's set on this platform
+            if (has_host_mount)
+#endif
+            {
+                const char* mountstr = has_host_mount ? "host:/" : "";
+                dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
+                dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
+                paths[count++] = p1;
+                paths[count++] = p2;
+            }
+
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
                 dmPath::Concat(tmp, "game.projectc", p3, sizeof(p3));
-                count = 3;
-            }
-            else
-            {
-                count = 2;
+                paths[count++] = p3;
             }
 
             for (uint32_t i = 0; i < count; ++i)
@@ -451,7 +453,7 @@ namespace dmEngine
         engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
-        char* qoe_s = getenv("DM_QUIT_ON_ESC");
+        char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
         char project_file[DMPATH_MAX_PATH];
@@ -918,6 +920,9 @@ namespace dmEngine
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
 
+        // Variables need to be declared up here due to the goto's
+        bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+
         fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
@@ -1036,10 +1041,21 @@ namespace dmEngine
         dmGameObject::Init(engine->m_MainCollection);
 
         engine->m_LastReloadMTime = 0;
-        struct stat file_stat;
-        if (stat(HOSTFS "build/default/content/reload", &file_stat) == 0)
+
+#if defined(__NX__)
+        // there's no way to check for a named mount, and it will assert
+        // So we'll only enter here if it's set on this platform
+        if (has_host_mount)
+#endif
         {
-            engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+            const char* mountstr = has_host_mount ? "host:/" : "";
+            char path[512];
+            dmSnPrintf(path, sizeof(path), "%sbuild/default/content/reload", mountstr);
+            struct stat file_stat;
+            if (stat(path, &file_stat) == 0)
+            {
+                engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
+            }
         }
 
         if (update_order)

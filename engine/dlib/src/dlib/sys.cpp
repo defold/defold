@@ -72,6 +72,11 @@ extern "C" const char* dmSysGetApplicationPath();
 
 namespace dmSys
 {
+    char* GetEnv(const char* name)
+    {
+        return getenv(name);
+    }
+
 #if defined(__ANDROID__)
 
     void SetNetworkConnectivityHost(const char* host) { }
