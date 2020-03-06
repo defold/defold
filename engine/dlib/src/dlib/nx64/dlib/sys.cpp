@@ -75,7 +75,7 @@ namespace dmSys
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         (void)application_name;
-        if (dmStrlCpy(path, "fscache:/", path_len) >= path_len)
+        if (dmStrlCpy(path, "cache:/", path_len) >= path_len)
             return RESULT_INVAL;
         return RESULT_OK;
     }
@@ -90,7 +90,7 @@ namespace dmSys
     // Default
     Result GetLogPath(char* path, uint32_t path_len)
     {
-        if (dmStrlCpy(path, "fscache:/", path_len) >= path_len)
+        if (dmStrlCpy(path, "cache:/", path_len) >= path_len)
             return RESULT_INVAL;
 
         return RESULT_OK;
