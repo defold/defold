@@ -25,8 +25,9 @@ BASE_PLATFORMS = [  'x86_64-linux',
                     'arm64-nx64']
 
 try:
+    sys.path.insert(0, os.path.dirname(__file__))
     import build_private
-except:
+except Exception, e:
     class build_private(object):
         @classmethod
         def get_target_platforms(cls):
@@ -38,7 +39,7 @@ except:
         def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the host
             return []
         @classmethod
-        def install_sdk(cls, platform): # Installs the sdk for the private platform
+        def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
             pass
         @classmethod
         def is_library_supported(cls, platform, library):
@@ -208,6 +209,15 @@ class Future(object):
         else:
             return self.result
 
+def download_sdk(conf, url, targetfolder, strip_components=1):
+    if not os.path.exists(targetfolder):
+        if not os.path.exists(os.path.dirname(targetfolder)):
+            os.makedirs(os.path.dirname(targetfolder))
+        dlpath = conf._download(url)
+        conf._extract_tgz_rename_folder(dlpath, targetfolder, strip_components)
+    else:
+        print "SDK already installed:", targetfolder
+
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
@@ -321,14 +331,17 @@ class Configuration(object):
             tf.extractall(path)
             tf.close()
 
-    def _extract_tgz_rename_folder(self, src, target_folder):
+    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        self.exec_env_command(['tar', 'xfz', src, '-C', dirname, '--strip-components', '1'])
+        cmd = ['tar', 'xfz', src, '-C', dirname]
+        if strip_components:
+            cmd.append(['--strip-components', '%d' % strip_components])
+        self.exec_env_command(cmd)
         os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
@@ -476,31 +489,26 @@ class Configuration(object):
         self.install_sdk()
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder):
-            if not os.path.exists(targetfolder):
-                if not os.path.exists(os.path.dirname(targetfolder)):
-                    os.makedirs(os.path.dirname(targetfolder))
-                dlpath = self._download(url)
-                self._extract_tgz_rename_folder(dlpath, targetfolder)
 
         sdkfolder = join(self.ext, 'SDKs')
+
 
         target_platform = self.target_platform
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform and not ('win32' in self.host):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
+            download_sdk(self,  '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk(self,  '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,  '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
@@ -511,11 +519,11 @@ class Configuration(object):
             elif 'linux' in host:
                 host = 'linux'
             # Android NDK
-            download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk('%s/%s-%s-android-29.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-29.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
-        build_private.install_sdk(target_platform)
+        build_private.install_sdk(self, target_platform)
 
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)

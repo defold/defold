@@ -47,7 +47,8 @@ def _set_defines(conf, flags):
 def setup_tools_nx(conf, build_util):
 
     # until we have the package on S3
-    NINTENDO_SDK_ROOT = os.environ['NINTENDO_SDK_ROOT']
+    #NINTENDO_SDK_ROOT = os.environ['NINTENDO_SDK_ROOT']
+    NINTENDO_SDK_ROOT = os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'nx64', 'nx64-sdk-10.1')
 
     # If the path isn't formatted ok, the gxx:init_cxx()->ccroot.get_cc_version will throw a very silent exception
     #  error: could not determine the compiler version ['C:NintendoSDKNintendoSDK/Compilers/NX/nx/aarch64/bin/clang++', '-dM', '-E', '-']
