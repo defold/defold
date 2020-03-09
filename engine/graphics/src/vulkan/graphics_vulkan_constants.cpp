@@ -3,17 +3,6 @@
 
 namespace dmGraphics
 {
-	// Matching VK_* Types
-    const Type TYPE_BYTE                           = VK_FORMAT_R8_SINT;
-    const Type TYPE_UNSIGNED_BYTE                  = VK_FORMAT_R8_UINT;
-    const Type TYPE_SHORT                          = VK_FORMAT_R16_SINT;
-    const Type TYPE_UNSIGNED_SHORT                 = VK_FORMAT_R16_UINT;
-    const Type TYPE_INT                            = VK_FORMAT_R32_SINT;
-    const Type TYPE_UNSIGNED_INT                   = VK_FORMAT_R32_UINT;
-    const Type TYPE_FLOAT                          = VK_FORMAT_R32_SFLOAT;
-    const Type TYPE_FLOAT_VEC4                     = VK_FORMAT_R32G32B32A32_SFLOAT;
-    const Type TYPE_FLOAT_MAT4                     = VK_FORMAT_R32G32B32A32_SFLOAT;
-
     const TextureWrap TEXTURE_WRAP_REPEAT          = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE   = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -21,9 +10,6 @@ namespace dmGraphics
 
     const TextureType TEXTURE_TYPE_2D            = 11;
     const TextureType TEXTURE_TYPE_CUBE_MAP      = 12;
-
-    const Type TYPE_SAMPLER_2D                   = 13;
-    const Type TYPE_SAMPLER_CUBE                 = 14;
 
     const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
     const TextureFilter TEXTURE_FILTER_NEAREST                = 1;

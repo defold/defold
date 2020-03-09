@@ -87,18 +87,20 @@ namespace dmGraphics
     };
 
     // data types
-    typedef uint32_t Type;
-    extern const Type TYPE_BYTE;
-    extern const Type TYPE_UNSIGNED_BYTE;
-    extern const Type TYPE_SHORT;
-    extern const Type TYPE_UNSIGNED_SHORT;
-    extern const Type TYPE_INT;
-    extern const Type TYPE_UNSIGNED_INT;
-    extern const Type TYPE_FLOAT;
-    extern const Type TYPE_FLOAT_VEC4;
-    extern const Type TYPE_FLOAT_MAT4;
-    extern const Type TYPE_SAMPLER_2D;
-    extern const Type TYPE_SAMPLER_CUBE;
+    enum Type
+    {
+        TYPE_BYTE           = 0,
+        TYPE_UNSIGNED_BYTE  = 1,
+        TYPE_SHORT          = 2,
+        TYPE_UNSIGNED_SHORT = 3,
+        TYPE_INT            = 4,
+        TYPE_UNSIGNED_INT   = 5,
+        TYPE_FLOAT          = 6,
+        TYPE_FLOAT_VEC4     = 7,
+        TYPE_FLOAT_MAT4     = 8,
+        TYPE_SAMPLER_2D     = 9,
+        TYPE_SAMPLER_CUBE   = 10,
+    };
 
     // Index buffer format
     enum IndexBufferFormat

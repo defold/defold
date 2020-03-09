@@ -3,18 +3,6 @@
 
 namespace dmGraphics
 {
-    const Type TYPE_BYTE           = GL_BYTE;
-    const Type TYPE_UNSIGNED_BYTE  = GL_UNSIGNED_BYTE;
-    const Type TYPE_SHORT          = GL_SHORT;
-    const Type TYPE_UNSIGNED_SHORT = GL_UNSIGNED_SHORT;
-    const Type TYPE_INT            = GL_INT;
-    const Type TYPE_UNSIGNED_INT   = GL_UNSIGNED_INT;
-    const Type TYPE_FLOAT          = GL_FLOAT;
-    const Type TYPE_FLOAT_VEC4     = GL_FLOAT_VEC4;
-    const Type TYPE_FLOAT_MAT4     = GL_FLOAT_MAT4;
-    const Type TYPE_SAMPLER_2D     = GL_SAMPLER_2D;
-    const Type TYPE_SAMPLER_CUBE   = GL_SAMPLER_CUBE;
-
     const TextureType TEXTURE_TYPE_2D       = GL_TEXTURE_2D;
     const TextureType TEXTURE_TYPE_CUBE_MAP = GL_TEXTURE_CUBE_MAP;
 

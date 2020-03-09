@@ -345,6 +345,56 @@ static void LogFrameBufferError(GLenum status)
         return state_lut[state];
     }
 
+    static GLenum GetOpenGLType(Type type)
+    {
+        const GLenum type_lut[] = {
+            GL_BYTE,
+            GL_UNSIGNED_BYTE,
+            GL_SHORT,
+            GL_UNSIGNED_SHORT,
+            GL_INT,
+            GL_UNSIGNED_INT,
+            GL_FLOAT,
+            GL_FLOAT_VEC4,
+            GL_FLOAT_MAT4,
+            GL_SAMPLER_2D,
+            GL_SAMPLER_CUBE,
+        };
+        return type_lut[type];
+    }
+
+    static Type GetGraphicsType(GLenum type)
+    {
+        switch(type)
+        {
+            case GL_BYTE:
+                return TYPE_BYTE;
+            case GL_UNSIGNED_BYTE:
+                return TYPE_UNSIGNED_BYTE;
+            case GL_SHORT:
+                return TYPE_SHORT;
+            case GL_UNSIGNED_SHORT:
+                return TYPE_UNSIGNED_SHORT;
+            case GL_INT:
+                return TYPE_INT;
+            case GL_UNSIGNED_INT:
+                return TYPE_UNSIGNED_INT;
+            case GL_FLOAT:
+                return TYPE_FLOAT;
+            case GL_FLOAT_VEC4:
+                return TYPE_FLOAT_VEC4;
+            case GL_FLOAT_MAT4:
+                return TYPE_FLOAT_MAT4;
+            case GL_SAMPLER_2D:
+                return TYPE_SAMPLER_2D;
+            case GL_SAMPLER_CUBE:
+                return TYPE_SAMPLER_CUBE;
+            default:break;
+        }
+
+        return (Type) -1;
+    }
+
     static bool OpenGLIsSupported()
     {
         return Initialize();
@@ -1210,7 +1260,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glVertexAttribPointer(
                     vertex_declaration->m_Streams[i].m_LogicalIndex,
                     vertex_declaration->m_Streams[i].m_Size,
-                    vertex_declaration->m_Streams[i].m_Type,
+                    GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
                     vertex_declaration->m_Streams[i].m_Normalize,
                     vertex_declaration->m_Stride,
             BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
@@ -1271,7 +1321,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 glVertexAttribPointer(
                         vertex_declaration->m_Streams[i].m_PhysicalIndex,
                         vertex_declaration->m_Streams[i].m_Size,
-                        vertex_declaration->m_Streams[i].m_Type,
+                        GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
                         vertex_declaration->m_Streams[i].m_Normalize,
                         vertex_declaration->m_Stride,
                 BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
@@ -1312,7 +1362,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
 
-        glDrawElements(GetOpenGLPrimitiveType(prim_type), count, type, (GLvoid*)(uintptr_t) first);
+        glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
         CHECK_GL_ERROR
     }
 
@@ -1575,7 +1625,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLenum uniform_type;
         GLsizei uniform_name_length;
         glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
-        *type = (Type) uniform_type;
+        *type = GetGraphicsType(uniform_type);
         CHECK_GL_ERROR
         return (uint32_t)uniform_name_length;
     }
@@ -2057,7 +2107,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         GLenum gl_format;
-        GLenum gl_type = dmGraphics::TYPE_UNSIGNED_BYTE;
+        GLenum gl_type = GL_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format = -1;
         switch (params.m_Format)
@@ -2122,7 +2172,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             break;
         case TEXTURE_FORMAT_RGB32F:
-            gl_type = dmGraphics::TYPE_FLOAT;
+            gl_type = GL_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
             break;
@@ -2132,7 +2182,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
-            gl_type = dmGraphics::TYPE_FLOAT;
+            gl_type = GL_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
@@ -2142,7 +2192,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_R32F:
-            gl_type = dmGraphics::TYPE_FLOAT;
+            gl_type = GL_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
@@ -2152,7 +2202,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_RG32F:
-            gl_type = dmGraphics::TYPE_FLOAT;
+            gl_type = GL_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
