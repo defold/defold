@@ -21,6 +21,7 @@ struct SoundDevice
 {
 
     nn::audio::AudioOut                 m_AudioOut;
+    nn::audio::AudioDeviceName          m_AudioDeviceName;
     nn::os::SystemEvent                 m_SystemEvent;
     dmArray<uint16_t*>                  m_Buffers;
     dmArray<nn::audio::AudioOutBuffer>  m_AudioOutBuffers;
@@ -48,6 +49,16 @@ const char* GetSampleFormatName(nn::audio::SampleFormat format)
         case nn::audio::SampleFormat_PcmFloat:  return "PcmFloat";
         default:                                return "Unknown";
     }
+}
+
+static void GetAudioDeviceName(dmSound::HDevice _device)
+{
+    SoundDevice* device = (SoundDevice*)_device;
+
+    nn::audio::GetActiveAudioDeviceName(&device->m_AudioDeviceName);
+
+    dmLogInfo("Device connected: %s", device->m_AudioDeviceName.name);
+
 }
 
 static dmSound::Result DeviceOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* _device)
@@ -86,6 +97,8 @@ static dmSound::Result DeviceOpen(const dmSound::OpenDeviceParams* params, dmSou
             "Failed to open AudioOut."
         );
     }
+
+    GetAudioDeviceName(device);
 
     // Get the audio output properties.
     int channelCount = nn::audio::GetAudioOutChannelCount(&device->m_AudioOut);
@@ -152,8 +165,6 @@ static void DeviceStop(dmSound::HDevice _device)
     }
 }
 
-static int frame = 0;
-
 static void DeviceClose(dmSound::HDevice _device)
 {
     SoundDevice* device = (SoundDevice*)_device;
@@ -191,11 +202,9 @@ static uint32_t DeviceFreeBufferSlots(dmSound::HDevice _device)
     SoundDevice* device = (SoundDevice*)_device;
 
     if (!device->m_SystemEvent.TryWait())
+    {
         return 0;
-
-    device->m_SystemEvent.Wait();
-
-    ++frame;
+    }
 
     // Store the free buffers for consumption
     nn::audio::AudioOutBuffer* pAudioOutBuffer = nn::audio::GetReleasedAudioOutBuffer(&device->m_AudioOut);
