@@ -9,7 +9,7 @@ from BuildUtility import BuildUtilityException, create_build_utility
 def _get_native_file(target_os, name):
     native_source = 'dlib/%s/dlib/%s' % (target_os, name)
     if not os.path.exists(os.path.join('src',native_source)):
-        native_source = name
+        native_source = 'dlib/%s' % name
     return native_source
 
 def set_options(opt):
