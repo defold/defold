@@ -14,17 +14,6 @@ namespace dmGraphics
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = GL_LINEAR_MIPMAP_NEAREST;
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = GL_LINEAR_MIPMAP_LINEAR;
 
-#ifndef GL_ARB_multitexture
-    const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER = 0x812D;
-    const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE   = 0x812F;
-    const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT = 0x8370;
-#else
-    const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER = GL_CLAMP_TO_BORDER;
-    const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE   = GL_CLAMP_TO_EDGE;
-    const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT = GL_MIRRORED_REPEAT;
-#endif
-    const TextureWrap TEXTURE_WRAP_REPEAT          = GL_REPEAT;
-
     const BlendFactor BLEND_FACTOR_ZERO                     = GL_ZERO;
     const BlendFactor BLEND_FACTOR_ONE                      = GL_ONE;
     const BlendFactor BLEND_FACTOR_SRC_COLOR                = GL_SRC_COLOR;

@@ -275,6 +275,17 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
+    static VkSamplerAddressMode GetVulkanSamplerAddressMode(TextureWrap wrap)
+    {
+        const VkSamplerAddressMode address_mode_lut[] = {
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+            VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        };
+        return address_mode_lut[wrap];
+    }
+
     static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
     {
         VkFilter             vk_mag_filter;
@@ -282,8 +293,8 @@ namespace dmGraphics
         VkSamplerMipmapMode  vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         // No conversions needed for wrap modes
         float max_lod                  = (float) maxLod;
-        VkSamplerAddressMode vk_wrap_u = (VkSamplerAddressMode) uwrap;
-        VkSamplerAddressMode vk_wrap_v = (VkSamplerAddressMode) vwrap;
+        VkSamplerAddressMode vk_wrap_u = GetVulkanSamplerAddressMode(uwrap);
+        VkSamplerAddressMode vk_wrap_v = GetVulkanSamplerAddressMode(vwrap);
 
         // Convert mag filter to Vulkan type
         if (magfilter == TEXTURE_FILTER_NEAREST)
@@ -663,7 +674,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1);
+        CreateTextureSampler(vk_device, context->m_TextureSamplers, VK_FILTER_LINEAR, VK_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
         return res;
     }

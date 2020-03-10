@@ -1972,6 +1972,23 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         delete texture;
     }
 
+    static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
+    {
+        GLenum texture_wrap_lut[] = {
+        #ifndef GL_ARB_multitexture
+            0x812D,
+            0x812F,
+            0x8370,
+        #else
+            GL_CLAMP_TO_BORDER,
+            GL_CLAMP_TO_EDGE,
+            GL_MIRRORED_REPEAT,
+        #endif
+            GL_REPEAT,
+        };
+        return texture_wrap_lut[wrap];
+    }
+
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
         GLenum type = (GLenum) texture->m_Type;
@@ -1982,10 +1999,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_S, uwrap);
+        glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
+        glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
     }
 

@@ -173,11 +173,13 @@ namespace dmGraphics
     extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
 
     // Texture wrap
-    typedef uint32_t TextureWrap;
-    extern const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER;
-    extern const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE;
-    extern const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT;
-    extern const TextureWrap TEXTURE_WRAP_REPEAT;
+    enum TextureWrap
+    {
+        TEXTURE_WRAP_CLAMP_TO_BORDER = 0,
+        TEXTURE_WRAP_CLAMP_TO_EDGE   = 1,
+        TEXTURE_WRAP_MIRRORED_REPEAT = 2,
+        TEXTURE_WRAP_REPEAT          = 3,
+    };
 
     // Blend factor
     typedef uint32_t BlendFactor;
