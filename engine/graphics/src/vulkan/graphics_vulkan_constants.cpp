@@ -14,15 +14,6 @@ namespace dmGraphics
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 5;
     const TextureFilter TEXTURE_FILTER_LINEAR                 = 6;
 
-    const CompareFunc COMPARE_FUNC_NEVER    = 0;
-    const CompareFunc COMPARE_FUNC_LESS     = 1;
-    const CompareFunc COMPARE_FUNC_LEQUAL   = 2;
-    const CompareFunc COMPARE_FUNC_GREATER  = 3;
-    const CompareFunc COMPARE_FUNC_GEQUAL   = 4;
-    const CompareFunc COMPARE_FUNC_EQUAL    = 5;
-    const CompareFunc COMPARE_FUNC_NOTEQUAL = 6;
-    const CompareFunc COMPARE_FUNC_ALWAYS   = 7;
-
     const StencilOp STENCIL_OP_KEEP         = 0;
     const StencilOp STENCIL_OP_ZERO         = 1;
     const StencilOp STENCIL_OP_REPLACE      = 2;

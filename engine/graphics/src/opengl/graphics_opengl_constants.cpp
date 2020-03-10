@@ -14,15 +14,6 @@ namespace dmGraphics
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = GL_LINEAR_MIPMAP_NEAREST;
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = GL_LINEAR_MIPMAP_LINEAR;
 
-    const CompareFunc COMPARE_FUNC_NEVER    = GL_NEVER;
-    const CompareFunc COMPARE_FUNC_LESS     = GL_LESS;
-    const CompareFunc COMPARE_FUNC_LEQUAL   = GL_LEQUAL;
-    const CompareFunc COMPARE_FUNC_GREATER  = GL_GREATER;
-    const CompareFunc COMPARE_FUNC_GEQUAL   = GL_GEQUAL;
-    const CompareFunc COMPARE_FUNC_EQUAL    = GL_EQUAL;
-    const CompareFunc COMPARE_FUNC_NOTEQUAL = GL_NOTEQUAL;
-    const CompareFunc COMPARE_FUNC_ALWAYS   = GL_ALWAYS;
-
     const StencilOp STENCIL_OP_KEEP         = GL_KEEP;
     const StencilOp STENCIL_OP_ZERO         = GL_ZERO;
     const StencilOp STENCIL_OP_REPLACE      = GL_REPLACE;

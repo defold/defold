@@ -2521,10 +2521,26 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    static GLenum GetOpenGLCompareFunc(CompareFunc func)
+    {
+        GLenum func_lut[] = {
+            GL_NEVER,
+            GL_LESS,
+            GL_LEQUAL,
+            GL_GREATER,
+            GL_GEQUAL,
+            GL_EQUAL,
+            GL_NOTEQUAL,
+            GL_ALWAYS,
+        };
+
+        return func_lut[func];
+    }
+
     static void OpenGLSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
-        glDepthFunc((GLenum) func);
+        glDepthFunc(GetOpenGLCompareFunc(func));
         CHECK_GL_ERROR
     }
 
@@ -2545,7 +2561,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        glStencilFunc((GLenum) func, ref, mask);
+        glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
     }
 
