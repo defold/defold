@@ -1093,6 +1093,23 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwSwapInterval(swap_interval);
     }
 
+    static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
+    {
+        const GLenum buffer_usage_lut[] = {
+        #if !defined (GL_ARB_vertex_buffer_object)
+            0x88E0,
+            0x88E4,
+            0x88E8,
+        #else
+            GL_STREAM_DRAW,
+            GL_STATIC_DRAW,
+            GL_DYNAMIC_DRAW,
+        #endif
+        };
+
+        return buffer_usage_lut[buffer_usage];
+    }
+
     static HVertexBuffer OpenGLNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
@@ -1118,7 +1135,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
-        glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
+        glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
@@ -1140,12 +1157,23 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return context->m_MaxElementVertices;
     }
 
+    static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        DM_PROFILE(Graphics, "SetIndexBufferData");
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        CHECK_GL_ERROR
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
+        CHECK_GL_ERROR
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+        CHECK_GL_ERROR
+    }
+
     static HIndexBuffer OpenGLNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
         CHECK_GL_ERROR
-        SetIndexBufferData(buffer, size, data, buffer_usage);
+        OpenGLSetIndexBufferData(buffer, size, data, buffer_usage);
         return buffer;
     }
 
@@ -1153,17 +1181,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
-        CHECK_GL_ERROR
-    }
-
-    static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
-    {
-        DM_PROFILE(Graphics, "SetIndexBufferData");
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, buffer_usage);
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
     }
 

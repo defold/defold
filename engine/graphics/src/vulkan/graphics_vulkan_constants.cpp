@@ -23,9 +23,6 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_DECR_WRAP    = 6;
     const StencilOp STENCIL_OP_INVERT       = 7;
 
-    const BufferUsage BUFFER_USAGE_STREAM_DRAW  = 0;
-    const BufferUsage BUFFER_USAGE_STATIC_DRAW  = 1;
-    const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW = 2;
     const BufferAccess BUFFER_ACCESS_READ_ONLY  = 3;
     const BufferAccess BUFFER_ACCESS_WRITE_ONLY = 4;
     const BufferAccess BUFFER_ACCESS_READ_WRITE = 5;

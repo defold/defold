@@ -24,16 +24,10 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_INVERT       = GL_INVERT;
 
 #if !defined (GL_ARB_vertex_buffer_object)
-    const BufferUsage BUFFER_USAGE_STREAM_DRAW  = 0x88E0;
-    const BufferUsage BUFFER_USAGE_STATIC_DRAW  = 0x88E4;
-    const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW = 0x88E8;
     const BufferAccess BUFFER_ACCESS_READ_ONLY  = 0x88B8;
     const BufferAccess BUFFER_ACCESS_WRITE_ONLY = 0x88B9;
     const BufferAccess BUFFER_ACCESS_READ_WRITE = 0x88BA;
 #else
-    const BufferUsage BUFFER_USAGE_STREAM_DRAW  = GL_STREAM_DRAW;
-    const BufferUsage BUFFER_USAGE_STATIC_DRAW  = GL_STATIC_DRAW;
-    const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW = GL_DYNAMIC_DRAW;
     const BufferAccess BUFFER_ACCESS_READ_ONLY  = GL_READ_ONLY;
     const BufferAccess BUFFER_ACCESS_WRITE_ONLY = GL_WRITE_ONLY;
     const BufferAccess BUFFER_ACCESS_READ_WRITE = GL_READ_WRITE;

@@ -226,10 +226,12 @@ namespace dmGraphics
     extern const StencilOp STENCIL_OP_INVERT;
 
     // Buffer usage
-    typedef uint32_t BufferUsage;
-    extern const BufferUsage BUFFER_USAGE_STREAM_DRAW;
-    extern const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW;
-    extern const BufferUsage BUFFER_USAGE_STATIC_DRAW;
+    enum BufferUsage
+    {
+        BUFFER_USAGE_STREAM_DRAW  = 0,
+        BUFFER_USAGE_DYNAMIC_DRAW = 1,
+        BUFFER_USAGE_STATIC_DRAW  = 2,
+    };
 
     // Buffer access
     typedef uint32_t BufferAccess;
