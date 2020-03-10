@@ -2478,7 +2478,32 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
-        glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
+        GLenum blend_factor_lut[] = {
+            GL_ZERO,
+            GL_ONE,
+            GL_SRC_COLOR,
+            GL_ONE_MINUS_SRC_COLOR,
+            GL_DST_COLOR,
+            GL_ONE_MINUS_DST_COLOR,
+            GL_SRC_ALPHA,
+            GL_ONE_MINUS_SRC_ALPHA,
+            GL_DST_ALPHA,
+            GL_ONE_MINUS_DST_ALPHA,
+            GL_SRC_ALPHA_SATURATE,
+        #if !defined (GL_ARB_imaging)
+            0x8001,
+            0x8002,
+            0x8003,
+            0x8004,
+        #else
+            GL_CONSTANT_COLOR,
+            GL_ONE_MINUS_CONSTANT_COLOR,
+            GL_CONSTANT_ALPHA,
+            GL_ONE_MINUS_CONSTANT_ALPHA,
+        #endif
+        };
+
+        glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
         CHECK_GL_ERROR
     }
 

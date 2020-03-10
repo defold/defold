@@ -14,23 +14,6 @@ namespace dmGraphics
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 5;
     const TextureFilter TEXTURE_FILTER_LINEAR                 = 6;
 
-    // Lookup table types
-    const BlendFactor BLEND_FACTOR_ZERO                     = 0;
-    const BlendFactor BLEND_FACTOR_ONE                      = 1;
-    const BlendFactor BLEND_FACTOR_SRC_COLOR                = 2;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_COLOR      = 3;
-    const BlendFactor BLEND_FACTOR_DST_COLOR                = 4;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_COLOR      = 5;
-    const BlendFactor BLEND_FACTOR_SRC_ALPHA                = 6;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_ALPHA      = 7;
-    const BlendFactor BLEND_FACTOR_DST_ALPHA                = 8;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_ALPHA      = 9;
-    const BlendFactor BLEND_FACTOR_SRC_ALPHA_SATURATE       = 10;
-    const BlendFactor BLEND_FACTOR_CONSTANT_COLOR           = 11;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12;
-    const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA           = 13;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14;
-
     const CompareFunc COMPARE_FUNC_NEVER    = 0;
     const CompareFunc COMPARE_FUNC_LESS     = 1;
     const CompareFunc COMPARE_FUNC_LEQUAL   = 2;

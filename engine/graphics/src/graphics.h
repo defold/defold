@@ -182,22 +182,24 @@ namespace dmGraphics
     };
 
     // Blend factor
-    typedef uint32_t BlendFactor;
-    extern const BlendFactor BLEND_FACTOR_ZERO;
-    extern const BlendFactor BLEND_FACTOR_ONE;
-    extern const BlendFactor BLEND_FACTOR_SRC_COLOR;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-    extern const BlendFactor BLEND_FACTOR_DST_COLOR;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-    extern const BlendFactor BLEND_FACTOR_SRC_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_DST_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_SRC_ALPHA_SATURATE;
-    extern const BlendFactor BLEND_FACTOR_CONSTANT_COLOR;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-    extern const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    enum BlendFactor
+    {
+        BLEND_FACTOR_ZERO                     = 0,
+        BLEND_FACTOR_ONE                      = 1,
+        BLEND_FACTOR_SRC_COLOR                = 2,
+        BLEND_FACTOR_ONE_MINUS_SRC_COLOR      = 3,
+        BLEND_FACTOR_DST_COLOR                = 4,
+        BLEND_FACTOR_ONE_MINUS_DST_COLOR      = 5,
+        BLEND_FACTOR_SRC_ALPHA                = 6,
+        BLEND_FACTOR_ONE_MINUS_SRC_ALPHA      = 7,
+        BLEND_FACTOR_DST_ALPHA                = 8,
+        BLEND_FACTOR_ONE_MINUS_DST_ALPHA      = 9,
+        BLEND_FACTOR_SRC_ALPHA_SATURATE       = 10,
+        BLEND_FACTOR_CONSTANT_COLOR           = 11,
+        BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12,
+        BLEND_FACTOR_CONSTANT_ALPHA           = 13,
+        BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
+    };
 
     // Compare func
     typedef uint32_t CompareFunc;

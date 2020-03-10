@@ -14,30 +14,6 @@ namespace dmGraphics
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = GL_LINEAR_MIPMAP_NEAREST;
     const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = GL_LINEAR_MIPMAP_LINEAR;
 
-    const BlendFactor BLEND_FACTOR_ZERO                     = GL_ZERO;
-    const BlendFactor BLEND_FACTOR_ONE                      = GL_ONE;
-    const BlendFactor BLEND_FACTOR_SRC_COLOR                = GL_SRC_COLOR;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_COLOR      = GL_ONE_MINUS_SRC_COLOR;
-    const BlendFactor BLEND_FACTOR_DST_COLOR                = GL_DST_COLOR;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_COLOR      = GL_ONE_MINUS_DST_COLOR;
-    const BlendFactor BLEND_FACTOR_SRC_ALPHA                = GL_SRC_ALPHA;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_ALPHA      = GL_ONE_MINUS_SRC_ALPHA;
-    const BlendFactor BLEND_FACTOR_DST_ALPHA                = GL_DST_ALPHA;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_ALPHA      = GL_ONE_MINUS_DST_ALPHA;
-    const BlendFactor BLEND_FACTOR_SRC_ALPHA_SATURATE       = GL_SRC_ALPHA_SATURATE;
-
-#if !defined (GL_ARB_imaging)
-    const BlendFactor BLEND_FACTOR_CONSTANT_COLOR           = 0x8001;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 0x8002;
-    const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA           = 0x8003;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 0x8004;
-#else
-    const BlendFactor BLEND_FACTOR_CONSTANT_COLOR           = GL_CONSTANT_COLOR;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = GL_ONE_MINUS_CONSTANT_COLOR;
-    const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA           = GL_CONSTANT_ALPHA;
-    const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = GL_ONE_MINUS_CONSTANT_ALPHA;
-#endif
-
     const CompareFunc COMPARE_FUNC_NEVER    = GL_NEVER;
     const CompareFunc COMPARE_FUNC_LESS     = GL_LESS;
     const CompareFunc COMPARE_FUNC_LEQUAL   = GL_LEQUAL;
