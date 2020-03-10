@@ -892,73 +892,76 @@ void _glfwPlatformSwapInterval( int interval )
 //========================================================================
 // Write back window parameters into GLFW window structure
 //========================================================================
+void _glfwPlatformRefreshWindowParamsOpenGL( void )
+{
+    GLint value;
+
+    // Since GLFW 2.x doesn't understand screens, we use virtual screen zero
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAAccelerated
+                   forVirtualScreen:0];
+    _glfwWin.accelerated = value;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAAlphaSize
+                   forVirtualScreen:0];
+    _glfwWin.alphaBits = value;
+
+    // It seems that the color size includes the size of the alpha channel
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAColorSize
+                   forVirtualScreen:0];
+    value -= _glfwWin.alphaBits;
+    _glfwWin.redBits = value / 3;
+    _glfwWin.greenBits = value / 3;
+    _glfwWin.blueBits = value / 3;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFADepthSize
+                   forVirtualScreen:0];
+    _glfwWin.depthBits = value;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAStencilSize
+                   forVirtualScreen:0];
+    _glfwWin.stencilBits = value;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAAccumSize
+                   forVirtualScreen:0];
+    _glfwWin.accumRedBits = value / 3;
+    _glfwWin.accumGreenBits = value / 3;
+    _glfwWin.accumBlueBits = value / 3;
+
+    // TODO: Figure out what to set this value to
+    _glfwWin.accumAlphaBits = 0;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAAuxBuffers
+                   forVirtualScreen:0];
+    _glfwWin.auxBuffers = value;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFAStereo
+                   forVirtualScreen:0];
+    _glfwWin.stereo = value;
+
+    [_glfwWin.pixelFormat getValues:&value
+                       forAttribute:NSOpenGLPFASamples
+                   forVirtualScreen:0];
+    _glfwWin.samples = value;
+
+    // These are forced to false as long as Mac OS X lacks support for OpenGL 3.0+
+    _glfwWin.glForward = GL_FALSE;
+    _glfwWin.glDebug = GL_FALSE;
+    _glfwWin.glProfile = 0;
+}
 
 void _glfwPlatformRefreshWindowParams( void )
 {
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
-        GLint value;
-
-        // Since GLFW 2.x doesn't understand screens, we use virtual screen zero
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAAccelerated
-                       forVirtualScreen:0];
-        _glfwWin.accelerated = value;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAAlphaSize
-                       forVirtualScreen:0];
-        _glfwWin.alphaBits = value;
-
-        // It seems that the color size includes the size of the alpha channel
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAColorSize
-                       forVirtualScreen:0];
-        value -= _glfwWin.alphaBits;
-        _glfwWin.redBits = value / 3;
-        _glfwWin.greenBits = value / 3;
-        _glfwWin.blueBits = value / 3;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFADepthSize
-                       forVirtualScreen:0];
-        _glfwWin.depthBits = value;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAStencilSize
-                       forVirtualScreen:0];
-        _glfwWin.stencilBits = value;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAAccumSize
-                       forVirtualScreen:0];
-        _glfwWin.accumRedBits = value / 3;
-        _glfwWin.accumGreenBits = value / 3;
-        _glfwWin.accumBlueBits = value / 3;
-
-        // TODO: Figure out what to set this value to
-        _glfwWin.accumAlphaBits = 0;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAAuxBuffers
-                       forVirtualScreen:0];
-        _glfwWin.auxBuffers = value;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFAStereo
-                       forVirtualScreen:0];
-        _glfwWin.stereo = value;
-
-        [_glfwWin.pixelFormat getValues:&value
-                           forAttribute:NSOpenGLPFASamples
-                       forVirtualScreen:0];
-        _glfwWin.samples = value;
-
-        // These are forced to false as long as Mac OS X lacks support for OpenGL 3.0+
-        _glfwWin.glForward = GL_FALSE;
-        _glfwWin.glDebug = GL_FALSE;
-        _glfwWin.glProfile = 0;
+        _glfwPlatformRefreshWindowParamsOpenGL();
     }
 
     NSRect contentRectFrame = [_glfwWin.window contentRectForFrameRect:[_glfwWin.window frame]];

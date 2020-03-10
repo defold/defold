@@ -70,8 +70,8 @@ namespace dmGraphics
         BUFFER_TYPE_COLOR_BIT   = 0x1,
         BUFFER_TYPE_DEPTH_BIT   = 0x2,
         BUFFER_TYPE_STENCIL_BIT = 0x4,
-        MAX_BUFFER_TYPE_COUNT   = 3,
     };
+    static const uint8_t MAX_BUFFER_TYPE_COUNT = 3;
 
     // render states
     enum State
