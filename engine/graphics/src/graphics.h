@@ -234,10 +234,12 @@ namespace dmGraphics
     extern const BufferAccess BUFFER_ACCESS_READ_WRITE;
 
     // Face type
-    typedef uint32_t FaceType;
-    extern const FaceType FACE_TYPE_FRONT;
-    extern const FaceType FACE_TYPE_BACK;
-    extern const FaceType FACE_TYPE_FRONT_AND_BACK;
+    enum FaceType
+    {
+        FACE_TYPE_FRONT          = 0,
+        FACE_TYPE_BACK           = 1,
+        FACE_TYPE_FRONT_AND_BACK = 2,
+    };
 
     enum MemoryType
     {

@@ -2534,7 +2534,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
-        glCullFace(face_type);
+        const GLenum face_type_lut[] = {
+            GL_FRONT,
+            GL_BACK,
+            GL_FRONT_AND_BACK,
+        };
+
+        glCullFace(face_type_lut[face_type]);
         CHECK_GL_ERROR
     }
 

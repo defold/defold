@@ -71,8 +71,4 @@ namespace dmGraphics
     const BufferAccess BUFFER_ACCESS_WRITE_ONLY = GL_WRITE_ONLY;
     const BufferAccess BUFFER_ACCESS_READ_WRITE = GL_READ_WRITE;
 #endif
-
-    const FaceType FACE_TYPE_FRONT           = GL_FRONT;
-    const FaceType FACE_TYPE_BACK            = GL_BACK;
-    const FaceType FACE_TYPE_FRONT_AND_BACK  = GL_FRONT_AND_BACK;
 }

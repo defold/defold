@@ -55,8 +55,4 @@ namespace dmGraphics
     const BufferAccess BUFFER_ACCESS_READ_ONLY  = 3;
     const BufferAccess BUFFER_ACCESS_WRITE_ONLY = 4;
     const BufferAccess BUFFER_ACCESS_READ_WRITE = 5;
-
-    const FaceType FACE_TYPE_FRONT           = 0;
-    const FaceType FACE_TYPE_BACK            = 1;
-    const FaceType FACE_TYPE_FRONT_AND_BACK  = 2;
 }
