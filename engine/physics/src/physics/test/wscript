@@ -6,7 +6,7 @@ def build(bld):
         bld.new_task_gen(features = 'cxx cprogram test',
                         source = 'test_physics.cpp',
                         uselib = 'APP DLIB PLATFORM_THREAD BULLET',
-                        uselib_local = 'physics',
+                        uselib_local = 'physics Box2D',
                         includes = ['../../../src', '../../../src/box2d'],
                         target = 'test_physics')
 

@@ -44,8 +44,11 @@ TEST(dmSys, Mkdir)
 
     dmSys::Result r;
     r = dmSys::Mkdir(MakeSupportPath(path, sizeof(path), "tmp"), 0777);
+#if !defined(DM_NO_SYSTEM_FUNCTION)
+    ASSERT_EQ(dmSys::RESULT_EXIST, r);
+#else
     ASSERT_EQ(dmSys::RESULT_OK, r);
-
+#endif
     r = dmSys::Mkdir(MakeSupportPath(path, sizeof(path), "tmp/dir"), 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
@@ -209,7 +212,7 @@ int main(int argc, char **argv)
     g_Argc = argc;
     g_Argv = argv;
 #if !defined(DM_NO_SYSTEM_FUNCTION)
-    system("python src/test/test_sys.py");
+    system("python src/test/test_sys.py"); // creates the ./tmp folder
 #endif
     jc_test_init(&argc, argv);
     return jc_test_run_all();

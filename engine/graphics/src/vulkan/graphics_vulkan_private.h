@@ -537,6 +537,17 @@ namespace dmGraphics
     // called from OpenWindow
     bool InitializeVulkan(HContext context, const WindowParams* params);
 
+    void OnWindowResize(int width, int height);
+    int OnWindowClose();
+    void OnWindowFocus(int focus);
+
+    inline void SynchronizeDevice(VkDevice vk_device)
+    {
+        vkDeviceWaitIdle(vk_device);
+    }
+
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height);
+
     // Implemented per supported platform
 
     const char** GetExtensionNames(uint16_t* num_extensions);

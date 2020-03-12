@@ -34,7 +34,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/hid', 'hid.h')
 
-    header = _get_native_file(build_util.get_target_os(), 'hid_native_defines.h')
+    header = _get_native_file(build_util.get_target_os(), 'hid/hid_native_defines.h')
     bld.install_as('${PREFIX}/include/hid/hid_native_defines.h', header)
 
 def configure(conf):

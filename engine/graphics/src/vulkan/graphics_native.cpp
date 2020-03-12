@@ -2,6 +2,10 @@
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/log.h>
+#include <dlib/sys.h>
+#include "../graphics.h"
+#include "../vulkan/graphics_vulkan_defines.h"
+#include "../vulkan/graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
@@ -22,18 +26,24 @@ namespace dmGraphics
         VK_EXT_METAL_SURFACE_EXTENSION_NAME,
     #endif
     };
-    static const char*   g_validation_layers[]      = { "VK_LAYER_LUNARG_standard_validation" };
-    static const char*   g_validation_layer_ext[]   = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
+    static const char* g_validation_layers[1];
+    static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
-        *num_layers = sizeof(g_extension_names) / sizeof(g_extension_names[0]);
+        *num_extensions = sizeof(g_extension_names) / sizeof(g_extension_names[0]);
         return g_extension_names;
     }
 
     const char** GetValidationLayers(uint16_t* num_layers)
     {
-        *num_layers = sizeof(g_validation_layers) / sizeof(g_validation_layers[0]);
+        uint16_t count = 0;
+        if (dmSys::GetEnv("DM_VULKAN_VALIDATION"))
+        {
+            g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
+        }
+        *num_layers = count;
         return g_validation_layers;
     }
 
@@ -49,6 +59,7 @@ namespace dmGraphics
         if (!ret) {
             dmLogError("Could not initialize glfw.");
         }
+        return ret;
     }
 
     void NativeExit()

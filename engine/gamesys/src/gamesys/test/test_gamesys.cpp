@@ -456,9 +456,9 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 
         // Spawn is expected to inc the ref count
         uint32_t orig_rc = dmResource::GetRefCount(m_Factory, orig_res_hash);
-        ASSERT_LT(0, orig_rc);
+        ASSERT_LT(0u, orig_rc);
         uint32_t new_rc = dmResource::GetRefCount(m_Factory, new_res_hash);
-        ASSERT_LT(0, new_rc);
+        ASSERT_LT(0u, new_rc);
 
         // Spawn/delete are balanced w.r.t ref count
         DeleteInstance(m_Collection, go);
