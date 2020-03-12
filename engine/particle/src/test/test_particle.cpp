@@ -16,16 +16,11 @@
 
 using namespace Vectormath::Aos;
 
-static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
-{
 #if defined(__NX__)
-    dmStrlCpy(dst, "host:/", dst_len);
-    dmStrlCat(dst, path, dst_len);
-    return dst;
+    #define MOUNTFS "host:/"
 #else
-    return path;
+    #define MOUNTFS ""
 #endif
-}
 
 class ParticleTest : public jc_test_base_class
 {
@@ -164,14 +159,12 @@ uint32_t ParticleCount(dmParticle::Emitter* emitter)
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[128];
-    dmSnPrintf(path, 128, "build/default/src/test/%s", filename);
-    char mountpath[128];
-    MakeHostPath(mountpath, sizeof(mountpath), path);
+    dmSnPrintf(path, 128, MOUNTFS "build/default/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
 
-    FILE* f = fopen(mountpath, "rb");
+    FILE* f = fopen(path, "rb");
     if (f)
     {
         file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
@@ -181,7 +174,7 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
     }
     else
     {
-        dmLogWarning("Particle FX could not be loaded: %s.", mountpath);
+        dmLogWarning("Particle FX could not be loaded: %s.", path);
         return false;
     }
 }
@@ -189,15 +182,13 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
-    char mountpath[128];
-    MakeHostPath(mountpath, sizeof(mountpath), path);
+    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
 
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
 
-    FILE* f = fopen(mountpath, "rb");
+    FILE* f = fopen(path, "rb");
     if (f)
     {
         file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
@@ -214,7 +205,7 @@ bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototyp
     }
     else
     {
-        dmLogWarning("Particle FX could not be loaded: %s.", mountpath);
+        dmLogWarning("Particle FX could not be loaded: %s.", path);
         return false;
     }
 }
@@ -222,15 +213,13 @@ bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototyp
 bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
-    char mountpath[128];
-    MakeHostPath(mountpath, sizeof(mountpath), path);
+    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
 
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
 
-    FILE* f = fopen(mountpath, "rb");
+    FILE* f = fopen(path, "rb");
     if (f)
     {
         file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
@@ -240,7 +229,7 @@ bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
     }
     else
     {
-        dmLogWarning("Particle FX could not be reloaded: %s.", mountpath);
+        dmLogWarning("Particle FX could not be reloaded: %s.", path);
         return false;
     }
 }

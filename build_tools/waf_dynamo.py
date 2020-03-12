@@ -12,32 +12,54 @@ if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
 
-try:
-    import waf_dynamo_private
-except ImportError, e:
-    print e # TODO: handle non existing file gracefully, but report rest as a failure!
-    class waf_dynamo_private(object):
-        @classmethod
-        def set_options(cls, opt):
-            pass
-        @classmethod
-        def setup_tools(cls, ctx, build_util):
-            pass
-        @classmethod
-        def setup_vars(cls, ctx, build_util):
-            pass
-        @classmethod
-        def is_platform_private(cls, platform):
-            return False
-        @classmethod
-        def supports_feature(cls, platform, feature, data):
-            return True
-
 def is_platform_private(platform):
-    return waf_dynamo_private.is_platform_private(platform)
+    return platform in ['arm64-nx64']
+
+_private_lib_imported = False
+def _import_private_lib(platform):
+    global _private_lib_imported
+    _private_lib_imported = True
+    if not is_platform_private(platform):
+        class waf_dynamo_private(object):
+            @classmethod
+            def set_options(cls, opt):
+                pass
+            @classmethod
+            def setup_tools(cls, ctx, build_util):
+                pass
+            @classmethod
+            def setup_vars(cls, ctx, build_util):
+                pass
+            @classmethod
+            def is_platform_private(cls, platform):
+                return False
+            @classmethod
+            def supports_feature(cls, platform, feature, data):
+                return True
+        globals()['waf_dynamo_private'] = waf_dynamo_private
+        return
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'private'))
+        import waf_dynamo_private
+        globals()[waf_dynamo_private.__name__] = waf_dynamo_private
+    except ImportError, e:
+        print e # TODO: handle non existing file gracefully, but report rest as a failure!
+        raise
 
 def platform_supports_feature(platform, feature, data):
+    if not is_platform_private(platform):
+        return True
+    _import_private_lib(platform)
     return waf_dynamo_private.supports_feature(platform, feature, data)
+
+def platform_setup_tools(ctx, build_util):
+    _import_private_lib(ctx.env.PLATFORM)
+    return waf_dynamo_private.setup_tools(ctx, build_util)
+
+def platform_setup_vars(ctx, build_util):
+    _import_private_lib(ctx.env.PLATFORM)
+    return waf_dynamo_private.setup_vars(ctx, build_util)
+
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 ANDROID_ROOT=SDK_ROOT
@@ -396,7 +418,7 @@ def default_flags(self):
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
-    waf_dynamo_private.setup_vars(self, build_util)
+    platform_setup_vars(self, build_util)
 
 # Used if you wish to be specific about certain default flags for a library (e.g. used for mbedtls library)
 @feature('remove_flags')
@@ -1237,9 +1259,8 @@ def run_tests(valgrind = False, configfile = None):
             if hasattr(task, 'bundle_output'):
                 program = task.bundle_output
             else:
-                program = task.outputs[0].abspath()
+                program = task.outputs[0].abspath(task.env)
             cmd = launch_pattern % (program, configfile if configfile else '')
-            print cmd
             if 'web' in Build.bld.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
             # disable shortly during beta release, due to issue with jctest + test_gui
@@ -1600,7 +1621,7 @@ def detect(conf):
             conf.env.CC = "gcc"
             conf.env.CPP = "cpp"
 
-    waf_dynamo_private.setup_tools(conf, build_util)
+    platform_setup_tools(conf, build_util)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -1664,7 +1685,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
-    if build_util.get_target_os() == 'web' or not waf_dynamo_private.supports_feature(build_util.get_target_platform(), 'luajit', {}):
+    if build_util.get_target_os() == 'web' or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
         use_vanilla = True
 
     conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
@@ -1698,12 +1719,39 @@ def detect(conf):
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'
 
-    if ('record' not in Options.options.disable_features) and platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin'):
-        conf.env['STATICLIB_RECORD'] = 'record vpx'
-    else:
-        Logs.info("record disabled")
+    if ('record' not in Options.options.disable_features):
         conf.env['STATICLIB_RECORD'] = 'record_null'
+    else:
+        if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin'):
+            conf.env['STATICLIB_RECORD'] = 'record'
+            conf.env['LINKFLAGS_RECORD'] = ['vpx.lib']
+        else:
+            Logs.info("record disabled")
+            conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
+
+    if platform in ('x86_64-darwin'):
+        vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
+        conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
+        conf.env['FRAMEWORK_VULKAN'] = 'Metal'
+    elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
+        conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
+        conf.env['FRAMEWORK_VULKAN'] = 'Metal'
+    elif platform in ('x86_64-linux',):
+        conf.env['STATICLIB_VULKAN'] = ['vulkan', 'X11-xcb']
+    elif platform in ('armv7-android','arm64-android'):
+        conf.env['STATICLIB_VULKAN'] = ['vulkan']
+    elif platform in ('x86_64-win32','win32'):
+        conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
+
+    if Options.options.with_vulkan:
+        conf.env['STATICLIB_DMGLFW'] = 'dmglfw_vulkan'
+    else:
+        conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+
+    if platform in ('x86_64-win32','win32'):
+        conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+
 
 def configure(conf):
     detect(conf)
@@ -1732,5 +1780,3 @@ def set_options(opt):
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
-
-    waf_dynamo_private.set_options(opt)

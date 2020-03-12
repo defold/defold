@@ -42,7 +42,7 @@ def build(bld):
 
     additional_libs = ['CRASH']
 
-    exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
     #if 'web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
@@ -54,7 +54,7 @@ def build(bld):
         additional_libs.append('TREMOLO')
 
     # Set graphics library to use (at some point both GL/VK should be used)
-    graphics_lib = 'GRAPHICS'
+    graphics_lib = 'GRAPHICS DMGLFW'
     if bld.env['PLATFORM'] in ('arm64-nx64',) or Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN VULKAN'
 

@@ -107,10 +107,6 @@ namespace dmGraphics
     }
     #undef DM_TEXTURE_FORMAT_TO_STR_CASE
 
-    static inline void SynchronizeDevice(VkDevice vk_device)
-    {
-        vkDeviceWaitIdle(vk_device);
-    }
 
     static inline uint32_t GetNextRenderTargetId()
     {
@@ -566,7 +562,7 @@ namespace dmGraphics
         return res;
     }
 
-    static void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         // Flush all current commands
@@ -791,8 +787,8 @@ namespace dmGraphics
     #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
-            device_extensions.Begin(), device_extensions.Size(),
-            validation_layers, validation_layers_count, &logical_device);
+            device_extensions.Begin(), (uint8_t)device_extensions.Size(),
+            validation_layers, (uint8_t)validation_layers_count, &logical_device);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
@@ -845,9 +841,6 @@ bail:
                 return 0x0;
             }
 
-printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
-
-
             uint16_t extension_names_count;
             const char** extension_names = GetExtensionNames(&extension_names_count);
             uint16_t validation_layers_count;
@@ -855,19 +848,6 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
-printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
-#if defined(WIN32) || defined(__MACH__) || defined(__linux__)
-            const char* env_vulkan_validation = getenv("DM_VULKAN_VALIDATION");
-            if (env_vulkan_validation != 0x0)
-            {
-                uint16_t count = (uint16_t)strtol(env_vulkan_validation, 0, 10) ? g_validation_layer_count : 0;
-                if (count > validation_layers_count)
-                    count = validation_layers_count;
-                validation_layers_count = count;
-            }
-#endif
-
-printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
             VkInstance vk_instance;
             if (CreateInstance(&vk_instance,
                                 extension_names, extension_names_count,
@@ -878,7 +858,6 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
                 return 0x0;
             }
 
-printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
             g_Context = new Context(params, vk_instance);
 
             return g_Context;
@@ -917,7 +896,7 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
         return context->m_Height;
     }
 
-    static void OnWindowResize(int width, int height)
+    void OnWindowResize(int width, int height)
     {
         assert(g_Context);
         g_Context->m_WindowWidth  = (uint32_t)width;
@@ -931,7 +910,7 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
         }
     }
 
-    static int OnWindowClose()
+    int OnWindowClose()
     {
         assert(g_Context);
         if (g_Context->m_WindowCloseCallback != 0x0)
@@ -941,7 +920,7 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
         return 1;
     }
 
-    static void OnWindowFocus(int focus)
+    void OnWindowFocus(int focus)
     {
         assert(g_Context);
         if (g_Context->m_WindowFocusCallback != 0x0)
@@ -2269,7 +2248,7 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
         ShaderResourceBinding* res = &module->m_Uniforms[index];
         *type = shaderDataTypeToGraphicsType(res->m_Type);
 
-        return dmStrlCpy(buffer, res->m_Name, buffer_size);
+        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
     }
 
     // In OpenGL, there is a single global resource identifier between
@@ -2626,7 +2605,7 @@ printf("%s  %s %d\n", __FILE__, __FUNCTION__, __LINE__);
         }
 
         res = CreateFramebuffer(vk_device, rtOut->m_RenderPass,
-            fb_width, fb_height, fb_attachments, fb_attachment_count, &rtOut->m_Framebuffer);
+            fb_width, fb_height, fb_attachments, (uint8_t)fb_attachment_count, &rtOut->m_Framebuffer);
         if (res != VK_SUCCESS)
         {
             return res;

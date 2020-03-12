@@ -21,8 +21,7 @@ BASE_PLATFORMS = [  'x86_64-linux',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
                     'armv7-android', 'arm64-android',
-                    'js-web', 'wasm-web',
-                    'arm64-nx64']
+                    'js-web', 'wasm-web']
 
 try:
     sys.path.insert(0, os.path.dirname(__file__))
@@ -86,7 +85,7 @@ EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
-ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
+ENGINE_LIBS = "app ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
 
 class ExecException(Exception):
     def __init__(self, retcode, output):
@@ -1057,7 +1056,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = BASE_PLATFORMS
+        platforms = get_base_platforms()
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -1868,9 +1867,10 @@ class Configuration(object):
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
-        env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
-                                                  '%s/build_tools' % self.defold,
-                                                  '%s/ext/lib/python' % self.dynamo_home])
+        pythonpaths = ['%s/lib/python' % self.dynamo_home,
+                      '%s/build_tools' % self.defold,
+                      '%s/ext/lib/python' % self.dynamo_home]
+        env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
 
         env['DYNAMO_HOME'] = self.dynamo_home
 

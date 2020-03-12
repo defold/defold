@@ -32,9 +32,6 @@ def build(bld):
         else:
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
-        obj.source.remove(os.path.join('opengl','graphics_native.cpp'))
-        obj.source.append(_get_native_source(build_util.get_target_os(), 'opengl'))
-
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
         obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                                includes = ['. vulkan', '../proto'],

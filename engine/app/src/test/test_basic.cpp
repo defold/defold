@@ -17,7 +17,7 @@ TEST(dmApp, malloc)
     free(p);
 }
 
-
+#if defined(__NX__)
 TEST(dmApp, fopen)
 {
 	// Just to see that basic file mounts work
@@ -25,6 +25,7 @@ TEST(dmApp, fopen)
     ASSERT_NE((FILE*)0, f);
     fclose(f);
 }
+#endif
 
 
 int main(int argc, char **argv)

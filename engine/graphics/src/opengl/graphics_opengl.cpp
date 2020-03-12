@@ -156,12 +156,12 @@ using namespace Vectormath::Aos;
 
 namespace dmGraphics
 {
-void LogGLError(GLint err)
+static void LogGLError(GLint err, const char* fnname, int line)
 {
 #ifdef GL_ES_VERSION_2_0
-    dmLogError("gl error %d\n", err);
+    dmLogError("%s(%d): gl error %d\n", fnname, line, err);
 #else
-    dmLogError("gl error %d: %s\n", err, gluErrorString(err));
+    dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, gluErrorString(err));
 #endif
 }
 
@@ -171,7 +171,7 @@ void LogGLError(GLint err)
             GLint err = glGetError(); \
             if (err != 0) \
             { \
-                LogGLError(err); \
+                LogGLError(err, __FUNCTION__, __LINE__); \
                 assert(0); \
             } \
         } \
@@ -306,7 +306,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context == 0x0)
         {
-            if (!PlatformInit())
+            if (glfwInit() == GL_FALSE)
             {
                 dmLogError("Could not initialize glfw.");
                 return 0x0;
@@ -334,12 +334,12 @@ static void LogFrameBufferError(GLenum status)
     bool Initialize()
     {
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
-        return PlatformInit();
+        return (glfwInit() == GL_TRUE);
     }
 
     void Finalize()
     {
-       PlatformExit();
+        glfwTerminate();
     }
 
     void OnWindowResize(int width, int height)
@@ -473,11 +473,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
             memset(gpu_data, 0x0, sizeof(gpu_data));
             glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
 
             GLuint osfb;
             glGenFramebuffers(1, &osfb);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glBindFramebuffer(GL_FRAMEBUFFER, osfb);
             CHECK_GL_ERROR;
 
@@ -514,7 +514,337 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return true;
     }
 
-/*
+    WindowResult OpenWindow(HContext context, WindowParams *params)
+    {
+        assert(context);
+        assert(params);
+
+        if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
+
+        if (params->m_HighDPI) {
+            glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
+        }
+
+        glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        }
+#endif
+
+        int mode = GLFW_WINDOW;
+        if (params->m_Fullscreen)
+            mode = GLFW_FULLSCREEN;
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+#if defined (_WIN32)
+#define GET_PROC_ADDRESS(function, name, type)\
+        function = (type)wglGetProcAddress(name);\
+        if (function == 0x0)\
+        {\
+            function = (type)wglGetProcAddress(name "ARB");\
+        }\
+        if (function == 0x0)\
+        {\
+            function = (type)wglGetProcAddress(name "EXT");\
+        }\
+        if (function == 0x0)\
+        {\
+            dmLogError("Could not find gl function '%s'.", name);\
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;\
+        }
+
+        GET_PROC_ADDRESS(glGenProgramsARB, "glGenPrograms", PFNGLGENPROGRAMARBPROC);
+        GET_PROC_ADDRESS(glBindProgramARB, "glBindProgram", PFNGLBINDPROGRAMARBPROC);
+        GET_PROC_ADDRESS(glDeleteProgramsARB, "glDeletePrograms", PFNGLDELETEPROGRAMSARBPROC);
+        GET_PROC_ADDRESS(glProgramStringARB, "glProgramString", PFNGLPROGRAMSTRINGARBPROC);
+        GET_PROC_ADDRESS(glProgramLocalParameter4fARB, "glProgramLocalParameter4f", PFNGLVERTEXPARAMFLOAT4ARBPROC);
+        GET_PROC_ADDRESS(glEnableVertexAttribArray, "glEnableVertexAttribArray", PFNGLVERTEXATTRIBSETPROC);
+        GET_PROC_ADDRESS(glDisableVertexAttribArray, "glDisableVertexAttribArray", PFNGLVERTEXATTRIBSETPROC);
+        GET_PROC_ADDRESS(glVertexAttribPointer, "glVertexAttribPointer", PFNGLVERTEXATTRIBPTRPROC);
+        GET_PROC_ADDRESS(glCompressedTexImage2D, "glCompressedTexImage2D", PFNGLTEXPARAM2DPROC);
+        GET_PROC_ADDRESS(glCompressedTexSubImage2D, "glCompressedTexSubImage2D", PFNGLCOMPRTEXSUB2DPROC);
+        GET_PROC_ADDRESS(glGenBuffersARB, "glGenBuffers", PFNGLGENBUFFERSPROC);
+        GET_PROC_ADDRESS(glDeleteBuffersARB, "glDeleteBuffers", PFNGLDELETEBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindBufferARB, "glBindBuffer", PFNGLBINDBUFFERPROC);
+        GET_PROC_ADDRESS(glBufferDataARB, "glBufferData", PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glGenRenderbuffers, "glGenRenderbuffers", PFNGLGENRENDERBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindRenderbuffer, "glBindRenderbuffer", PFNGLBINDRENDERBUFFERPROC);
+        GET_PROC_ADDRESS(glRenderbufferStorage, "glRenderbufferStorage", PFNGLRENDERBUFFERSTORAGEPROC);
+        GET_PROC_ADDRESS(glFramebufferTexture2D, "glFramebufferTexture2D", PFNGLRENDERBUFFERTEXTURE2DPROC);
+        GET_PROC_ADDRESS(glFramebufferRenderbuffer, "glFramebufferRenderbuffer", PFNGLFRAMEBUFFERRENDERBUFFERPROC);
+        GET_PROC_ADDRESS(glGenFramebuffers, "glGenFramebuffers", PFNGLGENFRAMEBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindFramebuffer, "glBindFramebuffer", PFNGLBINDFRAMEBUFFERPROC);
+        GET_PROC_ADDRESS(glDeleteFramebuffers, "glDeleteFramebuffers", PFNGLDELETEFRAMEBUFFERSPROC);
+        GET_PROC_ADDRESS(glDeleteRenderbuffers, "glDeleteRenderbuffers", PFNGLDELETERENDERBUFFERSPROC);
+        GET_PROC_ADDRESS(glBufferSubDataARB, "glBufferSubData", PFNGLBUFFERSUBDATAPROC);
+        GET_PROC_ADDRESS(glMapBufferARB, "glMapBuffer", PFNGLMAPBUFFERPROC);
+        GET_PROC_ADDRESS(glUnmapBufferARB, "glUnmapBuffer", PFNGLUNMAPBUFFERPROC);
+        GET_PROC_ADDRESS(glActiveTexture, "glActiveTexture", PFNGLACTIVETEXTUREPROC);
+        GET_PROC_ADDRESS(glCheckFramebufferStatus, "glCheckFramebufferStatus", PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+        GET_PROC_ADDRESS(glGetAttribLocation, "glGetAttribLocation", PFNGLGETATTRIBLOCATIONPROC);
+        GET_PROC_ADDRESS(glCreateShader, "glCreateShader", PFNGLCREATESHADERPROC);
+        GET_PROC_ADDRESS(glShaderSource, "glShaderSource", PFNGLSHADERSOURCEPROC);
+        GET_PROC_ADDRESS(glCompileShader, "glCompileShader", PFNGLCOMPILESHADERPROC);
+        GET_PROC_ADDRESS(glGetShaderiv, "glGetShaderiv", PFNGLGETSHADERIVPROC);
+        GET_PROC_ADDRESS(glGetShaderInfoLog, "glGetShaderInfoLog", PFNGLGETSHADERINFOLOGPROC);
+        GET_PROC_ADDRESS(glGetProgramInfoLog, "glGetProgramInfoLog", PFNGLGETPROGRAMINFOLOGPROC);
+        GET_PROC_ADDRESS(glDeleteShader, "glDeleteShader", PFNGLDELETESHADERPROC);
+        GET_PROC_ADDRESS(glCreateProgram, "glCreateProgram", PFNGLCREATEPROGRAMPROC);
+        GET_PROC_ADDRESS(glAttachShader, "glAttachShader", PFNGLATTACHSHADERPROC);
+        GET_PROC_ADDRESS(glLinkProgram, "glLinkProgram", PFNGLLINKPROGRAMPROC);
+        GET_PROC_ADDRESS(glDeleteProgram, "glDeleteProgram", PFNGLDELETEPROGRAMPROC);
+        GET_PROC_ADDRESS(glUseProgram, "glUseProgram", PFNGLUSEPROGRAMPROC);
+        GET_PROC_ADDRESS(glGetProgramiv, "glGetProgramiv", PFNGLGETPROGRAMIVPROC);
+        GET_PROC_ADDRESS(glGetActiveUniform, "glGetActiveUniform", PFNGLGETACTIVEUNIFORMPROC);
+        GET_PROC_ADDRESS(glGetUniformLocation, "glGetUniformLocation", PFNGLGETUNIFORMLOCATIONPROC);
+        GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
+        GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
+        GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
+            GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
+            GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
+        }
+#endif
+
+#undef GET_PROC_ADDRESS
+#endif
+
+#if !defined(__EMSCRIPTEN__)
+        glfwSetWindowTitle(params->m_Title);
+#endif
+
+        glfwSetWindowSizeCallback(OnWindowResize);
+        glfwSetWindowCloseCallback(OnWindowClose);
+        glfwSetWindowFocusCallback(OnWindowFocus);
+        glfwSetWindowIconifyCallback(OnWindowIconify);
+        glfwSwapInterval(1);
+        CHECK_GL_ERROR;
+
+        context->m_WindowResizeCallback           = params->m_ResizeCallback;
+        context->m_WindowResizeCallbackUserData   = params->m_ResizeCallbackUserData;
+        context->m_WindowCloseCallback            = params->m_CloseCallback;
+        context->m_WindowCloseCallbackUserData    = params->m_CloseCallbackUserData;
+        context->m_WindowFocusCallback            = params->m_FocusCallback;
+        context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
+        context->m_WindowIconifyCallback          = params->m_IconifyCallback;
+        context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
+        context->m_WindowOpened = 1;
+        context->m_Width = params->m_Width;
+        context->m_Height = params->m_Height;
+        // read back actual window size
+        int width, height;
+        glfwGetWindowSize(&width, &height);
+        context->m_WindowWidth = (uint32_t)width;
+        context->m_WindowHeight = (uint32_t)height;
+        context->m_Dpi = 0;
+
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Device: OpenGL");
+            dmLogInfo("Renderer: %s\n", (char *) glGetString(GL_RENDERER));
+            dmLogInfo("Version: %s\n", (char *) glGetString(GL_VERSION));
+            dmLogInfo("Vendor: %s\n", (char *) glGetString(GL_VENDOR));
+            dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
+        }
+
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        ProcessSerialNumber psn;
+        OSErr err;
+
+        // Move window to front. Required if running without application bundle.
+        err = GetCurrentProcess( &psn );
+        if (err == noErr)
+            (void) SetFrontProcess( &psn );
+#endif
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        char* extensions_ptr = 0;
+        if (context->m_RenderDocSupport)
+        {
+            GLint n;
+            glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+            if (n > 0)
+            {
+                int max_len = 0;
+                int cursor = 0;
+
+                for (GLint i = 0; i < n; i++)
+                {
+                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                    max_len += (int) strlen((const char*)ext) + 1;
+                }
+
+                extensions_ptr = (char*) malloc(max_len);
+
+                for (GLint i = 0; i < n; i++)
+                {
+                    char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                    int str_len = (int) strlen((const char*)ext);
+
+                    strcpy(extensions_ptr + cursor, ext);
+
+                    cursor += str_len;
+                    extensions_ptr[cursor] = ' ';
+
+                    cursor += 1;
+                }
+            }
+        }
+        else
+        {
+            extensions_ptr = (char*) glGetString(GL_EXTENSIONS);
+        }
+
+        const GLubyte* extensions = (const GLubyte*) extensions_ptr;
+#else
+        // Check texture format support
+        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+#endif
+
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
+
+        if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        }
+        if (IsExtensionSupported("GL_EXT_texture_compression_dxt1", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_DXT1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT1;
+        }
+        if (IsExtensionSupported("GL_EXT_texture_compression_dxt3", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT3;
+        }
+        if (IsExtensionSupported("GL_EXT_texture_compression_dxt5", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT5;
+        }
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+#if defined (__EMSCRIPTEN__)
+        // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
+        context->m_PackedDepthStencil = 1;
+        context->m_DepthBufferBits = 16;
+#else
+
+        if ((IsExtensionSupported("GL_OES_packed_depth_stencil", extensions)) || (IsExtensionSupported("GL_EXT_packed_depth_stencil", extensions)))
+        {
+            context->m_PackedDepthStencil = 1;
+        }
+        GLint depth_buffer_bits;
+        glGetIntegerv( GL_DEPTH_BITS, &depth_buffer_bits );
+        context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
+#endif
+
+        GLint gl_max_texture_size = 1024;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
+        context->m_MaxTextureSize = gl_max_texture_size;
+        CLEAR_GL_ERROR
+
+#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
+        // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
+        // The below seems to be the reported sweet spot for modern or semi-modern hardware
+        context->m_MaxElementVertices = 1024*1024;
+        context->m_MaxElementIndices = 1024*1024;
+#else
+        // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
+        GLint gl_max_elem_verts = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
+        context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
+        CLEAR_GL_ERROR
+
+        GLint gl_max_elem_indices = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
+        context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
+        CLEAR_GL_ERROR
+#endif
+
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+        if ((IsExtensionSupported("GL_OES_element_index_uint", extensions)))
+        {
+            context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+        }
+#else
+        context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+#endif
+
+        JobQueueInitialize();
+        if(JobQueueIsAsync())
+        {
+            if(!ValidateAsyncJobProcessing(context))
+            {
+                dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
+                JobQueueFinalize();
+            }
+        }
+
+#if defined(GL_HAS_RENDERDOC_SUPPORT)
+        if (context->m_RenderDocSupport)
+        {
+            if (extensions_ptr)
+            {
+                free(extensions_ptr);
+            }
+
+            GLuint vao;
+            glGenVertexArrays(1, &vao);
+            glBindVertexArray(vao);
+        }
+#endif
+
+        return WINDOW_RESULT_OK;
+    }
+
+    void CloseWindow(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            JobQueueFinalize();
+            PostDeleteTextures(true);
+            glfwCloseWindow();
+            context->m_WindowResizeCallback = 0x0;
+            context->m_Width = 0;
+            context->m_Height = 0;
+            context->m_WindowWidth = 0;
+            context->m_WindowHeight = 0;
+            context->m_WindowOpened = 0;
+        }
+    }
+
+    void IconifyWindow(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwIconifyWindow();
+        }
+    }
+
     void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
@@ -537,7 +867,30 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         #endif
     }
-    */
+
+    uint32_t GetWindowState(HContext context, WindowState state)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return glfwGetWindowParam(state);
+        else
+            return 0;
+    }
+
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return glfwGetWindowRefreshRate();
+        else
+            return 0;
+    }
+
+    uint32_t GetDisplayDpi(HContext context)
+    {
+        assert(context);
+        return context->m_Dpi;
+    }
 
     uint32_t GetWidth(HContext context)
     {
@@ -549,6 +902,47 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         return context->m_Height;
+    }
+
+    uint32_t GetWindowWidth(HContext context)
+    {
+        assert(context);
+        return context->m_WindowWidth;
+    }
+
+    uint32_t GetWindowHeight(HContext context)
+    {
+        assert(context);
+        return context->m_WindowHeight;
+    }
+
+    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            context->m_Width = width;
+            context->m_Height = height;
+            glfwSetWindowSize((int)width, (int)height);
+            int window_width, window_height;
+            glfwGetWindowSize(&window_width, &window_height);
+            context->m_WindowWidth = window_width;
+            context->m_WindowHeight = window_height;
+            // The callback is not called from glfw when the size is set manually
+            if (context->m_WindowResizeCallback)
+            {
+                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
+            }
+        }
+    }
+
+    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwSetWindowSize((int)width, (int)height);
+        }
     }
 
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
@@ -567,16 +961,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
         glClearColor(r, g, b, a);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glClearDepth(depth);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glClearStencil(stencil);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glClear(flags);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void BeginFrame(HContext context)
@@ -588,15 +982,40 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         DM_PROFILE(VSync, "Wait");
         PostDeleteTextures(false);
-        SwapBuffers();
-        CHECK_GL_ERROR
+        glfwSwapBuffers();
+        CHECK_GL_ERROR;
     }
+
+    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    {
+        glfwSwapInterval(swap_interval);
+    }
+
+    #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
+
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSOpenGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HWND, WindowsHWND);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HGLRC, WindowsHGLRC);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLContext, AndroidEGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
+
+    #undef WRAP_GLFW_NATIVE_HANDLE_CALL
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         SetVertexBufferData(buffer, size, data, buffer_usage);
         return buffer;
     }
@@ -605,7 +1024,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -616,22 +1035,22 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return;
         }
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetVertexBufferSubData");
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     uint32_t GetMaxElementsVertices(HContext context)
@@ -643,7 +1062,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         SetIndexBufferData(buffer, size, data, buffer_usage);
         return buffer;
     }
@@ -652,29 +1071,29 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(Graphics, "SetIndexBufferData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, buffer_usage);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetIndexBufferSubData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -750,12 +1169,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
         glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_LogicalIndex);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glVertexAttribPointer(
                     vertex_declaration->m_Streams[i].m_LogicalIndex,
                     vertex_declaration->m_Streams[i].m_Size,
@@ -764,7 +1183,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     vertex_declaration->m_Stride,
             BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         #undef BUFFER_OFFSET
@@ -809,14 +1228,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
         glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
             {
                 glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
                 glVertexAttribPointer(
                         vertex_declaration->m_Streams[i].m_PhysicalIndex,
                         vertex_declaration->m_Streams[i].m_Size,
@@ -825,7 +1244,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         vertex_declaration->m_Stride,
                 BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
         }
 
@@ -840,14 +1259,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             glDisableVertexAttribArray(i);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
 
@@ -859,10 +1278,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         DM_COUNTER("DrawCalls", 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glDrawElements(prim_type, count, type, (GLvoid*)(uintptr_t) first);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
@@ -871,18 +1290,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         DM_PROFILE(Graphics, "Draw");
         DM_COUNTER("DrawCalls", 1);
         glDrawArrays(prim_type, first, count);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static uint32_t CreateShader(GLenum type, const void* program, uint32_t program_size)
     {
         GLuint s = glCreateShader(type);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         GLint size = program_size;
         glShaderSource(s, 1, (const GLchar**) &program, &size);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glCompileShader(s);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         GLint status;
         glGetShaderiv(s, GL_COMPILE_STATUS, &status);
@@ -924,11 +1343,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         (void) context;
         GLuint p = glCreateProgram();
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(p, vertex_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(p, fragment_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glLinkProgram(p);
 
         GLint status;
@@ -947,11 +1366,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
 #endif
             glDeleteProgram(p);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             return 0;
         }
 
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return p;
     }
 
@@ -969,9 +1388,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static bool TryCompileShader(GLuint prog, const void* program, GLint size)
     {
         glShaderSource(prog, 1, (const GLchar**) &program, &size);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glCompileShader(prog);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         GLint status;
         glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
@@ -986,7 +1405,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 dmLogError("%s\n", log);
                 free(log);
             }
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             return false;
         }
 
@@ -1001,14 +1420,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
         bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         glDeleteShader(tmp_shader);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         if (success)
         {
             glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glCompileShader(prog);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         return success;
@@ -1022,14 +1441,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
         bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         glDeleteShader(tmp_shader);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         if (success)
         {
             glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glCompileShader(prog);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         return success;
@@ -1039,14 +1458,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(program);
         glDeleteShader(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void DeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         glDeleteShader(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
@@ -1058,7 +1477,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         (void) context;
         glUseProgram(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void DisableProgram(HContext context)
@@ -1070,11 +1489,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static bool TryLinkProgram(HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         GLuint tmp_program = glCreateProgram();
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(tmp_program, vert_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(tmp_program, frag_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glLinkProgram(tmp_program);
 
         bool success = true;
@@ -1106,7 +1525,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         glLinkProgram(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return true;
     }
 
@@ -1114,7 +1533,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLint count;
         glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return count;
     }
 
@@ -1125,7 +1544,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLsizei uniform_name_length;
         glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = (Type) uniform_type;
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return (uint32_t)uniform_name_length;
     }
 
@@ -1145,7 +1564,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
 
         glViewport(x, y, width, height);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
@@ -1153,21 +1572,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
 
         glUniform4fv(base_register,  1, (const GLfloat*) data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {
         assert(context);
         glUniform1i(location, unit);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetDepthStencilRenderBuffer(RenderTarget* rt, bool update_current = false)
@@ -1180,22 +1599,22 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #ifdef GL_DEPTH_STENCIL_ATTACHMENT
             // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
 #else
             // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
             glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
 #endif
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
@@ -1208,11 +1627,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             GLenum format = rt->m_DepthBufferBits == 16 ? DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthBuffer);
             glRenderbufferStorage(GL_RENDERBUFFER, format, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
         }
@@ -1221,11 +1640,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_StencilBuffer);
             glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_StencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
         }
@@ -1241,9 +1660,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         rt->m_DepthBufferBits = context->m_DepthBufferBits;
 
         glGenFramebuffers(1, &rt->m_Id);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, rt->m_Id);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         memcpy(rt->m_BufferTextureParams, params, sizeof(TextureParams) * MAX_BUFFER_TYPE_COUNT);
         // don't save the data
@@ -1259,7 +1678,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             SetTexture(rt->m_ColorBufferTexture, params[color_buffer_index]);
             // attach the texture to FBO color attachment point
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture->m_Texture, 0);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
@@ -1267,21 +1686,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             if(!(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT))
             {
                 glGenRenderbuffers(1, &rt->m_DepthBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
             else
             {
                 if(context->m_PackedDepthStencil)
                 {
                     glGenRenderbuffers(1, &rt->m_DepthStencilBuffer);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 }
                 else
                 {
                     glGenRenderbuffers(1, &rt->m_DepthBuffer);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glGenRenderbuffers(1, &rt->m_StencilBuffer);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 }
             }
             SetDepthStencilRenderBuffer(rt);
@@ -1295,15 +1714,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             // According to this thread it should not be required but honestly I don't quite understand
             // https://devforums.apple.com/message/495216#495216
             glDrawBuffer(GL_NONE);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glReadBuffer(GL_NONE);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
 #endif
         }
 
         CHECK_GL_FRAMEBUFFER_ERROR
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         return rt;
     }
@@ -1360,7 +1779,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         CHECK_GL_FRAMEBUFFER_ERROR
     }
 
@@ -1410,7 +1829,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLuint t;
         glGenTextures( 1, &t );
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         Texture* tex = new Texture;
         tex->m_Type = params.m_Type;
@@ -1441,7 +1860,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             if((!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)) || (force_delete))
             {
                 glDeleteTextures(1, &texture->m_Texture);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
                 delete texture;
                 g_PostDeleteTexturesArray.EraseSwap(i);
             }
@@ -1466,7 +1885,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         glDeleteTextures(1, &texture->m_Texture);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         delete texture;
     }
@@ -1476,16 +1895,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLenum type = (GLenum) texture->m_Type;
 
         glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_S, uwrap);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     uint32_t GetTextureStatusFlags(HTexture texture)
@@ -1586,13 +2005,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (unpackAlignment != 4) {
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         GLenum type = (GLenum) texture->m_Type;
         glBindTexture(type, texture->m_Texture);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         texture->m_Params = params;
         if (!params.m_SubUpdate) {
@@ -1648,7 +2067,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         case TEXTURE_FORMAT_RGBA_DXT5:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT3;
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             break;
         case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -1734,35 +2153,35 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 } else {
                     glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
                 }
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                 const char* p = (const char*) params.m_Data;
                 if (params.m_SubUpdate) {
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 2);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 } else {
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 }
 
             } else {
@@ -1786,35 +2205,35 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     } else {
                         glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
                     }
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate) {
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 2);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                     } else {
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 2);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                     }
                 } else {
                     assert(0);
@@ -1828,12 +2247,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         glBindTexture(type, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         if (unpackAlignment != 4) {
             // Restore to default
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
     }
 
@@ -1882,17 +2301,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (!context->m_RenderDocSupport)
         {
             glEnable(GL_TEXTURE_2D);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 #elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 #endif
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
     }
@@ -1905,17 +2324,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (!context->m_RenderDocSupport)
         {
             glEnable(GL_TEXTURE_2D);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 #elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 #endif
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindTexture((GLenum) texture->m_Type, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
@@ -1940,7 +2359,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     #endif
         glEnable(state);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void DisableState(HContext context, State state)
@@ -1954,77 +2373,77 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
     #endif
         glDisable(state);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
         glBlendFunc((GLenum) source_factor, (GLenum) destinaton_factor);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
         glColorMask(red, green, blue, alpha);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetDepthMask(HContext context, bool mask)
     {
         assert(context);
         glDepthMask(mask);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
         glDepthFunc((GLenum) func);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
         glScissor((GLint)x, (GLint)y, (GLint)width, (GLint)height);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
         glStencilMask(mask);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         glStencilFunc((GLenum) func, ref, mask);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
         glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
         glCullFace(face_type);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     void SetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
         glPolygonOffset(factor, units);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};

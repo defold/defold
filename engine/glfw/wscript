@@ -18,11 +18,11 @@ def set_options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
-    platform = conf.env.PLATFORM
-
     conf.check_tool('waf_dynamo')
     conf.check_tool('java')
     waf_ddf.configure(conf)
+
+    platform = conf.env.PLATFORM
 
     if platform == "linux" or platform == "x86_64-linux":
         conf.env.append_value('CCFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS', '-D_GLFW_USE_LINUX_JOYSTICKS', '-D_GLFW_HAS_PTHREAD', '-D_GLFW_HAS_SCHED_YIELD', '-D_GLFW_HAS_SYSCONF'])

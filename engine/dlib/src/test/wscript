@@ -13,7 +13,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     build_util = create_build_utility(bld.env)
 
-    req_libs = ['APP', 'CARES']
+    req_libs = ['CARES']
     req_defines = []
 
     req_features = ['cxx', 'cprogram']
@@ -22,6 +22,13 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     if is_platform_private(bld.env.PLATFORM):
         req_includes.insert(0, '../dlib/%s' % build_util.get_target_os())
+
+    platform_source = ''
+    platform_source_path = '%s/test_platform.cpp' % build_util.get_target_os()
+    if os.path.exists('src/test/' + platform_source_path):
+        platform_source = ' ' + platform_source_path
+
+    print "MAWE", platform_source
 
     if not skip_run:
         req_features.append('test')
@@ -39,7 +46,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     task_args = {
         'features': ' '.join(req_features),
-        'source': name + '.cpp' + ' testutil.cpp',
+        'source': name + '.cpp' + ' testutil.cpp' + platform_source,
         'uselib': ' '.join(req_libs),
         'uselib_local': 'dlib mbedtls',
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
@@ -73,6 +80,10 @@ def build(bld):
     if 'web' in bld.env['PLATFORM']:
         skip_run = True # Emscripten/Nodejs doesn't support popen()
 
+    skip_http_run = False
+    if 'win32' in bld.env['PLATFORM']:
+        skip_http_run = True
+
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
     create_test(bld, 'test_buffer')
@@ -92,10 +103,10 @@ def build(bld):
     create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
@@ -116,7 +127,7 @@ def build(bld):
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run)
-    create_test(bld, 'test_log', extra_libs = ['THREAD'])
+    create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])

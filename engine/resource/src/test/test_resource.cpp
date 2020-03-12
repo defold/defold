@@ -53,7 +53,8 @@ static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
     dmStrlCat(dst, path, dst_len);
     return dst;
 #else
-    return path;
+    dmStrlCpy(dst, path, dst_len);
+    return dst;
 #endif
 }
 

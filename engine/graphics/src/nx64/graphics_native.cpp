@@ -6,7 +6,7 @@
 #define VK_USE_PLATFORM_VI_NN
 #endif
 
-
+#include <dlib/sys.h>
 #include "../graphics.h"
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
@@ -84,15 +84,11 @@ namespace dmGraphics
         VK_NN_VI_SURFACE_EXTENSION_NAME,
     };
     // Validation layers to enable
-    static const char*   g_validation_layers[] = {
-        "VK_LAYER_NN_vi_swapchain",
-//#if defined(ENABLE_VULKAN_STANDARD_VALIDATION)
-        "VK_LAYER_LUNARG_standard_validation",
-//#endif
-#if defined(ENABLE_RENDERDOC_CAPTURE)
-        "VK_LAYER_RENDERDOC_Capture",
-#endif
-     };
+    static const char* g_validation_layers[3];
+    static const char* DM_VULKAN_LAYER_SWAPCHAIN    = "VK_LAYER_NN_vi_swapchain";
+    static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
+    static const char* DM_VULKAN_LAYER_RENDERDOC    = "VK_LAYER_RENDERDOC_Capture";
+
     // Validation layer extensions
     static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
@@ -104,7 +100,19 @@ namespace dmGraphics
 
     const char** GetValidationLayers(uint16_t* num_layers)
     {
-        *num_layers = sizeof(g_validation_layers) / sizeof(g_validation_layers[0]);
+        uint16_t count = 1;
+        g_validation_layers[count++] = DM_VULKAN_LAYER_SWAPCHAIN;
+
+        if (dmSys::GetEnv("DM_VULKAN_VALIDATION"))
+        {
+            g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
+        }
+        if (dmSys::GetEnv("DM_VULKAN_RENDERDOC"))
+        {
+            g_validation_layers[count++] = DM_VULKAN_LAYER_RENDERDOC;
+        }
+
+        *num_layers = count;
         return g_validation_layers;
     }
 
