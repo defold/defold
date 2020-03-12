@@ -182,7 +182,7 @@ namespace dmSys
      * @param src_filename the source filename. The contents will be written to the destination filename and the file unlinked if successful.
      * @return RESULT_OK on success
     */
-    Result MoveFile(const char* dst_filename, const char* src_filename);
+    Result RenameFile(const char* dst_filename, const char* src_filename);
 
     /**
      * Given a path, resolves the path to the path that is first found, given the current file mounts

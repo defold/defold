@@ -117,7 +117,7 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not write to the file %s.", filename);
         }
 
-        if (dmSys::MoveFile(filename, tmp_filename) == dmSys::RESULT_OK)
+        if (dmSys::RenameFile(filename, tmp_filename) == dmSys::RESULT_OK)
         {
             lua_pushboolean(L, result);
             return 1;
