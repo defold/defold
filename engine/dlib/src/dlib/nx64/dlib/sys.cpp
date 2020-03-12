@@ -148,7 +148,7 @@ namespace dmSys
         }
     }
 
-    Result MoveFile(const char* dst_filename, const char* src_filename)
+    Result RenameFile(const char* dst_filename, const char* src_filename)
     {
         nn::Result result = nn::fs::RenameFile(src_filename, dst_filename);
 
