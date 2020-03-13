@@ -613,7 +613,15 @@ namespace dmEngine
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
 
-        engine->m_ClearColor = dmConfigFile::GetInt(engine->m_Config, "display.clear_color", 0x00000000);
+        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
+        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
+        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
+        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
+        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
+                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
+                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
+                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
+        engine->m_ClearColor = clear_color;
 
         if (!setting_vsync)
         {
