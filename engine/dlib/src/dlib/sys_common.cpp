@@ -1,8 +1,9 @@
 #include <assert.h>
 #include <stdint.h>
-#include <unistd.h>
 #if defined(_WIN32)
 #include <direct.h>
+#else
+#include <unistd.h>
 #endif
 #include <errno.h>
 #include <sys/stat.h>

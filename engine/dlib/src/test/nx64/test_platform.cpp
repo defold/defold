@@ -4,8 +4,6 @@
 // Exiting the program:
 //    https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/Pages/Page_162179114.html
 
-#include <app/app.h>
-
 #include <new>
 #include <stdio.h>
 #include <nn/nn_Log.h>
