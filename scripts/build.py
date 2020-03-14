@@ -48,7 +48,7 @@ except Exception, e:
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.5 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
@@ -1215,37 +1215,30 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    # Get archive files for a single release/sha1
-    def _get_files(self, bucket, sha1):
+    def _find_files_in_bucket(self, bucket, sha1, path, pattern):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
+        prefix = os.path.join(base_prefix, path)
         files = []
-        prefix = os.path.join(base_prefix, 'engine')
         for x in bucket.list(prefix = prefix):
             if x.name[-1] != '/':
                 # Skip directory "keys". When creating empty directories
                 # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                if re.match(pattern, x.name):
                     name = os.path.relpath(x.name, base_prefix)
                     files.append({'name': name, 'path': '/' + x.name})
+        return files
 
-        prefix = os.path.join(base_prefix, 'bob')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/bob.jar)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-
-        prefix = os.path.join(base_prefix, self.channel, 'editor')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/Defold-*)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
+    # Get archive files for a single release/sha1
+    def _get_files(self, bucket, sha1):
+        files = []
+        files = files + self._find_files_in_bucket(bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "bob", '.*(/bob.jar)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "editor", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "alpha", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "beta", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "stable", '.*(/Defold-.*)$')
+        files = files + self._find_files_in_bucket(bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
         return files
 
     def _get_single_release(self, version_tag, sha1):

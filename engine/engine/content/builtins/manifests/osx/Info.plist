@@ -6,6 +6,8 @@
 	<string>11E53</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>{{project.title}}</string>
 	<key>CFBundleExecutable</key>
 	<string>{{exe-name}}</string>
 	<key>CFBundleIconFile</key>

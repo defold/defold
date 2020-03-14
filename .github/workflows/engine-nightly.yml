@@ -22,6 +22,13 @@ jobs:
       {
         name: 'Build engine',
         run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@master,
+         if: always(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
   build-engine-linux-64:
@@ -34,4 +41,11 @@ jobs:
       {
         name: 'Build engine',
         run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@master,
+         if: always(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]

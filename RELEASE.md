@@ -131,6 +131,20 @@ Important: *Make sure your branches are up to date!*
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-1. Tell the editor team to update and release the Editor 2
+1. Merge `master` into `editor-dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
+
+1. Merge `editor-dev` into `dev`
+
+        $ git checkout dev
+        $ git pull
+        $ git merge editor-dev
+        $ git push
+
+1. When the editor-dev is built, all channels have been updated
 
 1. Post release notes on [forum.defold.com](https://forum.defold.com)
