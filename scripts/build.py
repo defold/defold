@@ -339,7 +339,7 @@ class Configuration(object):
             os.makedirs(dirname)
         cmd = ['tar', 'xfz', src, '-C', dirname]
         if strip_components:
-            cmd.append(['--strip-components', '%d' % strip_components])
+            cmd.extend(['--strip-components', '%d' % strip_components])
         self.exec_env_command(cmd)
         os.chdir(old_dir)
 
@@ -493,7 +493,7 @@ class Configuration(object):
 
 
         target_platform = self.target_platform
-        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        if 'darwin' in self.host2:
             # macOS SDK
             download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
             download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
@@ -503,7 +503,7 @@ class Configuration(object):
             download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
             download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform and not ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,  '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
             download_sdk(self,  '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
