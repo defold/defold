@@ -70,7 +70,8 @@ def setup_tools_nx(conf, build_util):
     conf.env['MAKEMETA']        = '%s/MakeMeta/MakeMeta.exe' % commandline_folder
     conf.env['MAKENSO']         = '%s/MakeNso/MakeNso.exe' % commandline_folder
 
-    conf.env['TEST_LAUNCH_PATTERN'] = 'RunOnTarget.exe --pattern-failure-exit "tests FAILED" --failure-timeout 30 --working-directory . %s %s' # program + args
+    run_on_target = '%s/RunOnTarget.exe' % commandline_folder
+    conf.env['TEST_LAUNCH_PATTERN'] = run_on_target + ' --pattern-failure-exit "tests FAILED" --failure-timeout 30 --working-directory . %s %s' # program + args
     conf.env['DM_MOUNT_HOST']       = '1'
 
 def get_sdk_root():
