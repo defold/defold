@@ -28,8 +28,6 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if os.path.exists('src/test/' + platform_source_path):
         platform_source = ' ' + platform_source_path
 
-    print "MAWE", platform_source
-
     if not skip_run:
         req_features.append('test')
     if extra_features != None:
