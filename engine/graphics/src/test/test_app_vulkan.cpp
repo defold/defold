@@ -9,7 +9,7 @@
 #include <app/app.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <graphics/graphics.h>
+#include "../graphics.h"
 
 struct AppCtx
 {
