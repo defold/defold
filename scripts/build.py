@@ -828,13 +828,12 @@ class Configuration(object):
             resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
             self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
-        libs = ['particle']
         if self.is_desktop_target():
-            libs.append('texc')
-        for lib in libs:
-            lib_name = format_lib('%s_shared' % (lib), self.target_platform)
-            lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
-            self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
+            libs = ['particle', 'texc']
+            for lib in libs:
+                lib_name = format_lib('%s_shared' % (lib), self.target_platform)
+                lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+                self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
