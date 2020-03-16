@@ -117,7 +117,7 @@ def setup_vars_nx(conf, build_util):
     LINKFLAGS+=" -nostartfiles -Wl,--gc-sections -Wl,--build-id=sha1 -Wl,-init=_init -Wl,-fini=_fini -Wl,-pie -Wl,-z,combreloc"
     LINKFLAGS+=" -Wl,-z,relro -Wl,--enable-new-dtags -Wl,-u,malloc -Wl,-u,calloc -Wl,-u,realloc -Wl,-u,aligned_alloc -Wl,-u,free"
     LINKFLAGS+=" -fdiagnostics-format=msvc"
-    LINKFLAGS+=" -Wl,-T C:/Nintendo/SDK/NintendoSDK/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
+    LINKFLAGS+=" -Wl,-T %s/Resources/SpecFiles/Application.aarch64.lp64.ldscript" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" -Wl,--start-group"
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/rocrt.o" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/nnApplication.o" % NINTENDO_SDK_ROOT
