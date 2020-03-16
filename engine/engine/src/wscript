@@ -49,7 +49,6 @@ def build(bld):
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
     else:
-        exported_symbols.append('AudioDecoderStbVorbis')
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
 
