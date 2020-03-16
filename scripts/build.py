@@ -332,15 +332,15 @@ class Configuration(object):
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
         src = src.replace('\\', '/')
+        if os.environ.get('GITHUB_SHA', None) is not None:
+            src = '"%s"' % src # put it within quotes to make tar not try to "connect" because it found a colon
+
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-
-        if os.environ.get('TERM', '') not in ['cygwin']:
-            src = '"%s"' % src # put it within quotes to make tar not try to "connect" because it found a colon
 
         cmd = ['tar', 'xfz', src, '-C', dirname]
         if strip_components:
@@ -493,8 +493,6 @@ class Configuration(object):
         self.install_sdk()
 
     def install_sdk(self):
-
-        self.exec_env_shell_command("export") # debug print
 
         sdkfolder = join(self.ext, 'SDKs')
 
