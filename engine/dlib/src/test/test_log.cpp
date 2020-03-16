@@ -102,7 +102,7 @@ TEST(dmLog, LogFile)
     ASSERT_NE((FILE*) 0, f);
     if (f) {
         fread(tmp, 1, sizeof(tmp), f);
-        ASSERT_STREQ("TESTING LOG", tmp);
+        ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
         fclose(f);
     }
     dmSys::Unlink(path);
