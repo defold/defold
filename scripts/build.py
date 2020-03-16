@@ -494,6 +494,8 @@ class Configuration(object):
 
     def install_sdk(self):
 
+        self.exec_env_shell_command("export") # debug print
+
         sdkfolder = join(self.ext, 'SDKs')
 
 
