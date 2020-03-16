@@ -345,7 +345,7 @@ class Configuration(object):
         cmd = ['tar', 'xfz', src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
-        self.exec_env_command(cmd)
+        self.exec_env_shell_command(cmd)
         os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
