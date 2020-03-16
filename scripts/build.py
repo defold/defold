@@ -331,6 +331,7 @@ class Configuration(object):
             tf.close()
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
+        src = src.replace('\\', '/')
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
