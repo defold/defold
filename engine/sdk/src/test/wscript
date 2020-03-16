@@ -9,7 +9,7 @@ def sdk_include_filter(self):
     new_cpppath = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include'),
                     os.path.join(self.bld.path.abspath(), 'src')] # Add this dir, so that the dmsdk/sdk.h can be found
     for path in self.env['CPPPATH']:
-        if dynamo_home not in path:
+        if dynamo_home not in path or 'SDKs' in path:
             new_cpppath.append(path)
     self.env['CPPPATH'] = new_cpppath
 
