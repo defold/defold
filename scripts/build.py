@@ -334,7 +334,7 @@ class Configuration(object):
         src = src.replace('\\', '/')
 
         force_local = ''
-        if os.environ.get('GITHUB_SHA', None) is not None:
+        if os.environ.get('GITHUB_SHA', None) is not None and os.environ.get('TERM', '') == 'cygwin':
             force_local = '--force-local' # to make tar not try to "connect" because it found a colon in the source file
 
         self._log('Extracting %s to %s/' % (src, target_folder))
