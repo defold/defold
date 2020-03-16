@@ -7,6 +7,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <netinet/in.h>
 #include <net/if.h>
 
 namespace dmSocket
