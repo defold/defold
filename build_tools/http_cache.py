@@ -3,7 +3,8 @@ from urllib2 import HTTPError
 
 def mangle(url):
     url = urlparse.urlparse(url)
-    return '%s%s' % (url.hostname.replace('.', '_'), url.path.replace('/', '-'))
+    #return '%s%s' % (url.hostname.replace('.', '_'), url.path.replace('/', '-'))
+    return 'defold%s' % url.path.replace('/', '-') # we avoid putting the possibly secret url in the output messages
 
 def log(msg):
     print msg
