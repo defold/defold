@@ -13,6 +13,7 @@
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <unistd.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
