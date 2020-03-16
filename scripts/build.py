@@ -332,8 +332,10 @@ class Configuration(object):
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
         src = src.replace('\\', '/')
+
+        force_local = ''
         if os.environ.get('GITHUB_SHA', None) is not None:
-            src = '"%s"' % src # put it within quotes to make tar not try to "connect" because it found a colon
+            force_local = '--force-locaĺ' # to make tar not try to "connect" because it found a colon in the source file
 
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
@@ -345,6 +347,8 @@ class Configuration(object):
         cmd = ['tar', 'xfz', src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
+        if force_local:
+            cmd.append(force_local)
         self.exec_env_shell_command(cmd)
         os.chdir(old_dir)
 
