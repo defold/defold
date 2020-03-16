@@ -338,6 +338,10 @@ class Configuration(object):
         os.chdir(parentdir)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
+
+        if os.environ.get('TERM', '') not in ['cygwin']:
+            src = '"%s"' % src # put it within quotes to make tar not try to "connect" because it found a colon
+
         cmd = ['tar', 'xfz', src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
