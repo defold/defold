@@ -352,7 +352,7 @@ class Configuration(object):
             cmd.extend(['--strip-components', '%d' % strip_components])
         if force_local:
             cmd.append(force_local)
-        self.exec_env_shell_command(cmd)
+        self.exec_env_command(cmd)
         os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
