@@ -140,7 +140,7 @@
     MouseEvent/MOUSE_RELEASED})
 
 (defn- load-stage [workspace project prefs updater newly-created?]
-  (let [^VBox root (ui/load-fxml "editor.fxml")
+  (let [^VBox root (ui/load-fxml-without-user-css "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
 
@@ -150,6 +150,13 @@
     (app-view/restore-window-dimensions stage prefs)
     
     (ui/show! stage)
+
+    ;; The upgrade to JavaFX 14 appear to have introduced a caching issue in the
+    ;; internal StyleManager class. To work around it we must apply CSS after
+    ;; the stage has been shown, or we'll get black text in property text fields
+    ;; when the focus is outside the Properties View.
+    (ui/apply-css! root)
+
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")

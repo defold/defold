@@ -596,9 +596,13 @@
   (apply-default-css! root)
   (apply-user-css! root))
 
+(defn load-fxml-without-user-css
+  ^Parent [path]
+  (FXMLLoader/load (io/resource path)))
+
 (defn load-fxml
   ^Parent [path]
-  (let [root ^Parent (FXMLLoader/load (io/resource path))]
+  (let [root (load-fxml-without-user-css path)]
     (apply-user-css! root)
     root))
 
