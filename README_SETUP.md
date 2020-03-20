@@ -6,14 +6,15 @@
 
 ### Java JDK 11
 
-You need Java JDK 11 installed to build the tools. [Download and install from Oracle](https://www.oracle.com/technetwork/java/javase/downloads/index.html). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+You need Java JDK 11 installed to build the tools. [Download and install from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
 
 Set PATH and JAVA_HOME:
 
     > nano ~/.bashrc
 
-    export PATH=<JAVA_INSTALL_DIR>:$PATH
-    export JAVA_HOME=<JAVA_INSTALL_DIR>
+    export JAVA_HOME=<JAVA_INSTALL_PATH>
+    export PATH=$JAVA_HOME/bin:$PATH
+
 
 Verify that Java is installed and working:
 
@@ -112,11 +113,46 @@ You need to [download](https://git-scm.com/download/win) a command line version 
 	- Add the public key to your Github profile
 	- You might need to run `start-ssh-agent` (in `C:\Program Files\Git\cmd`)
 
+Alternatively, you can easily create your own key from command line:
+
+    $ ssh-keygen -t rsa -b 1024 -C "user@domain.com"
+    # Copy the contents of the public file
+    $ cat ~/.ssh/id_rsa.pub
+    # Add the public key to your Github profile
+    # Test your new key:
+    $ ssh -T git@github.com
+
 Now you should be able to clone the defold repo from a command prompt:
 
 	> git clone git@github.com:defold/defold.git
 
 If this won't work, you can try cloning using Github Desktop.
+
+#### Misc
+
+These tools are not essential, but merely things that might help during your development
+
+##### [Chocolatey](https://chocolatey.org/docs/installation)
+
+Chocolatey is another package installer that will help install various helper tools such as [ripgrep](https://github.com/BurntSushi/ripgrep)
+
+
+### Command Prompt
+
+It's useful to modify your command prompt to show the statuss of the repo you're in.
+E.g. it makes it easier to keep the git beanches apart.
+
+You do this by editing the `PS1` variable. Put it in the recommended config for your system (e.g. `.profile` or `.bashrc`)
+Here's a very small improvement on the default prompt, whic shows you the time of the last command, as well as the current git branch name and its status:
+
+    git_branch() {
+        git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+    }
+    acolor() {
+      [[ -n $(git status --porcelain=v2 2>/dev/null) ]] && echo 31 || echo 33
+    }
+    export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
+
 
 
 ### macOS
