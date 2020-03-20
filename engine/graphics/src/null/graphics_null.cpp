@@ -320,6 +320,8 @@ namespace dmGraphics
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
@@ -378,6 +380,8 @@ namespace dmGraphics
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
+        if (!buffer)
+            return;
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
