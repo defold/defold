@@ -28,8 +28,12 @@ def build(bld):
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
 
+    platform = bld.env.PLATFORM
+    if platform == 'win32':
+        platform = 'x86-win32'
+
     bob_flags = []
-    bob_flags.append("--platform=%s" % bld.env.PLATFORM)
+    bob_flags.append("--platform=%s" % platform)
     if Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")
 
