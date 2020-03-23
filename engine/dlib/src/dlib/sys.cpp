@@ -61,7 +61,6 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 // Implemented in library_sys.js
 extern "C" const char* dmSysGetUserPersistentDataRoot();
-extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
 extern "C" bool dmSysOpenURL(const char* url);
