@@ -35,6 +35,9 @@ def _import_private_lib(platform):
                 return False
             @classmethod
             def supports_feature(cls, platform, feature, data):
+                if platform in ('win32', 'x86_64-win32'):
+                    if feature in ('vulkan',):
+                        return False
                 return True
         globals()['waf_dynamo_private'] = waf_dynamo_private
         return
@@ -47,8 +50,6 @@ def _import_private_lib(platform):
         raise
 
 def platform_supports_feature(platform, feature, data):
-    if not is_platform_private(platform):
-        return True
     _import_private_lib(platform)
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
