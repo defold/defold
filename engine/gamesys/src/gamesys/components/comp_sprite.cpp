@@ -875,6 +875,8 @@ namespace dmGameSystem
 
         if (sprite_world->m_ReallocBuffers)
         {
+            // Old version has always 4 vertices. New version has up to 8 vertices.
+            // We will allocate for this upper bound
             uint32_t num_vertices_per_sprite = sprite_world->m_UseGeometries ? 8 : 4;
             uint32_t num_indices_per_sprite = (num_vertices_per_sprite - 2) * 3;
             ReAllocateBuffers(sprite_world, render_context, sprite_context->m_MaxSpriteCount, num_vertices_per_sprite, num_indices_per_sprite);
