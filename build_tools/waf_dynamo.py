@@ -267,6 +267,18 @@ def getAndroidLinkFlags(target_arch):
     else:
         return ['-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
 
+# from osx.py
+def apply_framework(self):
+    for x in self.to_list(self.env['FRAMEWORKPATH']):
+        frameworkpath_st='-F%s'
+        self.env.append_unique('CXXFLAGS',frameworkpath_st%x)
+        self.env.append_unique('CCFLAGS',frameworkpath_st%x)
+        self.env.append_unique('LINKFLAGS',frameworkpath_st%x)
+    for x in self.to_list(self.env['FRAMEWORK']):
+        self.env.append_value('LINKFLAGS',['-framework',x])
+        
+feature('cc','cxx')(apply_framework)
+after('apply_lib_vars')(apply_framework)
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -1700,12 +1712,8 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
     conf.env['STATICLIB_APP'] = ['app']
-    if build_util.get_target_os() in ['win32', 'darwin', 'android', 'linux', 'web']:
-
-        if Options.options.with_vulkan:
-            conf.env['STATICLIB_APP'].append('dmglfw_vulkan')
-        else:
-            conf.env['STATICLIB_APP'].append('dmglfw')
+    if platform in ('x86_64-darwin'):
+        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'OpenGL', 'OpenAL', 'AGL', 'IOKit', 'Carbon', 'CoreVideo']
 
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
@@ -1732,8 +1740,8 @@ def detect(conf):
 
     if platform in ('x86_64-darwin'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
-        conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
-        conf.env['FRAMEWORK_VULKAN'] = 'Metal'
+        conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
+        conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
@@ -1748,6 +1756,8 @@ def detect(conf):
         conf.env['STATICLIB_DMGLFW'] = 'dmglfw_vulkan'
     else:
         conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+
+    conf.env['STATICLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
