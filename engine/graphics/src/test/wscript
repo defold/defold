@@ -12,9 +12,9 @@ def build(bld):
                          target = name)
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-	    bld.new_task_gen(features = 'cxx cprogram test skip_test',
-	                     includes = ['../../src', '../../proto'],
-	                     source = 'test_app_vulkan.cpp',
-	                     uselib = 'APP PLATFORM DDF DLIB DMGLFW VULKAN',
-	                     uselib_local = 'graphics_vulkan',
-	                     target = 'test_app_vulkan')
+        bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                         includes = ['../../src', '../../proto'],
+                         source = 'test_app_vulkan.cpp',
+                         uselib = 'APP PLATFORM DDF DLIB DMGLFW_VULKAN VULKAN',
+                         uselib_local = 'graphics_vulkan',
+                         target = 'test_app_vulkan')
