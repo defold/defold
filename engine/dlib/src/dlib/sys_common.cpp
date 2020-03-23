@@ -13,6 +13,11 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
+#ifdef __EMSCRIPTEN__
+// Implemented in library_sys.js
+extern "C" void dmSysPumpMessageQueue();
+#endif
+
 namespace dmSys
 {
     EngineInfo g_EngineInfo;
