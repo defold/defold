@@ -34,4 +34,7 @@ def build(bld):
     bld.add_subdirs('src')
 
 def shutdown():
+    if sys.platform == 'linux2' and not os.path.exists('/dev/snd/controlC0'):
+        print "SKIPPING TESTS SINCE WE DETECTED NO SOUND CARD"
+        return
     waf_dynamo.run_tests(valgrind = True)
