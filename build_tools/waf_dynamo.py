@@ -35,9 +35,8 @@ def _import_private_lib(platform):
                 return False
             @classmethod
             def supports_feature(cls, platform, feature, data):
-                if platform in ('win32', 'x86_64-win32'):
-                    if feature in ('vulkan',):
-                        return False
+                if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android'):
+                    return False
                 return True
         globals()['waf_dynamo_private'] = waf_dynamo_private
         return
@@ -1713,9 +1712,37 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
     conf.env['STATICLIB_APP'] = ['app']
-    if platform in ('x86_64-darwin'):
-        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'OpenGL', 'OpenAL', 'AGL', 'IOKit', 'Carbon', 'CoreVideo']
+    if platform in ('x86_64-darwin',):
+        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
+    elif platform in ('armv7-android', 'arm64-android'):
+        conf.env['STATICLIB_APP'] += ['android']
+    elif platform in ('x86_64-linux',):
+        conf.env['STATICLIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
+    elif platform in ('win32', 'x86_64-win32'):
+        conf.env['LINKFLAGS_APP'] = ['user32.lib', 'shell32.lib']
 
+
+    if platform in ('x86_64-darwin',):
+        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
+    elif platform in ('armv7-android', 'arm64-android'):
+        conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
+    elif platform in ('win32', 'x86_64-win32'):
+        conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
+    elif platform in ('x86_64-linux',):
+        conf.env['STATICLIB_OPENGL'] = ['GL', 'GLU']
+ 
+
+    if platform in ('x86_64-darwin',):
+        conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
+    elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
+    elif platform in ('armv7-android', 'arm64-android'):
+        conf.env['LIB_OPENAL'] = ['OpenSLES']
+    elif platform in ('win32', 'x86_64-win32'):
+        conf.env['LIB_OPENAL'] = ['OpenAL32']
+    elif platform in ('x86_64-linux',):
+        conf.env['LIB_OPENAL'] = ['openal']
+ 
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
 

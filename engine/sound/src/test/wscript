@@ -141,6 +141,8 @@ def build(bld):
         pass
     else:
         soundlibs.append('OPENAL')
+        soundlibs.append('DMGLFW')
+        soundlibs.append('OPENGL')
 
     if 'TREMOLO' in soundlibs:
         bld.new_task_gen(features = 'cxx cprogram embed test',
