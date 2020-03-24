@@ -121,14 +121,13 @@ def build(bld):
     # remove all null implementations
     dlib.source = [x for x in dlib.source if not x.endswith('_null.cpp')]
 
-    if 'darwin' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['osx', 'ios', 'web']:
+    if 'darwin' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['osx', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
     if bld.env.PLATFORM in ['js-web', 'wasm-web']:
-        lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
         lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
 
     if is_platform_private(bld.env.PLATFORM):
