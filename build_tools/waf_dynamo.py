@@ -1717,7 +1717,7 @@ def detect(conf):
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['STATICLIB_APP'] += ['android']
     elif platform in ('x86_64-linux',):
-        conf.env['STATICLIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
+        conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_APP'] = ['user32.lib', 'shell32.lib']
 
