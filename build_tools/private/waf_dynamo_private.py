@@ -142,8 +142,9 @@ def setup_vars_nx(conf, build_util):
     conf.env.program_PATTERN = '%s.nss'
     conf.env.bundle_PATTERN = '%s.nspd'
 
-    conf.env['STATICLIB_DMGLFW']= []
-    conf.env['SHLIB_VULKAN']    = ['vulkan', 'opengl']
+    conf.env['SHLIB_VULKAN']            = ['vulkan', 'opengl']
+    conf.env['STATICLIB_DMGLFW']        = []
+    conf.env['STATICLIB_DMGLFW_VULKAN'] = []
 
     # Until we support cares
     conf.env['STATICLIB_CARES'] = []

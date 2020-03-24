@@ -35,7 +35,7 @@ def _import_private_lib(platform):
                 return False
             @classmethod
             def supports_feature(cls, platform, feature, data):
-                if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android'):
+                if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android', 'x86_64-linux'):
                     return False
                 return True
         globals()['waf_dynamo_private'] = waf_dynamo_private
