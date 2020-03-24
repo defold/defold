@@ -119,17 +119,17 @@
    :help "Render clear color - green channel",
    :label "Clear Color Green"
    :default 0,
-   :path ["display" "clear_color_green"]}
+   :path ["render" "clear_color_green"]}
   {:type :integer,
    :help "Render clear color - blue channel",
    :label "Clear Color Blue"
    :default 0,
-   :path ["display" "clear_color_blue"]}
+   :path ["render" "clear_color_blue"]}
   {:type :integer,
    :help "Render clear color - alpha channel",
    :label "Clear Color Alpha"
    :default 0,
-   :path ["display" "clear_color_alpha"]}
+   :path ["render" "clear_color_alpha"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
