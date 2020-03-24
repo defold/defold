@@ -1729,7 +1729,7 @@ def detect(conf):
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
     elif platform in ('x86_64-linux',):
-        conf.env['STATICLIB_OPENGL'] = ['GL', 'GLU']
+        conf.env['LIB_OPENGL'] = ['GL', 'GLU']
  
 
     if platform in ('x86_64-darwin',):
