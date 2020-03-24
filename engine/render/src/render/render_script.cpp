@@ -2813,23 +2813,33 @@ bail:
         if (message->m_Descriptor != 0)
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
-            if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
+            if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor || descriptor == dmRenderDDF::DrawDebugText::m_DDFDescriptor)
             {
-                dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
-                const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
-                if (instance->m_RenderContext->m_SystemFontMap != 0)
+                if (instance->m_RenderContext->m_SystemFontMap == 0)
                 {
-                    DrawTextParams params;
+                    dmLogWarning("The text can not be rendered since the system font is not set.");
+                    context->m_Result = RENDER_SCRIPT_RESULT_FAILED;
+                    return;
+                }
+
+                DrawTextParams params;
+                if (descriptor == dmRenderDDF::DrawText::m_DDFDescriptor)
+                {
+                    dmRenderDDF::DrawText* dt = (dmRenderDDF::DrawText*)message->m_Data;
+                    const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
                     params.m_Text = text;
                     params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
                     params.m_FaceColor = Vectormath::Aos::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-                    DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, params);
                 }
                 else
                 {
-                    dmLogWarning("The text '%s' can not be rendered since the system font is not set.", text);
-                    context->m_Result = RENDER_SCRIPT_RESULT_FAILED;
+                    dmRenderDDF::DrawDebugText* dt = (dmRenderDDF::DrawDebugText*)message->m_Data;
+                    const char* text = (const char*) ((uintptr_t) dt + (uintptr_t) dt->m_Text);
+                    params.m_Text = text;
+                    params.m_WorldTransform.setTranslation(Vectormath::Aos::Vector3(dt->m_Position));
+                    params.m_FaceColor = dt->m_Color;
                 }
+                DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, params);
                 return;
             }
             else if (descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)

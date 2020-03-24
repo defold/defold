@@ -87,6 +87,7 @@ namespace dmGameSystem
         uint8_t*                        m_IndexBufferWritePtr;
         uint8_t                         m_Is16BitIndex : 1;
         uint8_t                         m_UseGeometries : 1;
+        uint8_t                         m_ReallocBuffers : 1;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -113,7 +114,12 @@ namespace dmGameSystem
         }
     }
 
-    static void AllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, uint32_t max_sprite_count, uint32_t num_vertices_per_sprite, uint32_t num_indices_per_sprite) {
+    static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, uint32_t max_sprite_count, uint32_t num_vertices_per_sprite, uint32_t num_indices_per_sprite) {
+        if (sprite_world->m_VertexBuffer) {
+            dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
+            sprite_world->m_VertexBuffer = 0;
+        }
+
         if (sprite_world->m_VertexBuffer == 0)
             sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
@@ -142,10 +148,13 @@ namespace dmGameSystem
 
             if (sprite_world->m_IndexBuffer) {
                 dmGraphics::DeleteIndexBuffer(sprite_world->m_IndexBuffer);
+                sprite_world->m_IndexBuffer = 0;
             }
 
             sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         }
+
+        sprite_world->m_ReallocBuffers = 0;
     }
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -172,12 +181,7 @@ namespace dmGameSystem
         sprite_world->m_IndexBufferData = 0;
 
         sprite_world->m_UseGeometries = 0;
-
-        // TODO: Create new settings for vertex buffer size
-        // TODO: Should we remove the index buffer altogether?
-        uint32_t num_vertices_per_sprite = 8; // Current max value from the editor
-        uint32_t num_indices_per_sprite = (num_vertices_per_sprite - 2) * 3;
-        AllocateBuffers(sprite_world, render_context, sprite_context->m_MaxSpriteCount, num_vertices_per_sprite, num_indices_per_sprite);
+        sprite_world->m_ReallocBuffers = 1;
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -344,6 +348,8 @@ namespace dmGameSystem
         PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
 
         TextureSetResource* texture_set = GetTextureSet(component, resource);
+
+        sprite_world->m_ReallocBuffers |= (sprite_world->m_UseGeometries == 0 && texture_set->m_TextureSet->m_UseGeometries != 0) ? 1 : 0;
         sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
 
         *params.m_UserData = (uintptr_t)index;
@@ -867,6 +873,15 @@ namespace dmGameSystem
         if (!sprite_count)
             return dmGameObject::UPDATE_RESULT_OK;
 
+        if (sprite_world->m_ReallocBuffers)
+        {
+            // Old version has always 4 vertices. New version has up to 8 vertices.
+            // We will allocate for this upper bound
+            uint32_t num_vertices_per_sprite = sprite_world->m_UseGeometries ? 8 : 4;
+            uint32_t num_indices_per_sprite = (num_vertices_per_sprite - 2) * 3;
+            ReAllocateBuffers(sprite_world, render_context, sprite_context->m_MaxSpriteCount, num_vertices_per_sprite, num_indices_per_sprite);
+        }
+
         // Submit all sprites as entries in the render list for sorting.
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, sprite_count);
         dmRender::HRenderListDispatch sprite_dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, sprite_world);
@@ -1111,6 +1126,7 @@ namespace dmGameSystem
                 PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
 
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+                sprite_world->m_ReallocBuffers |= (sprite_world->m_UseGeometries == 0 && texture_set->m_TextureSet->m_UseGeometries != 0) ? 1 : 0;
                 sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
             }
             return res;

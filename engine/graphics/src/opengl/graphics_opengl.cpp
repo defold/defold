@@ -1022,6 +1022,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR;
@@ -1069,6 +1071,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
+        if (!buffer)
+            return;
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR;
