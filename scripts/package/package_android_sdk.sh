@@ -42,10 +42,6 @@ ANDROID_SDK_INSTALLDIR=${TMP}/${ANDROID_SDK_NAME}
 TMP_ANDROID_HOME=${PWD}/_tmpdir/${HOST}/android_home/${ANDROID_SDK_NAME}
 
 
-if [ ! -e "${ANDROID_SDK_INSTALLDIR}" ]; then
-	mkdir -p ${ANDROID_SDK_INSTALLDIR}
-fi
-
 if [ ! -e "${TMP}" ]; then
 	mkdir -p ${TMP}
 fi
@@ -63,7 +59,7 @@ if [ ! -d "${ANDROID_SDK_INSTALLDIR}" ]; then
 	mkdir -p ${ANDROID_SDK_INSTALLDIR}
 	(cd ${ANDROID_SDK_INSTALLDIR} && unzip -q ${TMP}/${ANDROID_TOOLS_FILENAME})
 else
-	echo "Found unpacked sdkmanager" ${TMP}/${ANDROID_SDK_INSTALLDIR}
+	echo "Found unpacked sdkmanager" ${ANDROID_SDK_INSTALLDIR}
 fi
 
 echo "cd ${ANDROID_SDK_INSTALLDIR}"
