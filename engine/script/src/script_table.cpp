@@ -19,12 +19,8 @@ extern "C"
 // The bug is tracked: https://github.com/kripken/emscripten/issues/2378
 #ifdef __EMSCRIPTEN__
 typedef lua_Number __attribute__((aligned(4))) lua_Number_4_align;
-typedef uint16_t __attribute__((aligned(1))) uint16_t_1_align;
-typedef uint32_t __attribute__((aligned(1))) uint32_t_1_align;
 #else
 typedef lua_Number lua_Number_4_align;
-typedef uint16_t uint16_t_1_align;
-typedef uint32_t uint32_t_1_align;
 #endif
 
 // custom type when writing negative numbers as keys
@@ -190,8 +186,8 @@ namespace dmScript
             if (index > 0xffff)
                 luaL_error(L, "index out of bounds, max is %d", 0xffff);
             uint16_t key = (uint16_t)index;
-            *((uint16_t_1_align *)buffer) = key;
-            buffer += 2;
+            memcpy(buffer, &key, sizeof(uint16_t));
+            buffer += sizeof(uint16_t);
         }
         else if (3 == header.m_Version)
         {
@@ -233,9 +229,10 @@ namespace dmScript
             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
         }
 
-        uint32_t_1_align* u32ptr = (uint32_t_1_align*)buffer;
-        *u32ptr = (uint32_t)value_len;
-        memcpy(buffer + sizeof(uint32_t), value, value_len);
+        uint32_t len = (uint32_t)value_len;
+        memcpy(buffer, &len, sizeof(uint32_t));
+        buffer += sizeof(uint32_t);
+        memcpy(buffer, value, value_len);
         return total_size;
     }
 
@@ -257,8 +254,9 @@ namespace dmScript
     // When loading/unpacking messages/save games, we use pascal strings, and the Lua binary string api
     static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count, PushTableLogger& logger)
     {
-        uint32_t_1_align* u32ptr = (uint32_t_1_align*)buffer;
-        size_t value_len = (size_t)*u32ptr;
+        uint32_t len;
+        memcpy(&len, buffer, sizeof(uint32_t));
+        size_t value_len = (size_t)len;
         uint32_t total_size = value_len + sizeof(uint32_t);
         if (buffer_end - buffer < (intptr_t)total_size)
         {
@@ -520,7 +518,7 @@ namespace dmScript
         }
         lua_pop(L, 1);
 
-        *((uint16_t_1_align *)buffer_start) = count;
+        memcpy(buffer_start, &count, sizeof(uint16_t));
 
         assert(top == lua_gettop(L));
         return buffer - buffer_start;
@@ -562,8 +560,10 @@ namespace dmScript
             {
                 luaL_error(L, "Unknown key type %d", key_type);
             }
-            lua_pushnumber(L, *((uint16_t_1_align *)buffer));
-            buffer += 2;
+            uint16_t value;
+            memcpy(&value, buffer, sizeof(uint16_t));
+            lua_pushnumber(L, value);
+            buffer += sizeof(uint16_t);
         }
         else if (3 == header.m_Version)
         {
@@ -672,10 +672,11 @@ namespace dmScript
         const char* buffer_end = buffer + buffer_size;
         CHECK_PUSHTABLE_OOB("table header", logger, buffer+2, buffer_end, 0, depth);
 
-        uint32_t count = *(uint16_t_1_align *)buffer;
+        uint16_t count;
+        memcpy(&count, buffer, sizeof(uint16_t));
         buffer += 2;
 
-        PushTableLogFormat(logger, "{%d|", count);
+        PushTableLogFormat(logger, "{%d|", (uint32_t)count);
 
         if (buffer > buffer_end) {
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
