@@ -1371,7 +1371,8 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
-        model['release'] = {'editor': [ dict(name='macOS 10.7+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.dmg'),
+        model['release'] = {'editor': [ dict(name='macOS 10.11+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.dmg'),
+                                        dict(name='macOS 10.7-10.10', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.zip'),
                                         dict(name='Windows', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-win32.zip'),
                                         dict(name='Ubuntu 16.04+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-linux.zip')] }
 
