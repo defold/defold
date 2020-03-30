@@ -25,23 +25,31 @@ message RenderPrototypeDesc
  * @namespace render
  */
 
-/*# draw a text on the screen
- * Draw a text on the screen. This should mostly be used for debugging purposes.
- *
- * @message
- * @name draw_text
- * @param position [type:vector3] position of the text
- * @param text [type:string] the text to draw
- * @examples
- *
- * ```lua
- * msg.post("@render:", "draw_text", { text = "Hello world!", position = vmath.vector3(200, 200, 0) } )
- * ```
- */
 message DrawText
 {
     required dmMath.Point3 position = 1;
     required string text = 2;
+}
+
+/*# draw a text on the screen
+ * Draw a text on the screen. This should be used for debugging purposes only.
+ *
+ * @message
+ * @name draw_debug_text
+ * @param position [type:vector3] position of the text
+ * @param text [type:string] the text to draw
+ * @param color [type:vector4] color of the text
+ * @examples
+ *
+ * ```lua
+ * msg.post("@render:", "draw_debug_text", { text = "Hello world!", position = vmath.vector3(200, 200, 0), color = vmath.vector4(1, 0, 0, 1) } )
+ * ```
+ */
+message DrawDebugText
+{
+    required dmMath.Point3 position = 1;
+    required string text = 2;
+    required dmMath.Vector4 color = 3;
 }
 
 /*# draw a line on the screen

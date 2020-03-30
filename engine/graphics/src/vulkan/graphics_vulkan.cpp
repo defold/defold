@@ -1552,6 +1552,8 @@ bail:
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
         if (!buffer_ptr->m_Destroyed)
@@ -1613,7 +1615,8 @@ bail:
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        assert(buffer);
+        if (!buffer)
+            return;
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         if (!buffer_ptr->m_Destroyed)
         {

@@ -4030,7 +4030,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_DirtyLocal = 1;
             if(n->m_ChildHead != INVALID_INDEX)
             {
-                SetDirtyLocalRecursive(scene, GetNodeHandle(&scene->m_Nodes[n->m_ChildHead]));
+                SetDirtyLocalRecursive(scene, GetNodeHandle(n));
             }
             index = n->m_NextIndex;
         }

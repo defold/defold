@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 readonly PRODUCT=jctest
-readonly VERSION=0.5
+readonly VERSION=0.6
 readonly BASE_URL=https://github.com/JCash/jctest/archive/
 readonly FILE_URL=v${VERSION}.tar.gz
 
