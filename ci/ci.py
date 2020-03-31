@@ -286,7 +286,7 @@ def main(argv):
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
-        release_channel = engine_channel
+        release_channel = "editor-stable"
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
