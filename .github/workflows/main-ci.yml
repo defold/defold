@@ -5,6 +5,7 @@ on:
      branches:
        - '*'
        - '!DEFEDIT-*'
+       - '!editor-dev'
   repository_dispatch: {}
 
 env:
