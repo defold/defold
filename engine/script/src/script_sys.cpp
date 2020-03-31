@@ -389,7 +389,7 @@ union SaveLoadBuffer
      * Open an URL:
      *
      * ```lua
-     * local success = sys.open_url("http://www.defold.com")
+     * local success = sys.open_url("http://www.defold.com", {target = "_blank"})
      * if not success then
      *   -- could not open the url...
      * end
