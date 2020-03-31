@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'DEFEDIT-*'
+      - 'editor-dev'
 
 env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
