@@ -65,9 +65,14 @@ var LibraryDmSys = {
         },
 
         dmSysOpenURL__deps: ['$JSEvents'],
-        dmSysOpenURL: function(url) {
+        dmSysOpenURL: function(url, target) {
             var jsurl = Pointer_stringify(url);
-            if (window.open(jsurl) == null) {
+            var jstarget = Pointer_stringify(target);
+            if (jstarget == "")
+            {
+                jstarget = "_self";
+            }
+            if (window.open(jsurl, jstarget) == null) {
                 window.location = jsurl;
             }
 
