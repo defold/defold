@@ -12,9 +12,12 @@ def build(bld):
                     target = 'test_hid',
                     source = 'test_hid.cpp')
 
+
+    web_libs = ['library_glfw.js', 'library_sys.js']  
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     includes = ['../%s' % build_util.get_target_os(), '..', '.'],
-                    uselib = 'APP DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT',
+                    uselib = 'APP DLIB OPENGL DMGLFW CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT',
                     uselib_local = 'hid',
+                    web_libs = web_libs,
                     target = 'test_app_hid',
                     source = 'test_app_hid.cpp')

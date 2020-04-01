@@ -101,7 +101,7 @@ static dmApp::Result EngineUpdate(void* _engine)
         LOG("AXIS: ");
 
         uint32_t numaxis = dmHID::GetGamepadAxisCount(pad);
-        for (uint32_t a = 0; a < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++a)
+        for (uint32_t a = 0; a < numaxis; ++a)
         {
             LOG("%1.3f ", packet.m_Axis[a]);
         }
@@ -117,6 +117,7 @@ static dmApp::Result EngineUpdate(void* _engine)
 static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int* argc, char*** argv)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
+    (void)engine;
 }
 
 int main(int argc, char **argv)

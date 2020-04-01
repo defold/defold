@@ -1067,7 +1067,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = get_base_platforms()
+        platforms = get_target_platforms()
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
