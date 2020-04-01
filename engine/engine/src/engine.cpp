@@ -606,7 +606,11 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
+#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
+#else
+        engine->m_RunWhileIconified = 0;
+#endif
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
@@ -1225,9 +1229,7 @@ bail:
                     engine->m_WasIconified = true;
                 }
 
-#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
                 if (!engine->m_RunWhileIconified) {
-#endif
                     // NOTE: Polling the event queue is crucial on iOS for life-cycle management
                     // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
                     dmHID::Update(engine->m_HidContext);
@@ -1243,9 +1245,7 @@ bail:
                         engine->m_PreviousFrameTime = time - i_dt;
                     }
                     return;
-#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
                 }
-#endif
             }
             else
             {
@@ -1266,9 +1266,7 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
-#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
                     if (!engine->m_RunWhileIconified) {
-#endif
                         if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                         {
                             // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
@@ -1277,9 +1275,7 @@ bail:
                             dmProfile::Release(profile);
                             return;
                         }
-#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
                     }
-#endif
                     /* Script context updates */
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);
