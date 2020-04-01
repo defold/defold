@@ -12,7 +12,7 @@ def build(bld):
 
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_physics_2d.cpp',
-                    uselib = 'APP DLIB PLATFORM_THREAD',
+                    uselib = 'APP DLIB PLATFORM_THREAD BULLET',
                     uselib_local = 'physics_2d Box2D',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d')
@@ -30,7 +30,7 @@ def build(bld):
 
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     source = 'test_physics_2d.cpp',
-                    uselib = 'APP DLIB GTEST PLATFORM_THREAD',
+                    uselib = 'APP DLIB GTEST PLATFORM_THREAD BULLET',
                     uselib_local = 'physics_null',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d_null')

@@ -134,13 +134,15 @@ def build(bld):
     if bld.env.PLATFORM in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64']:
         exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis"]
     else:
-        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderTremolo"]
+        exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderTremolo"]
         soundlibs.append('TREMOLO')
 
     if bld.env.PLATFORM in ['arm64-nx64']:
         pass
     else:
         soundlibs.append('OPENAL')
+        soundlibs.append('DMGLFW')
+        soundlibs.append('OPENGL')
 
     if 'TREMOLO' in soundlibs:
         bld.new_task_gen(features = 'cxx cprogram embed test',
