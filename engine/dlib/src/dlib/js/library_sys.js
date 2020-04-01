@@ -68,7 +68,7 @@ var LibraryDmSys = {
         dmSysOpenURL: function(url, target) {
             var jsurl = Pointer_stringify(url);
             var jstarget = Pointer_stringify(target);
-            if (jstarget == "")
+            if (jstarget == 0)
             {
                 jstarget = "_self";
             }

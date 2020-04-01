@@ -407,7 +407,7 @@ union SaveLoadBuffer
             lua_pushvalue(L, 2);
 
             lua_getfield(L, -1, "target");
-            const char* target = lua_isnil(L, -1) ? "" : luaL_checkstring(L, -1);
+            const char* target = lua_isnil(L, -1) ? 0 : luaL_checkstring(L, -1);
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -415,7 +415,7 @@ union SaveLoadBuffer
         }
         else
         {
-            result = dmSys::OpenURL(url, "");
+            result = dmSys::OpenURL(url, 0);
         }
 
         lua_pushboolean(L, result == dmSys::RESULT_OK);
