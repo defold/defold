@@ -12,7 +12,7 @@
         <Title>
             <Language>AmericanEnglish</Language>
             <Name>{{ project.title }}</Name>
-            <Publisher>Defold</Publisher>
+            <Publisher>{{ project.publisher }}</Publisher>
         </Title>
         <Icon>
             <Language>AmericanEnglish</Language>
