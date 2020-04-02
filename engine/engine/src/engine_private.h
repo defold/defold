@@ -40,8 +40,8 @@ namespace dmEngine
         enum Action
         {
             NONE,
-            EXIT,
-            REBOOT,
+            EXIT = -1,
+            REBOOT = 1,
         };
 
         void Free()
