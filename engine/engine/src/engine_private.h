@@ -143,6 +143,7 @@ namespace dmEngine
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
+        bool                                        m_RunWhileIconified;
         uint64_t                                    m_PreviousFrameTime;
         uint64_t                                    m_PreviousRenderTime;
         uint64_t                                    m_FlipTime;

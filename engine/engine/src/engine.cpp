@@ -207,6 +207,7 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
+    , m_RunWhileIconified(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -605,6 +606,10 @@ namespace dmEngine
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
+
+#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
+        engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
+#endif
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
@@ -1218,26 +1223,28 @@ bail:
 
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
-                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
-                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-                dmHID::Update(engine->m_HidContext);
-                dmTime::Sleep(1000 * 100);
-                // Update time again after the sleep to avoid big leaps after iconified.
-                // In practice, it makes the delta time 1/freq even though we slept for long
-
-                time = dmTime::GetTime();
-                uint64_t i_dt = fixed_dt * 1000000;
-                if (i_dt > time) {
-                    engine->m_PreviousFrameTime = 0;
-                } else {
-                    engine->m_PreviousFrameTime = time - i_dt;
-                }
-
                 if (!engine->m_WasIconified)
                 {
                     engine->m_WasIconified = true;
                 }
-                return;
+
+                if (!engine->m_RunWhileIconified) {
+                    // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                    // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                    dmHID::Update(engine->m_HidContext);
+                    dmTime::Sleep(1000 * 100);
+                    // Update time again after the sleep to avoid big leaps after iconified.
+                    // In practice, it makes the delta time 1/freq even though we slept for long
+
+                    time = dmTime::GetTime();
+                    uint64_t i_dt = fixed_dt * 1000000;
+                    if (i_dt > time) {
+                        engine->m_PreviousFrameTime = 0;
+                    } else {
+                        engine->m_PreviousFrameTime = time - i_dt;
+                    }
+                    return;
+                }
             }
             else
             {
@@ -1258,15 +1265,16 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
-                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                    {
-                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
-                        // might have entered background at this point and OpenGL calls are not permitted and will
-                        // crash the application
-                        dmProfile::Release(profile);
-                        return;
+                    if (!engine->m_RunWhileIconified) {
+                        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                        {
+                            // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                            // might have entered background at this point and OpenGL calls are not permitted and will
+                            // crash the application
+                            dmProfile::Release(profile);
+                            return;
+                        }
                     }
-
                     /* Script context updates */
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);
