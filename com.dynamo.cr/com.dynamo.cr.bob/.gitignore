@@ -21,6 +21,7 @@
 /libexec/*/*apkc*
 /libexec/*/glslc*
 /libexec/*/spirv-cross*
+/libexec/arm64-nx64/**/*
 /share/luajit
 /res
 /src/com/dynamo/bob/archive/EngineVersion.java

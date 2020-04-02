@@ -257,6 +257,12 @@
                 <include name="x86_64-win32/wrap_oal.dll"/>
             </fileset>
         </copy>
+        <copy todir="${bob.dir}/libexec/arm64-nx64" overwrite="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.1/Tools/CommandLineTools">
+                <include name="AuthoringTool/*"/>
+                <include name="MakeMeta/*"/>
+            </fileset>
+        </copy>
     </target>
 
     <target name="dist-bob-light" depends="compile-bob-light">
