@@ -109,6 +109,9 @@ public class ManifestTest {
             ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
             ResourceNode main_collectionc = new ResourceNode("/main/main.collectionc", "test/main/main.collectionc");
             ResourceNode main_goc = new ResourceNode("/main/main.goc", "test/main/main.goc");
+
+            ResourceNode dynamic_collectionc = new ResourceNode("/main/dynamic.collectionc", "test/main/dynamic.collectionc");
+
             ResourceNode level1_collectionproxyc = new ResourceNode("/main/level1.collectionproxyc", "test/main/level1.collectionproxyc");
             ResourceNode level1_collectionc = new ResourceNode("/main/level1.collectionc", "test/main/level1.collectionc");
             ResourceNode level1_goc = new ResourceNode("/main/level1.goc", "test/main/level1.goc");
@@ -121,12 +124,18 @@ public class ManifestTest {
             main_goc.addChild(new ResourceNode("/main/main.scriptc", "/test/main/main.scriptc"));
             main_goc.addChild(level1_collectionproxyc);
             main_collectionc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
+
+            main_collectionc.addChild(dynamic_collectionc);
+            dynamic_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
+
             level1_collectionproxyc.addChild(level1_collectionc);
+            level1_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
             level1_collectionc.addChild(level1_goc);
             level1_goc.addChild(new ResourceNode("/main/level1.scriptc", "/test/main/level1.scriptc"));
             level1_goc.addChild(level2_collectionproxyc);
             level1_goc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
             level2_collectionproxyc.addChild(level2_collectionc);
+            level2_collectionc.addChild(new ResourceNode("/main/dynamic.goc", "test/main/main.goc"));
             level2_collectionc.addChild(level2_goc);
             level2_goc.addChild(new ResourceNode("/main/level2.soundc", "/test/main/level2.soundc"));
 
@@ -441,42 +450,88 @@ public class ManifestTest {
     public void testGetParentCollectionProxy() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level1.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
         assertEquals(1, parents.size());
-        assertEquals("/main/level1.collectionproxyc", parents.get(0).get(0));
+        assertEquals(3, parents.get(0).size());
+        assertEquals("/main/level1.collectionc",        parents.get(0).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(2));
     }
 
     @Test
-    public void testGetParentCollectionProxiesDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testGetParentCollectionsDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level2.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
-
-        assertEquals(2, parents.get(0).size());
-        assertEquals("/main/level2.collectionproxyc", parents.get(0).get(0));
-        assertEquals("/main/level1.collectionproxyc", parents.get(0).get(1));
-    }
-
-    @Test
-    public void testGetParentCollectionProxiesShared() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/shared_go.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
-
-        assertEquals(2, parents.size());
-        assertEquals(0, parents.get(0).size());
-        assertEquals("/main/level1.collectionproxyc", parents.get(1).get(0));
-    }
-
-    @Test
-    public void testGetParentCollectionProxiesNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
-        ManifestInstance instance = new ManifestInstance();
-        String filepath = "/main/level1.collectionproxyc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
         assertEquals(1, parents.size());
-        assertEquals(0, parents.get(0).size());
+        assertEquals(5, parents.get(0).size());
+        assertEquals("/main/level2.collectionc",        parents.get(0).get(0));
+        assertEquals("/main/level2.collectionproxyc",   parents.get(0).get(1));
+        assertEquals("/main/level1.collectionc",        parents.get(0).get(2));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(0).get(3));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(4));
+    }
+
+    @Test
+    public void testGetParentCollectionsShared() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/shared_go.goc";
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
+
+        assertEquals(2, parents.size());
+        assertEquals(1, parents.get(0).size());
+        assertEquals(3, parents.get(1).size());
+
+        assertEquals("/main/main.collectionc",          parents.get(0).get(0));
+    
+        assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(1).get(2));
+    }
+
+    @Test
+    public void testGetParentCollectionProxyNotExcluded() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/dynamic.goc";
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
+
+
+        for (List<String> l : parents) {
+            System.out.printf("MAWE: list:\n");
+            for (String s : l) {
+                System.out.printf("MAWE: parent: %s\n", s);
+            }
+        }
+        assertEquals(3, parents.size());
+        assertEquals(2, parents.get(0).size());
+        assertEquals(3, parents.get(1).size());
+        assertEquals(5, parents.get(2).size());
+
+        assertEquals("/main/dynamic.collectionc",       parents.get(0).get(0));
+        assertEquals("/main/main.collectionc",          parents.get(0).get(1));
+    
+        assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
+        assertEquals("/main/main.collectionc",          parents.get(1).get(2));
+    
+        assertEquals("/main/level2.collectionc",        parents.get(2).get(0));
+        assertEquals("/main/level2.collectionproxyc",   parents.get(2).get(1));
+        assertEquals("/main/level1.collectionc",        parents.get(2).get(2));
+        assertEquals("/main/level1.collectionproxyc",   parents.get(2).get(3));
+        assertEquals("/main/main.collectionc",          parents.get(2).get(4));
+    }
+
+    @Test
+    public void testGetParentCollectionsNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/level1.collectionproxyc";
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
+
+        assertEquals(1, parents.size());
+        assertEquals(1, parents.get(0).size());
+        assertEquals("/main/main.collectionc",          parents.get(0).get(0));
     }
 
 }

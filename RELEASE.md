@@ -80,6 +80,17 @@ Important: *Make sure your branches are up to date!*
     This will trigger a build of the engines and editors for stable.
     Make a note of the release sha1 (the latest commit to the master branch on GitHub)
 
+ 1. Merge `master` into `editor-dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
+
+    This will trigger a build of the engines and editors for editor-alpha.
+
+ 1. When the `editor-dev` is built, all channels have been updated
+
  1. Fetch editor via:
 
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -116,11 +127,15 @@ Important: *Make sure your branches are up to date!*
         $ git commit -am "Updated reference documentation to 1.2.xxx"
         $ git push
 
-1. Merge master into dev
+1. Merge `master` into dev
 
         $ git checkout dev
         $ git pull
         $ git merge master
+
+1. Merge `editor-dev` into `dev`
+
+        $ git merge editor-dev
 
 1. Bump version:
 
@@ -130,7 +145,5 @@ Important: *Make sure your branches are up to date!*
         $ git commit
         > Message: "Bumped version to 1.2.xx"
         $ git push
-
-1. Tell the editor team to update and release the Editor 2
 
 1. Post release notes on [forum.defold.com](https://forum.defold.com)

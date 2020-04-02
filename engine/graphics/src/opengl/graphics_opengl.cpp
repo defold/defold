@@ -157,12 +157,12 @@ using namespace Vectormath::Aos;
 
 namespace dmGraphics
 {
-void LogGLError(GLint err)
+static void LogGLError(GLint err, const char* fnname, int line)
 {
 #ifdef GL_ES_VERSION_2_0
-    dmLogError("gl error %d\n", err);
+    dmLogError("%s(%d): gl error %d\n", fnname, line, err);
 #else
-    dmLogError("gl error %d: %s\n", err, gluErrorString(err));
+    dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, gluErrorString(err));
 #endif
 }
 
@@ -172,7 +172,7 @@ void LogGLError(GLint err)
             GLint err = glGetError(); \
             if (err != 0) \
             { \
-                LogGLError(err); \
+                LogGLError(err, __FUNCTION__, __LINE__); \
                 assert(0); \
             } \
         } \
@@ -571,11 +571,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
             memset(gpu_data, 0x0, sizeof(gpu_data));
             glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
 
             GLuint osfb;
             glGenFramebuffers(1, &osfb);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glBindFramebuffer(GL_FRAMEBUFFER, osfb);
             CHECK_GL_ERROR;
 
@@ -728,7 +728,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwSetWindowFocusCallback(OnWindowFocus);
         glfwSetWindowIconifyCallback(OnWindowIconify);
         glfwSwapInterval(1);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         context->m_WindowResizeCallback           = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData   = params->m_ResizeCallbackUserData;
@@ -1059,13 +1059,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
         glClearColor(r, g, b, a);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glClearDepth(depth);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glClearStencil(stencil);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR_BIT)   ? GL_COLOR_BUFFER_BIT : 0;
         gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT : 0;
@@ -1085,7 +1085,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         DM_PROFILE(VSync, "Wait");
         PostDeleteTextures(false);
         glfwSwapBuffers();
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetSwapInterval(HContext context, uint32_t swap_interval)
@@ -1114,16 +1114,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         SetVertexBufferData(buffer, size, data, buffer_usage);
         return buffer;
     }
 
     static void OpenGLDeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1138,18 +1140,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetVertexBufferSubData");
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static uint32_t OpenGLGetMaxElementsVertices(HContext context)
@@ -1179,20 +1181,22 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLDeleteIndexBuffer(HIndexBuffer buffer)
     {
+        if (!buffer)
+            return;
         GLuint b = (GLuint) buffer;
         glDeleteBuffersARB(1, &b);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetIndexBufferSubData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1268,12 +1272,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
         glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_LogicalIndex);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glVertexAttribPointer(
                     vertex_declaration->m_Streams[i].m_LogicalIndex,
                     vertex_declaration->m_Streams[i].m_Size,
@@ -1282,7 +1286,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     vertex_declaration->m_Stride,
             BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         #undef BUFFER_OFFSET
@@ -1327,14 +1331,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
 
         glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
             {
                 glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
                 glVertexAttribPointer(
                         vertex_declaration->m_Streams[i].m_PhysicalIndex,
                         vertex_declaration->m_Streams[i].m_Size,
@@ -1343,7 +1347,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         vertex_declaration->m_Stride,
                 BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
 
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
         }
 
@@ -1358,14 +1362,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             glDisableVertexAttribArray(i);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
 
@@ -1377,7 +1381,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         DM_COUNTER("DrawCalls", 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
         CHECK_GL_ERROR
@@ -1395,12 +1399,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static uint32_t CreateShader(GLenum type, const void* program, uint32_t program_size)
     {
         GLuint s = glCreateShader(type);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         GLint size = program_size;
         glShaderSource(s, 1, (const GLchar**) &program, &size);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glCompileShader(s);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         GLint status;
         glGetShaderiv(s, GL_COMPILE_STATUS, &status);
@@ -1442,11 +1446,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         (void) context;
         GLuint p = glCreateProgram();
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(p, vertex_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(p, fragment_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glLinkProgram(p);
 
         GLint status;
@@ -1465,11 +1469,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
 #endif
             glDeleteProgram(p);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             return 0;
         }
 
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return p;
     }
 
@@ -1487,9 +1491,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static bool TryCompileShader(GLuint prog, const void* program, GLint size)
     {
         glShaderSource(prog, 1, (const GLchar**) &program, &size);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glCompileShader(prog);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         GLint status;
         glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
@@ -1504,7 +1508,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 dmLogError("%s\n", log);
                 free(log);
             }
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             return false;
         }
 
@@ -1519,14 +1523,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
         bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         glDeleteShader(tmp_shader);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         if (success)
         {
             glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glCompileShader(prog);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         return success;
@@ -1540,14 +1544,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
         bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         glDeleteShader(tmp_shader);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         if (success)
         {
             glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glCompileShader(prog);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         return success;
@@ -1557,14 +1561,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(program);
         glDeleteShader(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         glDeleteShader(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
@@ -1576,7 +1580,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         (void) context;
         glUseProgram(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLDisableProgram(HContext context)
@@ -1588,11 +1592,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static bool TryLinkProgram(HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         GLuint tmp_program = glCreateProgram();
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(tmp_program, vert_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glAttachShader(tmp_program, frag_program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glLinkProgram(tmp_program);
 
         bool success = true;
@@ -1624,7 +1628,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         glLinkProgram(program);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return true;
     }
 
@@ -1632,7 +1636,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLint count;
         glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return count;
     }
 
@@ -1663,7 +1667,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
 
         glViewport(x, y, width, height);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int base_register)
@@ -1671,21 +1675,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
 
         glUniform4fv(base_register,  1, (const GLfloat*) data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetSampler(HContext context, int32_t location, int32_t unit)
     {
         assert(context);
         glUniform1i(location, unit);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetDepthStencilRenderBuffer(RenderTarget* rt, bool update_current = false)
@@ -1698,22 +1702,22 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #ifdef GL_DEPTH_STENCIL_ATTACHMENT
             // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
 #else
             // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
             glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthStencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
 #endif
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
@@ -1726,11 +1730,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             GLenum format = rt->m_DepthBufferBits == 16 ? DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24;
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthBuffer);
             glRenderbufferStorage(GL_RENDERBUFFER, format, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rt->m_DepthBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
         }
@@ -1739,11 +1743,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             glBindRenderbuffer(GL_RENDERBUFFER, rt->m_StencilBuffer);
             glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL, rt->m_BufferTextureParams[param_buffer_index].m_Width, rt->m_BufferTextureParams[param_buffer_index].m_Height);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             if(!update_current)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rt->m_StencilBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
         }
@@ -1759,9 +1763,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         rt->m_DepthBufferBits = context->m_DepthBufferBits;
 
         glGenFramebuffers(1, &rt->m_Id);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, rt->m_Id);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         memcpy(rt->m_BufferTextureParams, params, sizeof(TextureParams) * MAX_BUFFER_TYPE_COUNT);
         // don't save the data
@@ -1777,7 +1781,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             SetTexture(rt->m_ColorBufferTexture, params[color_buffer_index]);
             // attach the texture to FBO color attachment point
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture->m_Texture, 0);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 
         if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
@@ -1785,21 +1789,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             if(!(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT))
             {
                 glGenRenderbuffers(1, &rt->m_DepthBuffer);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             }
             else
             {
                 if(context->m_PackedDepthStencil)
                 {
                     glGenRenderbuffers(1, &rt->m_DepthStencilBuffer);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 }
                 else
                 {
                     glGenRenderbuffers(1, &rt->m_DepthBuffer);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glGenRenderbuffers(1, &rt->m_StencilBuffer);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 }
             }
             OpenGLSetDepthStencilRenderBuffer(rt);
@@ -1813,15 +1817,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             // According to this thread it should not be required but honestly I don't quite understand
             // https://devforums.apple.com/message/495216#495216
             glDrawBuffer(GL_NONE);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             glReadBuffer(GL_NONE);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
 #endif
         }
 
         CHECK_GL_FRAMEBUFFER_ERROR
         glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         return rt;
     }
@@ -1878,7 +1882,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         CHECK_GL_FRAMEBUFFER_ERROR
     }
 
@@ -1928,7 +1932,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         GLuint t;
         glGenTextures( 1, &t );
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         Texture* tex = new Texture;
         tex->m_Type = params.m_Type;
@@ -1959,7 +1963,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             if((!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)) || (force_delete))
             {
                 glDeleteTextures(1, &texture->m_Texture);
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
                 delete texture;
                 g_PostDeleteTexturesArray.EraseSwap(i);
             }
@@ -1984,7 +1988,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         glDeleteTextures(1, &texture->m_Texture);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         delete texture;
     }
@@ -2011,10 +2015,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLenum type = (GLenum) texture->m_Type;
 
         glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
         CHECK_GL_ERROR
@@ -2121,13 +2125,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (unpackAlignment != 4) {
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         GLenum type = (GLenum) texture->m_Type;
         glBindTexture(type, texture->m_Texture);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         texture->m_Params = params;
         if (!params.m_SubUpdate) {
@@ -2183,7 +2187,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         case TEXTURE_FORMAT_RGBA_DXT5:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT3;
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
             break;
         case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -2269,35 +2273,35 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 } else {
                     glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
                 }
-                CHECK_GL_ERROR
+                CHECK_GL_ERROR;
             } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                 const char* p = (const char*) params.m_Data;
                 if (params.m_SubUpdate) {
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 2);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 } else {
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 }
 
             } else {
@@ -2321,35 +2325,35 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     } else {
                         glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
                     }
-                    CHECK_GL_ERROR
+                    CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                     const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate) {
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 2);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                     } else {
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 2);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                         glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
-                        CHECK_GL_ERROR
+                        CHECK_GL_ERROR;
                     }
                 } else {
                     assert(0);
@@ -2363,12 +2367,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         glBindTexture(type, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         if (unpackAlignment != 4) {
             // Restore to default
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
     }
 
@@ -2417,17 +2421,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (!context->m_RenderDocSupport)
         {
             glEnable(GL_TEXTURE_2D);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 #elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 #endif
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 
         SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
     }
@@ -2440,17 +2444,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (!context->m_RenderDocSupport)
         {
             glEnable(GL_TEXTURE_2D);
-            CHECK_GL_ERROR
+            CHECK_GL_ERROR;
         }
 #elif !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
 #endif
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         glBindTexture((GLenum) texture->m_Type, 0);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)
@@ -2528,14 +2532,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         glColorMask(red, green, blue, alpha);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetDepthMask(HContext context, bool mask)
     {
         assert(context);
         glDepthMask(mask);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static GLenum GetOpenGLCompareFunc(CompareFunc func)
@@ -2565,14 +2569,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         glScissor((GLint)x, (GLint)y, (GLint)width, (GLint)height);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
         glStencilMask(mask);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -2586,7 +2590,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
@@ -2606,7 +2610,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         glPolygonOffset(factor, units);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
     }
 
     BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};

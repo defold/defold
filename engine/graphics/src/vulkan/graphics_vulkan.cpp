@@ -1559,6 +1559,8 @@ bail:
 
     static void VulkanDeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
 
         if (!buffer_ptr->m_Destroyed)
@@ -1608,7 +1610,8 @@ bail:
 
     static void VulkanDeleteIndexBuffer(HIndexBuffer buffer)
     {
-        assert(buffer);
+        if (!buffer)
+            return;
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         if (!buffer_ptr->m_Destroyed)
         {
