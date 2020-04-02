@@ -207,6 +207,7 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
+    , m_RunWhileIconified(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -608,8 +609,6 @@ namespace dmEngine
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
-#else
-        engine->m_RunWhileIconified = 0;
 #endif
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
