@@ -37,6 +37,8 @@ namespace dmEngine
             memset(this, 0, sizeof(*this));
         }
 
+        //`RunResult::EXIT` value (as `run_action` in `AppDelegate.m` `ShutdownEngine()`)
+        // compares with GLFW_APP_RUN_EXIT, that's why `RunResult` should have the same values as `glfwAppRunAction`
         enum Action
         {
             NONE,
