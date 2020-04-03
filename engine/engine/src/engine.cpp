@@ -607,7 +607,7 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
-#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
+#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
 
@@ -1473,6 +1473,7 @@ bail:
     {
         engine->m_Alive = false;
         engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action =  dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
