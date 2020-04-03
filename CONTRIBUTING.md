@@ -46,6 +46,7 @@ Bugs should be reported to our public issue tracker using the [Bug Report templa
 Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor source code. PRs can introduce new features, fix bugs or improve on our API reference. PRs for new features and bug fixes must follow these guidelines:
 
 * Never submit a PR that does more than one thing.
+* Make sure to follow the [Best practices for code contributions](#best-practices-for-code-contributions).
 * You must sign our Contributor License Agreement (CLA) as part of submitting the PR.
   * The CLA ensures that you are entitled to contribute the code/documentation/translation to the project you’re contributing to and are willing to have it used in distributions and derivative works.
   * The process of digitally signing the CLA is integrated into the PR flow on GitHub.
