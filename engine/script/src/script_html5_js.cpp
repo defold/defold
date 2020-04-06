@@ -55,17 +55,17 @@ namespace dmScript
 
         char* result = (char*)EM_ASM_INT({
             var jsResult;
-            var is_succeed = 1;
+            var is_success = 1;
             try 
             {
                 jsResult = eval(UTF8ToString($0));
             }
             catch (err)
             {
-                is_succeed = 0;
+                is_success = 0;
                 jsResult = err;
             }
-            _dmScript_html5_report_operation_success(is_succeed);
+            _dmScript_html5_report_operation_success(is_success);
             jsResult += '';
             var lengthBytes = lengthBytesUTF8(jsResult) + 1; 
             var stringOnWasmHeap = _malloc(lengthBytes);
