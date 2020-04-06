@@ -3,7 +3,7 @@
 <NintendoSdkMeta>
     <Core>
         <Name>Application</Name>
-        <ApplicationId>0x01004b9000490000</ApplicationId>
+        <ApplicationId>{{ switch.app_id }}</ApplicationId>
         <Is64BitInstruction>True</Is64BitInstruction>
         <ProcessAddressSpace>AddressSpace64Bit</ProcessAddressSpace>
     </Core>
