@@ -83,13 +83,13 @@ public class ManifestBuilder {
 
         public static int getHashSize(HashAlgorithm algorithm) {
             if (algorithm.equals(HashAlgorithm.HASH_MD5)) {
-            	return 128 / 8;
+                return 128 / 8;
             } else if (algorithm.equals(HashAlgorithm.HASH_SHA1)) {
-            	return 160 / 8;
+                return 160 / 8;
             } else if (algorithm.equals(HashAlgorithm.HASH_SHA256)) {
-            	return 256 / 8;
+                return 256 / 8;
             } else if (algorithm.equals(HashAlgorithm.HASH_SHA512)) {
-            	return 512 / 8;
+                return 512 / 8;
             }
 
             return 0;
@@ -386,9 +386,9 @@ public class ManifestBuilder {
         }
     }
 
-    // Calculate all parent collectionproxies for a resource
+    // Calculate all parent collection paths (to the root) for a resource
     // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
-    public List<ArrayList<String>> getParentCollectionProxies(String filepath) {
+    public List<ArrayList<String>> getParentCollections(String filepath) {
         List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
         List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
@@ -396,15 +396,14 @@ public class ManifestBuilder {
         // Find occurences of resource in tree (may be referenced from several collections for example)
         while (!queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
+
             if (current != null) {
                 if (current.relativeFilepath.equals(filepath)) {
                     if (!candidates.contains(current)) {
                         candidates.add(current);
                     }
                 } else {
-                    for (ResourceNode child : current.getChildren()) {
-                        queue.add(child);
-                    }
+                    queue.addAll(current.getChildren());
                 }
             }
         }
@@ -414,7 +413,8 @@ public class ManifestBuilder {
             ResourceNode current = candidates.remove(0).getParent();
             result.add(new ArrayList<String>());
             while (current != null) {
-                if (current.relativeFilepath.endsWith("collectionproxyc")) {
+                if (current.relativeFilepath.endsWith("collectionproxyc") ||
+                    current.relativeFilepath.endsWith("collectionc")) {
                     result.get(i).add(current.relativeFilepath);
                 }
 
