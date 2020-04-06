@@ -66,10 +66,20 @@ public class SwitchBundler implements IBundler {
         return new File(String.format("Libraries/%s/%s", buildTarget, mode));
     }
 
+
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        final Platform platform = Platform.Armv7Android;
+        final Platform platform = Platform.Arm64NX64;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
+        Platform hostPlatform = Platform.getHostPlatform();
+        if (hostPlatform != Platform.X86_64Win32)
+        {
+            throw new IOException("The bundling can currently only be done on Windows!");
+        }
+
+        // Extract tools
+        Bob.initSwitch();
 
         Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
         platformToLibMap.put(Platform.Arm64NX64, "arm64-nx64");
@@ -82,7 +92,6 @@ public class SwitchBundler implements IBundler {
         boolean isDebug = variant.equals(Bob.VARIANT_DEBUG);
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = "main";
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -104,41 +113,47 @@ public class SwitchBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
         }
 
-        File appDir = new File(bundleDir, title);
-        File resDir = new File(appDir, "res");
+        Platform targetPlatform = architectures.get(0);
+
+        String libDir = isDebug ? "Develop" : "Release";
+
+        File mainSrc = platformToExeFileMap.get(targetPlatform);
+        File nnrtldSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnrtld.nso"));
+        File nnSdkEnSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnSdkEn.nso"));
+        File vulkanSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/vulkan.nso"));
+        File openglSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/opengl.nso"));
+        File applicationDesc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/Resources/SpecFiles/Application.desc"));
+
+        String bundleType = "nspd";
+
+        File nsp = new File(bundleDir, title + ".nsp");
+        File appDir = new File(bundleDir, title + ".nspd");
+        File programDir = new File(appDir, "program0.ncd");
+        File codeDir = new File(programDir, "code");
+        File dataDir = new File(programDir, "data");
+        FileUtils.deleteDirectory(appDir);
+        codeDir.mkdirs();
+
+        // Copy binaries
+        int subsdkIndex = 0;
+        FileUtils.copyFile(mainSrc, new File(codeDir, "main"));
+        FileUtils.copyFile(nnrtldSrc, new File(codeDir, "rtld"));
+        FileUtils.copyFile(nnSdkEnSrc, new File(codeDir, "sdk"));
+        FileUtils.copyFile(vulkanSrc, new File(codeDir, String.format("subsdk%d", subsdkIndex++)));
+        FileUtils.copyFile(openglSrc, new File(codeDir, String.format("subsdk%d", subsdkIndex++)));
+        File npdm = new File(codeDir, "main.npdm");
+
         File tmpResourceDir = Files.createTempDirectory("res").toFile();
+        tmpResourceDir.mkdirs();
 
         String contentRoot = project.getBuildDirectory();
         String projectRoot = project.getRootDirectory();
 
-        BundleHelper.throwIfCanceled(canceled);
-
-        FileUtils.deleteDirectory(appDir);
-        appDir.mkdirs();
-        resDir.mkdirs();
-
-        for(Platform architecture : architectures)
-        {
-            FileUtils.forceMkdir(new File(appDir, "libs/" + platformToLibMap.get(architecture)));
-        }
-
-        Platform targetPlatform = Platform.Armv7Android;
         BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, variant);
 
-        // Create APK
-        File ap1 = new File(appDir, title + ".ap1");
-
-        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        helper.copyAndroidResources(architectures.get(0), appDir);
-        helper.aaptMakePackage(architectures.get(0), appDir, ap1);
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        // AAPT needs all resources on disc
-        Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
+        // Only needed during the bundling
+        helper.copyOrWriteManifestFile(architectures.get(0), tmpResourceDir);
+        File mainManifest = new File(tmpResourceDir, helper.getMainManifestName(targetPlatform));
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -147,71 +162,71 @@ public class SwitchBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-
-        /*
-            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
-                BundleHelper.throwIfCanceled(canceled);
-                File source = new File(new File(projectRoot, contentRoot), name);
-                ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
-                zipOut.putNextEntry(ze);
-                FileUtils.copyFile(source, zipOut);
-            }
-
+        // Copy data
+        for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             BundleHelper.throwIfCanceled(canceled);
-
-            // Copy bundle resources into the data folder
-            //ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
-
-            BundleHelper.throwIfCanceled(canceled);
-*/
-            /*
-
-    bundle_main = bundle_parent.exclusive_build_node(code_dir+'/main')
-    bundle_npdm = bundle_parent.exclusive_build_node(code_dir+'/main.npdm')
-    bundle_rtld = bundle_parent.exclusive_build_node(code_dir+'/rtld')
-    bundle_sdk  = bundle_parent.exclusive_build_node(code_dir+'/sdk')
-            */
-
-    /*
-            // Copy executables
-            for (Platform architecture : architectures) {
-                String filename = FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so");
-                filename = FilenameUtils.normalize(filename, true);
-                zipOut.putNextEntry(new ZipEntry(filename));
-                File file = new File(platformToExePathMap.get(architecture));
-                file.deleteOnExit();
-                FileUtils.copyFile(file, zipOut);
-            }
-        File ap3 = new File(appDir, title + ".ap3");
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        // Sign
-
-        Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
-                "--in=" + ap2.getAbsolutePath(),
-                "--out=" + ap3.getAbsolutePath());
-        if (r.ret != 0) {
-            if (r.ret != 0 ) {
-                throw new IOException(new String(r.stdOutErr));
-            }
+            File src = new File(new File(projectRoot, contentRoot), name);
+            File dst = new File(dataDir, name);
+            FileUtils.copyFile(src, dst);
         }
 
         BundleHelper.throwIfCanceled(canceled);
 
-        File apk = new File(appDir, title + ".apk");
-        Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "zipalign"),
-                "-v", "4",
-                ap4.getAbsolutePath(),
-                apk.getAbsolutePath());
+        // Copy bundle resources into the app folder
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        if (r.ret != 0) {
-            if (r.ret != 0 ) {
-                throw new IOException(new String(r.stdOutErr));
-            }
+        BundleHelper.throwIfCanceled(canceled);
+
+        String authoringTool = Bob.getPath("AuthoringTool/AuthoringTool.exe");
+        String makemeta = Bob.getPath("MakeMeta/MakeMeta.exe");
+
+        logger.log(Level.INFO, String.format("Creating meta file: %s",npdm));
+
+        Result res;
+
+        // Create the meta file (npdm)
+        res = Exec.execResult(makemeta
+                ,"--desc", applicationDesc.getAbsolutePath()
+                ,"--meta", mainManifest.getAbsolutePath()
+                ,"-o", npdm.getAbsolutePath()
+                ,"-d", "DefaultIs64BitInstruction=True"
+                ,"-d", "DefaultProcessAddressSpace=AddressSpace64Bit");
+        if (res.ret != 0) {
+            throw new IOException(new String(res.stdOutErr));
         }
 
-*/
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Create the .nspd folder + .nspd_root file 
+        logger.log(Level.INFO, String.format("Creating nspd: %s", appDir));
+
+        res = Exec.execResult(authoringTool, "createnspd"
+                ,"-o", appDir.getAbsolutePath()
+                ,"--meta", mainManifest.getAbsolutePath()
+                ,"--type", "Application"
+                ,"--program", codeDir.getAbsolutePath(), dataDir.getAbsolutePath()
+                ,"--utf8");
+        if (res.ret != 0) {
+            throw new IOException(new String(res.stdOutErr));
+        }
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Create the bundle version
+        logger.log(Level.INFO, String.format("Creating nsp: %s", nsp));
+
+        res = Exec.execResult(authoringTool, "creatensp"
+                ,"-o", nsp.getAbsolutePath()
+                ,"--meta", mainManifest.getAbsolutePath()
+                ,"--desc", applicationDesc.getAbsolutePath()
+                ,"--type", "Application"
+                ,"--program", codeDir.getAbsolutePath(), dataDir.getAbsolutePath()
+                ,"--utf8");
+        if (res.ret != 0) {
+            throw new IOException(new String(res.stdOutErr));
+        }
+
+        BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(tmpResourceDir);
 
