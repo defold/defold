@@ -25,10 +25,10 @@ namespace dmScript
      * @namespace html5
      */
 
-    static bool is_operation_succeed;
-    extern "C" void EMSCRIPTEN_KEEPALIVE dmScript_html5_operation_succeed_report(int result)
+    static bool is_operation_successful;
+    extern "C" void EMSCRIPTEN_KEEPALIVE dmScript_html5_report_operation_success(int result)
     {
-        is_operation_succeed = (bool)result;
+        is_operation_successful = (bool)result;
     }
 
     /*# run JavaScript code, in the browser, from Lua
@@ -65,14 +65,14 @@ namespace dmScript
                 is_succeed = 0;
                 jsResult = err;
             }
-            _dmScript_html5_operation_succeed_report(is_succeed);
+            _dmScript_html5_report_operation_success(is_succeed);
             jsResult += '';
             var lengthBytes = lengthBytesUTF8(jsResult) + 1; 
             var stringOnWasmHeap = _malloc(lengthBytes);
             stringToUTF8(jsResult, stringOnWasmHeap, lengthBytes);
             return stringOnWasmHeap;
         }, code);
-        if (!is_operation_succeed)
+        if (!is_operation_successful)
         {
             luaL_error(L, result);
             free(result);
