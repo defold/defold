@@ -22,14 +22,4 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_DECR         = GL_DECR;
     const StencilOp STENCIL_OP_DECR_WRAP    = GL_DECR_WRAP;
     const StencilOp STENCIL_OP_INVERT       = GL_INVERT;
-
-#if !defined (GL_ARB_vertex_buffer_object)
-    const BufferAccess BUFFER_ACCESS_READ_ONLY  = 0x88B8;
-    const BufferAccess BUFFER_ACCESS_WRITE_ONLY = 0x88B9;
-    const BufferAccess BUFFER_ACCESS_READ_WRITE = 0x88BA;
-#else
-    const BufferAccess BUFFER_ACCESS_READ_ONLY  = GL_READ_ONLY;
-    const BufferAccess BUFFER_ACCESS_WRITE_ONLY = GL_WRITE_ONLY;
-    const BufferAccess BUFFER_ACCESS_READ_WRITE = GL_READ_WRITE;
-#endif
 }

@@ -234,10 +234,12 @@ namespace dmGraphics
     };
 
     // Buffer access
-    typedef uint32_t BufferAccess;
-    extern const BufferAccess BUFFER_ACCESS_READ_ONLY;
-    extern const BufferAccess BUFFER_ACCESS_WRITE_ONLY;
-    extern const BufferAccess BUFFER_ACCESS_READ_WRITE;
+    enum BufferAccess
+    {
+        BUFFER_ACCESS_READ_ONLY  = 0,
+        BUFFER_ACCESS_WRITE_ONLY = 1,
+        BUFFER_ACCESS_READ_WRITE = 2,
+    };
 
     // Face type
     enum FaceType

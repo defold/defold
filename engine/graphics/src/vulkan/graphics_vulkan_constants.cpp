@@ -22,8 +22,4 @@ namespace dmGraphics
     const StencilOp STENCIL_OP_DECR         = 5;
     const StencilOp STENCIL_OP_DECR_WRAP    = 6;
     const StencilOp STENCIL_OP_INVERT       = 7;
-
-    const BufferAccess BUFFER_ACCESS_READ_ONLY  = 3;
-    const BufferAccess BUFFER_ACCESS_WRITE_ONLY = 4;
-    const BufferAccess BUFFER_ACCESS_READ_WRITE = 5;
 }

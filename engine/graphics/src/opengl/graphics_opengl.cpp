@@ -310,6 +310,24 @@ static void LogFrameBufferError(GLenum status)
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
+    // Jhonny: I don't think BufferAccess is used for anything
+    static GLenum GetOpenGLBufferAccess(BufferAccess access)
+    {
+        const GLenum buffer_access_lut[] = {
+        #if !defined (GL_ARB_vertex_buffer_object)
+            0x88B8,
+            0x88B9,
+            0x88BA,
+        #else
+            GL_READ_ONLY,
+            GL_WRITE_ONLY,
+            GL_READ_WRITE,
+        #endif
+        };
+
+        return buffer_access_lut[access];
+    }
+
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
     {
         const GLenum primitive_type_lut[] = {
