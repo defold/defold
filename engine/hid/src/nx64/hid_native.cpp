@@ -31,48 +31,62 @@ namespace dmHID
         uint8_t         m_SingleTouchReleased:1;
     };
 
-    static const nn::hid::NpadIdType g_NPadIDS[] = {
-        nn::hid::NpadId::No1,
-        nn::hid::NpadId::No2,
-        nn::hid::NpadId::No3,
-        nn::hid::NpadId::No4,
-        nn::hid::NpadId::No5,
-        nn::hid::NpadId::No6,
-        nn::hid::NpadId::No7,
-        nn::hid::NpadId::No8,
-        nn::hid::NpadId::Handheld,
+    struct NativePadInfo {
+        nn::hid::NpadIdType m_Id;
+        uint8_t             m_IsLeft:1;
+        uint8_t             m_IsRight:1;
+        uint8_t             m_IsHorizontal:1;
+        uint8_t             m_IsConnected:1;
     };
 
-    static const uint32_t g_NumNPadIDS = sizeof(g_NPadIDS) / sizeof(nn::hid::NpadIdType);
+    static const char* g_GamePadNames[] = {
+        "JoyCon (Handheld)",
+        "Switch Pro",
+        "JoyCon (L)",
+        "JoyCon (R)",
+        "JoyCon (Dual)",
+    };
+
+    static NativePadInfo g_NPads[MAX_GAMEPAD_COUNT] = {
+        { nn::hid::NpadId::Handheld,0 },
+        { nn::hid::NpadId::No1,     0 },
+        { nn::hid::NpadId::No2,     0 },
+        { nn::hid::NpadId::No3,     0 },
+        { nn::hid::NpadId::No4,     0 },
+        { nn::hid::NpadId::No5,     0 },
+        { nn::hid::NpadId::No6,     0 },
+        { nn::hid::NpadId::No7,     0 },
+        { nn::hid::NpadId::No8,     0 },
+    };
 
     // Matches the enum GamepadButton "indices"
     // flag values are taken from the typedefs of the NPadButton
     static const int g_GamepadToNpadButton[] =
     {
-        0,
-        1,
-        15,
-        6,
-        12,
-        11,
-        10,
-        7,
-        14,
-        4,
-        19,
-        16,
-        18,
-        17,
-        5,
-        23,
-        20,
-        22,
-        21,
-        13,
-        2,
-        3,
-        8,
-        9,
+        nn::hid::NpadButton::A().Index,
+        nn::hid::NpadButton::B().Index,
+        nn::hid::NpadButton::Down().Index,
+        nn::hid::NpadButton::L().Index,
+        nn::hid::NpadButton::Left().Index,
+        nn::hid::NpadButton::Minus().Index,
+        nn::hid::NpadButton::Plus().Index,
+        nn::hid::NpadButton::R().Index,
+        nn::hid::NpadButton::Right().Index,
+        nn::hid::NpadButton::StickL().Index,
+        nn::hid::NpadButton::StickLDown().Index,
+        nn::hid::NpadButton::StickLLeft().Index,
+        nn::hid::NpadButton::StickLRight().Index,
+        nn::hid::NpadButton::StickLUp().Index,
+        nn::hid::NpadButton::StickR().Index,
+        nn::hid::NpadButton::StickRDown().Index,
+        nn::hid::NpadButton::StickRLeft().Index,
+        nn::hid::NpadButton::StickRRight().Index,
+        nn::hid::NpadButton::StickRUp().Index,
+        nn::hid::NpadButton::Up().Index,
+        nn::hid::NpadButton::X().Index,
+        nn::hid::NpadButton::Y().Index,
+        nn::hid::NpadButton::ZL().Index,
+        nn::hid::NpadButton::ZR().Index
     };
 
 
@@ -88,18 +102,18 @@ namespace dmHID
     {
         SetMarkedText(g_Context, text);
     }
-
-    static void GamepadCallback(int gamepad_id, int connected)
-    {
-        if (g_Context->m_GamepadConnectivityCallback) {
-            g_Context->m_GamepadConnectivityCallback(gamepad_id, connected, g_Context->m_GamepadConnectivityUserdata);
-        }
-        SetGamepadConnectivity(g_Context, gamepad_id, connected);
-    }
 */
+    static void GamepadCallback(HContext context, int gamepad_id, int connected)
+    {
+        if (context->m_GamepadConnectivityCallback) {
+            context->m_GamepadConnectivityCallback(gamepad_id, connected, context->m_GamepadConnectivityUserdata);
+        }
+        SetGamepadConnectivity(context, gamepad_id, connected);
+    }
 
     bool Init(HContext context)
     {
+        assert(MAX_GAMEPAD_COUNT == HID_NATIVE_MAX_GAMEPAD_COUNT);
         if (context != 0x0)
         {
             if (!context->m_NativeContext)
@@ -109,12 +123,29 @@ namespace dmHID
                 context->m_NativeContext = (void*)native_context;
             }
 
-            if (!context->m_IgnoreTouchDevice)
-            {
-                nn::hid::InitializeNpad();
-                nn::hid::SetSupportedNpadStyleSet(nn::hid::NpadStyleFullKey::Mask | nn::hid::NpadStyleJoyDual::Mask | nn::hid::NpadStyleHandheld::Mask);
-                nn::hid::SetSupportedNpadIdType(g_NPadIDS, g_NumNPadIDS);
+            nn::hid::InitializeNpad();
+
+            nn::hid::NpadIdType ids[] = {
+                nn::hid::NpadId::Handheld, nn::hid::NpadId::No1, nn::hid::NpadId::No2, nn::hid::NpadId::No3, nn::hid::NpadId::No4,
+                nn::hid::NpadId::No5, nn::hid::NpadId::No6, nn::hid::NpadId::No7, nn::hid::NpadId::No8,
+            };
+            nn::hid::SetSupportedNpadIdType(ids, MAX_GAMEPAD_COUNT);
+
+            // TODO: This list should be configurable, or more likley exposed through Lua
+            for (uint32_t i = 1; i < MAX_GAMEPAD_COUNT; ++i) {
+                nn::hid::SetNpadJoyAssignmentModeSingle(ids[i]);
             }
+
+            // TODO: This list should be configurable
+            nn::hid::SetSupportedNpadStyleSet(
+                nn::hid::NpadStyleFullKey::Mask |
+                nn::hid::NpadStyleJoyDual::Mask |
+                nn::hid::NpadStyleHandheld::Mask |
+                nn::hid::NpadStyleJoyLeft::Mask |
+                nn::hid::NpadStyleJoyRight::Mask);
+
+            // TODO: This call should be configurable or callable from Lua
+            nn::hid::SetNpadJoyHoldType(nn::hid::NpadJoyHoldType::NpadJoyHoldType_Horizontal);
 
             if (!context->m_IgnoreTouchDevice)
             {
@@ -143,51 +174,49 @@ namespace dmHID
     }
 
     // NpadFullKeyState: file:///C:/Nintendo/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/structnn_1_1hid_1_1_npad_full_key_state.html&highlighttext=NpadFullKeyState
-    template <typename TState>
-    static void UpdateGamepad(Gamepad* outpad, TState* state, bool connected)
+    static void UpdateGamepad(HContext context, uint32_t gamepad_id, nn::hid::NpadButtonSet* buttons, nn::hid::AnalogStickState* stickL, nn::hid::AnalogStickState* stickR, bool connected)
     {
-        bool prev_connected = outpad->m_Connected;
-        outpad->m_Connected = connected;
+        Gamepad* pad = &context->m_Gamepads[gamepad_id];
+        pad->m_AxisCount = 4; // left (X/Y), right (X/Y)
 
-        GamepadPacket& packet = outpad->m_Packet;
-
-        // Workaround to get connectivity packet even if callback
-        // wasn't been set before the gamepad was connected.
-        if (!prev_connected)
-        {
-            packet.m_GamepadConnected = true;
-        }
-        if (prev_connected && !connected)
-        {
-            packet.m_GamepadDisconnected = true;
-        }
-
-        outpad->m_AxisCount = 4; // left (X/Y), right (X/Y)
-
-        packet.m_Axis[0] = state->analogStickL.y / (float)0x7FFF;
-        packet.m_Axis[1] = state->analogStickL.x / (float)0x7FFF;
-        packet.m_Axis[2] = state->analogStickR.y / (float)0x7FFF;
-        packet.m_Axis[3] = state->analogStickR.x / (float)0x7FFF;
+        GamepadPacket* packet = &pad->m_Packet;
+        packet->m_Axis[0] = stickL->x / (float)nn::hid::AnalogStickMax;
+        packet->m_Axis[1] = stickL->y / (float)nn::hid::AnalogStickMax;
+        packet->m_Axis[2] = stickR->x / (float)nn::hid::AnalogStickMax;
+        packet->m_Axis[3] = stickR->y / (float)nn::hid::AnalogStickMax;
 
         // Buttons: file:///C:/Nintendo/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/structnn_1_1hid_1_1_npad_full_key_state.html&highlighttext=NpadFullKeyState
-        outpad->m_HatCount = 0;
-
+        pad->m_HatCount = 0;
 
         // different joy styles:
         // file:///C:/Nintendo/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/structnn_1_1hid_1_1_npad_joy_dual_state.html&highlighttext=NpadButtonSet#a20f30af87a2ff958638de04d8f4a59b1
 
-        outpad->m_ButtonCount = sizeof(g_GamepadToNpadButton)/sizeof(g_GamepadToNpadButton[0]);
-        for (int i = 0; i < outpad->m_ButtonCount; ++i)
+        pad->m_ButtonCount = sizeof(g_GamepadToNpadButton)/sizeof(g_GamepadToNpadButton[0]);
+        for (int i = 0; i < pad->m_ButtonCount; ++i)
         {
             int button_flag_index = g_GamepadToNpadButton[i];
-            if (state->buttons.Test(button_flag_index))
+            if (buttons->Test(button_flag_index))
             {
-                packet.m_Buttons[i / 32] |= 1 << (i % 32);
+                packet->m_Buttons[i / 32] |= 1 << (i % 32);
             }
             else
             {
-                packet.m_Buttons[i / 32] &= ~(1 << (i % 32));
+                packet->m_Buttons[i / 32] &= ~(1 << (i % 32));
             }
+        }
+    }
+
+    static void UpdateConnectivity(HContext context, uint32_t gamepad_id, bool connected)
+    {
+        Gamepad* pad = &context->m_Gamepads[gamepad_id];
+
+        uint8_t was_connected = g_NPads[pad->m_Index].m_IsConnected;
+        g_NPads[pad->m_Index].m_IsConnected = connected ? 1 : 0;
+
+        pad->m_Connected = connected;
+
+        if (was_connected != g_NPads[pad->m_Index].m_IsConnected) {
+            GamepadCallback(context, gamepad_id, pad->m_Connected);
         }
     }
 
@@ -219,36 +248,164 @@ namespace dmHID
             return dmHID::PHASE_MOVED;
     }
 
+    // From %NintendoSDK%\Samples\Sources\Applications\HidControllerSequence\HidControllerSequence_ControllerSupportApplet.cpp
+    static nn::hid::NpadButtonSet ConvertHorizontalButtonLayout(const nn::hid::NpadStyleSet& style, const nn::hid::NpadButtonSet& button)
+    {
+        nn::hid::NpadButtonSet convButton = button;
+        if (nn::hid::GetNpadJoyHoldType() == nn::hid::NpadJoyHoldType_Horizontal)
+        {
+            if (style.Test<nn::hid::NpadStyleJoyLeft>())
+            {
+                convButton.Set<nn::hid::NpadButton::A>(button.Test<nn::hid::NpadButton::Down>());
+                convButton.Set<nn::hid::NpadButton::B>(button.Test<nn::hid::NpadButton::Left>());
+                convButton.Set<nn::hid::NpadButton::X>(button.Test<nn::hid::NpadButton::Right>());
+                convButton.Set<nn::hid::NpadButton::Y>(button.Test<nn::hid::NpadButton::Up>());
+
+                convButton.Set<nn::hid::NpadButton::Right>(button.Test<nn::hid::NpadButton::StickLDown>());
+                convButton.Set<nn::hid::NpadButton::Down>(button.Test<nn::hid::NpadButton::StickLLeft>());
+                convButton.Set<nn::hid::NpadButton::Up>(button.Test<nn::hid::NpadButton::StickLRight>());
+                convButton.Set<nn::hid::NpadButton::Left>(button.Test<nn::hid::NpadButton::StickLUp>());
+
+                convButton.Set<nn::hid::NpadButton::L>(button.Test<nn::hid::NpadJoyButton::LeftSL>());
+                convButton.Set<nn::hid::NpadButton::R>(button.Test<nn::hid::NpadJoyButton::LeftSR>());
+
+                convButton.Reset<nn::hid::NpadButton::ZL>();
+
+                convButton.Set<nn::hid::NpadButton::StickLRight>(button.Test<nn::hid::NpadButton::StickLDown>());
+                convButton.Set<nn::hid::NpadButton::StickLDown>(button.Test<nn::hid::NpadButton::StickLLeft>());
+                convButton.Set<nn::hid::NpadButton::StickLUp>(button.Test<nn::hid::NpadButton::StickLRight>());
+                convButton.Set<nn::hid::NpadButton::StickLLeft>(button.Test<nn::hid::NpadButton::StickLUp>());
+
+                convButton.Reset<nn::hid::NpadJoyButton::LeftSL>();
+                convButton.Reset<nn::hid::NpadJoyButton::LeftSR>();
+            }
+            else if (style.Test<nn::hid::NpadStyleJoyRight>())
+            {
+                convButton.Set<nn::hid::NpadButton::A>(button.Test<nn::hid::NpadButton::X>());
+                convButton.Set<nn::hid::NpadButton::B>(button.Test<nn::hid::NpadButton::A>());
+                convButton.Set<nn::hid::NpadButton::X>(button.Test<nn::hid::NpadButton::Y>());
+                convButton.Set<nn::hid::NpadButton::Y>(button.Test<nn::hid::NpadButton::B>());
+
+                convButton.Set<nn::hid::NpadButton::Right>(button.Test<nn::hid::NpadButton::StickRUp>());
+                convButton.Set<nn::hid::NpadButton::Down>(button.Test<nn::hid::NpadButton::StickRRight>());
+                convButton.Set<nn::hid::NpadButton::Up>(button.Test<nn::hid::NpadButton::StickRLeft>());
+                convButton.Set<nn::hid::NpadButton::Left>(button.Test<nn::hid::NpadButton::StickRDown>());
+
+                convButton.Set<nn::hid::NpadButton::L>(button.Test<nn::hid::NpadJoyButton::RightSL>());
+                convButton.Set<nn::hid::NpadButton::R>(button.Test<nn::hid::NpadJoyButton::R>() | button.Test<nn::hid::NpadJoyButton::RightSR>());
+
+                convButton.Reset<nn::hid::NpadButton::ZR>();
+
+                convButton.Set<nn::hid::NpadButton::StickRRight>(button.Test<nn::hid::NpadButton::StickRUp>());
+                convButton.Set<nn::hid::NpadButton::StickRDown>(button.Test<nn::hid::NpadButton::StickRRight>());
+                convButton.Set<nn::hid::NpadButton::StickRUp>(button.Test<nn::hid::NpadButton::StickRLeft>());
+                convButton.Set<nn::hid::NpadButton::StickRLeft>(button.Test<nn::hid::NpadButton::StickRDown>());
+
+                convButton.Reset<nn::hid::NpadJoyButton::RightSL>();
+                convButton.Reset<nn::hid::NpadJoyButton::RightSR>();
+            }
+        }
+        return convButton;
+    }
+    static nn::hid::AnalogStickState ConvertHorizontalAnalogStick(const nn::hid::NpadStyleSet& style, const nn::hid::AnalogStickState& analogStick)
+    {
+        nn::hid::AnalogStickState convStickAxis = analogStick;
+        if (nn::hid::GetNpadJoyHoldType() == nn::hid::NpadJoyHoldType_Horizontal)
+        {
+            if (style.Test<nn::hid::NpadStyleJoyLeft>())
+            {
+                convStickAxis.y = analogStick.x;
+                convStickAxis.x = -analogStick.y;
+            }
+            else if (style.Test<nn::hid::NpadStyleJoyRight>())
+            {
+                convStickAxis.y = -analogStick.x;
+                convStickAxis.x = analogStick.y;
+            }
+        }
+        return convStickAxis;
+    }
+
+
     void Update(HContext context)
     {
         NativeContext* native_context = (NativeContext*)context->m_NativeContext;
 
         if (!context->m_IgnoreGamepads)
         {
-            for (int i = 0; i < g_NumNPadIDS; ++i)
+            for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
             {
-                nn::hid::NpadStyleSet style = nn::hid::GetNpadStyleSet(g_NPadIDS[i]);
-                if (style.Test<nn::hid::NpadStyleFullKey>() == true)
+                nn::hid::NpadStyleSet style = nn::hid::GetNpadStyleSet(g_NPads[i].m_Id);
+                nn::hid::NpadButtonSet buttons;
+                nn::hid::AnalogStickState stickL;
+                nn::hid::AnalogStickState stickR;
+                uint8_t left;
+                uint8_t right;
+                bool connected = false;
+
+                if (style.Test<nn::hid::NpadStyleFullKey>()) // Switch Pro
                 {
                     nn::hid::NpadFullKeyState state;
-                    nn::hid::GetNpadState(&state, g_NPadIDS[i]);
-                    bool connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
-                    UpdateGamepad(&context->m_Gamepads[i], &state, connected);
+                    nn::hid::GetNpadState(&state, g_NPads[i].m_Id);
+                    connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
+                    buttons  = ConvertHorizontalButtonLayout(style, state.buttons);
+                    stickL   = state.analogStickL;
+                    stickR   = state.analogStickR;
+                    left = right = 0;
+                    g_NPads[i].m_IsRight = g_NPads[i].m_IsLeft = 0;
+
+                    // The pro controller has accelerometer and gyro
+                    // It has two rumble motors
                 }
-                else if (style.Test<nn::hid::NpadStyleJoyDual>() == true)
+                else if (style.Test<nn::hid::NpadStyleJoyDual>()) // Dual Mode
                 {
                     nn::hid::NpadJoyDualState state;
-                    nn::hid::GetNpadState(&state, g_NPadIDS[i]);
-                    bool connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
-                    UpdateGamepad(&context->m_Gamepads[i], &state, connected);
+                    nn::hid::GetNpadState(&state, g_NPads[i].m_Id);
+                    connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
+                    buttons  = ConvertHorizontalButtonLayout(style, state.buttons);
+                    stickL   = state.analogStickL;
+                    stickR   = state.analogStickR;
+                    left = right = 1;
+                    // It has two rumble motors
                 }
-                else if (style.Test<nn::hid::NpadStyleHandheld>() == true)
+                else if (style.Test<nn::hid::NpadStyleHandheld>()) // Handheld mode
                 {
                     nn::hid::NpadHandheldState state;
-                    nn::hid::GetNpadState(&state, g_NPadIDS[i]);
-                    bool connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
-                    UpdateGamepad(&context->m_Gamepads[0], &state, connected);
+                    nn::hid::GetNpadState(&state, g_NPads[i].m_Id);
+                    connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
+                    buttons  = ConvertHorizontalButtonLayout(style, state.buttons);
+                    stickL   = state.analogStickL;
+                    stickR   = state.analogStickR;
+                    left = right = 0;
                 }
+                else if (style.Test<nn::hid::NpadStyleJoyLeft>()) // JoyCon (L)
+                {
+                    nn::hid::NpadJoyLeftState state;
+                    nn::hid::GetNpadState(&state, g_NPads[i].m_Id);
+                    connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
+                    buttons  = ConvertHorizontalButtonLayout(style, state.buttons);
+                    stickL   = ConvertHorizontalAnalogStick(style, state.analogStickL);
+                    stickR   = stickL;
+                    left = 1;
+                    right = 0;
+                }
+                else if (style.Test<nn::hid::NpadStyleJoyRight>()) // JoyCon (R)
+                {
+                    nn::hid::NpadJoyRightState state;
+                    nn::hid::GetNpadState(&state, g_NPads[i].m_Id);
+                    connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
+                    buttons  = ConvertHorizontalButtonLayout(style, state.buttons);
+                    stickR   = ConvertHorizontalAnalogStick(style, state.analogStickR);
+                    stickL   = stickR;
+                    left = 0;
+                    right = 1;
+                }
+
+                g_NPads[i].m_IsLeft  = left;
+                g_NPads[i].m_IsRight = right;
+                UpdateConnectivity(context, i, connected);
+                if (connected)
+                    UpdateGamepad(context, i, &buttons, &stickL, &stickR, connected);
             }
 
             // TODO: nn::hid::GetNpadControllerColor
@@ -421,8 +578,14 @@ namespace dmHID
 
     void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)
     {
-        dmLogWarning("%s not implemented yet\n", __FUNCTION__);
-        //glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
+        if (g_NPads[gamepad->m_Index].m_Id == nn::hid::NpadId::Handheld) {
+            *device_name = g_GamePadNames[0];
+        }
+        else {
+            uint8_t left = g_NPads[gamepad->m_Index].m_IsLeft;
+            uint8_t right = g_NPads[gamepad->m_Index].m_IsRight << 1;
+            *device_name = g_GamePadNames[1 + (left|right)];
+        }
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
