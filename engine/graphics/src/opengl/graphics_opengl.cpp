@@ -2042,14 +2042,29 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return texture_wrap_lut[wrap];
     }
 
+    static GLenum GetOpenGLTextureFilter(TextureFilter texture_filter)
+    {
+        const GLenum texture_filter_lut[] = {
+            0,
+            GL_LINEAR,
+            GL_NEAREST,
+            GL_NEAREST_MIPMAP_NEAREST,
+            GL_NEAREST_MIPMAP_LINEAR,
+            GL_LINEAR_MIPMAP_NEAREST,
+            GL_LINEAR_MIPMAP_LINEAR,
+        };
+
+        return texture_filter_lut[texture_filter];
+    }
+
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
         GLenum type = GetOpenGLTextureType(texture->m_Type);
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, magfilter);
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GetOpenGLTextureFilter(magfilter));
         CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));

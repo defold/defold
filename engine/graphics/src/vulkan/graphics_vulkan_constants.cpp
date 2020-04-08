@@ -3,14 +3,6 @@
 
 namespace dmGraphics
 {
-    const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
-    const TextureFilter TEXTURE_FILTER_NEAREST                = 1;
-    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 2;
-    const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 3;
-    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 4;
-    const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 5;
-    const TextureFilter TEXTURE_FILTER_LINEAR                 = 6;
-
     const StencilOp STENCIL_OP_KEEP         = 0;
     const StencilOp STENCIL_OP_ZERO         = 1;
     const StencilOp STENCIL_OP_REPLACE      = 2;

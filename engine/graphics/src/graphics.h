@@ -165,14 +165,16 @@ namespace dmGraphics
     };
 
     // Texture filter
-    typedef uint32_t TextureFilter;
-    extern const TextureFilter TEXTURE_FILTER_DEFAULT;
-    extern const TextureFilter TEXTURE_FILTER_NEAREST;
-    extern const TextureFilter TEXTURE_FILTER_LINEAR;
-    extern const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
-    extern const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
-    extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+    enum TextureFilter
+    {
+        TEXTURE_FILTER_DEFAULT                = 0,
+        TEXTURE_FILTER_NEAREST                = 1,
+        TEXTURE_FILTER_LINEAR                 = 2,
+        TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 3,
+        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 4,
+        TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 5,
+        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 6,
+    };
 
     // Texture wrap
     enum TextureWrap

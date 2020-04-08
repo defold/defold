@@ -674,7 +674,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, VK_FILTER_LINEAR, VK_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
+        CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
         return res;
     }
