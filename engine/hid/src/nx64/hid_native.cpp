@@ -40,11 +40,11 @@ namespace dmHID
     };
 
     static const char* g_GamePadNames[] = {
-        "JoyCon (Handheld)",
+        "Joy-Con (Handheld)",
         "Switch Pro",
-        "JoyCon (L)",
-        "JoyCon (R)",
-        "JoyCon (Dual)",
+        "Joy-Con (L)",
+        "Joy-Con (R)",
+        "Joy-Con (Dual)",
     };
 
     static NativePadInfo g_NPads[MAX_GAMEPAD_COUNT] = {
@@ -59,34 +59,32 @@ namespace dmHID
         { nn::hid::NpadId::No8,     0 },
     };
 
-    // Matches the enum GamepadButton "indices"
-    // flag values are taken from the typedefs of the NPadButton
     static const int g_GamepadToNpadButton[] =
     {
-        nn::hid::NpadButton::A().Index,
+        nn::hid::NpadButton::A().Index,             // 0
         nn::hid::NpadButton::B().Index,
-        nn::hid::NpadButton::Down().Index,
-        nn::hid::NpadButton::L().Index,
-        nn::hid::NpadButton::Left().Index,
-        nn::hid::NpadButton::Minus().Index,
-        nn::hid::NpadButton::Plus().Index,
-        nn::hid::NpadButton::R().Index,
+        nn::hid::NpadButton::Y().Index,
+        nn::hid::NpadButton::X().Index,
         nn::hid::NpadButton::Right().Index,
+        nn::hid::NpadButton::Down().Index,          // 5
+        nn::hid::NpadButton::Left().Index,
+        nn::hid::NpadButton::Up().Index,
         nn::hid::NpadButton::StickL().Index,
-        nn::hid::NpadButton::StickLDown().Index,
-        nn::hid::NpadButton::StickLLeft().Index,
         nn::hid::NpadButton::StickLRight().Index,
+        nn::hid::NpadButton::StickLDown().Index,    // 10
+        nn::hid::NpadButton::StickLLeft().Index,
         nn::hid::NpadButton::StickLUp().Index,
         nn::hid::NpadButton::StickR().Index,
-        nn::hid::NpadButton::StickRDown().Index,
-        nn::hid::NpadButton::StickRLeft().Index,
         nn::hid::NpadButton::StickRRight().Index,
+        nn::hid::NpadButton::StickRDown().Index,    // 15
+        nn::hid::NpadButton::StickRLeft().Index,
         nn::hid::NpadButton::StickRUp().Index,
-        nn::hid::NpadButton::Up().Index,
-        nn::hid::NpadButton::X().Index,
-        nn::hid::NpadButton::Y().Index,
-        nn::hid::NpadButton::ZL().Index,
-        nn::hid::NpadButton::ZR().Index
+        nn::hid::NpadButton::L().Index,
+        nn::hid::NpadButton::R().Index,
+        nn::hid::NpadButton::ZL().Index,            // 20
+        nn::hid::NpadButton::ZR().Index,
+        nn::hid::NpadButton::Minus().Index,
+        nn::hid::NpadButton::Plus().Index,
     };
 
 
