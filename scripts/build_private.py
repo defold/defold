@@ -42,13 +42,3 @@ def is_library_supported(platform, library):
     if platform == 'arm64-nx64':
         return library not in ['glfw']
     return True
-
-
-def archive_engine(self, platform):
-    bin_dir = self.build_utility.get_binary_path()
-
-    if platform in ['arm64-nx64']:
-        for name in ['dmengine', 'dmengine_release', 'dmengine_headless']:
-            for suffix in ['.nss', '.nso']:
-                name = join(bin_dir, name + suffix)
-                self.upload_file(engine, '%s/%s' % (self.full_archive_path, name))

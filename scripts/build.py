@@ -41,9 +41,6 @@ except Exception, e:
         def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
             pass
         @classmethod
-        def archive_engine(cls, configuration, platform): # uploads artifacts to S3
-            pass
-        @classmethod
         def is_library_supported(cls, platform, library):
             return True
 
@@ -838,8 +835,6 @@ class Configuration(object):
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
                 self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
-
-        build_private.archive_engine(self, self.target_platform)
 
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
