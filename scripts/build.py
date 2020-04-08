@@ -151,7 +151,7 @@ def format_exes(name, platform):
         suffix = ['.js', '.wasm']
     elif platform in ['arm64-nx64']:
         prefix = ''
-        suffix = ['.nss']
+        suffix = ['.nss', '.nso']
     else:
         suffix = ['']
 

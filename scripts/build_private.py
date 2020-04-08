@@ -47,7 +47,7 @@ def is_library_supported(platform, library):
 def archive_engine(self, platform):
     bin_dir = self.build_utility.get_binary_path()
 
-    if platform in ['arm64-nx-64']:
+    if platform in ['arm64-nx64']:
         for name in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for suffix in ['.nss', '.nso']:
                 name = join(bin_dir, name + suffix)
