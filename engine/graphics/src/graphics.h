@@ -158,9 +158,11 @@ namespace dmGraphics
     };
 
     // Texture type
-    typedef uint32_t TextureType;
-    extern const TextureType TEXTURE_TYPE_2D;
-    extern const TextureType TEXTURE_TYPE_CUBE_MAP;
+    enum TextureType
+    {
+        TEXTURE_TYPE_2D       = 0,
+        TEXTURE_TYPE_CUBE_MAP = 1,
+    };
 
     // Texture filter
     typedef uint32_t TextureFilter;

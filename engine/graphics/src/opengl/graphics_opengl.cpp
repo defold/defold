@@ -413,6 +413,20 @@ static void LogFrameBufferError(GLenum status)
         return (Type) -1;
     }
 
+    static GLenum GetOpenGLTextureType(TextureType type)
+    {
+        if (type == TEXTURE_TYPE_2D)
+        {
+            return GL_TEXTURE_2D;
+        }
+        else if (type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            return GL_TEXTURE_CUBE_MAP;
+        }
+
+        return GL_FALSE;
+    }
+
     static bool OpenGLIsSupported()
     {
         return Initialize();
@@ -2030,7 +2044,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
-        GLenum type = (GLenum) texture->m_Type;
+        GLenum type = GetOpenGLTextureType(texture->m_Type);
 
         glTexParameteri(type, GL_TEXTURE_MIN_FILTER, minfilter);
         CHECK_GL_ERROR;
@@ -2147,7 +2161,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        GLenum type = (GLenum) texture->m_Type;
+        GLenum type = GetOpenGLTextureType(texture->m_Type);
         glBindTexture(type, texture->m_Texture);
         CHECK_GL_ERROR;
 
@@ -2448,7 +2462,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
-        glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
+        glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_Texture);
         CHECK_GL_ERROR;
 
         SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
@@ -2471,7 +2485,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
-        glBindTexture((GLenum) texture->m_Type, 0);
+        glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
         CHECK_GL_ERROR;
     }
 

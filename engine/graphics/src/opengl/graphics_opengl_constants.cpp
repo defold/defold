@@ -3,9 +3,6 @@
 
 namespace dmGraphics
 {
-    const TextureType TEXTURE_TYPE_2D       = GL_TEXTURE_2D;
-    const TextureType TEXTURE_TYPE_CUBE_MAP = GL_TEXTURE_CUBE_MAP;
-
     const TextureFilter TEXTURE_FILTER_DEFAULT                = 0;
     const TextureFilter TEXTURE_FILTER_LINEAR                 = GL_LINEAR;
     const TextureFilter TEXTURE_FILTER_NEAREST                = GL_NEAREST;
