@@ -1,5 +1,5 @@
-#ifndef __GRAPHICS_VULKAN_ANDROID__
-#define __GRAPHICS_VULKAN_ANDROID__
+#ifndef __GRAPHICS_VULKAN_DYNAMIC__
+#define __GRAPHICS_VULKAN_DYNAMIC__
 
 extern PFN_vkCreateInstance vkCreateInstance;
 extern PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
@@ -117,4 +117,4 @@ extern PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfaceP
 extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 extern PFN_vkResetCommandBuffer vkResetCommandBuffer;
 
-#endif // __GRAPHICS_VULKAN_ANDROID__
+#endif // __GRAPHICS_VULKAN_DYNAMIC__

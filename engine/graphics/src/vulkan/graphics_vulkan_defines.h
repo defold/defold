@@ -26,7 +26,7 @@
 #include <vulkan/vulkan.h>
 
 #ifdef ANDROID
-	#include "android/graphics_vulkan_android.h"
+	#include "graphics_vulkan_dynamic.h"
 #endif
 
 #define DMGRAPHICS_STATE_WRITE_R (0x1)
