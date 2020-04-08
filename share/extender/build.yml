@@ -72,7 +72,7 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
-        frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo"]
+        frameworks: ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate", "unwind", "cares"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin", "{{env.PLATFORMSDK_DIR}}/XcodeDefault11.0.xctoolchain/usr/lib/clang/11.0.0/lib/darwin"]
         defines:    ["DM_PLATFORM_OSX", "LUA_BYTECODE_ENABLE_64"]
