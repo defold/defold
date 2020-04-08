@@ -167,6 +167,11 @@ def build(bld):
         task = copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
         task.install_path = install_path
 
+    if 'arm64-nx64' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.nso')
+        bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.nso')
+        bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_headless.nso')
+
     if not Options.options.skip_build_tests:
         bld.add_subdirs('test')
 
