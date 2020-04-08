@@ -2636,7 +2636,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
+        const GLenum stencil_op_lut[] = {
+            GL_KEEP,
+            GL_ZERO,
+            GL_REPLACE,
+            GL_INCR,
+            GL_INCR_WRAP,
+            GL_DECR,
+            GL_DECR_WRAP,
+            GL_INVERT,
+        };
+
+        glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
     }
 

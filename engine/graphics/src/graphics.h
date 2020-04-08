@@ -219,15 +219,17 @@ namespace dmGraphics
     };
 
     // Stencil operation
-    typedef uint32_t StencilOp;
-    extern const StencilOp STENCIL_OP_KEEP;
-    extern const StencilOp STENCIL_OP_ZERO;
-    extern const StencilOp STENCIL_OP_REPLACE;
-    extern const StencilOp STENCIL_OP_INCR;
-    extern const StencilOp STENCIL_OP_INCR_WRAP;
-    extern const StencilOp STENCIL_OP_DECR;
-    extern const StencilOp STENCIL_OP_DECR_WRAP;
-    extern const StencilOp STENCIL_OP_INVERT;
+    enum StencilOp
+    {
+        STENCIL_OP_KEEP      = 0,
+        STENCIL_OP_ZERO      = 1,
+        STENCIL_OP_REPLACE   = 2,
+        STENCIL_OP_INCR      = 3,
+        STENCIL_OP_INCR_WRAP = 4,
+        STENCIL_OP_DECR      = 5,
+        STENCIL_OP_DECR_WRAP = 6,
+        STENCIL_OP_INVERT    = 7,
+    };
 
     // Buffer usage
     enum BufferUsage

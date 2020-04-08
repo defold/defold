@@ -50,7 +50,6 @@ def build(bld):
 
     obj.find_sources_in_dirs('. null ../proto/graphics')
 
-    obj.source.append('opengl/graphics_opengl_constants.cpp')
     obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
