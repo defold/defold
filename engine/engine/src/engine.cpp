@@ -171,7 +171,7 @@ namespace dmEngine
         params.m_ConfigFile = engine->m_Config;
         params.m_L          = 0;
         dmExtension::Event event;
-        event.m_Event = iconify ? dmExtension::EVENT_ID_INCONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
+        event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
         dmExtension::DispatchEvent( &params, &event );
 
         dmGameSystem::OnWindowIconify(iconify != 0);
@@ -207,6 +207,7 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
+    , m_RunWhileIconified(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -606,6 +607,10 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
+#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
+        engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
+#endif
+
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
@@ -613,7 +618,15 @@ namespace dmEngine
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
 
-        engine->m_ClearColor = dmConfigFile::GetInt(engine->m_Config, "display.clear_color", 0x00000000);
+        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
+        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
+        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
+        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
+        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
+                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
+                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
+                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
+        engine->m_ClearColor = clear_color;
 
         if (!setting_vsync)
         {
@@ -1210,26 +1223,28 @@ bail:
 
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
-                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
-                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-                dmHID::Update(engine->m_HidContext);
-                dmTime::Sleep(1000 * 100);
-                // Update time again after the sleep to avoid big leaps after iconified.
-                // In practice, it makes the delta time 1/freq even though we slept for long
-
-                time = dmTime::GetTime();
-                uint64_t i_dt = fixed_dt * 1000000;
-                if (i_dt > time) {
-                    engine->m_PreviousFrameTime = 0;
-                } else {
-                    engine->m_PreviousFrameTime = time - i_dt;
-                }
-
                 if (!engine->m_WasIconified)
                 {
                     engine->m_WasIconified = true;
                 }
-                return;
+
+                if (!engine->m_RunWhileIconified) {
+                    // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                    // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                    dmHID::Update(engine->m_HidContext);
+                    dmTime::Sleep(1000 * 100);
+                    // Update time again after the sleep to avoid big leaps after iconified.
+                    // In practice, it makes the delta time 1/freq even though we slept for long
+
+                    time = dmTime::GetTime();
+                    uint64_t i_dt = fixed_dt * 1000000;
+                    if (i_dt > time) {
+                        engine->m_PreviousFrameTime = 0;
+                    } else {
+                        engine->m_PreviousFrameTime = time - i_dt;
+                    }
+                    return;
+                }
             }
             else
             {
@@ -1250,15 +1265,16 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
-                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                    {
-                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
-                        // might have entered background at this point and OpenGL calls are not permitted and will
-                        // crash the application
-                        dmProfile::Release(profile);
-                        return;
+                    if (!engine->m_RunWhileIconified) {
+                        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                        {
+                            // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                            // might have entered background at this point and OpenGL calls are not permitted and will
+                            // crash the application
+                            dmProfile::Release(profile);
+                            return;
+                        }
                     }
-
                     /* Script context updates */
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);
@@ -1457,6 +1473,7 @@ bail:
     {
         engine->m_Alive = false;
         engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action =  dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
