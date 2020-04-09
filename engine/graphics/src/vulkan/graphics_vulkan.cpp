@@ -953,9 +953,25 @@ bail:
 
     static bool VulkanIsSupported()
     {
+    #if ANDROID
+        if (!LoadVulkanLibrary())
+        {
+            dmLogError("Could not load Vulkan functions.");
+            return 0x0;
+        }
+    #endif
+
         VkInstance inst;
         VkResult res = CreateInstance(&inst, 0, 0, 0, 0);
-        DestroyInstance(&inst);
+
+        if (res == VK_SUCCESS)
+        {
+        #if ANDROID
+            LoadVulkanFunctions(inst);
+        #endif
+            DestroyInstance(&inst);
+        }
+
         return res == VK_SUCCESS;
     }
 
