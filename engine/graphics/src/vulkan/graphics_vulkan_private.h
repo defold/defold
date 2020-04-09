@@ -443,5 +443,7 @@ namespace dmGraphics
 
     // Implemented per supported platform
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    bool     LoadVulkanLibrary();
+    void     LoadVulkanFunctions(VkInstance vk_instance);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__
