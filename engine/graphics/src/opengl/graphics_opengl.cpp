@@ -2046,8 +2046,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         const GLenum texture_filter_lut[] = {
             0,
-            GL_LINEAR,
             GL_NEAREST,
+            GL_LINEAR,
             GL_NEAREST_MIPMAP_NEAREST,
             GL_NEAREST_MIPMAP_LINEAR,
             GL_LINEAR_MIPMAP_NEAREST,
