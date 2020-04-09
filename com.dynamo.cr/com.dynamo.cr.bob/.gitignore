@@ -13,6 +13,8 @@
 /lib/android-res.zip
 /lib/luajit-share.zip
 /lib/dlib.jar
+/lib/switch-tools.zip
+/lib/arm64-nx64/**/*
 /libexec/*/*.so
 /libexec/*/*.js
 /libexec/*/*.swf
@@ -21,6 +23,9 @@
 /libexec/*/*apkc*
 /libexec/*/glslc*
 /libexec/*/spirv-cross*
+/libexec/*/AuthoringTool/*
+/libexec/*/MakeMeta/*
+/libexec/arm64-nx64/**/*
 /share/luajit
 /res
 /src/com/dynamo/bob/archive/EngineVersion.java

@@ -112,8 +112,8 @@ extern "C" void nninitStartup()
      // Initialize the allocated buffer as space for malloc.
      Get(g_SampleAllocator).Initialize(g_MallocBuffer, MemoryHeapSize);
 
-     NN_LOG("MallocBuffer is 0x%p - 0x%p\n\n",
-                     g_MallocBuffer, g_MallocBuffer + MemoryHeapSize);
+     NN_LOG("MallocBuffer is 0x%p - 0x%p (%d mb)\n\n",
+                     g_MallocBuffer, g_MallocBuffer + MemoryHeapSize, MemoryHeapSize/(1024*1024));
 }
 
 // __nnmusl_socket_socket_init

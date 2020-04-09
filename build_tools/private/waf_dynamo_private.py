@@ -75,7 +75,7 @@ def setup_tools_nx(conf, build_util):
     conf.env['DM_MOUNT_HOST']       = '1'
 
 def get_sdk_root():
-    return os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'nx64', 'nx64-sdk-10.1')
+    return os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'nx64', 'nx64-sdk-10.3')
 
 def get_lib_paths(buildtype, buildtarget):
     sdk_root = get_sdk_root()

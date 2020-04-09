@@ -13,7 +13,7 @@ from ConfigParser import ConfigParser
 from build import download_sdk
 
 PACKAGES_NX64="protobuf-2.3.0".split()
-PACKAGE_NX64_SDK="nx64-sdk-10.1"
+PACKAGE_NX64_SDK="nx64-sdk-10.3"
 
 
 def get_target_platforms():

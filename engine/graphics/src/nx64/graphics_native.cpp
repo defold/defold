@@ -100,7 +100,7 @@ namespace dmGraphics
 
     const char** GetValidationLayers(uint16_t* num_layers)
     {
-        uint16_t count = 1;
+        uint16_t count = 0;
         g_validation_layers[count++] = DM_VULKAN_LAYER_SWAPCHAIN;
 
         if (dmSys::GetEnv("DM_VULKAN_VALIDATION"))

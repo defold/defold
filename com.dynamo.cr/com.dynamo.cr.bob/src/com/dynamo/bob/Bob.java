@@ -147,6 +147,15 @@ public class Bob {
         }
     }
 
+    public static void initSwitch() {
+        init();
+        try {
+            extract(Bob.class.getResource("/lib/switch-tools.zip"), rootFolder);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static void extract(final URL url, File toFolder) throws IOException {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
@@ -158,7 +167,6 @@ public class Bob {
                 if (!entry.isDirectory()) {
 
                     File dstFile = new File(toFolder, entry.getName());
-                    dstFile.deleteOnExit();
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
