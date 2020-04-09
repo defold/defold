@@ -1,5 +1,4 @@
 #include <winsock2.h>
-#include <Ws2tcpip.h>
 #include <iphlpapi.h>
 #include "../socket.h"
 #include "../log.h"
