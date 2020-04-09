@@ -826,6 +826,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
+                dmLogError("Device selection failed for device %s: Could not get a valid queue family.", device->m_Properties.deviceName);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -842,6 +843,7 @@ namespace dmGraphics
 
             if (!all_extensions_found)
             {
+                dmLogError("Device selection failed for device %s: Could not find all required device extensions.", device->m_Properties.deviceName);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -851,8 +853,11 @@ namespace dmGraphics
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
             {
+                dmLogError("Device selection failed for device %s: Could not find a valid swap chain.", device->m_Properties.deviceName);
                 DESTROY_AND_CONTINUE(device)
             }
+
+            dmLogInfo("Vulkan device selected: %s", device->m_Properties.deviceName);
 
             selected_device = device;
             selected_queue_family = queue_family;
