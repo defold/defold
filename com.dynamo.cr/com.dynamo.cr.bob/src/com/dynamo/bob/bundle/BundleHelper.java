@@ -308,6 +308,8 @@ public class BundleHelper {
             return new File(appDir, "AndroidManifest.xml");
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             return new File(appDir, "index.html");
+        } else if (platform == Platform.Arm64NX64) {
+            return new File(appDir, BundleHelper.MANIFEST_NAME_SWITCH);
         }
         return null;
     }
@@ -805,6 +807,12 @@ public class BundleHelper {
     public Map<String, Object> createSwitchManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
+
+        // Convert from integer to long hex
+        propertiesMap.get("switch").put("user_account_save_data_size",           String.format("0x%016x", projectProperties.getIntValue("switch", "user_account_save_data_size")));
+        propertiesMap.get("switch").put("user_account_save_data_journal_size",   String.format("0x%016x", projectProperties.getIntValue("switch", "user_account_save_data_journal_size")));
+        propertiesMap.get("switch").put("cache_storage_size",                    String.format("0x%016x", projectProperties.getIntValue("switch", "cache_storage_size")));
+        propertiesMap.get("switch").put("cache_storage_journal_size",            String.format("0x%016x", projectProperties.getIntValue("switch", "cache_storage_journal_size")));
         return properties;
     }
 

@@ -11,6 +11,9 @@
 #include <hid.h>
 
 
+static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata);
+
+
 static void AppCreate(void* _ctx)
 {
     (void)_ctx;
@@ -33,7 +36,7 @@ static void* EngineCreate(int argc, char** argv)
     memset(engine, 0, sizeof(EngineCtx));
 
     dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
-    //new_hid_params.m_GamepadConnectivityCallback = dmInput::GamepadConnectivityCallback;
+    new_hid_params.m_GamepadConnectivityCallback = GamepadConnectivityCallback;
 
     int32_t use_accelerometer = false;
     if (use_accelerometer) {
@@ -112,12 +115,27 @@ static dmApp::Result EngineUpdate(void* _engine)
     dmTime::Sleep(100000);
 
     return dmApp::RESULT_OK;
+
+#undef LOG
 }
 
 static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int* argc, char*** argv)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     (void)engine;
+}
+
+static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+{
+    dmHID::HGamepad pad = dmHID::GetGamepad(g_EngineCtx.m_HidContext, gamepad_index);
+
+    if (connected) {
+        const char* name;
+        dmHID::GetGamepadDeviceName(pad, &name);
+        printf("Gamepad %d connected: %s\n", gamepad_index, name);
+    } else {
+        printf("Gamepad %d disconnected\n", gamepad_index);
+    }
 }
 
 int main(int argc, char **argv)

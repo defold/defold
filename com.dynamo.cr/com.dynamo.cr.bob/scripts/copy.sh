@@ -17,6 +17,7 @@ mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
 mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
+mkdir -p libexec/arm64-nx64
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -108,3 +109,6 @@ copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
 copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
+
+copy arm64-nx64/dmengine.nso arm64-nx64/dmengine.nso
+copy arm64-nx64/dmengine_release.nso arm64-nx64/dmengine_release.nso

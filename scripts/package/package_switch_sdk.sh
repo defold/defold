@@ -7,7 +7,7 @@
 
 set -e
 
-VERSION="10.1"
+VERSION="10.3"
 SDK_NAME=nx64-sdk-${VERSION}
 
 TARGET_PATH=$(pwd)

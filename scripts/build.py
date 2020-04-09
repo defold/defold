@@ -148,7 +148,7 @@ def format_exes(name, platform):
         suffix = ['.js', '.wasm']
     elif platform in ['arm64-nx64']:
         prefix = ''
-        suffix = ['.nss']
+        suffix = ['.nss', '.nso']
     else:
         suffix = ['']
 
@@ -759,10 +759,11 @@ class Configuration(object):
 
     def archive_engine(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
+        self.full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         java_archive_path = join(self.archive_path, sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
+        full_archive_path = self.full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
