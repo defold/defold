@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
