@@ -45,17 +45,6 @@ import com.dynamo.bob.util.Exec.Result;
 
 public class SwitchBundler implements IBundler {
     private static Logger logger = Logger.getLogger(SwitchBundler.class.getName());
-    private boolean copyIcon(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName)
-            throws IOException {
-        String resource = projectProperties.getStringValue("android", name);
-        if (resource != null && resource.length() > 0) {
-            File inFile = new File(projectRoot, resource);
-            File outFile = new File(resDir, outName);
-            FileUtils.copyFile(inFile, outFile);
-            return true;
-        }
-        return false;
-    }
 
     private File getLibraryDir(String variant) {
         final String buildTarget = "NX-NXFP2-a64";
@@ -143,13 +132,20 @@ public class SwitchBundler implements IBundler {
         FileUtils.copyFile(openglSrc, new File(codeDir, String.format("subsdk%d", subsdkIndex++)));
         File npdm = new File(codeDir, "main.npdm");
 
-        File tmpResourceDir = Files.createTempDirectory("res").toFile();
-        tmpResourceDir.mkdirs();
-
         String contentRoot = project.getBuildDirectory();
         String projectRoot = project.getRootDirectory();
 
         BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, variant);
+
+        // Copy resources
+        File tmpResourceDir = Files.createTempDirectory("res").toFile();
+        tmpResourceDir.mkdirs();
+
+        // The application meta file refers to this relative path, next to the meta file itself
+        IResource iconResource = helper.getResource("switch", "icon");
+
+        File icon = new File(tmpResourceDir, "icon.bmp");
+        helper.writeResourceToFile(iconResource, icon);
 
         // Only needed during the bundling
         helper.copyOrWriteManifestFile(architectures.get(0), tmpResourceDir);

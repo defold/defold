@@ -16,7 +16,7 @@
         </Title>
         <Icon>
             <Language>AmericanEnglish</Language>
-            <IconPath>{{ switch.icon }}</IconPath>
+            <IconPath>./icon.bmp</IconPath>
         </Icon>
         <DisplayVersion>{{ project.version }}</DisplayVersion>
         <SupportedLanguage>AmericanEnglish</SupportedLanguage>
