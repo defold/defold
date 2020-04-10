@@ -5,6 +5,7 @@
 
 namespace dmGraphics
 {
+    static bool                         g_adapter_selected = false;
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
@@ -15,6 +16,30 @@ namespace dmGraphics
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_Priority      = priority;
         g_adapter_list           = adapter;
+    }
+
+    static bool SelectGraphicsAdapter()
+    {
+        if (g_adapter_selected)
+        {
+            return true;
+        }
+
+        GraphicsAdapter* next     = g_adapter_list;
+        GraphicsAdapter* selected = next;
+        while(next)
+        {
+            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
+            {
+                selected = next;
+            }
+
+            next = next->m_Next;
+        }
+
+        assert(selected);
+        g_functions = selected->m_RegisterCb();
+        g_adapter_selected = true;
     }
 
     WindowParams::WindowParams()
@@ -124,21 +149,7 @@ namespace dmGraphics
     }
     bool Initialize()
     {
-        GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = next;
-        while(next)
-        {
-            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
-            {
-                selected = next;
-            }
-
-            next = next->m_Next;
-        }
-
-        assert(selected);
-        g_functions = selected->m_RegisterCb();
-        return g_functions.m_Initialize();
+        return SelectGraphicsAdapter() && g_functions.m_Initialize();
     }
     void Finalize()
     {
@@ -146,6 +157,7 @@ namespace dmGraphics
     }
     void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
+        SelectGraphicsAdapter();
         g_functions.m_AppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
     }
     uint32_t GetWindowRefreshRate(HContext context)
