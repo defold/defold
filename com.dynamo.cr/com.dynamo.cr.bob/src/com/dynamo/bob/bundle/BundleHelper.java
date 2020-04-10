@@ -185,6 +185,12 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
+    public void writeResourceToFile(IResource resource, File out) throws IOException {
+        java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+        fo.write(resource.getContent());
+        fo.close();
+    }
+
     public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         byte[] data = resource.getContent();
         if (data == null) {
