@@ -293,7 +293,7 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
 - (BOOL)wantsUpdateLayer
 {
-    return _glfwWin.clientAPI == GLFW_NO_API ? YES : NO;
+    return _glfwWin.clientAPI == GLFW_NO_API;
 }
 
 - (BOOL)isOpaque

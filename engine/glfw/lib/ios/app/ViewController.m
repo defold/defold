@@ -2,11 +2,8 @@
 #include "../../../include/GL/glfw.h"
 #include "internal.h"
 
-#if defined(DM_USE_VULKAN)
 #import "VulkanView.h"
-#else
 #import "EAGLView.h"
-#endif
 
 extern int g_IsReboot;
 
@@ -42,11 +39,14 @@ extern int g_IsReboot;
     }
     cachedViewSize = bounds.size;
 
-#if defined(DM_USE_VULKAN)
-    baseView = [VulkanView createView: bounds recreate:recreate];
-#else
-    baseView = [EAGLView createView: bounds recreate:recreate];
-#endif
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        baseView = [VulkanView createView: bounds recreate:recreate];
+    }
+    else
+    {
+        baseView = [EAGLView createView: bounds recreate:recreate];
+    }
 
     [[self view] removeFromSuperview];
 
@@ -68,10 +68,11 @@ extern int g_IsReboot;
 {
     [super viewWillDisappear:animated];
 
-#if !defined(DM_USE_VULKAN)
-    // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
-    glFinish();
-#endif
+    if (_glfwWin.clientAPI == GLFW_OPENGL_API)
+    {
+        // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
+        glFinish();
+    }
 }
 
 - (void)updateViewFramesWorkaround
@@ -242,3 +243,52 @@ extern int g_IsReboot;
 
 @end
 
+void* _glfwPlatformAcquireAuxContext()
+{
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        _glfwPlatformAcquireAuxContextVulkan();
+    }
+    else
+    {
+        _glfwPlatformAcquireAuxContextOpenGL();
+    }
+}
+
+void _glfwPlatformUnacquireAuxContext(void* context)
+{
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        _glfwPlatformUnacquireAuxContextVulkan(context);
+    }
+    else
+    {
+        _glfwPlatformUnacquireAuxContextOpenGL(context);
+    }
+}
+
+int _glfwPlatformQueryAuxContext()
+{
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        return _glfwPlatformQueryAuxContextVulkan();
+    }
+    else
+    {
+        return _glfwPlatformQueryAuxContextOpenGL();
+    }
+}
+
+int  _glfwPlatformOpenWindow( int width, int height,
+                              const _GLFWwndconfig *wndconfig,
+                              const _GLFWfbconfig *fbconfig )
+{
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        return _glfwPlatformOpenWindowVulkan(width, height, wndconfig, fbconfig);
+    }
+    else
+    {
+        return _glfwPlatformOpenWindowOpenGL(width, height, wndconfig, fbconfig);
+    }
+}
