@@ -286,7 +286,7 @@ namespace dmGameSystem
 
     static bool CheckWorld(CollisionWorld* world)
     {
-        return (world != 0x0) && (world->m_World3D != 0x0 || world->m_World2D != 0x0);
+        return (world != 0x0) && (world->m_World3D != 0x0 || world->m_World2D != 0x0);
     }
 
     static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
