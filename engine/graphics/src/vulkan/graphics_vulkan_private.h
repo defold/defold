@@ -46,20 +46,7 @@ namespace dmGraphics
 
     struct Texture
     {
-        Texture()
-        : m_Type(TEXTURE_TYPE_2D)
-        , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
-        , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
-        , m_Width(0)
-        , m_Height(0)
-        , m_OriginalWidth(0)
-        , m_OriginalHeight(0)
-        , m_MipMapCount(0)
-        , m_TextureSamplerIndex(0)
-        , m_Destroyed(0)
-        {
-            memset(&m_Handle, 0, sizeof(m_Handle));
-        }
+    	Texture();
 
         struct VulkanHandle
         {
@@ -166,18 +153,7 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        RenderTarget(const uint32_t rtId)
-        : m_TextureColor(0)
-        , m_TextureDepthStencil(0)
-        , m_RenderPass(VK_NULL_HANDLE)
-        , m_Framebuffer(VK_NULL_HANDLE)
-        , m_Id(rtId)
-        , m_IsBound(0)
-        {
-            m_Extent.width  = 0;
-            m_Extent.height = 0;
-        }
-
+    	RenderTarget(const uint32_t rtId);
         Texture*       m_TextureColor;
         Texture*       m_TextureDepthStencil;
         TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
