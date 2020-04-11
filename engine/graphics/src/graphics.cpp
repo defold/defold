@@ -40,6 +40,7 @@ namespace dmGraphics
         assert(selected);
         g_functions = selected->m_RegisterCb();
         g_adapter_selected = true;
+        return true;
     }
 
     WindowParams::WindowParams()

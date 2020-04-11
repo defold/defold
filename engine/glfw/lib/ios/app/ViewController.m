@@ -6,6 +6,7 @@
 #import "EAGLView.h"
 
 extern int g_IsReboot;
+static int g_view_type = GLFW_OPENGL_API;
 
 @implementation ViewController
 
@@ -39,7 +40,7 @@ extern int g_IsReboot;
     }
     cachedViewSize = bounds.size;
 
-    if (_glfwWin.clientAPI == GLFW_NO_API)
+    if (g_view_type == GLFW_NO_API)
     {
         baseView = [VulkanView createView: bounds recreate:recreate];
     }
@@ -243,6 +244,11 @@ extern int g_IsReboot;
 
 @end
 
+void _glfwPlatformSetViewType(int view_type)
+{
+    g_view_type = view_type;
+}
+
 void* _glfwPlatformAcquireAuxContext()
 {
     if (_glfwWin.clientAPI == GLFW_NO_API)
@@ -283,7 +289,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
-    if (_glfwWin.clientAPI == GLFW_NO_API)
+    if (wndconfig->clientAPI == GLFW_NO_API)
     {
         return _glfwPlatformOpenWindowVulkan(width, height, wndconfig, fbconfig);
     }

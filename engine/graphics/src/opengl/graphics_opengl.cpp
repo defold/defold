@@ -978,6 +978,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwSetViewType(GLFW_OPENGL_API);
         glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
 #endif
     }
@@ -1679,7 +1680,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GLsizei uniform_name_length;
         glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = GetGraphicsType(uniform_type);
-        CHECK_GL_ERROR
+        CHECK_GL_ERROR;
         return (uint32_t)uniform_name_length;
     }
 

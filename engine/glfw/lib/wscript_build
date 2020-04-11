@@ -14,7 +14,6 @@ if platform == 'darwin' or platform == 'x86_64-darwin':
 elif platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios ios/app')
     dmglfw.includes = '. ios'
-    # dmglfw.source.remove(os.path.join('ios','app','VulkanView.m'))
     darwin_vulkan_mobile = True
 elif re.match('arm.*?android', platform):
     dmglfw.find_sources_in_dirs('. android')
