@@ -1157,6 +1157,10 @@ void _glfwPlatformUnacquireAuxContext(void* context)
     }
 }
 
+void _glfwPlatformSetViewType(int view_type)
+{
+}
+
 GLFWAPI void glfwAccelerometerEnable()
 {
 }
