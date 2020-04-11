@@ -284,6 +284,11 @@ namespace dmGameSystem
         }
     }
 
+    static bool CheckWorld(CollisionWorld* world)
+    {
+        return (world != 0x0) && (world->m_World3D != 0x0 || world->m_World2D != 0x0);
+    }
+
     static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         CollisionObjectResource* resource = component->m_Resource;
@@ -381,7 +386,8 @@ namespace dmGameSystem
         component->m_FlippedY = 0;
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
-        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
+
+        if (!CheckWorld(world) || !CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
             delete component;
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
