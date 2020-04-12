@@ -315,7 +315,9 @@ namespace dmGameSystem
     static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         if (world == 0x0)
+        {
             return false;
+        }
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
         dmPhysics::CollisionObjectData data;
