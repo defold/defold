@@ -411,7 +411,6 @@ namespace dmGameSystem
         component->m_FlippedY = 0;
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
-
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
             delete component;
