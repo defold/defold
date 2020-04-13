@@ -25,10 +25,8 @@
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleLocalizations</key>
-	<array>
-	{{#application-localizations}}
-	<string>{{.}}</string>
-	{{/application-localizations}}
+	<array>{{#application-localizations}}
+		<string>{{.}}</string>{{/application-localizations}}
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>

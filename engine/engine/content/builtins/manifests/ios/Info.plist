@@ -97,10 +97,8 @@
                 <string>opengles-2</string>
         </array>
         <key>CFBundleLocalizations</key>
-        <array>
-            {{#application-localizations}}
-            <string>{{.}}</string>
-            {{/application-localizations}}
+        <array>{{#application-localizations}}
+            <string>{{.}}</string>{{/application-localizations}}
         </array>
         <key>UISupportedInterfaceOrientations</key>
         <array> {{#orientation-support}}
