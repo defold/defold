@@ -281,7 +281,7 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem', '-framework', 'Carbon','-flto'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-framework','System','-framework', 'Carbon','-flto'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         if Options.options.with_asan:
