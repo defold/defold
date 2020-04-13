@@ -651,6 +651,10 @@ public class BundleHelper {
             return copyFile(projectProperties, projectRoot, resDir, category, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
+    public List<String> createArrayFromString(String line) {
+        return line != null ? new ArrayList<String>(Arrays.asList(line.trim().split("\\s*,\\s*"))) : new ArrayList<String>();
+    }
+
     public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -688,6 +692,11 @@ public class BundleHelper {
     public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
+
+        String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
+        List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
+        properties.put("application-localizations", applicationLocalizations);
+
         return properties;
     }
 
@@ -721,6 +730,11 @@ public class BundleHelper {
             orientationSupport.add("LandscapeRight");
         }
         properties.put("orientation-support", orientationSupport);
+
+        String applicationLocalizationsStr = projectProperties.getStringValue("ios", "localizations", null);
+        List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
+        properties.put("application-localizations", applicationLocalizations);
+
         return properties;
     }
 
@@ -757,7 +771,7 @@ public class BundleHelper {
         properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
 
         String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
-        List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
+        List<String> engineArguments = createArrayFromString(engineArgumentsString);
 
         properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
         properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
