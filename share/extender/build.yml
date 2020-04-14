@@ -521,7 +521,7 @@ platforms:
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:  ["-(\\w[\\w\\.+-]+)"]
     compileCmd:     'wine {{env.CLANG}} --target={{env.TRIPLET}} {{#flags}}{{{.}}} {{/flags}} {{#defines}}-D{{{.}}} {{/defines}} {{#includes}}-I{{{.}}} {{/includes}} {{#platformIncludes}}-I{{{.}}} {{/platformIncludes}}  -c {{src}} -o{{tgt}}'
-    linkCmds:       ['wine {{env.CLANG}} {{#src}}{{{.}}} {{/src}} -o {{tgt}}.nss -g -O0 -nostartfiles -fdiagnostics-format=msvc {{#linkFlags}}-Wl,{{{.}}} {{/linkFlags}} -Wl,-T {{env.LDSCRIPT}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -fuse-ld=lld.exe -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#platformLibs}}{{{.}}} {{/platformLibs}} -Wl,--end-group {{#sdknss}}{{{.}}} {{/sdknss}} {{#crtend}}{{{.}}} {{/crtend}} -Wl,-Bstatic {{#engineLibs}}-l{{{.}}} {{/engineLibs}}',
+    linkCmds:       ['wine {{env.CLANG}} {{#src}}{{{.}}} {{/src}} -o {{tgt}}.nss -g -O0 -nostartfiles -fdiagnostics-format=msvc {{#linkFlags}}-Wl,{{{.}}} {{/linkFlags}} -Wl,-T {{env.LDSCRIPT}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -fuse-ld=lld.exe -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#platformLibs}}{{{.}}} {{/platformLibs}} -Wl,--end-group {{#sdknss}}{{{.}}} {{/sdknss}} {{#crtend}}{{{.}}} {{/crtend}} -Wl,-Bstatic {{#engineLibs}}-l{{{.}}} {{/engineLibs}}',
                      'mono {{env.MAKENSO}} {{tgt}}.nss {{tgt}}.nso']
     libCmd:         'wine {{env.AR}} rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     manifestName:     'Application.nmeta'
