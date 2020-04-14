@@ -51,7 +51,7 @@ def get_engine_issues(lines):
     issues = []
     for line in lines:
         # 974d82a24 Issue-4684 - Load vulkan functions dynamically on android (#4692)
-        issue_match = re.search("^([a-fA-F0-9]+) Issue\-#?(\d+) (.*)", line)
+        issue_match = re.search("^([a-fA-F0-9]+) Issue\-#?(\d+):? (.*)", line)
         if issue_match:
             sha1 = issue_match.group(1)
             issue = issue_match.group(2)
