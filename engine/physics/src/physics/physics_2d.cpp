@@ -225,7 +225,7 @@ namespace dmPhysics
     {
         shape->m_centroid = FlipPoint(shape->m_centroid, horizontal, vertical);
         int count = shape->m_vertexCount;
-        
+
         for (int i = 0; i < count; ++i)
         {
             shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
@@ -763,7 +763,7 @@ namespace dmPhysics
                 (*world->m_GetWorldTransformCallback)(data.m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                if (isnan(rotation.getX()) || isnan(rotation.getY()) || isnan(rotation.getZ()) || isnan(rotation.getW()))
+                if (isnan(rotation.getX()) || isnan(rotation.getY()) || isnan(rotation.getZ()) || isnan(rotation.getW()))
                 {
                     dmLogError("Collision object rotation component is not valid.");
                     return 0x0;

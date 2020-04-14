@@ -576,7 +576,7 @@ namespace dmPhysics
                 dmTransform::Transform world_transform;
                 world->m_GetWorldTransform(data.m_UserData, world_transform);
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                if (isnan(rotation.getX()) || isnan(rotation.getY()) || isnan(rotation.getZ()) || isnan(rotation.getW()))
+                if (isnan(rotation.getX()) || isnan(rotation.getY()) || isnan(rotation.getZ()) || isnan(rotation.getW()))
                 {
                     dmLogError("Collision object rotation is not valid.");
                     return 0x0;
