@@ -99,7 +99,7 @@ Most contributions start with a Problem and result in a Solution. When discussin
 
 
 ### The Problem must comes first
-Many developers enjoy the creative process of building systems and frameworks just for the sake of creating something. While this in itself can be both fun and rewarding it is something to pay attention to when working on a game engine. Every line of code you add will increase the build time, the complexity and the size of the code base, all of which are things to avoid in a game engine (or actually in most any piece of software).
+Many developers enjoy the creative process of building systems and frameworks just for the sake of creating something. While this in itself can be both fun and rewarding it is something to pay attention to when working on a game engine. Every line of code you add will increase the build time, the complexity and the size of the code base, all of which are things you want to avoid in a game engine (or actually in all software).
 
 Best practice: *"Never add code that doesn't solve an actual problem."*
 
@@ -115,7 +115,7 @@ When contributing to Defold we want the Solution to solve a Problem that exists 
 
 
 ### Solutions should solve frequent or complex Problems
-The reason game developers use game engines instead of develop games completely from scratch is that game engines provide Solutions to complex and frequent Problems to allow game developers to focus on creating games. This is important to keep in mind when discussing Problems. Game engines exist to solve Problems, but game engines can not solve all Problems. Some Problems require Solutions that have more to do with the game than with the engine and some Problems are easy to solve and can be left for the developer or a third party library to solve.
+The reason game developers use game engines instead of creating games completely from scratch is that game engines provide Solutions to complex and frequent Problems. This allows game developers to focus on creating games instead of solving technology problems. Game engines exist to solve Problems, but game engines can not solve all Problems. Some Problems require Solutions that have more to do with the game than with the engine and some Problems are easy to solve and can be left for the developer or a third party library to solve.
 
 Best practice: *"Do not try to solve all problems. Focus on frequent or complex problems."*
 
@@ -123,7 +123,7 @@ When contributing to Defold we want to provide Solutions to Problems that game d
 
 
 ### Create one Solution per Problem
-It may be tempting to try and come up with a clever Solution that solve many Problems all at once. What usually happens is that these kinds of Solutions end up a lot more complex than Solutions that focus on solving a single Problem. It will also make it easier to reason about and review a change if it provides a Solution to a single Problem. Not to mention if the code needs to be refactored in the future!
+It may be tempting to try and come up with a clever Solution to solve many Problems at once. What usually happens is that these kinds of Solutions end up a lot more complex than Solutions that focus on solving a single Problem. It will also make it easier to reason about and review a change if it provides a Solution to a single Problem. Not to mention if the code needs to be refactored in the future!
 
 Best practice: *"A solution should solve a single problem"*
 
