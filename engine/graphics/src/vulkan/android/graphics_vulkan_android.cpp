@@ -122,6 +122,7 @@ PFN_vkResetCommandBuffer vkResetCommandBuffer;
 namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
+    uint8_t g_functions_loaded = 0;
 
     bool LoadVulkanLibrary()
     {
@@ -149,6 +150,11 @@ namespace dmGraphics
 
     void LoadVulkanFunctions(VkInstance vk_instance)
     {
+        if (g_functions_loaded)
+        {
+            return;
+        }
+
         vkCreateDevice = (PFN_vkCreateDevice) vkGetInstanceProcAddr(vk_instance, "vkCreateDevice");
         vkEnumeratePhysicalDevices = (PFN_vkEnumeratePhysicalDevices) vkGetInstanceProcAddr(vk_instance, "vkEnumeratePhysicalDevices");
         vkGetPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceProperties");
@@ -258,5 +264,6 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfacePresentModesKHR = (PFN_vkGetPhysicalDeviceSurfacePresentModesKHR) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceSurfacePresentModesKHR");
         vkQueuePresentKHR = (PFN_vkQueuePresentKHR) vkGetInstanceProcAddr(vk_instance, "vkQueuePresentKHR");
         vkResetCommandBuffer = (PFN_vkResetCommandBuffer) vkGetInstanceProcAddr(vk_instance, "vkResetCommandBuffer");
+        g_functions_loaded = 1;
     }
 }

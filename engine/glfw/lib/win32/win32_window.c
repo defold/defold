@@ -2022,6 +2022,10 @@ void _glfwPlatformUnacquireAuxContext(void* context)
     wglMakeCurrent( NULL, NULL );
 }
 
+void _glfwPlatformSetViewType(int view_type)
+{
+}
+
 GLFWAPI void glfwAccelerometerEnable()
 {
 }

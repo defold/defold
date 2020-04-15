@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls = false;
+    dmGraphics::Initialize();
     dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
     if (graphics_context == 0x0)
     {

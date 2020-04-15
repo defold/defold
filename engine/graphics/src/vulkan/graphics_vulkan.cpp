@@ -12,11 +12,19 @@
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_adapter.h"
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
+    static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
+    static bool                         VulkanIsSupported();
+    static const int8_t    g_vulkan_adapter_priority = 0;
+    static GraphicsAdapter g_vulkan_adapter;
+
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
+
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
     { \
@@ -267,6 +275,17 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
+    static VkSamplerAddressMode GetVulkanSamplerAddressMode(TextureWrap wrap)
+    {
+        const VkSamplerAddressMode address_mode_lut[] = {
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+            VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        };
+        return address_mode_lut[wrap];
+    }
+
     static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
     {
         VkFilter             vk_mag_filter;
@@ -274,8 +293,8 @@ namespace dmGraphics
         VkSamplerMipmapMode  vk_mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         // No conversions needed for wrap modes
         float max_lod                  = (float) maxLod;
-        VkSamplerAddressMode vk_wrap_u = (VkSamplerAddressMode) uwrap;
-        VkSamplerAddressMode vk_wrap_v = (VkSamplerAddressMode) vwrap;
+        VkSamplerAddressMode vk_wrap_u = GetVulkanSamplerAddressMode(uwrap);
+        VkSamplerAddressMode vk_wrap_v = GetVulkanSamplerAddressMode(vwrap);
 
         // Convert mag filter to Vulkan type
         if (magfilter == TEXTURE_FILTER_NEAREST)
@@ -655,7 +674,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 1);
+        CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
         return res;
     }
@@ -807,6 +826,7 @@ namespace dmGraphics
             QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
             if (!queue_family.IsValid())
             {
+                dmLogError("Device selection failed for device %s: Could not get a valid queue family.", device->m_Properties.deviceName);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -823,6 +843,7 @@ namespace dmGraphics
 
             if (!all_extensions_found)
             {
+                dmLogError("Device selection failed for device %s: Could not find all required device extensions.", device->m_Properties.deviceName);
                 DESTROY_AND_CONTINUE(device)
             }
 
@@ -832,8 +853,11 @@ namespace dmGraphics
             if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
                 selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
             {
+                dmLogError("Device selection failed for device %s: Could not find a valid swap chain.", device->m_Properties.deviceName);
                 DESTROY_AND_CONTINUE(device)
             }
+
+            dmLogInfo("Vulkan device selected: %s", device->m_Properties.deviceName);
 
             selected_device = device;
             selected_queue_family = queue_family;
@@ -927,7 +951,31 @@ bail:
         return false;
     }
 
-    HContext NewContext(const ContextParams& params)
+    static bool VulkanIsSupported()
+    {
+    #if ANDROID
+        if (!LoadVulkanLibrary())
+        {
+            dmLogError("Could not load Vulkan functions.");
+            return 0x0;
+        }
+    #endif
+
+        VkInstance inst;
+        VkResult res = CreateInstance(&inst, 0, 0, 0, 0);
+
+        if (res == VK_SUCCESS)
+        {
+        #if ANDROID
+            LoadVulkanFunctions(inst);
+        #endif
+            DestroyInstance(&inst);
+        }
+
+        return res == VK_SUCCESS;
+    }
+
+    static HContext VulkanNewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
         {
@@ -971,7 +1019,7 @@ bail:
         return 0x0;
     }
 
-    void DeleteContext(HContext context)
+    static void VulkanDeleteContext(HContext context)
     {
         if (context != 0x0)
         {
@@ -980,12 +1028,12 @@ bail:
         }
     }
 
-    bool Initialize()
+    static bool VulkanInitialize()
     {
         return glfwInit() ? true : false;
     }
 
-    void Finalize()
+    static void VulkanFinalize()
     {
         glfwTerminate();
     }
@@ -1023,7 +1071,7 @@ bail:
         }
     }
 
-    uint32_t GetWindowRefreshRate(HContext context)
+    static uint32_t VulkanGetWindowRefreshRate(HContext context)
     {
         if (context->m_WindowOpened)
         {
@@ -1035,7 +1083,7 @@ bail:
         }
     }
 
-    WindowResult OpenWindow(HContext context, WindowParams* params)
+    static WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
     {
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
@@ -1079,7 +1127,7 @@ bail:
         return WINDOW_RESULT_OK;
     }
 
-    void CloseWindow(HContext context)
+    static void VulkanCloseWindow(HContext context)
     {
         if (context->m_WindowOpened)
         {
@@ -1150,7 +1198,7 @@ bail:
         }
     }
 
-    void IconifyWindow(HContext context)
+    static void VulkanIconifyWindow(HContext context)
     {
         if (context->m_WindowOpened)
         {
@@ -1158,7 +1206,7 @@ bail:
         }
     }
 
-    uint32_t GetWindowState(HContext context, WindowState state)
+    static uint32_t VulkanGetWindowState(HContext context, WindowState state)
     {
         if (context->m_WindowOpened)
         {
@@ -1170,32 +1218,32 @@ bail:
         }
     }
 
-    uint32_t GetDisplayDpi(HContext context)
+    static uint32_t VulkanGetDisplayDpi(HContext context)
     {
         return 0;
     }
 
-    uint32_t GetWidth(HContext context)
+    static uint32_t VulkanGetWidth(HContext context)
     {
         return context->m_Width;
     }
 
-    uint32_t GetHeight(HContext context)
+    static uint32_t VulkanGetHeight(HContext context)
     {
         return context->m_Height;
     }
 
-    uint32_t GetWindowWidth(HContext context)
+    static uint32_t VulkanGetWindowWidth(HContext context)
     {
         return context->m_WindowWidth;
     }
 
-    uint32_t GetWindowHeight(HContext context)
+    static uint32_t VulkanGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
     }
 
-    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    static void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         if (context->m_WindowOpened)
         {
@@ -1217,7 +1265,7 @@ bail:
         }
     }
 
-    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    static void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
         if (context->m_WindowOpened)
         {
@@ -1225,13 +1273,13 @@ bail:
         }
     }
 
-    void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
+    static void VulkanGetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;
         out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
-    void BeginFrame(HContext context)
+    static void VulkanBeginFrame(HContext context)
     {
         FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
 
@@ -1295,7 +1343,7 @@ bail:
         BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
-    void Flip(HContext context)
+    static void VulkanFlip(HContext context)
     {
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
         FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
@@ -1349,30 +1397,10 @@ bail:
     #endif
     }
 
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    static void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
     {}
 
-    #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
-
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIWindow);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSView);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSOpenGLContext);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(HWND, WindowsHWND);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(HGLRC, WindowsHGLRC);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLContext, AndroidEGLContext);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
-    WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
-
-    #undef WRAP_GLFW_NATIVE_HANDLE_CALL
-
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
+    static void VulkanClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context->m_CurrentRenderTarget);
         DM_PROFILE(Graphics, "Clear");
@@ -1550,7 +1578,7 @@ bail:
         return cached_pipeline;
     }
 
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HVertexBuffer VulkanNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
@@ -1562,7 +1590,7 @@ bail:
         return (HVertexBuffer) buffer;
     }
 
-    void DeleteVertexBuffer(HVertexBuffer buffer)
+    static void VulkanDeleteVertexBuffer(HVertexBuffer buffer)
     {
         if (!buffer)
             return;
@@ -1575,7 +1603,7 @@ bail:
         delete buffer_ptr;
     }
 
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         if (size == 0)
         {
@@ -1592,7 +1620,7 @@ bail:
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
@@ -1600,24 +1628,12 @@ bail:
         DeviceBufferUploadHelper(g_Context, data, size, offset, buffer_ptr);
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return 0;
-    }
-
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return true;
-    }
-
-    uint32_t GetMaxElementsVertices(HContext context)
+    static uint32_t VulkanGetMaxElementsVertices(HContext context)
     {
         return context->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
-    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HIndexBuffer VulkanNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(size > 0);
         DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
@@ -1625,7 +1641,7 @@ bail:
         return (HIndexBuffer) buffer;
     }
 
-    void DeleteIndexBuffer(HIndexBuffer buffer)
+    static void VulkanDeleteIndexBuffer(HIndexBuffer buffer)
     {
         if (!buffer)
             return;
@@ -1637,7 +1653,7 @@ bail:
         delete buffer_ptr;
     }
 
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         assert(size > 0);
         assert(buffer);
@@ -1652,7 +1668,7 @@ bail:
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
@@ -1660,19 +1676,7 @@ bail:
         DeviceBufferUploadHelper(g_Context, data, size, 0, buffer_ptr);
     }
 
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return 0;
-    }
-
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        assert(0 && "Not supported for Vulkan");
-        return true;
-    }
-
-    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    static bool VulkanIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         // From VkPhysicalDeviceFeatures spec:
         //   "fullDrawIndexUint32 - If this feature is supported, maxDrawIndexedIndexValue must be 2^32-1;
@@ -1790,7 +1794,7 @@ bail:
         return vd;
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration VulkanNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         HashState64 decl_hash_state;
         dmHashInit64(&decl_hash_state, false);
@@ -1800,7 +1804,7 @@ bail:
         return vd;
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration VulkanNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
         HashState64 decl_hash_state;
         dmHashInit64(&decl_hash_state, false);
@@ -1811,21 +1815,21 @@ bail:
         return vd;
     }
 
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    static void VulkanDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete (VertexDeclaration*) vertex_declaration;
     }
 
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void VulkanEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         context->m_CurrentVertexBuffer      = (DeviceBuffer*) vertex_buffer;
         context->m_CurrentVertexDeclaration = (VertexDeclaration*) vertex_declaration;
     }
 
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void VulkanEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
     {
         Program* program_ptr = (Program*) program;
-        EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+        VulkanEnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
 
         for (uint32_t i=0; i < vertex_declaration->m_StreamCount; i++)
         {
@@ -1846,7 +1850,7 @@ bail:
         }
     }
 
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void VulkanDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         context->m_CurrentVertexDeclaration = 0;
     }
@@ -2143,7 +2147,7 @@ bail:
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void VulkanDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
@@ -2157,7 +2161,7 @@ bail:
         vkCmdDrawIndexed(vk_command_buffer, count, 1, index_offset, 0, 0);
     }
 
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void VulkanDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
@@ -2229,7 +2233,7 @@ bail:
         }
     }
 
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram VulkanNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
@@ -2239,7 +2243,7 @@ bail:
         return (HVertexProgram) shader;
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram VulkanNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
@@ -2384,7 +2388,7 @@ bail:
         }
     }
 
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         Program* program = new Program;
         CreateProgram(context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
@@ -2413,7 +2417,7 @@ bail:
         }
     }
 
-    void DeleteProgram(HContext context, HProgram program)
+    static void VulkanDeleteProgram(HContext context, HProgram program)
     {
         assert(program);
         Program* program_ptr = (Program*) program;
@@ -2465,24 +2469,24 @@ bail:
         return false;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         return ReloadShader((ShaderModule*) prog, ddf);
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool VulkanReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
         return ReloadShader((ShaderModule*) prog, ddf);
     }
 
-    void DeleteVertexProgram(HVertexProgram prog)
+    static void VulkanDeleteVertexProgram(HVertexProgram prog)
     {
         ShaderModule* shader = (ShaderModule*) prog;
         DestroyShader(shader);
         delete shader;
     }
 
-    void DeleteFragmentProgram(HFragmentProgram prog)
+    static void VulkanDeleteFragmentProgram(HFragmentProgram prog)
     {
         ShaderModule* shader = (ShaderModule*) prog;
         assert(shader->m_Attributes == 0);
@@ -2502,22 +2506,22 @@ bail:
         delete shader;
     }
 
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language VulkanGetShaderProgramLanguage(HContext context)
     {
         return ShaderDesc::LANGUAGE_SPIRV;
     }
 
-    void EnableProgram(HContext context, HProgram program)
+    static void VulkanEnableProgram(HContext context, HProgram program)
     {
         context->m_CurrentProgram = (Program*) program;
     }
 
-    void DisableProgram(HContext context)
+    static void VulkanDisableProgram(HContext context)
     {
         context->m_CurrentProgram = 0;
     }
 
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool VulkanReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         Program* program_ptr = (Program*) program;
         DestroyProgram(context, program_ptr);
@@ -2525,7 +2529,7 @@ bail:
         return true;
     }
 
-    uint32_t GetUniformCount(HProgram prog)
+    static uint32_t VulkanGetUniformCount(HProgram prog)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2551,7 +2555,7 @@ bail:
         return (Type) 0xffffffff;
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2604,7 +2608,7 @@ bail:
         return false;
     }
 
-    int32_t GetUniformLocation(HProgram prog, const char* name)
+    static int32_t VulkanGetUniformLocation(HProgram prog, const char* name)
     {
         assert(prog);
         Program* program_ptr = (Program*) prog;
@@ -2622,7 +2626,7 @@ bail:
         return -1;
     }
 
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    static void VulkanSetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
     {
         assert(context->m_CurrentProgram);
         assert(base_register >= 0);
@@ -2654,7 +2658,7 @@ bail:
         }
     }
 
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
+    static void VulkanSetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register)
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2684,7 +2688,7 @@ bail:
         }
     }
 
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    static void VulkanSetSampler(HContext context, int32_t location, int32_t unit)
     {
         assert(context && context->m_CurrentProgram);
         Program* program_ptr = (Program*) context->m_CurrentProgram;
@@ -2715,7 +2719,7 @@ bail:
     #undef UNIFORM_LOCATION_GET_VS
     #undef UNIFORM_LOCATION_GET_FS
 
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         // Defer the update to when we actually draw, since we *might* need to invert the viewport
         // depending on wether or not we have set a different rendertarget from when
@@ -2757,26 +2761,26 @@ bail:
         }
     }
 
-    void EnableState(HContext context, State state)
+    static void VulkanEnableState(HContext context, State state)
     {
         assert(context);
         SetStateValue(context->m_PipelineState, state, 1);
     }
 
-    void DisableState(HContext context, State state)
+    static void VulkanDisableState(HContext context, State state)
     {
         assert(context);
         SetStateValue(context->m_PipelineState, state, 0);
     }
 
-    void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
+    static void VulkanSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
         context->m_PipelineState.m_BlendSrcFactor = source_factor;
         context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
-    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
+    static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
         uint8_t write_mask = red   ? DMGRAPHICS_STATE_WRITE_R : 0;
@@ -2787,17 +2791,17 @@ bail:
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    void SetDepthMask(HContext context, bool mask)
+    static void VulkanSetDepthMask(HContext context, bool mask)
     {
         context->m_PipelineState.m_WriteDepth = mask;
     }
 
-    void SetDepthFunc(HContext context, CompareFunc func)
+    static void VulkanSetDepthFunc(HContext context, CompareFunc func)
     {
         context->m_PipelineState.m_DepthTestFunc = func;
     }
 
-    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void VulkanSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         // While scissors are obviously supported in vulkan, we don't expose it
         // to the users via render scripts so it's a bit hard to test.
@@ -2805,12 +2809,12 @@ bail:
         assert(0 && "Not supported");
     }
 
-    void SetStencilMask(HContext context, uint32_t mask)
+    static void VulkanSetStencilMask(HContext context, uint32_t mask)
     {
         context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
+    static void VulkanSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
@@ -2818,7 +2822,7 @@ bail:
         context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
-    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    static void VulkanSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
         context->m_PipelineState.m_StencilOpFail      = sfail;
@@ -2826,14 +2830,14 @@ bail:
         context->m_PipelineState.m_StencilOpPass      = dppass;
     }
 
-    void SetCullFace(HContext context, FaceType face_type)
+    static void VulkanSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
         context->m_PipelineState.m_CullFaceType = face_type;
         context->m_CullFaceChanged              = true;
     }
 
-    void SetPolygonOffset(HContext context, float factor, float units)
+    static void VulkanSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
         vkCmdSetDepthBias(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
@@ -2942,7 +2946,7 @@ bail:
         return VK_SUCCESS;
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
         memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
@@ -3034,7 +3038,7 @@ bail:
         return rt;
     }
 
-    void DeleteRenderTarget(HRenderTarget render_target)
+    static void VulkanDeleteRenderTarget(HRenderTarget render_target)
     {
         if (render_target->m_TextureColor)
         {
@@ -3051,14 +3055,14 @@ bail:
         delete render_target;
     }
 
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void VulkanSetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         (void) transient_buffer_types;
         context->m_ViewportChanged = 1;
         BeginRenderPass(context, render_target != 0x0 ? render_target : &context->m_MainRenderTarget);
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture VulkanGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
         if(buffer_type != BUFFER_TYPE_COLOR_BIT)
             return 0;
@@ -3066,7 +3070,7 @@ bail:
         return (HTexture) render_target->m_TextureColor;
     }
 
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void VulkanGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
@@ -3074,7 +3078,7 @@ bail:
         height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void VulkanSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         Texture* texture_color = render_target->m_TextureColor;
 
@@ -3120,12 +3124,12 @@ bail:
         CHECK_VK_ERROR(res);
     }
 
-    bool IsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool VulkanIsTextureFormatSupported(HContext context, TextureFormat format)
     {
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
-    HTexture NewTexture(HContext context, const TextureCreationParams& params)
+    static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params)
     {
         Texture* tex       = new Texture;
         tex->m_Type        = params.m_Type;
@@ -3147,7 +3151,7 @@ bail:
         return (HTexture) tex;
     }
 
-    void DeleteTexture(HTexture t)
+    static void VulkanDeleteTexture(HTexture t)
     {
         DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], t);
         delete t;
@@ -3275,7 +3279,7 @@ bail:
         }
     }
 
-    void SetTexture(HTexture texture, const TextureParams& params)
+    static void VulkanSetTexture(HTexture texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp
         switch (params.m_Format)
@@ -3396,13 +3400,13 @@ bail:
         }
     }
 
-    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         SetTexture(texture, params);
     }
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
         TextureSampler sampler = g_Context->m_TextureSamplers[texture->m_TextureSamplerIndex];
 
@@ -3422,7 +3426,7 @@ bail:
         }
     }
 
-    uint32_t GetTextureResourceSize(HTexture texture)
+    static uint32_t VulkanGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
         uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_GraphicsFormat)) >> 3;
@@ -3438,63 +3442,165 @@ bail:
         return size_total + sizeof(Texture);
     }
 
-    uint16_t GetTextureWidth(HTexture texture)
+    static uint16_t VulkanGetTextureWidth(HTexture texture)
     {
         return texture->m_Width;
     }
 
-    uint16_t GetTextureHeight(HTexture texture)
+    static uint16_t VulkanGetTextureHeight(HTexture texture)
     {
         return texture->m_Height;
     }
 
-    uint16_t GetOriginalTextureWidth(HTexture texture)
+    static uint16_t VulkanGetOriginalTextureWidth(HTexture texture)
     {
         return texture->m_OriginalWidth;
     }
 
-    uint16_t GetOriginalTextureHeight(HTexture texture)
+    static uint16_t VulkanGetOriginalTextureHeight(HTexture texture)
     {
         return texture->m_OriginalHeight;
     }
 
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void VulkanEnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
         context->m_TextureUnits[unit] = texture;
     }
 
-    void DisableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void VulkanDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
         context->m_TextureUnits[unit] = 0;
     }
 
-    uint32_t GetMaxTextureSize(HContext context)
+    static uint32_t VulkanGetMaxTextureSize(HContext context)
     {
         return context->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;
     }
 
-    uint32_t GetTextureStatusFlags(HTexture texture)
+    static uint32_t VulkanGetTextureStatusFlags(HTexture texture)
     {
         return 0;
     }
 
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void VulkanReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {}
 
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    static void VulkanAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwSetViewType(GLFW_NO_API);
         glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
 #endif
     }
 
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
+    static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
         {
             step_method(user_data);
         }
+    }
+
+    static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
+    {
+        GraphicsAdapterFunctionTable fn_table;
+        memset(&fn_table,0,sizeof(fn_table));
+        fn_table.m_NewContext = VulkanNewContext;
+        fn_table.m_DeleteContext = VulkanDeleteContext;
+        fn_table.m_Initialize = VulkanInitialize;
+        fn_table.m_Finalize = VulkanFinalize;
+        fn_table.m_AppBootstrap = VulkanAppBootstrap;
+        fn_table.m_GetWindowRefreshRate = VulkanGetWindowRefreshRate;
+        fn_table.m_OpenWindow = VulkanOpenWindow;
+        fn_table.m_CloseWindow = VulkanCloseWindow;
+        fn_table.m_IconifyWindow = VulkanIconifyWindow;
+        fn_table.m_GetWindowState = VulkanGetWindowState;
+        fn_table.m_GetDisplayDpi = VulkanGetDisplayDpi;
+        fn_table.m_GetWidth = VulkanGetWidth;
+        fn_table.m_GetHeight = VulkanGetHeight;
+        fn_table.m_GetWindowWidth = VulkanGetWindowWidth;
+        fn_table.m_GetWindowHeight = VulkanGetWindowHeight;
+        fn_table.m_SetWindowSize = VulkanSetWindowSize;
+        fn_table.m_ResizeWindow = VulkanResizeWindow;
+        fn_table.m_GetDefaultTextureFilters = VulkanGetDefaultTextureFilters;
+        fn_table.m_BeginFrame = VulkanBeginFrame;
+        fn_table.m_Flip = VulkanFlip;
+        fn_table.m_SetSwapInterval = VulkanSetSwapInterval;
+        fn_table.m_Clear = VulkanClear;
+        fn_table.m_NewVertexBuffer = VulkanNewVertexBuffer;
+        fn_table.m_DeleteVertexBuffer = VulkanDeleteVertexBuffer;
+        fn_table.m_SetVertexBufferData = VulkanSetVertexBufferData;
+        fn_table.m_SetVertexBufferSubData = VulkanSetVertexBufferSubData;
+        fn_table.m_GetMaxElementsVertices = VulkanGetMaxElementsVertices;
+        fn_table.m_NewIndexBuffer = VulkanNewIndexBuffer;
+        fn_table.m_DeleteIndexBuffer = VulkanDeleteIndexBuffer;
+        fn_table.m_SetIndexBufferData = VulkanSetIndexBufferData;
+        fn_table.m_SetIndexBufferSubData = VulkanSetIndexBufferSubData;
+        fn_table.m_IsIndexBufferFormatSupported = VulkanIsIndexBufferFormatSupported;
+        fn_table.m_NewVertexDeclaration = VulkanNewVertexDeclaration;
+        fn_table.m_NewVertexDeclarationStride = VulkanNewVertexDeclarationStride;
+        fn_table.m_DeleteVertexDeclaration = VulkanDeleteVertexDeclaration;
+        fn_table.m_EnableVertexDeclaration = VulkanEnableVertexDeclaration;
+        fn_table.m_EnableVertexDeclarationProgram = VulkanEnableVertexDeclarationProgram;
+        fn_table.m_DisableVertexDeclaration = VulkanDisableVertexDeclaration;
+        fn_table.m_DrawElements = VulkanDrawElements;
+        fn_table.m_Draw = VulkanDraw;
+        fn_table.m_NewVertexProgram = VulkanNewVertexProgram;
+        fn_table.m_NewFragmentProgram = VulkanNewFragmentProgram;
+        fn_table.m_NewProgram = VulkanNewProgram;
+        fn_table.m_DeleteProgram = VulkanDeleteProgram;
+        fn_table.m_ReloadVertexProgram = VulkanReloadVertexProgram;
+        fn_table.m_ReloadFragmentProgram = VulkanReloadFragmentProgram;
+        fn_table.m_DeleteVertexProgram = VulkanDeleteVertexProgram;
+        fn_table.m_DeleteFragmentProgram = VulkanDeleteFragmentProgram;
+        fn_table.m_GetShaderProgramLanguage = VulkanGetShaderProgramLanguage;
+        fn_table.m_EnableProgram = VulkanEnableProgram;
+        fn_table.m_DisableProgram = VulkanDisableProgram;
+        fn_table.m_ReloadProgram = VulkanReloadProgram;
+        fn_table.m_GetUniformName = VulkanGetUniformName;
+        fn_table.m_GetUniformCount = VulkanGetUniformCount;
+        fn_table.m_GetUniformLocation = VulkanGetUniformLocation;
+        fn_table.m_SetConstantV4 = VulkanSetConstantV4;
+        fn_table.m_SetConstantM4 = VulkanSetConstantM4;
+        fn_table.m_SetSampler = VulkanSetSampler;
+        fn_table.m_SetViewport = VulkanSetViewport;
+        fn_table.m_EnableState = VulkanEnableState;
+        fn_table.m_DisableState = VulkanDisableState;
+        fn_table.m_SetBlendFunc = VulkanSetBlendFunc;
+        fn_table.m_SetColorMask = VulkanSetColorMask;
+        fn_table.m_SetDepthMask = VulkanSetDepthMask;
+        fn_table.m_SetDepthFunc = VulkanSetDepthFunc;
+        fn_table.m_SetScissor = VulkanSetScissor;
+        fn_table.m_SetStencilMask = VulkanSetStencilMask;
+        fn_table.m_SetStencilFunc = VulkanSetStencilFunc;
+        fn_table.m_SetStencilOp = VulkanSetStencilOp;
+        fn_table.m_SetCullFace = VulkanSetCullFace;
+        fn_table.m_SetPolygonOffset = VulkanSetPolygonOffset;
+        fn_table.m_NewRenderTarget = VulkanNewRenderTarget;
+        fn_table.m_DeleteRenderTarget = VulkanDeleteRenderTarget;
+        fn_table.m_SetRenderTarget = VulkanSetRenderTarget;
+        fn_table.m_GetRenderTargetTexture = VulkanGetRenderTargetTexture;
+        fn_table.m_GetRenderTargetSize = VulkanGetRenderTargetSize;
+        fn_table.m_SetRenderTargetSize = VulkanSetRenderTargetSize;
+        fn_table.m_IsTextureFormatSupported = VulkanIsTextureFormatSupported;
+        fn_table.m_NewTexture = VulkanNewTexture;
+        fn_table.m_DeleteTexture = VulkanDeleteTexture;
+        fn_table.m_SetTexture = VulkanSetTexture;
+        fn_table.m_SetTextureAsync = VulkanSetTextureAsync;
+        fn_table.m_SetTextureParams = VulkanSetTextureParams;
+        fn_table.m_GetTextureResourceSize = VulkanGetTextureResourceSize;
+        fn_table.m_GetTextureWidth = VulkanGetTextureWidth;
+        fn_table.m_GetTextureHeight = VulkanGetTextureHeight;
+        fn_table.m_GetOriginalTextureWidth = VulkanGetOriginalTextureWidth;
+        fn_table.m_GetOriginalTextureHeight = VulkanGetOriginalTextureHeight;
+        fn_table.m_EnableTexture = VulkanEnableTexture;
+        fn_table.m_DisableTexture = VulkanDisableTexture;
+        fn_table.m_GetMaxTextureSize = VulkanGetMaxTextureSize;
+        fn_table.m_GetTextureStatusFlags = VulkanGetTextureStatusFlags;
+        fn_table.m_ReadPixels = VulkanReadPixels;
+        fn_table.m_RunApplicationLoop = VulkanRunApplicationLoop;
+        return fn_table;
     }
 }
