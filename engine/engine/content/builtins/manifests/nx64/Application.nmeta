@@ -31,5 +31,11 @@
         <UserAccountSaveDataJournalSize>{{ switch.user_account_save_data_journal_size }}</UserAccountSaveDataJournalSize>
         <CacheStorageSize>{{ switch.cache_storage_size }}</CacheStorageSize>
         <CacheStorageJournalSize>{{ switch.cache_storage_journal_size }}</CacheStorageJournalSize>
+
+        <StartupUserAccount>Required</StartupUserAccount>
+        <UserAccountSwitchLock>Enable</UserAccountSwitchLock>
+        <Screenshot>Allow</Screenshot>
+        <VideoCapture>Enable</VideoCapture>
+        <CrashReport>Allow</CrashReport>
     </Application>
 </NintendoSdkMeta>

@@ -1526,63 +1526,6 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    /*
-    static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
-    {
-        dmEngine::HEngine engine = dmEngine::New(engine_service);
-        dmEngine::RunResult run_result;
-        if (dmEngine::Init(engine, argc, argv))
-        {
-            if (pre_run)
-            {
-                pre_run(engine, context);
-            }
-
-            dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
-            run_result = engine->m_RunResult;
-
-            if (post_run)
-            {
-                post_run(engine, context);
-            }
-        }
-        else
-        {
-            run_result.m_ExitCode = 1;
-            run_result.m_Action = dmEngine::RunResult::EXIT;
-        }
-        dmEngine::Delete(engine);
-
-        return run_result;
-    }
-
-    int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
-    {
-        dmEngineService::HEngineService engine_service = 0;
-
-        if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
-        {
-            uint16_t engine_port = dmEngineService::GetServicePort(8001);
-            engine_service = dmEngineService::New(engine_port);
-        }
-
-        dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
-        while (run_result.m_Action == dmEngine::RunResult::REBOOT)
-        {
-            dmEngine::RunResult tmp = InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
-            run_result.Free();
-            run_result = tmp;
-        }
-        run_result.Free();
-
-        if (engine_service)
-        {
-            dmEngineService::Delete(engine_service);
-        }
-        return run_result.m_ExitCode;
-    }
-    */
-
     void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
         Engine* self = (Engine*) user_ptr;
