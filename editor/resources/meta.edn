@@ -555,7 +555,7 @@
    :default "",
    :path ["ios" "entitlements"]}
   {:type :string,
-   :help "default language and region (CFBundleDevelopmentRegion)",
+   :help "comma-separated strings identifying languages handled manually by your app (CFBundleLocalizations)",
    :default "en",
    :path ["ios" "default_language"]}
   {:type :string,
@@ -749,7 +749,7 @@
    :default "en",
    :path ["osx" "default_language"]}
   {:type :string,
-   :help "localizations handled manually by your app (CFBundleLocalizations)",
+   :help "comma-separated strings identifying languages handled manually by your app (CFBundleLocalizations)",
    :default "en",
    :path ["osx" "localizations"]}
   {:type :resource,
