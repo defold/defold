@@ -830,7 +830,47 @@
   {:type :integer,
    :help "max number of concurrent (visible) tiles in a collection",
    :default 2048,
-   :path ["tilemap" "max_tile_count"]}]
+   :path ["tilemap" "max_tile_count"]}
+  {:type :string,
+   :help "application id issued by Nintendo",
+   :default "0x0100000000010000",
+   :path ["switch" "appid"]}
+  {:type :resource
+   :filter "nmeta"
+   :default "/builtins/manifests/nx64/Application.nmeta"
+   :help "custom Application.nmeta template file"
+   :preserve-extension true,
+   :path ["switch" "manifest"]}
+  {:type :resource
+   :filter "bmp"
+   :default "/builtins/assets/images/logo/logo_blue_1024.bmp"
+   :help "application icon file (1024x1024x24 .bmp)"
+   :preserve-extension true,
+   :path ["switch" "icon"]}
+  {:type :string,
+   :help "The rating organization name",
+   :default "ESRB",
+   :path ["switch" "rating_organisation"]}
+  {:type :integer,
+   :help "The recommended age",
+   :default 0,
+   :path ["switch" "rating_recommended_age"]}
+  {:type :integer,
+   :help "The release version",
+   :default 0,
+   :path ["switch" "release_version"]}
+  {:type :integer,
+   :default 1048576,
+   :path ["switch" "user_account_save_data_size"]}
+  {:type :integer,
+   :default 262144,
+   :path ["switch" "user_account_save_data_journal_size"]}
+  {:type :integer,
+   :default 66060288,
+   :path ["switch" "cache_storage_size"]}
+  {:type :integer,
+   :default 1048576,
+   :path ["switch" "cache_storage_journal_size"]}]
 
  :categories
  {"sound" {:help "Sound related settings"},
@@ -866,6 +906,7 @@
   "particle_fx" {:help "Particle FX related settings"
                  :title "Particle FX"},
   "android" {:help "Android related settings"},
+  "switch" {:help "Switch related settings"}
   "liveupdate" {:help "Liveupdate settings"},
   "native_extension" {:help "Settings for native extensions"},
   "profiler" {:help "Settings related to the runtime profiler"}}}
