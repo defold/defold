@@ -4,7 +4,7 @@ context:
     allowedLibs: ["app","engine","engine_release","webviewext","profilerext","profilerext_null","crashext","crashext_null","facebookext","iapext","pushext","iacext","record","record_null","gameobject","ddf","resource","gamesys","graphics","graphics_null","physics_2d","physics_3d","physics_null","BulletDynamics","BulletCollision","LinearMath","Box2D","render","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","dmglfw","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libapp.lib","libengine.lib","libengine_release.lib","libwebviewext.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","libfacebookext.lib","libiapext.lib","libpushext.lib","libiacext.lib","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgraphics.lib","libgraphics_null.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libLinearMath.lib","libBox2D.lib","librender.lib",
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
-                  "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib"]
+                  "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib","switchext","libswitchext.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 
@@ -492,7 +492,7 @@ platforms:
         TRIPLET:  "aarch64-nintendo-nx-elf"
     context:
         excludeSymbols:     ["WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "NullSoundDevice"]
-        engineLibs:         ["app", "engine", "engine_service", "mbedtls", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics_vulkan", "physics_2d", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "gui", "crashext", "sound", "liveupdate"]
+        engineLibs:         ["app", "engine", "engine_service", "mbedtls", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics_vulkan", "physics_2d", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "gui", "crashext", "sound", "liveupdate", "switchext"]
         libPaths:           ["{{dynamo_home}}/lib/arm64-nx64", "{{dynamo_home}}/ext/lib/arm64-nx64", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Debug", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop"]
         defines:            ["DM_PLATFORM_SWITCH", "LUA_BYTECODE_ENABLE_64", "NN_ENABLE_LOG", "NN_ENABLE_ASSERT", "NN_ENABLE_ABORT_MESSAGE", "NN_NINTENDO_SDK", "NN_SDK_BUILD_DEBUG"]
         platformIncludes:   ["{{env.SDK}}/Common/Configs/Targets/NX-NXFP2-a64/Include", "{{env.SDK}}/Include"]
@@ -506,7 +506,7 @@ platforms:
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/vulkan.nss",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/opengl.nss"]
         dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
-        symbols:    ["AudioDecoderStbVorbis"]
+        symbols:    ["AudioDecoderStbVorbis", "SwitchExt"]
         sdknss:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss"]
         crtend:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/crtend.o"]
 

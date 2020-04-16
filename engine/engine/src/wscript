@@ -77,6 +77,8 @@ def build(bld):
         exported_symbols.append('IAPExt')
     if 'arm64-nx64' in bld.env.PLATFORM:
         sound_lib  = 'SOUND'
+        exported_symbols.append('SwitchExt')
+        additional_libs.append('switchext')
     else:
         sound_lib = 'SOUND OPENAL'
 

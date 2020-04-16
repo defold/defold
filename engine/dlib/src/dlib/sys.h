@@ -140,20 +140,6 @@ namespace dmSys
         bool m_Installed;
     };
 
-    struct UserInfo
-    {
-        void* m_NativeInfo;
-        const char* m_Name;
-    };
-
-    enum UserResult
-    {
-        RESULT_USER_OK,
-        RESULT_USER_CANCELLED,
-        RESULT_USER_NOT_EXIST,
-        RESULT_USER_ERROR,
-    };
-
     /**
      * Create directory.
      * @param path path to directory to create
@@ -338,27 +324,6 @@ namespace dmSys
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)
      */
     void PumpMessageQueue();
-
-    /**
-     * Initialize the user system
-     */
-    UserResult InitUser();
-
-    /**
-     * Keep this alive during user operations (e.g. save)
-     */
-    UserResult SelectUser(UserInfo* info);
-
-    /**
-     * Keep this alive during user operations (e.g. save)
-     * Currently used for unit tests
-     */
-    UserResult OpenLastUser(UserInfo* info);
-
-    /**
-     *
-     */
-    void CloseUser(UserInfo* info);
 
     // private functions
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
