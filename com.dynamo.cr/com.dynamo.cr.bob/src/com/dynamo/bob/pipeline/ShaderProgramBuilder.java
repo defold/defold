@@ -237,7 +237,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         result_string = getResultString(result);
         if (soft_fail && result_string != null) {
-            System.err.println("\nWarning! Unable to get reflection data: " + result_string);
+            System.err.println("\nError! Unable to get reflection data: " + result_string);
             return null;
         } else {
             checkResult(result_string, resource, resourceOutput);
