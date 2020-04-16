@@ -32,8 +32,11 @@
         <CacheStorageSize>{{ switch.cache_storage_size }}</CacheStorageSize>
         <CacheStorageJournalSize>{{ switch.cache_storage_journal_size }}</CacheStorageJournalSize>
 
+    {{^switch.automatic_user_select}}
         <StartupUserAccount>Required</StartupUserAccount>
         <UserAccountSwitchLock>Enable</UserAccountSwitchLock>
+    {{/switch.automatic_user_select}}
+
         <Screenshot>Allow</Screenshot>
         <VideoCapture>Enable</VideoCapture>
         <CrashReport>Allow</CrashReport>

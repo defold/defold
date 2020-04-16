@@ -1,0 +1,16 @@
+#! /usr/bin/env python
+
+from waf_dynamo import apidoc_extract_task
+
+def configure(conf):
+    pass
+
+def build(bld):
+    bld.new_task_gen(features = 'cxx cstaticlib',
+                    includes = ['.'],
+                    uselib = 'DLIB',
+                    source = 'script_switch.cpp switch_account.cpp',
+                    target = 'switchext')
+
+    apidoc_extract_task(bld, ['script_switch.cpp'])
+

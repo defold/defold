@@ -911,26 +911,4 @@ namespace dmSys
         }
 #endif
     }
-
-    UserResult InitUser()
-    {
-        return RESULT_USER_OK;
-    }
-
-    UserResult SelectUser(UserInfo* info)
-    {
-        (void)info;
-        return RESULT_USER_OK;
-    }
-
-    UserResult OpenLastUser(UserInfo* info)
-    {
-        (void)info;
-        return RESULT_USER_OK;
-    }
-
-    void CloseUser(UserInfo* info)
-    {
-        (void)info;
-    }
 }
