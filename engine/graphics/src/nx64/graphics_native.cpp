@@ -42,21 +42,37 @@ namespace
 
 }; // end anonymous namespace
 
-const size_t        g_GraphicsSystemMemorySize = 32 * 1024 * 1024;
-
 nn::vi::Display*    g_pDisplay = 0;
 nn::vi::Layer*      g_pLayer = 0;
 int                 g_NativeInitialized = 0;
 
 namespace dmGraphics
 {
-    bool NativeInit()
+    bool NativeInit(const ContextParams& params)
     {
         if (!g_NativeInitialized)
         {
             nv::SetGraphicsAllocator(Allocate, Free, Reallocate, NULL);
             nv::SetGraphicsDevtoolsAllocator(Allocate, Free, Reallocate, NULL);
-            nv::InitializeGraphics(malloc(g_GraphicsSystemMemorySize), g_GraphicsSystemMemorySize);
+
+            uint32_t wantedgfxmemsize = params.m_GraphicsMemorySize != 0 ? params.m_GraphicsMemorySize : 32 * 1024 * 1024;
+            uint32_t gfxmemsize = wantedgfxmemsize;
+            void* pgfxmemory = malloc(gfxmemsize);
+            while (pgfxmemory == 0)
+            {
+                gfxmemsize /= 2;
+                pgfxmemory = malloc(gfxmemsize);
+            }
+
+            if (wantedgfxmemsize != gfxmemsize)
+            {
+                dmLogWarning("Couldn't allocate %u bytes for graphics memory, best we got was %u bytes", wantedgfxmemsize, gfxmemsize);
+            }
+
+            nv::InitializeGraphics(pgfxmemory, gfxmemsize);
+
+            dmLogInfo("GfxMemory is %p - %p (%d mb)\n\n", pgfxmemory, (uint8_t*)pgfxmemory + gfxmemsize, gfxmemsize/(1024*1024));
+
             nn::vi::Initialize();
 
             nn::Result result = nn::vi::OpenDefaultDisplay(&g_pDisplay);

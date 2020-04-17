@@ -24,6 +24,7 @@ namespace dmGraphics
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
     , m_VerifyGraphicsCalls(false)
+    , m_GraphicsMemorySize(0)
     {
 
     }

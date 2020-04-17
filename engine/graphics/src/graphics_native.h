@@ -5,7 +5,7 @@
 
 namespace dmGraphics
 {
-	bool NativeInit();
+	bool NativeInit(const ContextParams& params);
 	void NativeExit();
 
 	// get the window size directly from the window manager

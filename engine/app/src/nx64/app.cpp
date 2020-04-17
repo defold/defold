@@ -103,8 +103,6 @@ namespace {
 // https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/external.html?file=../../Api/HtmlNX/index.html
 extern "C" void nninitStartup()
 {
-     NN_LOG("An nninitStartup() function is invoked.\n");
-
      // The static object constructor has not been called in nninitStartup() yet.
      // Explicitly call it using placement new.
      new( &Get(g_SampleAllocator) ) nn::mem::StandardAllocator;
@@ -112,8 +110,7 @@ extern "C" void nninitStartup()
      // Initialize the allocated buffer as space for malloc.
      Get(g_SampleAllocator).Initialize(g_MallocBuffer, MemoryHeapSize);
 
-     NN_LOG("MallocBuffer is 0x%p - 0x%p (%d mb)\n\n",
-                     g_MallocBuffer, g_MallocBuffer + MemoryHeapSize, MemoryHeapSize/(1024*1024));
+     NN_LOG("MallocBuffer is 0x%p - 0x%p (%d mb)\n\n", g_MallocBuffer, g_MallocBuffer + MemoryHeapSize, MemoryHeapSize/(1024*1024));
 }
 
 // __nnmusl_socket_socket_init
