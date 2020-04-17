@@ -53,7 +53,7 @@ namespace dmGraphics
         return g_validation_layer_ext;
     }
 
-    bool NativeInit()
+    bool NativeInit(const ContextParams& params)
     {
         bool ret = glfwInit() ? true : false;
         if (!ret) {
