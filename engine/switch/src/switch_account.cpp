@@ -24,6 +24,47 @@ namespace Account {
         return RESULT_USER_OK;
     }
 
+    UserResult GetUser(UserInfo* info)
+    {
+        nn::account::UserHandle userHandle;
+        if (!nn::account::TryOpenPreselectedUser(&userHandle))
+        {
+            dmLogWarning("Failed to open user handle\n");
+            return RESULT_USER_ERROR;
+        }
+
+        // Get the user identifier that was selected at application startup.
+        nn::account::Uid user = nn::account::InvalidUid;
+        nn::Result result  = nn::account::GetUserId(&user, userHandle);
+        if (!result.IsSuccess())
+        {
+            dmLogWarning("Failed to get user id\n");
+            return RESULT_USER_ERROR;
+        }
+
+        NativeUserInfo* native_info = (NativeUserInfo*)malloc(sizeof(NativeUserInfo));
+        native_info->m_UserHandle = userHandle;
+        native_info->m_User = user;
+        info->m_NativeInfo = native_info;
+
+        nn::account::Nickname nickname;
+        nn::account::GetNickname(&nickname, user);
+        info->m_Name = strdup(nickname.name);
+
+        return RESULT_USER_OK;
+    }
+
+    UserResult MountUserSaveData(UserInfo* info)
+    {
+        nn::Result result = nn::fs::MountSaveData("save", ((NativeUserInfo*)info->m_NativeInfo)->m_User);
+        if (!result.IsSuccess())
+        {
+            dmLogError("Failed to mount save:/\n");
+            return RESULT_USER_ERROR;
+        }
+        return RESULT_USER_OK;
+    }
+
     static nn::Result OpenUser(nn::account::Uid user, UserInfo* info)
     {
         nn::account::UserHandle userHandle;

@@ -49,6 +49,29 @@ namespace dmSwitchScript
         return 1;
     }
 
+    /*# get the currently opened user
+     *
+     * Cet the currently opened user
+     * Close the user handle after usage, using `switch.account_close_user`
+     *
+     * @name switch.account_get_user
+     * @return handdle, success [type:userdata] [type:boolean] true if successful, false otherwise
+     */
+    static int Switch_Account_GetUser(lua_State* L)
+    {
+        dmSwitch::Account::UserInfo* info = (dmSwitch::Account::UserInfo*)malloc(sizeof(dmSwitch::Account::UserInfo));
+        dmSwitch::Account::UserResult result = dmSwitch::Account::GetUser(info);
+        if (result != dmSwitch::Account::RESULT_USER_OK)
+        {
+            dmLogError("Failed to get last opened user account");
+            free(info);
+            info = 0;
+        }
+        lua_pushlightuserdata(L, info);
+        lua_pushboolean(L, result == dmSwitch::Account::RESULT_USER_OK);
+        return 2;
+    }
+
     /*# open the last opened user
      *
      * Open the last opened user.
@@ -109,12 +132,29 @@ namespace dmSwitchScript
         return 0;
     }
 
+    /*# mounts the save data filesystem for a user (save:)
+     *
+     * Mounts the save data filesystem for a user (save:)
+     *
+     * @name switch.account_mount_user_save_data
+     * @param user the user info
+     */
+    static int Switch_Account_MountUserSaveData(lua_State* L)
+    {
+        dmSwitch::Account::UserInfo* info = CheckuserInfo(L, 1);
+        dmSwitch::Account::CloseUser(info);
+        free(info);
+        return 0;
+    }
+
     static const luaL_reg Switch_methods[] =
     {
         {"account_init_user", Switch_Account_InitUser},
+        {"account_get_user", Switch_Account_GetUser},
         {"account_open_last_user", Switch_Account_OpenLastUser},
         {"account_select_user", Switch_Account_SelectUser},
         {"account_close_user", Switch_Account_CloseUser},
+        {"account_mount_user_save_data", Switch_Account_MountUserSaveData},
         {0, 0}
     };
 
@@ -165,7 +205,8 @@ namespace dmSwitchScript
         int automatic_user_select = dmConfigFile::GetInt(params->m_ConfigFile, "switch.automatic_user_select", 1);
         if( automatic_user_select )
         {
-            dmSwitch::Account::OpenLastUser(&g_LastOpenedUser);
+            dmSwitch::Account::GetUser(&g_LastOpenedUser); // there should already be selected user at startup
+            dmSwitch::Account::MountUserSaveData(&g_LastOpenedUser);
         }
         return dmExtension::RESULT_OK;
     }

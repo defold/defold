@@ -19,19 +19,39 @@ namespace dmSwitch
             RESULT_USER_ERROR,
         };
 
-        /*#
+        /*# initialize the user system
+         * 
          * Initialize the user system
          */
         UserResult InitUser();
 
-        /*#
-         * Keep this alive during user operations (e.g. save)
+        /*# get the user selected user
+         * @note Keep this alive during user operations (e.g. save)
+         */
+        UserResult GetUser(UserInfo* info);
+
+        /*# mount user save data filesystem (save:)
+         *
+         * Mount user save data filesystem (save:)
+         *
+         * @note There needs to be an opened user handle
+         */
+        UserResult MountUserSaveData(UserInfo* info);
+
+        /*# open the user selection screen
+         * 
+         * Open the user selection screen
+         * 
+         * @note Keep this alive during user operations (e.g. save)
          */
         UserResult SelectUser(UserInfo* info);
 
-        /*#
-         * Keep this alive during user operations (e.g. save)
-         * Currently used for unit tests
+        /*# open the last opened user
+         *
+         * Open the last opened user
+         *
+         * @note Keep this alive during user operations (e.g. save)
+         * @note Currently used for unit tests, or it you wish to skip the user selection
          */
         UserResult OpenLastUser(UserInfo* info);
 
