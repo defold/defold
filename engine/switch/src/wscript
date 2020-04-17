@@ -9,11 +9,11 @@ def build(bld):
 
     source = ''
     if bld.env['PLATFORM'] in ['arm64-nx64']:
-        source += ' switch_account.cpp'
+        source += ' switch_account.cpp switch_hid.cpp '
 
     bld.new_task_gen(features = 'cxx cstaticlib',
                     includes = ['.'],
-                    uselib = 'DLIB',
+                    uselib = 'DLIB HID',
                     source = 'script_switch.cpp ' + source,
                     target = 'switchext')
 

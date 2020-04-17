@@ -60,8 +60,57 @@ namespace dmSwitch
         void CloseUser(UserInfo* info);
     }
 
-    // HID
+    namespace Hid
+    {
+        enum Result
+        {
+            RESULT_OK,
+            RESULT_NOT_CONNECTED,
+            RESULT_NO_COLOR,
+            RESULT_ERROR,
+        };
 
+        /*# gets the color of the controller
+         *
+         * Gets the color of the controller
+         *
+         * @param gamepad [type:int] the gamepad id
+         * @param rgbleft [type:float[3]] the color of the left joypad
+         * @param rgbright [type:float[3]] the color of the right joypad
+         * @return RESULT_OK is successful, RESULT_NOT_CONNECTED if the controller wasn't connected, RESULT_NO_COLOR if the controller has no color
+         */
+        Result GetGamepadColor(int gamepad, float rgbaleft[4], float rgbaright[4]);
+
+
+        enum GamepadAssignmentMode
+        {
+            ASSIGN_MODE_DUAL,
+            ASSIGN_MODE_SINGLE,
+        };
+
+        /*#
+         * @param gamepad [type:int] the gamepad id
+         * @param mode [type:int] 0 = dual, 1 = single
+         */
+        Result SetGamepadAssignmentMode(int gamepad, int mode);
+
+        enum GamepadStyle
+        {
+            GAMEPAD_STYLE_HANDHELD  = 1 << 0,
+            GAMEPAD_STYLE_FULLKEY   = 1 << 1,
+            GAMEPAD_STYLE_DUAL      = 1 << 2,
+            GAMEPAD_STYLE_JOYLEFT   = 1 << 3,
+            GAMEPAD_STYLE_JOYRIGHT  = 1 << 4,
+        };
+
+        /*# set the allowed gamepad styles
+         *
+         * set the allowed gamepad styles
+         *
+         * @param mask [type:int] the mask of bits in the enum GamepadStyle
+         */
+        Result SetGamepadSupportedStyleset(int mask);
+    }
 }
 
 #endif // DM_SWITCH_PRIVATE_H

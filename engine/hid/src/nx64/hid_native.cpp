@@ -129,18 +129,11 @@ namespace dmHID
             };
             nn::hid::SetSupportedNpadIdType(ids, MAX_GAMEPAD_COUNT);
 
-            // TODO: This list should be configurable, or more likley exposed through Lua
-            for (uint32_t i = 1; i < MAX_GAMEPAD_COUNT; ++i) {
-                nn::hid::SetNpadJoyAssignmentModeSingle(ids[i]);
-            }
-
             // TODO: This list should be configurable
             nn::hid::SetSupportedNpadStyleSet(
                 nn::hid::NpadStyleFullKey::Mask |
                 nn::hid::NpadStyleJoyDual::Mask |
-                nn::hid::NpadStyleHandheld::Mask |
-                nn::hid::NpadStyleJoyLeft::Mask |
-                nn::hid::NpadStyleJoyRight::Mask);
+                nn::hid::NpadStyleHandheld::Mask);
 
             // TODO: This call should be configurable or callable from Lua
             nn::hid::SetNpadJoyHoldType(nn::hid::NpadJoyHoldType::NpadJoyHoldType_Horizontal);

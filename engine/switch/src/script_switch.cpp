@@ -7,6 +7,8 @@
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/script/script.h>
 
+#include <hid/hid.h>
+
 #include "switch_private.h"
 
 namespace dmSwitchScript
@@ -147,14 +149,87 @@ namespace dmSwitchScript
         return 0;
     }
 
+    static inline int CheckGamePadNumber(lua_State* L, int index)
+    {
+        int gamepad = luaL_checkint(L, index);
+        if (gamepad < 0 || gamepad >= dmHID::MAX_GAMEPAD_COUNT)
+            return luaL_error(L, "Invalid gamepad number: %d. Must be in range [0,%d]", gamepad, dmHID::MAX_GAMEPAD_COUNT-1);
+        return gamepad;
+    }
+
+    /*# gets the color of a gamepad
+     *
+     * gets the color of a gamepad
+     *
+     * @name switch.hid_get_gamepad_color
+     * @param gamepad the gamepad number
+     * @return colors [type:vector4] 2-tuple of left and right color
+     */
+    static int Switch_Hid_GetGamepadColor(lua_State* L)
+    {
+        int gamepad = CheckGamePadNumber(L, 1);
+
+        Vectormath::Aos::Vector4 left;
+        Vectormath::Aos::Vector4 right;
+        if (dmSwitch::Hid::RESULT_OK != dmSwitch::Hid::GetGamepadColor(gamepad, (float*)&left, (float*)&right)) 
+        {
+            lua_pushnil(L);
+            lua_pushnil(L);
+        } else {
+            dmScript::PushVector4(L, left);
+            dmScript::PushVector4(L, right);
+        }
+        return 2;
+    }
+
+    /*# sets the assignment mode for the gamepad
+     *
+     * Sets the assignment mode for the gamepad
+     *
+     * @name switch.hid_set_gamepad_assignmentmode
+     * @param gamepad the gamepad number
+     * @param mode Assignment mode. (switch.HID_ASSIGN_MODE_DUAL or switch.HID_ASSIGN_MODE_SINGLE)
+     */
+    static int Switch_Hid_SetGamePadAssignmentMode(lua_State* L)
+    {
+        int gamepad = CheckGamePadNumber(L, 1);
+        int mode = luaL_checkint(L, 2);
+        if (mode <  0 || mode > 1)
+            return luaL_error(L, "Invalid mode %d. Must be in either of switch.HID_ASSIGN_MODE_DUAL or switch.HID_ASSIGN_MODE_SINGLE", mode);
+
+        dmSwitch::Hid::SetGamepadAssignmentMode(gamepad, mode);
+        return 0;
+    }
+
+    /*# sets the supported stylesets
+     *
+     * Sets the supported stylesets
+     *
+     * @name switch.hid_set_gamepad_supported_stylest
+     * @param mask a bitmask of the supported styles
+     */
+    static int Switch_Hid_SetGamepadSupportedStyleset(lua_State* L)
+    {
+        int mask = luaL_checkint(L, 1);
+        dmSwitch::Hid::SetGamepadSupportedStyleset(mask);
+        return 0;
+    }
+
     static const luaL_reg Switch_methods[] =
     {
+        // account
         {"account_init_user", Switch_Account_InitUser},
         {"account_get_user", Switch_Account_GetUser},
         {"account_open_last_user", Switch_Account_OpenLastUser},
         {"account_select_user", Switch_Account_SelectUser},
         {"account_close_user", Switch_Account_CloseUser},
         {"account_mount_user_save_data", Switch_Account_MountUserSaveData},
+
+        // hid
+        {"hid_get_gamepad_color", Switch_Hid_GetGamepadColor},
+        {"hid_set_gamepad_assignmentmode", Switch_Hid_SetGamePadAssignmentMode},
+        {"hid_set_gamepad_supported_stylest", Switch_Hid_SetGamepadSupportedStyleset},
+        
         {0, 0}
     };
 
@@ -190,6 +265,65 @@ namespace dmSwitchScript
          * @variable
          */
         SETCONSTANT(USER_RESULT_ERROR, dmSwitch::Account::RESULT_USER_ERROR);
+
+
+        /*# return value OK
+         * @name switch.HID_RESULT_OK
+         * @variable
+         */
+        SETCONSTANT(HID_RESULT_OK, dmSwitch::Hid::RESULT_OK);
+
+        /*# The device was is not connected
+         * @name switch.HID_RESULT_NOT_CONNECTED
+         * @variable
+         */
+        SETCONSTANT(HID_RESULT_NOT_CONNECTED, dmSwitch::Hid::RESULT_NOT_CONNECTED);
+
+        /*# The device has no color assigned
+         * @name switch.HID_RESULT_NO_COLOR
+         * @variable
+         */
+        SETCONSTANT(HID_RESULT_NO_COLOR, dmSwitch::Hid::RESULT_NO_COLOR);
+
+
+        /*# Dual assignment mode 
+         * @name switch.HID_ASSIGN_MODE_DUAL
+         * @variable
+         */
+        SETCONSTANT(HID_ASSIGN_MODE_DUAL, dmSwitch::Hid::ASSIGN_MODE_DUAL);
+
+        /*# Single assignment mode 
+         * @name switch.HID_ASSIGN_MODE_SINGLE
+         * @variable
+         */
+        SETCONSTANT(HID_ASSIGN_MODE_SINGLE, dmSwitch::Hid::ASSIGN_MODE_SINGLE);
+
+
+        /*# Use with switch.hid_set_gamepad_supported_stylest
+         * @name switch.HID_GAMEPAD_STYLE_HANDHELD
+         * @variable
+         */
+        SETCONSTANT(HID_GAMEPAD_STYLE_HANDHELD, dmSwitch::Hid::GAMEPAD_STYLE_HANDHELD);
+        /*# Use with switch.hid_set_gamepad_supported_stylest
+         * @name switch.HID_GAMEPAD_STYLE_FULLKEY
+         * @variable
+         */
+        SETCONSTANT(HID_GAMEPAD_STYLE_FULLKEY, dmSwitch::Hid::GAMEPAD_STYLE_FULLKEY);
+        /*# Use with switch.hid_set_gamepad_supported_stylest
+         * @name switch.HID_GAMEPAD_STYLE_DUAL
+         * @variable
+         */
+        SETCONSTANT(HID_GAMEPAD_STYLE_DUAL, dmSwitch::Hid::GAMEPAD_STYLE_DUAL);
+        /*# Use with switch.hid_set_gamepad_supported_stylest
+         * @name switch.HID_GAMEPAD_STYLE_JOYLEFT
+         * @variable
+         */
+        SETCONSTANT(HID_GAMEPAD_STYLE_JOYLEFT, dmSwitch::Hid::GAMEPAD_STYLE_JOYLEFT);
+        /*# Use with switch.hid_set_gamepad_supported_stylest
+         * @name switch.HID_GAMEPAD_STYLE_JOYRIGHT
+         * @variable
+         */
+        SETCONSTANT(HID_GAMEPAD_STYLE_JOYRIGHT, dmSwitch::Hid::GAMEPAD_STYLE_JOYRIGHT);
 
 
         lua_pop(L, 1);
