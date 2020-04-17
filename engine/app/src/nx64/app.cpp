@@ -39,7 +39,7 @@ static char* GetEnv(const char* name)
 namespace {
 
 	// Allocates a static space as space for malloc().
-	const size_t MemoryHeapSize = 512 * 1024 * 1024;
+	const size_t MemoryHeapSize = 1024 * 1024 * 1024;
 	NN_ALIGNAS(4096) uint8_t    g_MallocBuffer[ MemoryHeapSize ];
 
 	// Initialization is performed from nninitStartup(). Implement so that the
