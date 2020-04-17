@@ -378,6 +378,7 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
+        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
         uint8_t       m_VerifyGraphicsCalls : 1;
         uint8_t       m_RenderDocSupport : 1;
         uint8_t       : 6;

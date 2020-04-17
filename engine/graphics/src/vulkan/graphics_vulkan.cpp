@@ -836,7 +836,7 @@ bail:
     {
         if (g_Context == 0x0)
         {
-            if (!NativeInit())
+            if (!NativeInit(params))
             {
                 return 0x0;
             }
@@ -876,7 +876,7 @@ bail:
 
     bool Initialize()
     {
-        return NativeInit();
+        return true;
     }
 
     void Finalize()
