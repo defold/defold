@@ -77,7 +77,7 @@ static void* EngineCreate(int argc, char** argv)
     window_params.m_PrintDeviceInfo = false;
     window_params.m_HighDPI = 0;
 
-    dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
+    (void)dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
 
     g_EngineCtx.m_WasCreated++;
     g_EngineCtx.m_TimeStart = dmTime::GetTime();
