@@ -7,6 +7,10 @@
    :help "application version",
    :default "1.0",
    :path ["project" "version"]}
+  {:type :string,
+   :help "publisher name",
+   :default "",
+   :path ["project" "publisher"]}
   {:type :boolean,
    :help "Write log file to disk",
    :default false,
@@ -859,12 +863,20 @@
    :help "The release version",
    :default 0,
    :path ["switch" "release_version"]}
+  {:type :boolean
+   :help "Do automatic user selection at app startup"
+   :default true
+   :path ["switch" "automatic_user_select"]}
   {:type :integer,
    :default 1048576,
    :path ["switch" "user_account_save_data_size"]}
   {:type :integer,
    :default 262144,
    :path ["switch" "user_account_save_data_journal_size"]}
+  {:type :boolean
+   :help "Enables the use of the cache storage size"
+   :default false
+   :path ["switch" "cache_storage_enabled"]}
   {:type :integer,
    :default 66060288,
    :path ["switch" "cache_storage_size"]}
