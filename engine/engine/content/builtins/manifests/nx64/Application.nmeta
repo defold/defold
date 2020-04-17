@@ -29,10 +29,13 @@
 
         <UserAccountSaveDataSize>{{ switch.user_account_save_data_size }}</UserAccountSaveDataSize>
         <UserAccountSaveDataJournalSize>{{ switch.user_account_save_data_journal_size }}</UserAccountSaveDataJournalSize>
+
+    {{#switch.cache_storage_enabled}}
         <CacheStorageSize>{{ switch.cache_storage_size }}</CacheStorageSize>
         <CacheStorageJournalSize>{{ switch.cache_storage_journal_size }}</CacheStorageJournalSize>
+    {{/switch.cache_storage_enabled}}
 
-    {{^switch.automatic_user_select}}
+    {{#switch.automatic_user_select}}
         <StartupUserAccount>Required</StartupUserAccount>
         <UserAccountSwitchLock>Enable</UserAccountSwitchLock>
     {{/switch.automatic_user_select}}
