@@ -144,11 +144,22 @@ namespace dmSys
         }
     }
 
+    static void inline CommitFS(const char* dst_path)
+    {
+        // Commit the changes to the file system
+        char fsname[32];
+        dmStrlCpy(fsname, dst_path, sizeof(fsname)-1);
+        char* c = strchr(fsname, ':');
+        *c = 0;
+        (void)nn::fs::Commit(fsname);
+    }
+
     Result RenameFile(const char* dst_filename, const char* src_filename)
     {
         nn::Result result = nn::fs::RenameFile(src_filename, dst_filename);
 
         if (result.IsSuccess()) {
+            CommitFS(dst_filename);
             return RESULT_OK;
         }
 
@@ -196,9 +207,12 @@ namespace dmSys
             return RESULT_UNKNOWN;
         }
 
-        // We succeeded in renaming the sve file
+        // We succeeded in renaming the save file
         // We can now remove the temp file
         dmSys::Unlink(temp_file);
+
+        CommitFS(dst_filename);
+
         return RESULT_OK;
     }
 
