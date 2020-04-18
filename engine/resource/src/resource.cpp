@@ -110,11 +110,13 @@ struct SResourceFactory
     Result                                       m_HttpFactoryResult;
 
     // Manifest for builtin resources
-    Manifest*                                   m_BuiltinsManifest;
+    Manifest*                                    m_BuiltinsManifest;
 
     // Resource manifest
     Manifest*                                    m_Manifest;
     void*                                        m_ArchiveMountInfo;
+
+    uint8_t                                      m_UseLiveUpdate : 1;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -312,16 +314,20 @@ Result LoadArchiveIndex(const char* bundle_dir, HFactory factory)
 
     BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
 
-    dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-    if (support_path_result != dmSys::RESULT_OK)
+    bool luIndexExists = false;
+    if (factory->m_UseLiveUpdate)
     {
-        dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
-        return RESULT_IO_ERROR;
-    }
+        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
+        if (support_path_result != dmSys::RESULT_OK)
+        {
+            dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
+            return RESULT_IO_ERROR;
+        }
 
-    dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
-    struct stat file_stat;
-    bool luIndexExists = stat(liveupdate_index_path, &file_stat) == 0;
+        dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
+        struct stat file_stat;
+        luIndexExists = stat(liveupdate_index_path, &file_stat) == 0;
+    }
 
     if (!luIndexExists)
     {
@@ -336,6 +342,7 @@ Result LoadArchiveIndex(const char* bundle_dir, HFactory factory)
         char temp_archive_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(temp_archive_index_path, liveupdate_index_path, strlen(liveupdate_index_path)+1);
         dmStrlCat(temp_archive_index_path, ".tmp", DMPATH_MAX_PATH); // check for liveupdate.arci.tmp
+        struct stat file_stat;
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
@@ -606,6 +613,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     SResourceFactory* factory = new SResourceFactory;
     memset(factory, 0, sizeof(*factory));
     factory->m_Socket = socket;
+    factory->m_UseLiveUpdate = params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE ? 1 : 0;
 
     dmURI::Result uri_result = dmURI::Parse(uri, &factory->m_UriParts);
     if (uri_result != dmURI::RESULT_OK)
@@ -704,52 +712,56 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         }
 
         // Check if liveupdate manifest exists. If it does, try to load that one instead
-        char app_support_path[DMPATH_MAX_PATH];
-        char lu_manifest_file_path[DMPATH_MAX_PATH];
-        char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-        BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
-        dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-        if (support_path_result != dmSys::RESULT_OK)
-        {
-            dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
-            r = RESULT_IO_ERROR;
-        }
-        else
-        {
-            dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, lu_manifest_file_path, DMPATH_MAX_PATH);
-            struct stat file_stat;
-            bool lu_manifest_exists = stat(lu_manifest_file_path, &file_stat) == 0;
-            if (lu_manifest_exists)
-            {
-                // Check if bundle has changed (e.g. app upgraded)
-                char bundle_ver_path[DMPATH_MAX_PATH];
-                dmPath::Concat(app_support_path, LIVEUPDATE_BUNDLE_VER_FILENAME, bundle_ver_path, DMPATH_MAX_PATH);
 
-                Result bundle_ver_valid = BundleVersionValid(factory->m_Manifest, bundle_ver_path);
-                if (bundle_ver_valid == RESULT_OK)
+        if (factory->m_UseLiveUpdate)
+        {
+            char app_support_path[DMPATH_MAX_PATH];
+            char lu_manifest_file_path[DMPATH_MAX_PATH];
+            char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
+            BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
+            dmSys::Result support_path_result = dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
+            if (support_path_result != dmSys::RESULT_OK)
+            {
+                dmLogError("Failed get application support path for \"%s\", result = %i", id_buf, support_path_result);
+                r = RESULT_IO_ERROR;
+            }
+            else
+            {
+                dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, lu_manifest_file_path, DMPATH_MAX_PATH);
+                struct stat file_stat;
+                bool lu_manifest_exists = stat(lu_manifest_file_path, &file_stat) == 0;
+                if (lu_manifest_exists)
                 {
-                    // Unload bundled manifest
-                    dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
-                    dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-                    factory->m_Manifest->m_DDFData = 0x0;
-                    factory->m_Manifest->m_DDF = 0x0;
-                    // Load external liveupdate.manifest
-                    r = LoadExternalManifest(lu_manifest_file_path, factory);
-                    // Use liveupdate manifest if successfully loaded, otherwise fall back to bundled manifest
-                    if (r == RESULT_OK)
-                        manifest_path = lu_manifest_file_path;
+                    // Check if bundle has changed (e.g. app upgraded)
+                    char bundle_ver_path[DMPATH_MAX_PATH];
+                    dmPath::Concat(app_support_path, LIVEUPDATE_BUNDLE_VER_FILENAME, bundle_ver_path, DMPATH_MAX_PATH);
+
+                    Result bundle_ver_valid = BundleVersionValid(factory->m_Manifest, bundle_ver_path);
+                    if (bundle_ver_valid == RESULT_OK)
+                    {
+                        // Unload bundled manifest
+                        dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
+                        dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+                        factory->m_Manifest->m_DDFData = 0x0;
+                        factory->m_Manifest->m_DDF = 0x0;
+                        // Load external liveupdate.manifest
+                        r = LoadExternalManifest(lu_manifest_file_path, factory);
+                        // Use liveupdate manifest if successfully loaded, otherwise fall back to bundled manifest
+                        if (r == RESULT_OK)
+                            manifest_path = lu_manifest_file_path;
+                        else
+                        {
+                            dmLogWarning("Failed to load liveupdate manifest: %s with result: %i. Falling back to bundled manifest", lu_manifest_file_path, r);
+                            LoadManifest(manifest_path, factory);
+                        }
+                    }
                     else
                     {
-                        dmLogWarning("Failed to load liveupdate manifest: %s with result: %i. Falling back to bundled manifest", lu_manifest_file_path, r);
-                        LoadManifest(manifest_path, factory);
+                        // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest.
+                        // Unlink liveupdate.manifest and bundle_ver_path from filesystem and load bundled manifest instead.
+                        dmSys::Unlink(bundle_ver_path);
+                        dmSys::Unlink(lu_manifest_file_path);
                     }
-                }
-                else
-                {
-                    // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest.
-                    // Unlink liveupdate.manifest and bundle_ver_path from filesystem and load bundled manifest instead.
-                    dmSys::Unlink(bundle_ver_path);
-                    dmSys::Unlink(lu_manifest_file_path);
                 }
             }
         }
