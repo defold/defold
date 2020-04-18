@@ -81,6 +81,7 @@ public class SwitchBundler implements IBundler {
         boolean isDebug = variant.equals(Bob.VARIANT_DEBUG);
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -115,8 +116,8 @@ public class SwitchBundler implements IBundler {
 
         String bundleType = "nspd";
 
-        File nsp = new File(bundleDir, title + ".nsp");
-        File appDir = new File(bundleDir, title + ".nspd");
+        File nsp = new File(bundleDir, exeName + ".nsp");
+        File appDir = new File(bundleDir, exeName + ".nspd");
         File programDir = new File(appDir, "program0.ncd");
         File codeDir = new File(programDir, "code");
         File dataDir = new File(programDir, "data");
