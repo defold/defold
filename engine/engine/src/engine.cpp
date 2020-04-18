@@ -508,7 +508,7 @@ namespace dmEngine
 
         // The default is 1, and the only way to know if the property is manually set, is if it's 0
         // since the values are always written to the project file
-        if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1);
+        if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1))
             verify_graphics_calls = false;
 
         bool renderdoc_support = false;
