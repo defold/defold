@@ -500,6 +500,7 @@ platforms:
         linkFlags:          ["--gc-sections","--build-id=sha1","-init=_init","-fini=_fini","-pie","-z,combreloc","-z,relro","--enable-new-dtags","-u,malloc","-u,calloc","-u,realloc","-u,aligned_alloc","-u,free"]
         platformLibs:       ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/rocrt.o",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnApplication.o",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a",

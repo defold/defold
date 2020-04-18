@@ -121,6 +121,7 @@ def setup_vars_nx(conf, build_util):
     LINKFLAGS+=" -Wl,--start-group"
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/rocrt.o" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/nnApplication.o" % NINTENDO_SDK_ROOT
+    LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a" % NINTENDO_SDK_ROOT
     LINKFLAGS+=" %s/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a" % NINTENDO_SDK_ROOT
