@@ -738,6 +738,15 @@ int  _glfwPlatformOpenWindow( int width, int height,
         contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
         _glfwWin.width = contentRect.size.width;
         _glfwWin.height = contentRect.size.height;
+
+        CVDisplayLinkRef displayLink;
+        CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);
+        CVDisplayLinkSetOutputCallback(displayLink, &DisplayLinkCallback, 0);
+        CGDirectDisplayID viewDisplayID = (CGDirectDisplayID) [[_glfwWin.window screen].deviceDescription[@"NSScreenNumber"] unsignedIntegerValue];
+        CVDisplayLinkSetCurrentCGDisplay(displayLink, viewDisplayID);
+
+        CVDisplayLinkStart(displayLink);
+        _glfwWin.displayLink = (uintptr_t) displayLink;
     }
 
     return GL_TRUE;
