@@ -1,6 +1,8 @@
 #ifndef DM_HTTP_SERVICE
 #define DM_HTTP_SERVICE
 
+#include <stdint.h>
+
 namespace dmHttpService
 {
     typedef struct HttpService* HHttpService;
@@ -8,13 +10,11 @@ namespace dmHttpService
     struct Params
     {
     	Params() :
-    	#if defined(__NX__)
-    		m_ThreadCount(2)
-    	#else
-    		m_ThreadCount(4)
-    	#endif
+    		m_ThreadCount(4),
+            m_UseHttpCache(1)
     	{}
-    	int m_ThreadCount;
+    	uint32_t m_ThreadCount:4;
+        uint32_t m_UseHttpCache:1;
     };
     HHttpService New(const Params* params);
     dmMessage::HSocket GetSocket(HHttpService http_service);

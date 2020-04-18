@@ -6,6 +6,7 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/script/script.h>
+#include <nn/fs.h>
 
 #include <hid/hid.h>
 
@@ -342,6 +343,13 @@ namespace dmSwitchScript
             dmSwitch::Account::GetUser(&g_LastOpenedUser); // there should already be selected user at startup
             dmSwitch::Account::MountUserSaveData(&g_LastOpenedUser);
         }
+
+        int enable_cache_storage = dmConfigFile::GetInt(params->m_ConfigFile, "switch.cache_storage_enabled", 0);
+        if (enable_cache_storage)
+        {
+            nn::fs::MountCacheStorage("cache");
+        }
+
         return dmExtension::RESULT_OK;
     }
 
@@ -351,6 +359,12 @@ namespace dmSwitchScript
         if( automatic_user_select )
         {
             dmSwitch::Account::CloseUser(&g_LastOpenedUser);
+        }
+
+        int enable_cache_storage = dmConfigFile::GetInt(params->m_ConfigFile, "switch.cache_storage_enabled", 0);
+        if (enable_cache_storage)
+        {
+            nn::fs::Unmount("cache");
         }
         return dmExtension::RESULT_OK;
     }

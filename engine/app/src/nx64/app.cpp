@@ -36,6 +36,8 @@ static char* GetEnv(const char* name)
 }
 
 
+// TODO: Move malloc etc to a separate library, so that it can be replaced with a user library
+
 namespace {
 
 	// Allocates a static space as space for malloc().
@@ -113,11 +115,9 @@ extern "C" void nninitStartup()
      NN_LOG("MallocBuffer is 0x%p - 0x%p (%d mb)\n\n", g_MallocBuffer, g_MallocBuffer + MemoryHeapSize, MemoryHeapSize/(1024*1024));
 }
 
-// __nnmusl_socket_socket_init
-
 extern "C" void nnMain()
 {
-    bool has_host_mount = GetEnv("DM_MOUNT_HOST") != 0;
+    bool has_host_mount = GetEnv("DM_MOUNT_HOST") != 0; // Mostly for unit tests, but also debugging
     if (has_host_mount)
         nn::fs::MountHost("host", ".");
 
@@ -127,12 +127,9 @@ extern "C" void nnMain()
     void* mount_rom_cache_buffer = malloc(mount_rom_cache_size);
     nn::fs::MountRom("data", mount_rom_cache_buffer, mount_rom_cache_size);
 
-	nn::fs::MountCacheStorage("cache");
-
     int r = main(nn::os::GetHostArgc(), nn::os::GetHostArgv());
     (void)r;
 
-    nn::fs::Unmount("cache");
     nn::fs::Unmount("data");
     if (has_host_mount)
         nn::fs::Unmount("host");

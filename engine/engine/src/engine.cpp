@@ -664,15 +664,21 @@ namespace dmEngine
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
-        int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
+
         if (dLib::IsDebugMode())
         {
             params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+            int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
             if (http_cache)
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
+
+        int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
+        if (liveupdate_enable)
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
 
 #if defined(DM_RELEASE)
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;

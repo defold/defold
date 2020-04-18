@@ -332,29 +332,42 @@ namespace dmHttpService
     {
         HttpService* service = new HttpService;
 
-        dmHttpCache::NewParams cache_params;
-        char path[1024];
-        dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
-        if (sys_result == dmSys::RESULT_OK)
+        if (params->m_UseHttpCache)
         {
-            // NOTE: The other cache (streaming) is called /cache
-            dmStrlCat(path, "/http-cache", sizeof(path));
-            cache_params.m_Path = path;
-            dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
-            if (cache_r != dmHttpCache::RESULT_OK)
+            dmHttpCache::NewParams cache_params;
+            char path[1024];
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+            if (sys_result == dmSys::RESULT_OK)
             {
-                dmLogWarning("Unable to open http cache (%d)", cache_r);
+                // NOTE: The other cache (streaming) is called /cache
+                dmStrlCat(path, "/http-cache", sizeof(path));
+                cache_params.m_Path = path;
+                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
+                if (cache_r != dmHttpCache::RESULT_OK)
+                {
+                    dmLogWarning("Unable to open http cache (%d)", cache_r);
+                }
+            }
+            else
+            {
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
             }
         }
         else
         {
-            dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+            dmLogWarning("Http cache disabled");
         }
+
+        int threadcount = params->m_ThreadCount;
+#if defined(__NX__)
+        if (threadcount > 2)
+            threadcount = 2;
+#endif
 
         service->m_Run = true;
         dmMessage::NewSocket(HTTP_SOCKET_NAME, &service->m_Socket);
-        service->m_Workers.SetCapacity(params->m_ThreadCount);
-        for (uint32_t i = 0; i < params->m_ThreadCount; ++i)
+        service->m_Workers.SetCapacity(threadcount);
+        for (uint32_t i = 0; i < threadcount; ++i)
         {
             Worker* worker = new Worker();
             char tmp[128];
