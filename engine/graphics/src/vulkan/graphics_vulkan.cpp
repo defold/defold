@@ -2616,9 +2616,10 @@ bail:
         ShaderModule* fs     = program_ptr->m_FragmentModule;
         uint32_t vs_location = UNIFORM_LOCATION_MAX;
         uint32_t fs_location = UNIFORM_LOCATION_MAX;
+        bool vs_found        = GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, name, &vs_location);
+        bool fs_found        = GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, name, &fs_location);
 
-        if (GetUniformIndex(vs->m_Uniforms, vs->m_UniformCount, name, &vs_location) ||
-            GetUniformIndex(fs->m_Uniforms, fs->m_UniformCount, name, &fs_location))
+        if (vs_found || fs_found)
         {
             return vs_location | (fs_location << UNIFORM_LOCATION_BIT_COUNT);
         }
