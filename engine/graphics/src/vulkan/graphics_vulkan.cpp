@@ -1676,7 +1676,11 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(size > 0);
+        if (size == 0)
+        {
+            return;
+        }
+
         assert(buffer);
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
