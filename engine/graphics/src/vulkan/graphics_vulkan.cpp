@@ -1161,7 +1161,7 @@ bail:
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTexture.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
