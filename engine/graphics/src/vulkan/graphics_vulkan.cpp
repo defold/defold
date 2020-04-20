@@ -114,6 +114,7 @@ namespace dmGraphics
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
+        Texture*                        m_DefaultTexture;
         uint32_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -127,6 +128,8 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                                               : 26;
     } *g_Context = 0;
+
+    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -676,6 +679,29 @@ namespace dmGraphics
         // Create default texture sampler
         CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
+        // Create default dummy texture
+        TextureCreationParams default_texture_creation_params;
+        default_texture_creation_params.m_Width          = 1;
+        default_texture_creation_params.m_Height         = 1;
+        default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
+        default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
+
+        const uint8_t default_texture_data[] = { 255, 0, 255, 255 };
+
+        TextureParams default_texture_params;
+        default_texture_params.m_Width  = 1;
+        default_texture_params.m_Height = 1;
+        default_texture_params.m_Data   = default_texture_data;
+        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+
+        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
+        SetTexture(context->m_DefaultTexture, default_texture_params);
+
+        for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
+        {
+            context->m_TextureUnits[i] = context->m_DefaultTexture;
+        }
+
         return res;
     }
 
@@ -1141,6 +1167,7 @@ bail:
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -1655,7 +1682,11 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(size > 0);
+        if (size == 0)
+        {
+            return;
+        }
+
         assert(buffer);
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
@@ -3472,7 +3503,7 @@ bail:
     static void VulkanDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
-        context->m_TextureUnits[unit] = 0;
+        context->m_TextureUnits[unit] = context->m_DefaultTexture;
     }
 
     static uint32_t VulkanGetMaxTextureSize(HContext context)
