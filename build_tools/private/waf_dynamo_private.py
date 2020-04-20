@@ -185,6 +185,8 @@ NX64_MANIFEST="""<?xml version="1.0"?>
         <LogoType>LicensedByNintendo</LogoType>
         <ReleaseVersion>0</ReleaseVersion>
 
+        %(app_user_automatic)s
+
         <UserAccountSaveDataSize>0x0000000000100000</UserAccountSaveDataSize>
         <UserAccountSaveDataJournalSize>0x0000000000040000</UserAccountSaveDataJournalSize>
         <CacheStorageSize>0x0000000003F00000</CacheStorageSize>
@@ -274,6 +276,15 @@ def switch_make_app(self):
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
     app_icon = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/NintendoSDK_Application.bmp')
 
+    # We want the debug app to launch with automatic user selection
+    app_user_automatic = """
+        <StartupUserAccount>Required</StartupUserAccount>
+        <UserAccountSwitchLock>Enable</UserAccountSwitchLock>
+    """
+
+    if 'test' in task.generator.features:
+        app_user_automatic = ''
+
     nss = task.outputs[0]
     bundle_parent = nss.parent
 
@@ -291,7 +302,7 @@ def switch_make_app(self):
         os.makedirs(generated_folder.abspath(task.env))
 
     with open(manifest.abspath(task.env), 'wb') as f:
-        f.write(NX64_MANIFEST % { 'app_name' : exe_name, 'app_icon' : app_icon })
+        f.write(NX64_MANIFEST % { 'app_name' : exe_name, 'app_icon' : app_icon, 'app_user_automatic': app_user_automatic })
         self.bld.node_sigs[self.env.variant()][manifest.id] = Utils.h_file(manifest.abspath(task.env))
 
     npdm = nss.change_ext('.npdm')

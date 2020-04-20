@@ -344,7 +344,7 @@ namespace dmSwitchScript
             dmSwitch::Account::MountUserSaveData(&g_LastOpenedUser);
         }
 
-        int enable_cache_storage = dmConfigFile::GetInt(params->m_ConfigFile, "switch.cache_storage_enabled", 0);
+        int enable_cache_storage = dmConfigFile::GetInt(params->m_ConfigFile, "switch.cache_storage_enabled", 1);
         if (enable_cache_storage)
         {
             nn::fs::MountCacheStorage("cache");
@@ -361,7 +361,7 @@ namespace dmSwitchScript
             dmSwitch::Account::CloseUser(&g_LastOpenedUser);
         }
 
-        int enable_cache_storage = dmConfigFile::GetInt(params->m_ConfigFile, "switch.cache_storage_enabled", 0);
+        int enable_cache_storage = dmConfigFile::GetInt(params->m_ConfigFile, "switch.cache_storage_enabled", 1);
         if (enable_cache_storage)
         {
             nn::fs::Unmount("cache");
