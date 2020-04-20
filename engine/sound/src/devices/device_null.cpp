@@ -36,6 +36,6 @@ namespace dmDeviceNull
 
     }
 
-    DM_DECLARE_SOUND_DEVICE(NullSoundDevice, "null", DeviceNullOpen, DeviceNullClose, DeviceNullQueue, DeviceNullFreeBufferSlots, DeviceNullDeviceInfo, DeviceNullRestart, DeviceNullStop);
+    DM_DECLARE_SOUND_DEVICE(NullSoundDevice, "null", DeviceNullOpen, DeviceNullClose, DeviceNullQueue, DeviceNullFreeBufferSlots, DeviceNullDeviceInfo, DeviceNullRestart, DeviceNullStop, 0);
 }
 

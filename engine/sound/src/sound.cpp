@@ -1341,6 +1341,9 @@ namespace dmSound
         if (sound) {
             sound->m_HasWindowFocus = focus;
         }
+        if (sound->m_DeviceType->m_DevicePause) {
+            sound->m_DeviceType->m_DevicePause(g_SoundSystem->m_Device, !focus);
+        }
     }
 
 }

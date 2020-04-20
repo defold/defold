@@ -217,5 +217,23 @@ namespace dmDeviceOpenAL
         }
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
+    void DeviceOpenALPause(dmSound::HDevice device, bool pause)
+    {
+        assert(device);
+        OpenALDevice* openal = (OpenALDevice*) device;
+        if (pause) {
+            alcMakeContextCurrent(NULL);
+            alcSuspendContext(openal->m_Context);
+        }
+        else {
+            if (!alcMakeContextCurrent(openal->m_Context)) {
+                dmLogError("Failed to restore OpenAL device, could not restore context!");
+            }
+            else {
+                alcProcessContext(openal->m_Context);
+            }
+        }
+    }
+
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop, DeviceOpenALPause);
 }

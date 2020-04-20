@@ -213,6 +213,12 @@ namespace dmSound
         void (*m_DeviceStop)(HDevice device);
 
         /**
+         * Disable device context
+         * @param device
+         */
+        void (*m_DevicePause)(HDevice device, bool pause);
+
+        /**
          * Internal
          */
         DeviceType* m_Next;
@@ -247,7 +253,7 @@ namespace dmSound
     /**
      * Declare a new sound device
      */
-    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, device_info, enable, disable) \
+    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, device_info, enable, disable, pause) \
             dmSound::DeviceType DM_SOUND_PASTE2(symbol, __LINE__) = { \
                     name, \
                     open, \
@@ -257,6 +263,7 @@ namespace dmSound
                     device_info, \
                     enable, \
                     disable, \
+                    pause, \
                     0 \
             };\
         DM_REGISTER_SOUND_DEVICE(symbol, DM_SOUND_PASTE2(symbol, __LINE__))
