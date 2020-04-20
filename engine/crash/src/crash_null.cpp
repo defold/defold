@@ -7,7 +7,6 @@ namespace dmCrash
     // A bit silly that we need these for a null implementation...
     AppState g_AppState;
     AppState g_PreviousAppState;
-    static char g_FilePathDefault[AppState::FILEPATH_MAX];
     char g_FilePath[AppState::FILEPATH_MAX];
 
 
@@ -32,12 +31,6 @@ namespace dmCrash
         (void)index;
         (void)value;
         return RESULT_OK;
-    }
-
-    static HDump LoadPrevious(FILE *f)
-    {
-        (void)f;
-        return 0;
     }
 
     HDump LoadPreviousPath(const char* where)

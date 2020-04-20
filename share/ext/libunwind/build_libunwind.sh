@@ -79,35 +79,6 @@ case $CONF_TARGET in
             cp -vr libunwind_android/include/* $PREFIX/include/$CONF_TARGET/
         }
         ;;
-    *x86_64-darwin)
-        # SHA1 of master as of 2018-12-07
-        readonly VERSION=395b27b68c5453222378bc5fe4dab4c6db89816a
-
-        function cmi_make() {
-            echo -e "Checking out libunwind into libunwind_osx"
-            git clone https://github.com/llvm-mirror/libunwind.git libunwind_osx
-            pushd libunwind_osx
-            git checkout $VERSION
-            mkdir build
-            cd build
-
-            echo -e "Running CMAKE"
-            cmake ..
-
-            echo -e "Building with make"
-            make
-            popd
-
-            echo -e "Copying library to build folder"
-            mkdir -p $PREFIX/lib/$CONF_TARGET
-            mkdir -p $PREFIX/bin/
-            mkdir -p $PREFIX/share/
-            mkdir -p $PREFIX/include/$CONF_TARGET/
-
-            cp -v libunwind_osx/build/lib/libunwind.a $PREFIX/lib/$CONF_TARGET/
-            cp -vr libunwind_osx/include/* $PREFIX/include/$CONF_TARGET/
-        }
-        ;;
     *)
         echo "Platform not implemented/supported"
         exit 1
