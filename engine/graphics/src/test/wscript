@@ -3,6 +3,7 @@
 def build(bld):
     test_graphics = bld.new_task_gen(features = 'cxx cprogram test',
                                  includes = ['../../src', '../../proto'],
+                                 exported_symbols = ['GraphicsAdapterNull'],
                                  source = 'test_graphics.cpp',
                                  uselib = 'DDF DLIB',
                                  uselib_local = "graphics_null",
