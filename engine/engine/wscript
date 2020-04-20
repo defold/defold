@@ -124,6 +124,9 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
+    if operating_sys != "osx":
+        conf.env['STATICLIB_UNWIND'] = 'unwind'
+
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
