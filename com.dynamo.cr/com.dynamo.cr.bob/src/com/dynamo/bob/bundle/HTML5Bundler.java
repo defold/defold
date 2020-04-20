@@ -133,14 +133,17 @@ public class HTML5Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BundleHelper.throwIfCanceled(canceled);
+
+        final Platform platform = Platform.JsWeb;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, Platform.JsWeb);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         BundleHelper.throwIfCanceled(canceled);
 
-        Platform platform = Platform.JsWeb;
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
@@ -227,8 +230,6 @@ public class HTML5Bundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
-        // Flash audio swf
-        FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
         BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
 

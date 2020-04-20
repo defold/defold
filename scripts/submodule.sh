@@ -42,7 +42,7 @@ for i in $(seq 2 $#); do
     _SUBMODULE="${@:$i:1}"
     (
         cd "${DEFOLD_PATH}/engine/${_SUBMODULE}"
-        waf configure build install --platform="${1}" \
+        waf install --platform="${1}" \
             --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
     )
 done
@@ -50,8 +50,9 @@ done
 (
     cd "${DEFOLD_PATH}/engine/engine"
     find "build" -type f -name "*dmengine*" | xargs -I% rm -f "%"
+    find "build" -type f -name "classes.dex" | xargs -I% rm -f "%"
     find "build" -type d -name "*dmengine*" | xargs -I% rm -rf "%"
-    waf clean configure build install --platform="${1}" \
+    waf install --platform="${1}" \
         --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
 )
 

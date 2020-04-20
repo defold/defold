@@ -37,6 +37,7 @@ Important: *Make sure your branches are up to date!*
     This will trigger the beta channel to be built on build bot.
 
  1. Wait for [builds](https://github.com/defold/defold/actions) to finish, make sure they are green.
+
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -45,15 +46,10 @@ Important: *Make sure your branches are up to date!*
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-linux.zip
 
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
-
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.zip
-
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-linux.gtk.x86_64.zip
-
     The SHA1 can be found using `git log` on the beta branch.
 
  1. (Optional) Verify new features and bug fixes.
+
  1. (Optional) Verify dev mobile apps.
 
  1. If everything is OK, time to release beta:
@@ -84,6 +80,17 @@ Important: *Make sure your branches are up to date!*
     This will trigger a build of the engines and editors for stable.
     Make a note of the release sha1 (the latest commit to the master branch on GitHub)
 
+ 1. Merge `master` into `editor-dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
+
+    This will trigger a build of the engines and editors for editor-alpha.
+
+ 1. When the `editor-dev` is built, all channels have been updated
+
  1. Fetch editor via:
 
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -92,38 +99,43 @@ Important: *Make sure your branches are up to date!*
 
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-linux.zip
 
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
-
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-win32.win32.x86.zip
-
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-linux.gtk.x86_64.zip
-
  1. Tag the release in git:
 
         $ git tag -a X.Y.Z (same as version produced by the bump)
     Use tag message: Release X.Y.Z
+    Add `-f` to force update the tag (in the case you need to amend an existing release for some reason).
 
         $ git push origin --tags
-    This will push the tags to github, which is then used later in the release step.
+    This will push the tags to github, which is then used later in the release step. Add `-f` to force update the tags.
 
 ### Publishing Stable Release
 
 1. If everything is OK, time to release stable
+
 1. If there is a pending Native Extension server change, [publish the production server](https://github.com/defold/extender#releasing), which updates https://build.defold.com
+
 1. Next, release the stable engine/editor:
 
         $ ./scripts/build.py release
     Important: *Make sure the SHA1 and channel is correct!*
 
 1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since no one uses editor-stable)
-1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes
-1. Post release notes on [forum.defold.com](https://forum.defold.com)
 
-1. Merge master into dev
+1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
+
+        $ ./update.py --download refdoc
+        $ git commit -am "Updated reference documentation to 1.2.xxx"
+        $ git push
+
+1. Merge `master` into dev
 
         $ git checkout dev
         $ git pull
         $ git merge master
+
+1. Merge `editor-dev` into `dev`
+
+        $ git merge editor-dev
 
 1. Bump version:
 
@@ -134,4 +146,4 @@ Important: *Make sure your branches are up to date!*
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-1. Tell the editor team to update and release the Editor 2
+1. Post release notes on [forum.defold.com](https://forum.defold.com)

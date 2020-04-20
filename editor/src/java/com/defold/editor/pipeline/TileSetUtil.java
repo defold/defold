@@ -73,6 +73,7 @@ public class TileSetUtil {
     private static int Max(int a, int b) { return a > b ? a : b; }
     private static int Min(int a, int b) { return a < b ? a : b; }
 
+    // Returns a CW rect
     private static ConvexHull2D.Point[] calcRect(int[] alpha, int width, int height, int inflate) {
         int maxX = -1;
         int maxY = -1;
@@ -159,6 +160,7 @@ public class TileSetUtil {
         return true;
     }
 
+    // returns a tight rect with CW winding
     public static ConvexHull2D.PointF[] calculateRect(Raster alphaRaster, int inflate) {
         int width = alphaRaster.getWidth();
         int height = alphaRaster.getHeight();
@@ -167,11 +169,12 @@ public class TileSetUtil {
 
         ConvexHull2D.Point ipoints[] = calcRect(alpha, width, height, inflate);
         ConvexHull2D.PointF points[] = new ConvexHull2D.PointF[4];
-        int i = 0;
-        for (ConvexHull2D.Point p : ipoints) {
-            points[i] = new ConvexHull2D.PointF(p.x / (double)width - 0.5, p.y / (double)height - 0.5);
-            ++i;
-        }
+
+        // make sure we don't change winding
+        points[1] = new ConvexHull2D.PointF(ipoints[0].x / (double)width - 0.5, -(ipoints[0].y / (double)height - 0.5));
+        points[0] = new ConvexHull2D.PointF(ipoints[1].x / (double)width - 0.5, -(ipoints[1].y / (double)height - 0.5));
+        points[3] = new ConvexHull2D.PointF(ipoints[2].x / (double)width - 0.5, -(ipoints[2].y / (double)height - 0.5));
+        points[2] = new ConvexHull2D.PointF(ipoints[3].x / (double)width - 0.5, -(ipoints[3].y / (double)height - 0.5));
         return points;
     }
 

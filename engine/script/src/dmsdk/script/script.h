@@ -35,7 +35,7 @@ namespace dmScript
      * @namespace dmScript
      */
 
-    /**
+    /*#
     * LuaStackCheck struct. Internal
     *
     * LuaStackCheck utility to make sure we check the Lua stack state before leaving a function.
@@ -339,7 +339,7 @@ namespace dmScript
      */
     Vectormath::Aos::Vector3* ToVector3(lua_State* L, int index);
 
-    /**
+    /*#
      * Check if the value at #index is a Vectormath::Aos::Vector3*
      * @param L Lua state
      * @param index Index of the value
@@ -376,7 +376,7 @@ namespace dmScript
      */
     Vectormath::Aos::Vector4* ToVector4(lua_State* L, int index);
 
-    /**
+    /*#
      * Check if the value at #index is a Vectormath::Aos::Vector4*
      * @param L Lua state
      * @param index Index of the value
@@ -479,7 +479,7 @@ namespace dmScript
      */
     struct LuaCallbackInfo;
 
-    /** Register a Lua callback.
+    /*# Register a Lua callback.
      * Stores the current Lua state plus references to the script instance (self) and the callback.
      * Expects SetInstance() to have been called prior to using this method.
      *
@@ -489,30 +489,34 @@ namespace dmScript
      * If the callback is not explicitly deleted with DestroyCallback() the references and
      * data will stay around until the script instance is deleted.
      *
+     * @name dmScript::CreateCallback
      * @param L Lua state
      * @param index Lua stack index of the function
-     * @return callback struct if successful, 0 otherwise
+     * @return Lua callback struct if successful, 0 otherwise
      */
     LuaCallbackInfo* CreateCallback(lua_State* L, int index);
 
-    /** Check if Lua callback is valid.
+    /*# Check if Lua callback is valid.
+     * @name dmScript::IsCallbackValid
      * @param cbk Lua callback struct
      */
     bool IsCallbackValid(LuaCallbackInfo* cbk);
 
-    /** Deletes the Lua callback
+    /*# Deletes the Lua callback
+     * @name dmScript::DestroyCallback
      * @param cbk Lua callback struct
      */
     void DestroyCallback(LuaCallbackInfo* cbk);
 
-    /** Gets the Lua context from a callback struct
+    /*# Gets the Lua context from a callback struct
+     * @name dmScript::GetCallbackLuaContext
      * @param cbk Lua callback struct
      * @return L Lua state
      */
     lua_State* GetCallbackLuaContext(LuaCallbackInfo* cbk);
 
 
-    /** Setups up the Lua callback prior to a call to dmScript::PCall()
+    /*# Setups up the Lua callback prior to a call to dmScript::PCall()
      *  The Lua stack after a successful call:
      * ```
      *    [-4] old instance
@@ -522,12 +526,13 @@ namespace dmScript
      * ```
      *  In the event of an unsuccessful call, the Lua stack is unchanged
      *
+     * @name dmScript::SetupCallback
      * @param cbk Lua callback struct
      * @return true if the setup was successful
      */
     bool SetupCallback(LuaCallbackInfo* cbk);
 
-    /** Cleans up the stack after SetupCallback+PCall calls
+    /*# Cleans up the stack after SetupCallback+PCall calls
      * Sets the previous instance
      * Expects Lua stack:
      * ```
@@ -535,13 +540,17 @@ namespace dmScript
      *    [-1] context table
      * ```
      * Both values are removed from the stack
+     *
+     * @name dmScript::TeardownCallback
+     * @param cbk Lua callback struct
      */
     void TeardownCallback(LuaCallbackInfo* cbk);
 
-    /**
+    /*#
      * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
      * In the case of an error, the error is logged and popped from the stack.
      *
+     * @name dmScript::PCall
      * @param L lua state
      * @param nargs number of arguments
      * @param nresult number of results

@@ -1112,7 +1112,7 @@ If you do not specifically require different script states, consider changing th
   (run [] (ui/open-url "https://forum.defold.com/")))
 
 (handler/defhandler :asset-portal :global
-  (run [] (ui/open-url "https://www.defold.com/community/assets")))
+  (run [] (ui/open-url "https://www.defold.com/assets")))
 
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))

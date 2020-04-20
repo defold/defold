@@ -41,4 +41,4 @@
           ;; GO!
           (let [elapsed (measure [i 20]
                           (drag-pull-outline! node-id box i))]
-            (is (< elapsed 13))))))))
+            (is (< elapsed 14))))))))

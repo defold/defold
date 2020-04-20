@@ -392,14 +392,16 @@
                   (assert (not (neg? paren-count)))
                   (if (pos? paren-count)
                     (recur cursor-ranges (next tokens) paren-count consumed)
-                    (let [[_ start-row start-col] (first consumed)
-                          [_ end-row end-col] token
-                          end-col (+ ^long end-col (count text))
+                    (let [next-tokens (next tokens)
+                          [next-text :as next-token] (first next-tokens)
+                          [_ start-row start-col] (first consumed)
+                          [end-text end-row end-col] (if (= ";" next-text) next-token token)
+                          end-col (+ ^long end-col (count end-text))
                           start-cursor (data/->Cursor start-row start-col)
                           end-cursor (data/->Cursor end-row end-col)
                           cursor-range (data/->CursorRange start-cursor end-cursor)]
                       (recur (conj! cursor-ranges cursor-range)
-                             (next tokens)
+                             next-tokens
                              0
                              []))))
             (recur cursor-ranges (next tokens) paren-count consumed)))

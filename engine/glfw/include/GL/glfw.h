@@ -568,6 +568,7 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 // Defold extensions
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
+GLFWAPI void glfwSetViewType(int view_type);
 
 // Accelerometer control
 GLFWAPI void glfwAccelerometerEnable();
@@ -584,7 +585,9 @@ GLFWAPI void  GLFWAPIENTRY glfwUnacquireAuxContext(void* context);
 
 // Trying to mimic somewhat the features of glfw 3.0
 typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
+typedef void (GLFWCALL * GLFWwindowiconifyfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
+GLFWAPI void GLFWAPIENTRY glfwSetWindowIconifyCallback( GLFWwindowiconifyfun cbfun );
 GLFWAPI int  GLFWAPIENTRY glfwSetGamepadCallback( GLFWgamepadfun cbfun );
 
 #ifdef __cplusplus
@@ -592,4 +595,3 @@ GLFWAPI int  GLFWAPIENTRY glfwSetGamepadCallback( GLFWgamepadfun cbfun );
 #endif
 
 #endif /* __glfw_h_ */
-

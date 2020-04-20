@@ -154,7 +154,7 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 2);
+    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 3);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
@@ -199,8 +199,8 @@ TEST_F(LuaTableTest, VerifySinTable01)
 
 TEST_F(LuaTableTest, TestSerializeLargeNumbers)
 {
-    uint32_t numbers[] = {0, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
-    const uint32_t count = sizeof(numbers) / sizeof(uint32_t);
+    lua_Number numbers[] = {0, -1, -4294967295, 4294967295, 0x1234, 0x8765, 0xffff, 0x12345678, 0x7fffffff, 0x87654321, 268435456, 0xffffffff, 0xfffffffe};
+    const uint32_t count = sizeof(numbers) / sizeof(lua_Number);
 
     lua_newtable(L);
     for (uint32_t i=0;i!=count;i++)
@@ -217,13 +217,13 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
 
     dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
-    uint32_t found[count] = { 0 };
+    lua_Number found[count] = { 0 };
 
     lua_pushnil(L);
     while (lua_next(L, -2) != 0)
     {
-        uint32_t key = (uint32_t) lua_tonumber(L, -1);
-        uint32_t value = (uint32_t) lua_tonumber(L, -2);
+        lua_Number value = lua_tonumber(L, -1);
+        lua_Number key = lua_tonumber(L, -2);
         ASSERT_EQ(key, value);
 
         for (uint32_t i=0;i!=count;i++)

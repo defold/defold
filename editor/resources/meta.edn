@@ -60,6 +60,10 @@
    :help "use single Lua state shared between all script types",
    :default false,
    :path ["script" "shared_state"]}
+  {:type :boolean,
+   :help "allow the engine to continue running while iconfied (desktop platforms only)",
+   :default false,
+   :path ["engine" "run_while_iconified"]}
   {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
@@ -110,11 +114,26 @@
    :severity-default :warning
    :help "This setting is deprecated. When checked, will disable \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
    :path ["display" "variable_dt"]}
-  {:type :integer,
-   :help "Render clear color (RGBA)",
-   :label "Clear Color"
+  {:type :number,
+   :help "Render clear color - red channel",
+   :label "Clear Color Red"
    :default 0,
-   :path ["display" "clear_color"]}
+   :path ["render" "clear_color_red"]}
+  {:type :number,
+   :help "Render clear color - green channel",
+   :label "Clear Color Green"
+   :default 0,
+   :path ["render" "clear_color_green"]}
+  {:type :number,
+   :help "Render clear color - blue channel",
+   :label "Clear Color Blue"
+   :default 0,
+   :path ["render" "clear_color_blue"]}
+  {:type :number,
+   :help "Render clear color - alpha channel",
+   :label "Clear Color Alpha"
+   :default 0,
+   :path ["render" "clear_color_alpha"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
@@ -535,6 +554,14 @@
    :label "Custom entitlements"
    :default "",
    :path ["ios" "entitlements"]}
+  {:type :string,
+   :help "comma-separated strings identifying languages handled manually by your app (CFBundleLocalizations)",
+   :default "en",
+   :path ["ios" "default_language"]}
+  {:type :string,
+   :help "localizations handled manually by your app (CFBundleLocalizations)",
+   :default "en",
+   :path ["ios" "localizations"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -717,6 +744,14 @@
    :label "Info.plist",
    :default "/builtins/manifests/osx/Info.plist",
    :path ["osx" "infoplist"]}
+   {:type :string,
+   :help "default language and region (CFBundleDevelopmentRegion)",
+   :default "en",
+   :path ["osx" "default_language"]}
+  {:type :string,
+   :help "comma-separated strings identifying languages handled manually by your app (CFBundleLocalizations)",
+   :default "en",
+   :path ["osx" "localizations"]}
   {:type :resource,
    :filter "ico",
    :preserve-extension true,

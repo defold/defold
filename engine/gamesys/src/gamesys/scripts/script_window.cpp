@@ -22,6 +22,8 @@ enum WindowEvent
     WINDOW_EVENT_FOCUS_LOST = 0,
     WINDOW_EVENT_FOCUS_GAINED = 1,
     WINDOW_EVENT_RESIZED = 2,
+    WINDOW_EVENT_ICONFIED = 3,
+    WINDOW_EVENT_DEICONIFIED = 4,
 };
 
 
@@ -132,6 +134,8 @@ static void RunCallback(CallbackInfo* cbinfo)
  * - `window.WINDOW_EVENT_FOCUS_LOST`
  * - `window.WINDOW_EVENT_FOCUS_GAINED`
  * - `window.WINDOW_EVENT_RESIZED`
+ * - `window.WINDOW_EVENT_ICONIFIED`
+ * - `window.WINDOW_EVENT_DEICONIFIED`
  *
  * `data`
  * : [type:table] The callback value `data` is a table which currently holds these values
@@ -147,6 +151,10 @@ static void RunCallback(CallbackInfo* cbinfo)
  *         print("window.WINDOW_EVENT_FOCUS_LOST")
  *     elseif event == window.WINDOW_EVENT_FOCUS_GAINED then
  *         print("window.WINDOW_EVENT_FOCUS_GAINED")
+ *     elseif event == window.WINDOW_EVENT_ICONFIED then
+ *         print("window.WINDOW_EVENT_ICONFIED")
+ *     elseif event == window.WINDOW_EVENT_DEICONIFIED then
+ *         print("window.WINDOW_EVENT_DEICONIFIED")
  *     elseif event == window.WINDOW_EVENT_RESIZED then
  *         print("Window resized: ", data.width, data.height)
  *     end
@@ -293,6 +301,24 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# iconify window event
+ *
+ * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
+ * iconified (reduced to an application icon in a toolbar, application tray or similar).
+ *
+ * @name window.WINDOW_EVENT_ICONFIED
+ * @variable
+ */
+
+/*# deiconified window event
+ *
+ * [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is
+ * restored after being iconified.
+ *
+ * @name window.WINDOW_EVENT_DEICONIFIED
+ * @variable
+ */
+
 /*# dimming mode on
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * @name window.DIMMING_ON
@@ -324,6 +350,8 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(WINDOW_EVENT_FOCUS_LOST)
     SETCONSTANT(WINDOW_EVENT_FOCUS_GAINED)
     SETCONSTANT(WINDOW_EVENT_RESIZED)
+    SETCONSTANT(WINDOW_EVENT_ICONFIED)
+    SETCONSTANT(WINDOW_EVENT_DEICONIFIED)
 
     SETCONSTANT(DIMMING_UNKNOWN)
     SETCONSTANT(DIMMING_ON)
@@ -351,6 +379,20 @@ void ScriptWindowOnWindowFocus(bool focus)
     cbinfo.m_Info = &g_Window;
     cbinfo.m_Event = focus ? WINDOW_EVENT_FOCUS_GAINED : WINDOW_EVENT_FOCUS_LOST;
     RunCallback(&cbinfo);
+}
+
+void ScriptWindowOnWindowIconify(bool iconify)
+{
+    CallbackInfo cbinfo;
+    cbinfo.m_Info = &g_Window;
+    cbinfo.m_Event = iconify ? WINDOW_EVENT_ICONFIED : WINDOW_EVENT_DEICONIFIED;
+    RunCallback(&cbinfo);
+}
+
+void ScriptWindowOnWindowCreated(int width, int height)
+{
+    g_Window.m_Width = width;
+    g_Window.m_Height = height;
 }
 
 void ScriptWindowOnWindowResized(int width, int height)
