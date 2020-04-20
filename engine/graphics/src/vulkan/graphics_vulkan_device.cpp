@@ -35,6 +35,11 @@ namespace dmGraphics
         m_Extent.height = 0;
     }
 
+    Program::Program()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs)
     {
         uint16_t num_attributes = 0;
@@ -105,6 +110,11 @@ namespace dmGraphics
     const VulkanResourceType Texture::GetType()
     {
         return RESOURCE_TYPE_TEXTURE;
+    }
+
+    const VulkanResourceType Program::GetType()
+    {
+        return RESOURCE_TYPE_PROGRAM;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -999,7 +1009,7 @@ bail:
         vk_pipeline_info.pDepthStencilState  = &vk_depth_stencil_create_info;
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
-        vk_pipeline_info.layout              = program->m_PipelineLayout;
+        vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
         vk_pipeline_info.renderPass          = vk_render_pass;
         vk_pipeline_info.subpass             = 0;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -1013,6 +1023,25 @@ bail:
         assert(scratchBuffer);
         scratchBuffer->m_DescriptorAllocator->Release(vk_device);
         scratchBuffer->m_MappedDataCursor = 0;
+    }
+
+    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    {
+        assert(handle);
+        if (handle->m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vk_device, handle->m_PipelineLayout, 0);
+            handle->m_PipelineLayout = VK_NULL_HANDLE;
+        }
+
+        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        {
+            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
+                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+            }
+        }
     }
 
     void DestroyPhysicalDevice(PhysicalDevice* device)
