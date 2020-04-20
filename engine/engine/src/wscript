@@ -52,10 +52,13 @@ def build(bld):
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
 
-    # Set graphics library to use (at some point both GL/VK should be used)
     graphics_lib = 'GRAPHICS DMGLFW'
+    graphics_lib_symbols = 'GraphicsAdapterOpenGL'
     if bld.env['PLATFORM'] in ('arm64-nx64',) or Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN DMGLFW_VULKAN VULKAN'
+        graphics_lib_symbols = 'GraphicsAdapterVulkan'
+
+    exported_symbols.append(graphics_lib_symbols)
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
@@ -78,7 +81,7 @@ def build(bld):
     if 'arm64-nx64' in bld.env.PLATFORM:
         sound_lib  = 'SOUND'
         exported_symbols.append('SwitchExt')
-        additional_libs.append('switchext')
+        additional_libs.append('SWITCHEXT')
     else:
         sound_lib = 'SOUND OPENAL'
 
@@ -146,10 +149,14 @@ def build(bld):
     if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-darwin'):
         additional_libs += ['UNWIND']
 
+    if 'arm64-nx64' in bld.env.PLATFORM:
+        exported_symbols.append('SwitchExt')
+        additional_libs.append('SWITCHEXT')
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'APP DMGLFW RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB LIVEUPDATE SOUND_NULL CARES CRASH'.split() + additional_libs,
-        exported_symbols = ['ProfilerExt'],
+        uselib = 'APP RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB LIVEUPDATE SOUND_NULL CARES CRASH'.split() + additional_libs,
+        exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'],
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         includes = '../build ../proto . ..',

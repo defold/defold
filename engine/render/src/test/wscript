@@ -2,10 +2,12 @@
 
 def build(bld):
     libs = 'APP PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA CARES'
+    exported_symbols = ['GraphicsAdapterNull']
 
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_render.cpp',
                     uselib = libs,
+                    exported_symbols = exported_symbols,
                     uselib_local = 'render',
                     web_libs = ['library_sys.js', 'library_script.js'],
                     includes = ['../../src', '../../proto'],
@@ -14,6 +16,7 @@ def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_display_profiles.cpp',
                     uselib = libs,
+                    exported_symbols = exported_symbols,
                     uselib_local = 'render',
                     web_libs = ['library_sys.js', 'library_script.js'],
                     includes = ['../../src', '../../proto'],
@@ -22,6 +25,7 @@ def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_material.cpp',
                     uselib = libs,
+                    exported_symbols = exported_symbols,
                     uselib_local = 'render',
                     web_libs = ['library_sys.js', 'library_script.js'],
                     includes = ['../../src', '../../proto'],
@@ -30,7 +34,9 @@ def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_render_script.cpp',
                     uselib = libs,
+                    exported_symbols = exported_symbols,
                     uselib_local = 'render',
                     web_libs = ['library_sys.js', 'library_script.js'],
                     includes = ['../../src', '../../proto'],
                     target = 'test_render_script')
+

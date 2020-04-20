@@ -46,6 +46,7 @@ protected:
     {
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
+        dmGraphics::Initialize();
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;

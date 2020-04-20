@@ -146,6 +146,7 @@ def setup_vars_nx(conf, build_util):
     conf.env['SHLIB_VULKAN']            = ['vulkan', 'opengl']
     conf.env['STATICLIB_DMGLFW']        = []
     conf.env['STATICLIB_DMGLFW_VULKAN'] = []
+    conf.env['STATICLIB_SWITCHEXT']     = ['switchext']
 
     # Until we support cares
     conf.env['STATICLIB_CARES'] = []

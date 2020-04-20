@@ -150,12 +150,36 @@ namespace dmGameSystem
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+
+        dmPhysics::HWorld2D world2D;
+        dmPhysics::HWorld3D world3D;
+        if (physics_context->m_3D)
+        {
+            world3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
+            if (world3D == 0x0)
+            {
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
+        }
+        else
+        {
+            world2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
+            if (world2D == 0x0)
+            {
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
+        }
+
         CollisionWorld* world = new CollisionWorld();
         memset(world, 0, sizeof(CollisionWorld));
         if (physics_context->m_3D)
-            world->m_World3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
+        {
+            world->m_World3D = world3D;
+        }
         else
-            world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
+        {
+            world->m_World2D = world2D;
+        }
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
         world->m_Components.SetCapacity(32);
@@ -167,6 +191,10 @@ namespace dmGameSystem
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
+        if (world == 0x0)
+        {
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
         if (physics_context->m_3D)
             dmPhysics::DeleteWorld3D(physics_context->m_Context3D, world->m_World3D);
         else
@@ -286,6 +314,10 @@ namespace dmGameSystem
 
     static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
+        if (world == 0x0)
+        {
+            return false;
+        }
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
         dmPhysics::CollisionObjectData data;
@@ -786,22 +818,24 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         CollisionWorld* world = (CollisionWorld*)params.m_World;
-        if (world != 0x0) {
-            CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
-            assert(!component->m_AddedToUpdate);
-
-            if (component->m_3D) {
-                dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
-            } else {
-                dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, component->m_StartAsEnabled);
-                SetupTileGrid(world, component);
-            }
-            component->m_AddedToUpdate = true;
-
-            if (world->m_Components.Full())
-                world->m_Components.OffsetCapacity(32);
-            world->m_Components.Push(component);
+        if (world == 0x0)
+        {
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        assert(!component->m_AddedToUpdate);
+
+        if (component->m_3D) {
+            dmPhysics::SetEnabled3D(world->m_World3D, component->m_Object3D, component->m_StartAsEnabled);
+        } else {
+            dmPhysics::SetEnabled2D(world->m_World2D, component->m_Object2D, component->m_StartAsEnabled);
+            SetupTileGrid(world, component);
+        }
+        component->m_AddedToUpdate = true;
+
+        if (world->m_Components.Full())
+            world->m_Components.OffsetCapacity(32);
+        world->m_Components.Push(component);
         return dmGameObject::CREATE_RESULT_OK;
     }
 

@@ -412,13 +412,22 @@ union SaveLoadBuffer
      *
      * @name sys.open_url
      * @param url [type:string] url to open
+     * @param attributes [type:table] table with attributes
+     *
+     * - [type:string] [icon:html5] `target`: Optional. Specifies the target attribute or the name of the window. The following values are supported:
+     * _blank - URL is loaded into a new window, or tab. This is default
+     * _parent - URL is loaded into the parent frame
+     * _self - URL replaces the current page
+     * _top - URL replaces any framesets that may be loaded
+     * name - The name of the window (Note: the name does not specify the title of the new window)
+     *
      * @return success [type:boolean] a boolean indicating if the url could be opened or not
      * @examples
      *
      * Open an URL:
      *
      * ```lua
-     * local success = sys.open_url("http://www.defold.com")
+     * local success = sys.open_url("http://www.defold.com", {target = "_blank"})
      * if not success then
      *   -- could not open the url...
      * end
@@ -426,10 +435,29 @@ union SaveLoadBuffer
      */
     int Sys_OpenURL(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 1)
+        int top = lua_gettop(L);
         const char* url = luaL_checkstring(L, 1);
+        dmSys::Result result;
+        if (top > 1)
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
 
-        dmSys::Result r = dmSys::OpenURL(url);
-        lua_pushboolean(L, r == dmSys::RESULT_OK);
+            lua_getfield(L, -1, "target");
+            const char* target = lua_isnil(L, -1) ? 0 : luaL_checkstring(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+            result = dmSys::OpenURL(url, target);
+        }
+        else
+        {
+            result = dmSys::OpenURL(url, 0);
+        }
+
+        lua_pushboolean(L, result == dmSys::RESULT_OK);
+
         return 1;
     }
 

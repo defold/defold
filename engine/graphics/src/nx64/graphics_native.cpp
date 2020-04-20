@@ -156,7 +156,7 @@ namespace dmGraphics
         return result;
     }
 
-    WindowResult OpenWindow(HContext context, WindowParams* params)
+    WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
     {
         assert(context);
         assert(params);
@@ -186,7 +186,8 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
-    void CloseWindow(HContext context)
+
+    void VulkanCloseWindow(HContext context)
     {
         if (context->m_WindowOpened)
         {
@@ -255,7 +256,7 @@ namespace dmGraphics
         }
     }
 
-    void IconifyWindow(HContext context)
+    void VulkanIconifyWindow(HContext context)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -264,7 +265,7 @@ namespace dmGraphics
     }
 
 
-    uint32_t GetWindowState(HContext context, WindowState state)
+    uint32_t VulkanGetWindowState(HContext context, WindowState state)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -282,7 +283,7 @@ namespace dmGraphics
         return 0;
     }
 
-    uint32_t GetWindowRefreshRate(HContext context)
+    uint32_t VulkanGetWindowRefreshRate(HContext context)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -291,30 +292,40 @@ namespace dmGraphics
             return 0;
     }
 
-    uint32_t GetDisplayDpi(HContext context)
+    uint32_t VulkanGetDisplayDpi(HContext context)
     {
         return 0;
     }
 
-    uint32_t GetWindowWidth(HContext context)
+    uint32_t VulkanGetWidth(HContext context)
+    {
+        return context->m_Width;
+    }
+
+    uint32_t VulkanGetHeight(HContext context)
+    {
+        return context->m_Height;
+    }
+
+    uint32_t VulkanGetWindowWidth(HContext context)
     {
         assert(context);
         return context->m_WindowWidth;
     }
 
-    uint32_t GetWindowHeight(HContext context)
+    uint32_t VulkanGetWindowHeight(HContext context)
     {
         assert(context);
         return context->m_WindowHeight;
     }
 
-    void GetNativeWindowSize(uint32_t* width, uint32_t* height)
+    void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height)
     {
         *width = 1280;
         *height = 720;
     }
 
-    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -330,7 +341,7 @@ namespace dmGraphics
         }
     }
 
-    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
     }
 
@@ -338,35 +349,7 @@ namespace dmGraphics
     {
     }
 
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
     {
     }
-
-    typedef void* id;
-    typedef void* EGLContext;
-    typedef void* EGLSurface;
-    typedef void* JavaVM;
-    typedef void* jobject;
-    typedef void* android_app;
-    typedef void* HWND;
-    typedef void* HGLRC;
-    typedef void* Window;
-    typedef void* GLXContext;
-    typedef void* Display;
-
-    id GetNativeiOSUIWindow()               { return 0; }
-    id GetNativeiOSUIView()                 { return 0; }
-    id GetNativeiOSEAGLContext()            { return 0; }
-    id GetNativeOSXNSWindow()               { return 0; }
-    id GetNativeOSXNSView()                 { return 0; }
-    id GetNativeOSXNSOpenGLContext()        { return 0; }
-    HWND GetNativeWindowsHWND()             { return 0; }
-    HGLRC GetNativeWindowsHGLRC()           { return 0; }
-    EGLContext GetNativeAndroidEGLContext() { return 0; }
-    EGLSurface GetNativeAndroidEGLSurface() { return 0; }
-    JavaVM* GetNativeAndroidJavaVM()        { return 0; }
-    jobject GetNativeAndroidActivity()      { return 0; }
-    android_app* GetNativeAndroidApp()      { return 0; }
-    Window GetNativeX11Window()             { return 0; }
-    GLXContext GetNativeX11GLXContext()     { return 0; }
 }

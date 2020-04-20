@@ -6,6 +6,7 @@ def build(bld):
     for name in ['test_graphics', 'test_glsl_uniform_parser']:
         bld.new_task_gen(features = 'cxx cprogram test',
                          includes = ['../../src', '../../proto'],
+                         exported_symbols = ['GraphicsAdapterNull'],
                          source = name + '.cpp',
                          uselib = 'APP DDF DLIB',
                          uselib_local = 'graphics_null',
@@ -14,6 +15,7 @@ def build(bld):
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
         bld.new_task_gen(features = 'cxx cprogram test skip_test',
                          includes = ['../../src', '../../proto'],
+                         exported_symbols = ['GraphicsAdapterVulkan'],
                          source = 'test_app_vulkan.cpp',
                          uselib = 'APP PLATFORM DDF DLIB DMGLFW_VULKAN VULKAN',
                          uselib_local = 'graphics_vulkan',

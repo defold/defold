@@ -121,6 +121,7 @@ namespace dmFontView
             context->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
             dmHID::Init(context->m_HidContext);
 
+            dmGraphics::Initialize();
             context->m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
 
             dmGraphics::OpenWindow(context->m_GraphicsContext, &window_params);

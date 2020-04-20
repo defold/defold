@@ -7,8 +7,8 @@ if [ -z "$PACKAGE" ]; then
     exit 1
 fi
 
-ANDROID_HOME=~/android/android-sdk
-AAPT=$ANDROID_HOME/build-tools/20.0.0/aapt
+ANDROID_HOME=$DYNAMO_HOME/ext/SDKs/android-sdk
+AAPT=$(find $ANDROID_HOME -iname "aapt")
 
 PACKAGENAME=`$AAPT dump badging "$PACKAGE" | grep package:\ name | cut -d \' -f 2`
 

@@ -54,7 +54,7 @@ namespace dmSys
         return false;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
     	// find a way to launch a browser window
         return RESULT_UNKNOWN;

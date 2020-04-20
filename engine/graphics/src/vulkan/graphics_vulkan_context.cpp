@@ -11,7 +11,7 @@
 
 namespace dmGraphics
 {
-    static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = NULL;
+    static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = 0x0;
 
     // This functions is invoked by the vulkan layer whenever
     // it has something to say, which can be info, warnings, errors and such.
@@ -130,7 +130,7 @@ namespace dmGraphics
     {
         assert(vkInstance);
 
-        if (g_vk_debug_callback_handle != NULL)
+        if (g_vk_debug_callback_handle != 0x0)
         {
             PFN_vkDestroyDebugUtilsMessengerEXT func_ptr =
                 (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(*vkInstance, "vkDestroyDebugUtilsMessengerEXT");
