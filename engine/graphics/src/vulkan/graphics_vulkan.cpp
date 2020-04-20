@@ -129,6 +129,8 @@ namespace dmGraphics
         uint32_t                                               : 26;
     } *g_Context = 0;
 
+    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
+
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
     {
@@ -678,18 +680,22 @@ namespace dmGraphics
         CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
         // Create default dummy texture
-        TextureCreationParams default_texture_params;
-        default_texture_params.m_Width          = 2;
-        default_texture_params.m_Height         = 2;
-        default_texture_params.m_OriginalWidth  = default_texture_params.m_Width;
-        default_texture_params.m_OriginalHeight = default_texture_params.m_Height;
+        TextureCreationParams default_texture_creation_params;
+        default_texture_creation_params.m_Width          = 1;
+        default_texture_creation_params.m_Height         = 1;
+        default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
+        default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
 
-        context->m_DefaultTexture = NewTexture(context, default_texture_params);
-        res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-            context->m_DefaultTexture->m_Width, context->m_DefaultTexture->m_Height, context->m_DefaultTexture->m_MipMapCount,
-            VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, context->m_DefaultTexture);
-        CHECK_VK_ERROR(res);
+        const uint8_t default_texture_data[] = { 255, 0, 255, 255 };
+
+        TextureParams default_texture_params;
+        default_texture_params.m_Width  = 1;
+        default_texture_params.m_Height = 1;
+        default_texture_params.m_Data   = default_texture_data;
+        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+
+        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
+        SetTexture(context->m_DefaultTexture, default_texture_params);
 
         for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
         {
@@ -1161,7 +1167,7 @@ bail:
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTexture.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
