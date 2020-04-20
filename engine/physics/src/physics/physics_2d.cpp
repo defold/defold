@@ -216,21 +216,21 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
-    static void FlipPoint(b2Vec2* v, float horizontal, float vertical)
+    static inline b2Vec2 FlipPoint(b2Vec2 p, float horizontal, float vertical)
     {
-        v->x *= horizontal;
-        v->y *= vertical;
+        return b2Vec2(p.x * horizontal, p.y * vertical);
     }
 
     static void FlipPolygon(b2PolygonShape* shape, float horizontal, float vertical)
     {
-        FlipPoint(&shape->m_centroid, horizontal, vertical);
+        shape->m_centroid = FlipPoint(shape->m_centroid, horizontal, vertical);
         int count = shape->m_vertexCount;
+        
         for (int i = 0; i < count; ++i)
         {
-            FlipPoint(&shape->m_vertices[i], horizontal, vertical);
-            FlipPoint(&shape->m_normals[i], horizontal, vertical);
+            shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
         }
+
         // Switch the winding of the polygon
         for (int i = 0; i < count/2; ++i)
         {
@@ -238,10 +238,14 @@ namespace dmPhysics
             tmp = shape->m_vertices[i];
             shape->m_vertices[i] = shape->m_vertices[count-i-1];
             shape->m_vertices[count-i-1] = tmp;
+        }
 
-            tmp = shape->m_normals[i];
-            shape->m_normals[i] = shape->m_normals[count-i-1];
-            shape->m_normals[count-i-1] = tmp;
+        // Recalculate the normals
+        for (int i = 0; i < count; ++i)
+        {
+            b2Vec2 n = shape->m_vertices[(i+1)%count] - shape->m_vertices[i];
+            n.Normalize();
+            shape->m_normals[i] = b2Vec2(n.y, -n.x);
         }
     }
 
@@ -253,7 +257,7 @@ namespace dmPhysics
         {
             b2Shape* shape = fixture->GetShape();
             switch(shape->GetType()) {
-            case b2Shape::e_circle:     FlipPoint(&((b2CircleShape*)shape)->m_p, horizontal, vertical); break;
+            case b2Shape::e_circle:     ((b2CircleShape*)shape)->m_p = FlipPoint(((b2CircleShape*)shape)->m_p, horizontal, vertical); break;
             case b2Shape::e_polygon:    FlipPolygon((b2PolygonShape*)shape, horizontal, vertical); break;
             case b2Shape::e_edge:       // Currently unsupported by the engine
             case b2Shape::e_chain:

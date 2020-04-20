@@ -303,9 +303,10 @@ namespace dmSys
     /**
      * Open URL in default application
      * @param url url to open
+     * @param target target specifies where to open url
      * @return RESULT_OK on success
      */
-    Result OpenURL(const char* url);
+    Result OpenURL(const char* url, const char* target);
 
 
     /**

@@ -213,6 +213,8 @@ void _glfwPlatformSleep( double time );
 
 // Window management
 int  _glfwPlatformOpenWindow( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
+int  _glfwPlatformOpenWindowVulkan( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
+int  _glfwPlatformOpenWindowOpenGL( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
 void _glfwPlatformCloseWindow( void );
 int  _glfwPlatformGetWindowRefreshRate( void );
 int  _glfwPlatformGetDefaultFramebuffer( void );
@@ -277,8 +279,15 @@ const _GLFWfbconfig *_glfwChooseFBConfig( const _GLFWfbconfig *desired,
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z);
 
 // context control
-int  _glfwPlatformQueryAuxContext();
+int _glfwPlatformQueryAuxContext();
+int _glfwPlatformQueryAuxContextVulkan();
+int _glfwPlatformQueryAuxContextOpenGL();
 void* _glfwPlatformAcquireAuxContext();
+void* _glfwPlatformAcquireAuxContextVulkan();
+void* _glfwPlatformAcquireAuxContextOpenGL();
 void _glfwPlatformUnacquireAuxContext(void* context);
+void _glfwPlatformUnacquireAuxContextVulkan(void* context);
+void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
+void _glfwPlatformSetViewType(int view_type);
 
 #endif // _internal_h_

@@ -430,7 +430,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
@@ -492,10 +492,6 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        for (String excludedResource : project.getExcludedCollectionProxies()) {
-            excludedResourcesList.add(excludedResource);
-        }
-
         return manifestBuilder;
     }
 
@@ -529,8 +525,12 @@ public class GameProjectBuilder extends Builder<Void> {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
+                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode);
+
                 List<String> excludedResources = new ArrayList<String>();
-                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
+                for (String excludedResource : project.getExcludedCollectionProxies()) {
+                    excludedResources.add(excludedResource);
+                }
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {

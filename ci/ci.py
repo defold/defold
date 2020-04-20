@@ -288,24 +288,29 @@ def main(argv):
     branch = get_branch()
 
     # configure build flags based on the branch
+    release_channel = None
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
+        release_channel = "editor-stable"
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "beta":
         engine_channel = "beta"
         editor_channel = "beta"
+        release_channel = engine_channel
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "dev":
         engine_channel = "alpha"
         editor_channel = "alpha"
+        release_channel = engine_channel
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
-        engine_channel = "alpha"
+        engine_channel = "stable"
         editor_channel = "editor-alpha"
+        release_channel = editor_channel
         make_release = True
         engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
@@ -354,7 +359,7 @@ def main(argv):
             install(args)
         elif command == "release":
             if make_release:
-                release(channel = engine_channel)
+                release(channel = release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

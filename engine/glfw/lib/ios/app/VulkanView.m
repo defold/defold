@@ -51,21 +51,21 @@ static VulkanView* 		g_VulkanView = 0;
 
 @end
 
-void* _glfwPlatformAcquireAuxContext()
+void* _glfwPlatformAcquireAuxContextVulkan()
 {
     return 0;
 }
 
-void _glfwPlatformUnacquireAuxContext(void* context)
+void _glfwPlatformUnacquireAuxContextVulkan(void* context)
 {
 }
 
-int _glfwPlatformQueryAuxContext()
+int _glfwPlatformQueryAuxContextVulkan()
 {
     return 0;
 }
 
-int  _glfwPlatformOpenWindow( int width, int height,
+int  _glfwPlatformOpenWindowVulkan( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {

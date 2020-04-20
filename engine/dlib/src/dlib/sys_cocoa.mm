@@ -157,7 +157,7 @@ namespace dmSys
         return RESULT_OK;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         NSString* ns_url = [NSString stringWithUTF8String: url];
         BOOL ret = [[UIApplication sharedApplication] openURL:[NSURL URLWithString: ns_url]];
@@ -265,7 +265,7 @@ namespace dmSys
         return false;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         NSString* ns_url = [NSString stringWithUTF8String: url];
         BOOL ret = [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString: ns_url]];

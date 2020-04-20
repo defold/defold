@@ -256,7 +256,7 @@ static void LogGLError(GLint err)
 //========================================================================
 // Query auxillary context
 //========================================================================
-int _glfwPlatformQueryAuxContext()
+int _glfwPlatformQueryAuxContextOpenGL()
 {
     if(!_glfwWin.aux_context)
         return 0;
@@ -266,7 +266,7 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 // Acquire auxillary context for current thread
 //========================================================================
-void* _glfwPlatformAcquireAuxContext()
+void* _glfwPlatformAcquireAuxContextOpenGL()
 {
     if(!_glfwWin.aux_context)
     {
@@ -284,12 +284,12 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 // Unacquire auxillary context for current thread
 //========================================================================
-void _glfwPlatformUnacquireAuxContext(void* context)
+void _glfwPlatformUnacquireAuxContextOpenGL(void* context)
 {
     [EAGLContext setCurrentContext:nil];
 }
 
-int  _glfwPlatformOpenWindow( int width, int height,
+int  _glfwPlatformOpenWindowOpenGL( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
