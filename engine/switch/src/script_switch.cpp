@@ -206,7 +206,7 @@ namespace dmSwitchScript
      *
      * Sets the supported stylesets
      *
-     * @name switch.hid_set_gamepad_supported_stylest
+     * @name switch.hid_set_gamepad_supported_styleset
      * @param mask a bitmask of the supported styles
      */
     static int Switch_Hid_SetGamepadSupportedStyleset(lua_State* L)
@@ -229,7 +229,7 @@ namespace dmSwitchScript
         // hid
         {"hid_get_gamepad_color", Switch_Hid_GetGamepadColor},
         {"hid_set_gamepad_assignmentmode", Switch_Hid_SetGamePadAssignmentMode},
-        {"hid_set_gamepad_supported_stylest", Switch_Hid_SetGamepadSupportedStyleset},
+        {"hid_set_gamepad_supported_styleset", Switch_Hid_SetGamepadSupportedStyleset},
         
         {0, 0}
     };
@@ -300,27 +300,27 @@ namespace dmSwitchScript
         SETCONSTANT(HID_ASSIGN_MODE_SINGLE, dmSwitch::Hid::ASSIGN_MODE_SINGLE);
 
 
-        /*# Use with switch.hid_set_gamepad_supported_stylest
+        /*# Use with switch.hid_set_gamepad_supported_styleset
          * @name switch.HID_GAMEPAD_STYLE_HANDHELD
          * @variable
          */
         SETCONSTANT(HID_GAMEPAD_STYLE_HANDHELD, dmSwitch::Hid::GAMEPAD_STYLE_HANDHELD);
-        /*# Use with switch.hid_set_gamepad_supported_stylest
+        /*# Use with switch.hid_set_gamepad_supported_styleset
          * @name switch.HID_GAMEPAD_STYLE_FULLKEY
          * @variable
          */
         SETCONSTANT(HID_GAMEPAD_STYLE_FULLKEY, dmSwitch::Hid::GAMEPAD_STYLE_FULLKEY);
-        /*# Use with switch.hid_set_gamepad_supported_stylest
+        /*# Use with switch.hid_set_gamepad_supported_styleset
          * @name switch.HID_GAMEPAD_STYLE_DUAL
          * @variable
          */
         SETCONSTANT(HID_GAMEPAD_STYLE_DUAL, dmSwitch::Hid::GAMEPAD_STYLE_DUAL);
-        /*# Use with switch.hid_set_gamepad_supported_stylest
+        /*# Use with switch.hid_set_gamepad_supported_styleset
          * @name switch.HID_GAMEPAD_STYLE_JOYLEFT
          * @variable
          */
         SETCONSTANT(HID_GAMEPAD_STYLE_JOYLEFT, dmSwitch::Hid::GAMEPAD_STYLE_JOYLEFT);
-        /*# Use with switch.hid_set_gamepad_supported_stylest
+        /*# Use with switch.hid_set_gamepad_supported_styleset
          * @name switch.HID_GAMEPAD_STYLE_JOYRIGHT
          * @variable
          */
