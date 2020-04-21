@@ -1,16 +1,24 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
+# add build_tools folder to the import search path
+import sys, os
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
+sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
+
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
 import github
-from datetime import datetime
+import run
+import s3
+import BuildUtility
+import http_cache
 from tarfile import TarFile
-from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 from glob import glob
 from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
+
 
 """
     Build utility for installing external packages, building engine, editor and cr
@@ -55,11 +63,6 @@ EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
-
-class ExecException(Exception):
-    def __init__(self, retcode, output):
-        self.retcode = retcode
-        self.output = output
 
 
 def is_64bit_machine():
@@ -214,11 +217,7 @@ class Configuration(object):
         self.host2 = get_host_platform2()
         self.target_platform = target_platform
 
-        # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
-        # N.B. If we upgrade to more recent versions of python, then the method of module loading should also change.
-        build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
-        self.build_utility = build_utility_module.BuildUtility(self.target_platform, self.host, self.dynamo_home)
-        self._http_cache_module = imp.load_source('http_cache', os.path.join(self.defold, 'build_tools', 'http_cache.py'))
+        self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
@@ -244,7 +243,6 @@ class Configuration(object):
             self.github_token = os.environ.get("GITHUB_TOKEN")
 
         self.thread_pool = None
-        self.s3buckets = {}
         self.futures = []
 
         if version is None:
@@ -291,7 +289,7 @@ class Configuration(object):
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
         if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            self.exec_env_command(['tar', 'xfz', file], cwd = path)
+            run.env_command(self._form_env(), ['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
             tf.extractall(path)
@@ -304,7 +302,7 @@ class Configuration(object):
         os.chdir(parentdir)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        self.exec_env_command(['tar', 'xfz', src, '-C', dirname, '--strip-components', '1'])
+        run.env_command(self._form_env(), ['tar', 'xfz', src, '-C', dirname, '--strip-components', '1'])
         os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
@@ -329,7 +327,7 @@ class Configuration(object):
 
     def _download(self, url):
         self._log('Downloading %s' % (url))
-        path = self._http_cache_module.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
         if not path:
             self._log('Downloading %s failed' % (url))
         return path
@@ -423,10 +421,9 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
-        self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
-            self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+            run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -520,10 +517,10 @@ class Configuration(object):
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
 
-        self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
         # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
         # Does not seem to help to pre-create it or explicitly setting the --cache flag
-        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
+        run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
@@ -710,7 +707,7 @@ class Configuration(object):
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
-        self.exec_shell_command("%s %s" % (strip, path))
+        run.shell_command("%s %s" % (strip, path))
         return True
 
     def archive_engine(self):
@@ -832,7 +829,7 @@ class Configuration(object):
             skip_build_tests.append('--skip-build-tests')
         cwd = join(self.defold_root, '%s/%s' % (dir, lib))
         plf_args = ['--platform=%s' % platform]
-        self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+        run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
         self._log('Building bob light')
@@ -840,10 +837,10 @@ class Configuration(object):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
 
         env = self._form_env()
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
+        run.command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
@@ -882,7 +879,7 @@ class Configuration(object):
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            self.exec_command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            run.command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
@@ -898,12 +895,12 @@ class Configuration(object):
             self._log("Missing go for target platform, run install_ext with --platform set.")
             exit(5)
 
-        self.exec_env_command([go, 'clean', '-i', 'github.com/...'])
-        self.exec_env_command([go, 'install', 'github.com/...'])
-        self.exec_env_command([go, 'clean', '-i', 'defold/...'])
+        run.env_command(self._form_env(), [go, 'clean', '-i', 'github.com/...'])
+        run.env_command(self._form_env(), [go, 'install', 'github.com/...'])
+        run.env_command(self._form_env(), [go, 'clean', '-i', 'defold/...'])
         if not self.skip_tests:
-            self.exec_env_command([go, 'test', 'defold/...'])
-        self.exec_env_command([go, 'install', 'defold/...'])
+            run.env_command(self._form_env(), [go, 'test', 'defold/...'])
+        run.env_command(self._form_env(), [go, 'install', 'defold/...'])
 
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
@@ -991,7 +988,7 @@ class Configuration(object):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
         else:
             self.copy_local_bob_artefacts()
 
@@ -1016,7 +1013,7 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
+        bucket = s3.get_bucket(u.hostname)
 
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
@@ -1054,7 +1051,7 @@ class Configuration(object):
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
-        self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+        run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
@@ -1065,8 +1062,8 @@ class Configuration(object):
     def download_editor2(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
-        bucket = self._get_s3_bucket(bucket_name)
-        prefix = self._get_s3_archive_prefix()
+        bucket = s3.get_bucket(bucket_name)
+        prefix = s3.get_archive_prefix(self.archive_path, self._git_sha1())
 
         editor_filename = "Defold-%s.zip" % self.target_platform
         editor_path = join(self.defold_root, 'editor', 'target', 'editor')
@@ -1087,7 +1084,7 @@ class Configuration(object):
 
     def run_editor_script(self, cmd):
         cwd = join(self.defold_root, 'editor')
-        self.exec_env_command(cmd, cwd = cwd)
+        run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
         cmd = ['./scripts/bundle.py',
@@ -1180,47 +1177,14 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    def _find_files_in_bucket(self, bucket, sha1, path, pattern):
-        root = urlparse.urlparse(self.archive_path).path[1:]
-        base_prefix = os.path.join(root, sha1)
-        prefix = os.path.join(base_prefix, path)
-        files = []
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match(pattern, x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-        return files
 
-    # Get archive files for a single release/sha1
-    def _get_files(self, bucket, sha1):
-        files = []
-        files = files + self._find_files_in_bucket(bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$')
-        files = files + self._find_files_in_bucket(bucket, sha1, "bob", '.*(/bob.jar)$')
-        files = files + self._find_files_in_bucket(bucket, sha1, "editor", '.*(/Defold-.*)$')
-        files = files + self._find_files_in_bucket(bucket, sha1, "alpha", '.*(/Defold-.*)$')
-        files = files + self._find_files_in_bucket(bucket, sha1, "beta", '.*(/Defold-.*)$')
-        files = files + self._find_files_in_bucket(bucket, sha1, "stable", '.*(/Defold-.*)$')
-        files = files + self._find_files_in_bucket(bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
-        return files
 
-    def _get_single_release(self, version_tag, sha1):
-        u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
-        files = self._get_files(bucket, sha1)
-
-        return {'tag': version_tag,
-                'sha1': sha1,
-                'abbrevsha1': sha1[:7],
-                'files': files}
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
 
-        tags = self.exec_shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
+        tags = run.shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
         releases = []
         for line in tags:
@@ -1229,7 +1193,7 @@ class Configuration(object):
                 continue
             m = re.match('(.*?) refs/tags/(.*?)$', line)
             sha1, tag = m.groups()
-            epoch = self.exec_shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
+            epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
             files = self._get_files(bucket, sha1)
             if len(files) > 0:
@@ -1331,12 +1295,12 @@ class Configuration(object):
 </html>
 """
 
-        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
+        if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
             self._log('Running git fetch to get latest tags and refs...')
-            self.exec_shell_command('git fetch')
+            run.shell_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
@@ -1347,10 +1311,10 @@ class Configuration(object):
 
         if self.channel == 'stable':
             # Move artifacts to a separate page?
-            model['releases'] = self._get_tagged_releases()
+            model['releases'] = s3.get_tagged_releases(self.archive_path)
             model['has_releases'] = True
         else:
-            model['releases'] = self._get_single_release(self.version, self._git_sha1())
+            model['releases'] = s3.get_single_release(self.archive_path, self.version, self._git_sha1())
             model['has_releases'] = True
 
         # NOTE
@@ -1536,7 +1500,7 @@ class Configuration(object):
         # * Defold SDK files
         # * launcher files, used to launch editor2
         pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
-        prefix = self._get_s3_archive_prefix()
+        prefix = s3.get_archive_prefix(self.archive_path, self._git_sha1())
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
 
@@ -1572,7 +1536,7 @@ class Configuration(object):
         host2 = get_host_platform2()
         install_path = join('tmp', 'smoke_test')
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'attach', path])
+            out = run.command(['hdiutil', 'attach', path])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
             words = last.split()
@@ -1601,7 +1565,7 @@ class Configuration(object):
         host2 = get_host_platform2()
         shutil.rmtree(info['install_path'])
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'detach', info['fs']])
+            out = run.command(['hdiutil', 'detach', info['fs']])
 
     def _get_config(self, config, section, option, overrides):
         combined = '%s.%s' % (section, option)
@@ -1633,7 +1597,7 @@ class Configuration(object):
         if 'win32' in host2:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
         elif 'linux' in host2:
-            self.exec_command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
+            run.command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
             java = join('Defold', 'packages', jdk, 'bin', 'java')
         else:
             java = join('Defold.app', 'Contents', 'Resources', 'packages', jdk, 'bin', 'java')
@@ -1710,46 +1674,6 @@ class Configuration(object):
 # END: SMOKE TEST
 # ------------------------------------------------------------
 
-
-    def _get_s3_archive_prefix(self):
-        u = urlparse.urlparse(self.archive_path)
-        assert (u.scheme == 's3')
-        sha1 = self._git_sha1()
-        prefix = os.path.join(u.path, sha1)[1:]
-        return prefix
-
-    def _get_s3_bucket(self, bucket_name):
-        if bucket_name in self.s3buckets:
-            return self.s3buckets[bucket_name]
-
-        configpath = os.path.expanduser("~/.s3cfg")
-        if os.path.exists(configpath):
-            config = ConfigParser()
-            config.read(configpath)
-            key = config.get('default', 'access_key')
-            secret = config.get('default', 'secret_key')
-        else:
-            key = os.getenv("S3_ACCESS_KEY")
-            secret = os.getenv("S3_SECRET_KEY")
-
-        print("_get_s3_bucket key %s" % (key))
-
-        if not (key and secret):
-            self._log('S3 key and/or secret not found in .s3cfg or environment variables')
-            sys.exit(5)
-
-        from boto.s3.connection import S3Connection
-        from boto.s3.connection import OrdinaryCallingFormat
-        from boto.s3.key import Key
-
-        # NOTE: We hard-code host (region) here and it should not be required.
-        # but we had problems with certain buckets with period characters in the name.
-        # Probably related to the following issue https://github.com/boto/boto/issues/621
-        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
-        bucket = conn.get_bucket(bucket_name)
-        self.s3buckets[bucket_name] = bucket
-        return bucket
-
     def download_file(self, path, url):
         url = url.replace('\\', '/')
         self._log('Downloading %s -> %s' % (url, path))
@@ -1761,7 +1685,7 @@ class Configuration(object):
         elif u.scheme == 's3':
             from boto.s3.key import Key
 
-            bucket = self._get_s3_bucket(u.netloc)
+            bucket = s3.get_bucket(u.netloc)
             k = Key(bucket)
             k.key = u.path
             k.get_contents_to_filename(path)
@@ -1781,8 +1705,8 @@ class Configuration(object):
                 if path[1] == ':':
                     path = "/" + path[:1] + path[2:]
 
-            self.exec_env_command(['ssh', u.scheme, 'mkdir -p %s' % u.path])
-            self.exec_env_command(['scp', path, url])
+            run.env_command(self._form_env(), ['ssh', u.scheme, 'mkdir -p %s' % u.path])
+            run.env_command(self._form_env(), ['scp', path, url])
         elif u.scheme == 's3':
             bucket = self._get_s3_bucket(u.netloc)
 
@@ -1854,59 +1778,6 @@ class Configuration(object):
             f()
         self.futures = []
 
-    def _exec_command(self, arg_list, **kwargs):
-        arg_str = arg_list
-        if not isinstance(arg_str, basestring):
-            arg_str = ' '.join(arg_list)
-        self._log('[exec] %s' % arg_str)
-
-        if sys.stdout.isatty():
-            # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
-            if not 'stdout' in kwargs:
-                kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
-            process = subprocess.Popen(arg_list, **kwargs)
-            output = process.communicate()[0]
-            if process.returncode != 0:
-                self._log(output)
-        else:
-            # On the CI machines, we make sure we produce a steady stream of output
-            # However, this also makes us lose the color information
-            if 'stdout' in kwargs:
-                del kwargs['stdout']
-            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
-
-            output = ''
-            while True:
-                line = process.stdout.readline()
-                if line != '':
-                    output += line
-                    self._log(line.rstrip())
-                else:
-                    break
-
-        if process.wait() != 0:
-            raise ExecException(process.returncode, output)
-
-        return output
-
-    def exec_command_no_quit(self, args):
-        # Executes a command and raises an ExecException if it fails
-        return self._exec_command(args, shell = False)
-
-    def exec_command(self, args):
-        # Executes a command, and exits if it fails
-        try:
-            return self._exec_command(args, shell = False)
-        except ExecException, e:
-            sys.exit(e.returncode)
-
-    def exec_shell_command(self, args):
-        # Executes a command, and exits if it fails
-        try:
-            return self._exec_command(args, shell = True)
-        except ExecException, e:
-            sys.exit(e.returncode)
-
     def _form_env(self):
         env = dict(os.environ)
 
@@ -1964,12 +1835,6 @@ class Configuration(object):
             env['NODE_PATH'] = xhr2_path
 
         return env
-
-    def exec_env_command(self, args, **kwargs):
-        return self._exec_command(args, shell = False, stdout = None, env = self._form_env(), **kwargs)
-
-    def exec_env_shell_command(self, args, **kwargs):
-        return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
