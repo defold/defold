@@ -484,8 +484,10 @@ var LibraryGLFW = {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
         if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
           GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
+          if (!GLFW.lastGamepadState) {
+            return;
+          }
           GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
-
           for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
             var gamepad = GLFW.lastGamepadState[joy];
 
