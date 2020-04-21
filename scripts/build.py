@@ -423,6 +423,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
+        self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
