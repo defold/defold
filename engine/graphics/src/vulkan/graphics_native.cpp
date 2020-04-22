@@ -98,6 +98,18 @@ namespace dmGraphics
         }
     }
 
+    uint32_t VulkanGetWindowRefreshRate(HContext context)
+    {
+        if (context->m_WindowOpened)
+        {
+            return glfwGetWindowRefreshRate();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
     {
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
@@ -161,6 +173,7 @@ namespace dmGraphics
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -261,18 +274,6 @@ namespace dmGraphics
     uint32_t VulkanGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
-    }
-
-    uint32_t VulkanGetWindowRefreshRate(HContext context)
-    {
-        if (context->m_WindowOpened)
-        {
-            return glfwGetWindowRefreshRate();
-        }
-        else
-        {
-            return 0;
-        }
     }
 
     void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height)
