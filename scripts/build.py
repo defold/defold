@@ -1002,12 +1002,12 @@ class Configuration(object):
 
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         args = [ant, 'clean', 'install'] + ant_args
-        self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+        run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
         if not self.skip_tests:
             cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
             args = [ant, 'test-clean', 'test'] + ant_args
-            self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+            run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
 
     def build_sdk(self):
