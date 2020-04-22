@@ -23,9 +23,7 @@ Verify that Java is installed and working:
 
 ### Python
 
-You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages. Install dependencies:
-
-    > easy_install requests
+You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages.
 
 #### macOS
 
