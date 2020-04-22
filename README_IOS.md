@@ -35,12 +35,18 @@ See also: [Attaching to Process](http://stackoverflow.com/questions/9721830/atta
 
 Good tool for iOS deployment / debugging (lldb): [ios-deploy](https://github.com/phonegap/ios-deploy)
 
-    $ ios-deploy --bundle blossom_blast_saga.ipa
+    $ ios-deploy --bundle test.ipa
 
 or
 
-	$ ios-deploy --debug --bundle blossom_blast_saga.app
+	$ ios-deploy --debug --bundle test.app
 
+### QuickLook plugin for .ipa and .mobileprovision
+
+It's often required to peek inside the permissions of a package or mobile provisioning file.
+For this you can install [ProvisionQL](https://github.com/ealeksandrov/ProvisionQL)
+
+        $ brew cask install provisionql
 
 ## iOS Crashdumps
 
@@ -73,45 +79,15 @@ From XCode 9.+ and onwards, you'll see the added/modified/deprecated items here:
 
     https://developer.apple.com/download/more/
 
-### Package iPhone SDK
+### Package SDK (iPhone, iPhone Simulator, MacOS, Xcode toolchain)
 
-The easiest way is to pack the folder directly.
-However, the extracted folder needs to have the version number, so make sure you
-extract it properly!
-
-    $ cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs
-    $ tar -czvf ~/work/iPhoneOS11.2.sdk.tar.gz iPhoneOS.sdk
-
-#### How to test locally on the engine build:
-
-    $ tar -xvf iPhoneOS11.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
-
-### Package macOS SDK
-
-    $ cd /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-    # the -h option didn't work on this package, it got caught in a resolve loop
-    $ tar -cvzf ~/work/MacOSX10.13.sdk.tar.gz MacOSX.sdk
-
-
-### Package toolchain
-
-    $ cd /Applications/Xcode.app/Contents/Developer/Toolchains
-    $ tar -cvzf ~/work/XcodeToolchain9.2.tar.gz XcodeDefault.xctoolchain
+See the script under `scripts/package`
 
 #### How to test locally on the engine build:
 
     $ tar -xvf iPhoneOS11.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
     $ tar -xvf XcodeToolchain9.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
     $ tar -xvf MacOSX10.12.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
-
-### Upload SDKs and toolchain
-
-Upload package to S3:
-
-* Login in to 'Amazon Web Services' using the Defold service account (see LastPass)
-* Click S3
-* Click 'defold-packages'
-* Upload package (default settings)
 
 ### Build.py
 
@@ -135,7 +111,7 @@ making sure that the contained library has a version number!
     NOTE: If it doesn't have a version number, it will bug out in subtle ways (E.g. the device orientation events won't fire properly)
 
     RUN \
-      wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt
+      wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt
 
 ### Defold SDK (build.yml)
 

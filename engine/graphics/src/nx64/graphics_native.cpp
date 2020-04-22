@@ -156,6 +156,15 @@ namespace dmGraphics
         return result;
     }
 
+    uint32_t VulkanGetWindowRefreshRate(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+            return 60;
+        else
+            return 0;
+    }
+
     WindowResult VulkanOpenWindow(HContext context, WindowParams* params)
     {
         assert(context);
@@ -199,6 +208,7 @@ namespace dmGraphics
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -281,15 +291,6 @@ namespace dmGraphics
             }
         }
         return 0;
-    }
-
-    uint32_t VulkanGetWindowRefreshRate(HContext context)
-    {
-        assert(context);
-        if (context->m_WindowOpened)
-            return 60;//glfwGetWindowRefreshRate();
-        else
-            return 0;
     }
 
     uint32_t VulkanGetDisplayDpi(HContext context)

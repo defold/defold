@@ -32,7 +32,102 @@ namespace dmGraphics
         } \
     }
 
-    Context* g_Context = 0;
+    // Validation layers to enable
+    static const char*   g_validation_layers[]        = { "VK_LAYER_LUNARG_standard_validation" };
+    static const uint8_t g_validation_layer_count     = 1;
+    // Validation layer extensions
+    static const char*   g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    static const uint8_t g_validation_layer_ext_count = 1;
+    // In flight frames - number of concurrent frames being processed
+    static const uint8_t g_max_frames_in_flight       = 2;
+
+    typedef dmHashTable64<Pipeline>    PipelineCache;
+    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
+
+    static struct Context
+    {
+        Context(const ContextParams& params, const VkInstance vk_instance)
+        : m_MainRenderTarget(0)
+        {
+            memset(this, 0, sizeof(*this));
+            m_Instance                = vk_instance;
+            m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
+            m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+            m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+            m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+        }
+
+        ~Context()
+        {
+            if (m_Instance != VK_NULL_HANDLE)
+            {
+                vkDestroyInstance(m_Instance, 0);
+                m_Instance = VK_NULL_HANDLE;
+            }
+        }
+
+        Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        PipelineCache                   m_PipelineCache;
+        PipelineState                   m_PipelineState;
+        SwapChain*                      m_SwapChain;
+        SwapChainCapabilities           m_SwapChainCapabilities;
+        PhysicalDevice                  m_PhysicalDevice;
+        LogicalDevice                   m_LogicalDevice;
+        FrameResource                   m_FrameResources[g_max_frames_in_flight];
+        VkInstance                      m_Instance;
+        VkSurfaceKHR                    m_WindowSurface;
+        dmArray<TextureSampler>         m_TextureSamplers;
+        uint32_t*                       m_DynamicOffsetBuffer;
+        uint16_t                        m_DynamicOffsetBufferSize;
+        // Window callbacks
+        WindowResizeCallback            m_WindowResizeCallback;
+        void*                           m_WindowResizeCallbackUserData;
+        WindowCloseCallback             m_WindowCloseCallback;
+        void*                           m_WindowCloseCallbackUserData;
+        WindowFocusCallback             m_WindowFocusCallback;
+        void*                           m_WindowFocusCallbackUserData;
+        WindowIconifyCallback           m_WindowIconifyCallback;
+        void*                           m_WindowIconifyCallbackUserData;
+        // Main device rendering constructs
+        dmArray<VkFramebuffer>          m_MainFrameBuffers;
+        dmArray<VkCommandBuffer>        m_MainCommandBuffers;
+        VkCommandBuffer                 m_MainCommandBufferUploadHelper;
+        ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
+        dmArray<ScratchBuffer>          m_MainScratchBuffers;
+        dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
+        VkRenderPass                    m_MainRenderPass;
+        Texture                         m_MainTextureDepthStencil;
+        RenderTarget                    m_MainRenderTarget;
+        Viewport                        m_MainViewport;
+        // Rendering state
+        RenderTarget*                   m_CurrentRenderTarget;
+        DeviceBuffer*                   m_CurrentVertexBuffer;
+        VertexDeclaration*              m_CurrentVertexDeclaration;
+        Program*                        m_CurrentProgram;
+        // Misc state
+        TextureFilter                   m_DefaultTextureMinFilter;
+        TextureFilter                   m_DefaultTextureMagFilter;
+        Texture*                        m_DefaultTexture;
+        uint32_t                        m_TextureFormatSupport;
+        uint32_t                        m_Width;
+        uint32_t                        m_Height;
+        uint32_t                        m_WindowWidth;
+        uint32_t                        m_WindowHeight;
+        uint32_t                        m_FrameBegun           : 1;
+        uint32_t                        m_CurrentFrameInFlight : 1;
+        uint32_t                        m_WindowOpened         : 1;
+        uint32_t                        m_VerifyGraphicsCalls  : 1;
+        uint32_t                        m_ViewportChanged      : 1;
+        uint32_t                        m_CullFaceChanged      : 1;
+        uint32_t                                               : 26;
+    } *g_Context = 0;
+
+    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -572,6 +667,29 @@ namespace dmGraphics
 
         // Create default texture sampler
         CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
+
+        // Create default dummy texture
+        TextureCreationParams default_texture_creation_params;
+        default_texture_creation_params.m_Width          = 1;
+        default_texture_creation_params.m_Height         = 1;
+        default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
+        default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
+
+        const uint8_t default_texture_data[] = { 255, 0, 255, 255 };
+
+        TextureParams default_texture_params;
+        default_texture_params.m_Width  = 1;
+        default_texture_params.m_Height = 1;
+        default_texture_params.m_Data   = default_texture_data;
+        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+
+        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
+        SetTexture(context->m_DefaultTexture, default_texture_params);
+
+        for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
+        {
+            context->m_TextureUnits[i] = context->m_DefaultTexture;
+        }
 
         return res;
     }
@@ -1325,7 +1443,11 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(size > 0);
+        if (size == 0)
+        {
+            return;
+        }
+
         assert(buffer);
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
@@ -3142,7 +3264,7 @@ bail:
     static void VulkanDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
-        context->m_TextureUnits[unit] = 0;
+        context->m_TextureUnits[unit] = context->m_DefaultTexture;
     }
 
     static uint32_t VulkanGetMaxTextureSize(HContext context)
