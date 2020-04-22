@@ -78,6 +78,23 @@ namespace dmGraphics
         glfwTerminate();
     }
 
+    void NativeBeginFrame(HContext context)
+    {
+    }
+
+    static void OnWindowResize(int width, int height)
+    {
+        assert(g_Context);
+        g_Context->m_WindowWidth  = (uint32_t)width;
+        g_Context->m_WindowHeight = (uint32_t)height;
+
+        SwapChainChanged(g_Context, &g_Context->m_WindowWidth, &g_Context->m_WindowHeight);
+
+        if (g_Context->m_WindowResizeCallback != 0x0)
+        {
+            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+        }
+    }
 
     static int OnWindowClose()
     {

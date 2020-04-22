@@ -491,7 +491,8 @@ platforms:
         LDSCRIPT: "{{env.NINTENDO_SDK_ROOT}}/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
         TRIPLET:  "aarch64-nintendo-nx-elf"
     context:
-        excludeSymbols:     ["WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "NullSoundDevice"]
+        excludeSymbols:     ["WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "NullSoundDevice", "GraphicsAdapterOpenGL"]
+        symbols:            ["AudioDecoderStbVorbis", "GraphicsAdapterVulkan", "SwitchExt"]
         engineLibs:         ["app", "engine", "engine_service", "mbedtls", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics_vulkan", "physics_2d", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "gui", "crashext", "sound", "liveupdate", "switchext"]
         libPaths:           ["{{dynamo_home}}/lib/arm64-nx64", "{{dynamo_home}}/ext/lib/arm64-nx64", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Debug", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop"]
         defines:            ["DM_PLATFORM_SWITCH", "LUA_BYTECODE_ENABLE_64", "NN_ENABLE_LOG", "NN_ENABLE_ASSERT", "NN_ENABLE_ABORT_MESSAGE", "NN_NINTENDO_SDK", "NN_SDK_BUILD_DEBUG"]
@@ -506,8 +507,6 @@ platforms:
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/vulkan.nss",
                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/opengl.nss"]
-        dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
-        symbols:    ["AudioDecoderStbVorbis", "SwitchExt"]
         sdknss:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss"]
         crtend:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/crtend.o"]
 
