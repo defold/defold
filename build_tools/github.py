@@ -1,7 +1,7 @@
-import requests
 import mimetypes
 
 def get(url, token):
+    import requests
     try:
         response = requests.get(url, headers={"Authorization": "token %s" % (token)})
         response.raise_for_status()
@@ -11,6 +11,7 @@ def get(url, token):
         return None
 
 def post(url, token, data = None, json = None, files = None, headers = None):
+    import requests
     try:
         if not headers:
             headers = {}
@@ -24,6 +25,7 @@ def post(url, token, data = None, json = None, files = None, headers = None):
         return None
 
 def delete(url, token):
+    import requests
     try:
         response = requests.delete(url, headers={"Authorization": "token %s" % (token)})
         response.raise_for_status()

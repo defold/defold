@@ -421,6 +421,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
+        run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
@@ -1179,33 +1180,6 @@ class Configuration(object):
 #
 
 
-
-    def _get_tagged_releases(self):
-        u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
-
-        tags = run.shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
-        tags.reverse()
-        releases = []
-        for line in tags:
-            line = line.strip()
-            if not line:
-                continue
-            m = re.match('(.*?) refs/tags/(.*?)$', line)
-            sha1, tag = m.groups()
-            epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
-            date = datetime.fromtimestamp(float(epoch))
-            files = self._get_files(bucket, sha1)
-            if len(files) > 0:
-                releases.append({'tag': tag,
-                                 'sha1': sha1,
-                                 'abbrevsha1': sha1[:7],
-                                 'date': str(date),
-                                 'files': files})
-
-        return releases
-
-
     def release(self):
         page = """
 <!DOCTYPE html>
@@ -1303,7 +1277,7 @@ class Configuration(object):
             run.shell_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
+        bucket = s3.get_bucket(u.hostname)
         host = 'd.defold.com'
 
         model = {'releases': [],
@@ -1480,7 +1454,7 @@ class Configuration(object):
     def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
-        bucket = self._get_s3_bucket(bucket_name)
+        bucket = s3.get_bucket(bucket_name)
 
         local_dir = os.path.join(self.dynamo_home, 'archive')
         self._mkdirs(local_dir)
@@ -1708,7 +1682,7 @@ class Configuration(object):
             run.env_command(self._form_env(), ['ssh', u.scheme, 'mkdir -p %s' % u.path])
             run.env_command(self._form_env(), ['scp', path, url])
         elif u.scheme == 's3':
-            bucket = self._get_s3_bucket(u.netloc)
+            bucket = s3.get_bucket(u.netloc)
 
             if not self.thread_pool:
                 self.thread_pool = ThreadPool(8)
