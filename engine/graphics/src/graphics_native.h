@@ -8,6 +8,8 @@ namespace dmGraphics
 {
 	bool NativeInit(const ContextParams& params);
 	void NativeExit();
+    
+    void NativeBeginFrame(HContext context);
 
     void SwapBuffers();
 

@@ -8,6 +8,7 @@
 
 #include <dlib/sys.h>
 #include "../graphics.h"
+#include "../graphics_native.h"
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 
@@ -16,6 +17,7 @@
 
 #include <nn/nn_Result.h>
 #include <nn/fs.h>
+#include <nn/oe.h>
 #include <nn/os.h>
 #include <nn/init.h>
 #include <nn/vi.h>
@@ -42,9 +44,11 @@ namespace
 
 }; // end anonymous namespace
 
+// TODO: Put these in a native context struct
 nn::vi::Display*    g_pDisplay = 0;
 nn::vi::Layer*      g_pLayer = 0;
 int                 g_NativeInitialized = 0;
+nn::os::SystemEvent g_DisplayResolutionChangeEvent;
 
 namespace dmGraphics
 {
@@ -82,6 +86,8 @@ namespace dmGraphics
             result = nn::vi::CreateLayer(&g_pLayer, g_pDisplay);
             NN_ASSERT(result.IsSuccess());
 
+            nn::oe::GetDefaultDisplayResolutionChangeEvent( &g_DisplayResolutionChangeEvent );
+
             g_NativeInitialized = 1;
         }
         return true;
@@ -92,6 +98,16 @@ namespace dmGraphics
         nn::vi::DestroyLayer(g_pLayer);
         nn::vi::CloseDisplay(g_pDisplay);
         nn::vi::Finalize();
+    }
+
+    void NativeBeginFrame(HContext context)
+    {
+        if (g_DisplayResolutionChangeEvent.TryWait())
+        {
+            int width, height;
+            nn::oe::GetDefaultDisplayResolution( &width, &height );
+            VulkanResizeWindow(context, width, height);
+        }
     }
 
     static const char*   g_extension_names[]       = {
@@ -322,8 +338,7 @@ namespace dmGraphics
 
     void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height)
     {
-        *width = 1280;
-        *height = 720;
+        nn::oe::GetDefaultDisplayResolution((int*)width, (int*)height);
     }
 
     void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
@@ -335,6 +350,9 @@ namespace dmGraphics
             context->m_Height = height;
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
+
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+
             if (context->m_WindowResizeCallback)
             {
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
@@ -344,6 +362,7 @@ namespace dmGraphics
 
     void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
+        VulkanSetWindowSize(context, width, height);
     }
 
     void SwapBuffers()

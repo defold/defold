@@ -10,6 +10,7 @@
 
 #include <nn/fs.h>
 #include <nn/os.h>
+#include <nn/oe.h>
 
 extern "C" int main(int argc, char** argv);
 
@@ -22,6 +23,9 @@ extern "C" void nnMain()
     nn::fs::MountRom("data", mount_rom_cache_buffer, mount_rom_cache_size);
 
     dmApp::TestInitialize(); // nop in the correct library
+
+    nn::oe::Initialize();
+    nn::oe::SetOperationModeChangedNotificationEnabled(true); // Detect docking/undocking
 
     int r = main(nn::os::GetHostArgc(), nn::os::GetHostArgv());
     (void)r;
