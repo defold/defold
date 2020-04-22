@@ -14,7 +14,7 @@ def release(config):
     # get the sha for the version we are releasing by
     # searching all tags for the version
     ref_tag = None
-    ref_tags = github.get("https://api.github.com/repos/defold/defold/git/refs/tags", config.github_token)
+    ref_tags = github.get("/repos/defold/defold/git/refs/tags", config.github_token)
     if not ref_tags:
         log("Unable to get ref tags")
         exit(1)
@@ -25,7 +25,7 @@ def release(config):
     if not ref_tag:
         log("Unable to find ref tag for version %s" % (config.version))
         exit(1)
-    release_tag = github.get("https://api.github.com/repos/defold/defold/git/tags/%s" % (ref_tag.get("object").get("sha")), config.github_token)
+    release_tag = github.get("/repos/defold/defold/git/tags/%s" % (ref_tag.get("object").get("sha")), config.github_token)
     if not release_tag:
         log("Unable to get release tag")
         exit(1)
@@ -40,7 +40,7 @@ def release(config):
 
     # try to find existing release for the current version
     release = None
-    response = github.get("https://api.github.com/repos/defold/defold/releases", config.github_token)
+    response = github.get("/repos/defold/defold/releases", config.github_token)
     if not response:
         log("Unable to get releases")
         exit(1)
@@ -58,7 +58,7 @@ def release(config):
             "draft": False,
             "prerelease": False
         }
-        release = github.post("https://api.github.com/repos/defold/defold/releases", config.github_token, json = data)
+        release = github.post("/repos/defold/defold/releases", config.github_token, json = data)
         if not release:
             log("Unable to create new release")
             exit(1)
@@ -72,7 +72,7 @@ def release(config):
     log("Deleting existing artifacts from the release")
     for asset in release.get("assets", []):
         log("Deleting %s" % (asset.get("id")))
-        github.delete("https://api.github.com/repos/defold/defold/releases/assets/%s" % (asset.get("id")), config.github_token)
+        github.delete("/repos/defold/defold/releases/assets/%s" % (asset.get("id")), config.github_token)
 
     # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
     # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}

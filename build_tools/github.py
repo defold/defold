@@ -1,9 +1,14 @@
 import mimetypes
 
+def _fix_url(url):
+    if url.startswith("http"):
+        return url
+    return "https://api.github.com" + ("/" if not url.startswith("/") else "") + url
+
 def get(url, token):
     import requests
     try:
-        response = requests.get(url, headers={"Authorization": "token %s" % (token)})
+        response = requests.get(_fix_url(url), headers={"Authorization": "token %s" % (token)})
         response.raise_for_status()
         return response.json()
     except Exception as err:
@@ -17,7 +22,7 @@ def post(url, token, data = None, json = None, files = None, headers = None):
             headers = {}
         headers["Authorization"] = "token %s" % (token)
 
-        response = requests.post(url, data = data, json = json, files = files, headers=headers)
+        response = requests.post(_fix_url(url), data = data, json = json, files = files, headers=headers)
         response.raise_for_status()
         return response.json()
     except Exception as err:
@@ -27,7 +32,7 @@ def post(url, token, data = None, json = None, files = None, headers = None):
 def delete(url, token):
     import requests
     try:
-        response = requests.delete(url, headers={"Authorization": "token %s" % (token)})
+        response = requests.delete(_fix_url(url), headers={"Authorization": "token %s" % (token)})
         response.raise_for_status()
         if response.content and response.content != "":
             return response.json()
