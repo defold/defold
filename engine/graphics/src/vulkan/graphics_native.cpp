@@ -30,6 +30,9 @@ namespace dmGraphics
     static const char* g_validation_layers[1];
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
+
+    extern Context* g_Context;
+
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
         *num_extensions = sizeof(g_extension_names) / sizeof(g_extension_names[0]);
@@ -59,14 +62,15 @@ namespace dmGraphics
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
-            return 0x0;
+            return false;
         }
 #endif
 
         if (glfwInit() == 0)
+        {
             dmLogError("Could not initialize glfw.");
         }
-        return ret;
+        return true;
     }
 
     void NativeExit()
@@ -316,7 +320,7 @@ namespace dmGraphics
     #endif
     }
 
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
+    void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
     {
     }
 }

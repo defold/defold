@@ -15,50 +15,45 @@ if not 'DYNAMO_HOME' in os.environ:
 def is_platform_private(platform):
     return platform in ['arm64-nx64']
 
-_private_lib_imported = False
-def _import_private_lib(platform):
-    global _private_lib_imported
-    _private_lib_imported = True
-    if not is_platform_private(platform):
-        class waf_dynamo_private(object):
-            @classmethod
-            def set_options(cls, opt):
-                pass
-            @classmethod
-            def setup_tools(cls, ctx, build_util):
-                pass
-            @classmethod
-            def setup_vars(cls, ctx, build_util):
-                pass
-            @classmethod
-            def is_platform_private(cls, platform):
+
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'private'))
+    import waf_dynamo_private
+except:
+    class waf_dynamo_private(object):
+        @classmethod
+        def set_options(cls, opt):
+            pass
+        @classmethod
+        def setup_tools(cls, ctx, build_util):
+            pass
+        @classmethod
+        def setup_vars(cls, ctx, build_util):
+            pass
+        @classmethod
+        def supports_feature(cls, platform, feature, data):
+            if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android', 'x86_64-linux'):
                 return False
-            @classmethod
-            def supports_feature(cls, platform, feature, data):
-                if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android', 'x86_64-linux'):
-                    return False
-                return True
-        globals()['waf_dynamo_private'] = waf_dynamo_private
-        return
-    try:
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'private'))
-        import waf_dynamo_private
-        globals()[waf_dynamo_private.__name__] = waf_dynamo_private
-    except ImportError, e:
-        print e # TODO: handle non existing file gracefully, but report rest as a failure!
-        raise
+            return True
+        def transform_runnable_path(cls, path):
+            return path
+    globals()['waf_dynamo_private'] = waf_dynamo_private
+
+
 
 def platform_supports_feature(platform, feature, data):
-    _import_private_lib(platform)
+    if feature == 'vulkan':
+        return platform not in ['win32', 'x86_64-win32', 'x86<-64-linux', 'js-web', 'wasm-web']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
-    _import_private_lib(ctx.env.PLATFORM)
     return waf_dynamo_private.setup_tools(ctx, build_util)
 
 def platform_setup_vars(ctx, build_util):
-    _import_private_lib(ctx.env.PLATFORM)
     return waf_dynamo_private.setup_vars(ctx, build_util)
+
+def transform_runnable_path(platform, path):
+    return waf_dynamo_private.transform_runnable_path(platform, path)
 
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
@@ -1265,10 +1260,8 @@ def run_tests(valgrind = False, configfile = None):
                 if task.name in ['cxx_link', 'cc_link']:
                     break
 
-            if hasattr(task, 'bundle_output'):
-                program = task.bundle_output
-            else:
-                program = task.outputs[0].abspath(task.env)
+            program = transform_runnable_path(Build.bld.env.PLATFORM, task.outputs[0].abspath(task.env))
+
             cmd = launch_pattern % (program, configfile if configfile else '')
             if 'web' in Build.bld.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
@@ -1708,7 +1701,7 @@ def detect(conf):
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
-    conf.env['STATICLIB_APP'] = ['app']
+    conf.env['STATICLIB_APP'] = ['app_test'] # we'll use this for all internal tests/tools except for dmengine
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
     elif platform in ('armv7-android', 'arm64-android'):

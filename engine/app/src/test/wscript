@@ -4,6 +4,6 @@ def build(bld):
 	for name in ['test_basic', 'test_app']:
 	    bld.new_task_gen(features = 'cxx cprogram test',
 	                      includes = '../ .',
-	                      uselib_local = 'app',
+	                      uselib_local = 'app_test',
 	                      target = name,
 	                      source = name + '.cpp')

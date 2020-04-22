@@ -99,6 +99,8 @@ namespace dmEngineVersion
     elif 'web' in operating_sys:
         pass
 
+    conf.env['STATICLIB_APP'] = ['app'] # without the test functionality we use internally
+    conf.env['STATICLIB_APP_TEST'] = ['app_test'] # for the unit tests
     conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'

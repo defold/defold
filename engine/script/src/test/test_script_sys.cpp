@@ -83,14 +83,6 @@ TEST_F(ScriptSysTest, TestSys)
 {
     int top = lua_gettop(L);
 
-    dmSys::InitUser();
-
-    dmSys::UserInfo info;
-    if (dmSys::RESULT_USER_OK != dmSys::OpenLastUser(&info))
-    {
-        dmLogError("For the test to work, a user needs to have been logged in once");
-    }
-
     ASSERT_TRUE(RunFile(L, "test_sys.luac"));
 
     lua_getglobal(L, "functions");
@@ -109,8 +101,6 @@ TEST_F(ScriptSysTest, TestSys)
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
-
-    dmSys::CloseUser(&info);
 }
 #endif
 
