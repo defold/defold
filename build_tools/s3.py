@@ -1,5 +1,5 @@
 import run
-import log
+from log import log
 import os
 import re
 import sys
@@ -66,15 +66,15 @@ def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
     return files
 
 # Get archive files for a single release/sha1
-def get_files(bucket, sha1):
+def get_files(archive_path, bucket, sha1):
     files = []
-    files = files + find_files_in_bucket(bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$')
-    files = files + find_files_in_bucket(bucket, sha1, "bob", '.*(/bob.jar)$')
-    files = files + find_files_in_bucket(bucket, sha1, "editor", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(bucket, sha1, "alpha", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(bucket, sha1, "beta", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(bucket, sha1, "stable", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
     return files
 
 def get_tagged_releases(archive_path):
@@ -92,7 +92,7 @@ def get_tagged_releases(archive_path):
         sha1, tag = m.groups()
         epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
         date = datetime.fromtimestamp(float(epoch))
-        files = get_files(bucket, sha1)
+        files = get_files(archive_path, bucket, sha1)
         if len(files) > 0:
             releases.append({'tag': tag,
                              'sha1': sha1,
@@ -105,7 +105,7 @@ def get_tagged_releases(archive_path):
 def get_single_release(archive_path, version_tag, sha1):
     u = urlparse.urlparse(archive_path)
     bucket = get_bucket(u.hostname)
-    files = get_files(bucket, sha1)
+    files = get_files(archive_path, bucket, sha1)
 
     return {'tag': version_tag,
             'sha1': sha1,
