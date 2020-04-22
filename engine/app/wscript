@@ -26,7 +26,4 @@ def build(bld):
     bld.recurse('src')
 
 def shutdown():
-    if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
-        return
-
     waf_dynamo.run_tests(valgrind = True)

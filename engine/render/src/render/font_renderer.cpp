@@ -377,7 +377,7 @@ namespace dmRender
 
         dmMemory::Result r = dmMemory::AlignedMalloc((void**)&text_context.m_ClientBuffer, 16, buffer_size);
         if (r != dmMemory::RESULT_OK) {
-            dmLogError("Could not allocate text vertex buffer (%d).", r);
+            dmLogError("Could not allocate text vertex buffer of size %u (%d).", buffer_size, r);
             return;
         }
 

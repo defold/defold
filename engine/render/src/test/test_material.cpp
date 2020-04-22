@@ -30,6 +30,7 @@ TEST(dmMaterialTest, TestTags)
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+    params.m_MaxCharacters = 256;
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
@@ -62,6 +63,7 @@ TEST(dmMaterialTest, TestMaterialConstants)
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+    params.m_MaxCharacters = 256;
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     // create default material
@@ -104,6 +106,7 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+    params.m_MaxCharacters = 256;
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     // create default material

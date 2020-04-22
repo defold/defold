@@ -45,6 +45,7 @@ def _set_defines(conf, flags):
 #*******************************************************************************************************
 
 def setup_tools_nx(conf, build_util):
+    # NOTE: If you do changes in this function, you need to re-configure again, before building
 
     NINTENDO_SDK_ROOT = get_sdk_root()
 
@@ -71,8 +72,7 @@ def setup_tools_nx(conf, build_util):
     conf.env['MAKENSO']         = '%s/MakeNso/MakeNso.exe' % commandline_folder
 
     run_on_target = '%s/RunOnTarget.exe' % commandline_folder
-    conf.env['TEST_LAUNCH_PATTERN'] = run_on_target + ' --pattern-failure-exit "tests FAILED" --failure-timeout 30 --working-directory . %s %s' # program + args
-    conf.env['DM_MOUNT_HOST']       = '1'
+    conf.env['TEST_LAUNCH_PATTERN'] = run_on_target + ' --pattern-failure-exit "tests FAILED" --failure-timeout 120 --working-directory . %s %s' # program + args
 
 def get_sdk_root():
     return os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'nx64', 'nx64-sdk-10.3')
@@ -88,6 +88,8 @@ def get_lib_paths(buildtype, buildtarget):
     return paths
 
 def setup_vars_nx(conf, build_util):
+    if conf.env.PLATFORM != 'arm64-nx64':
+        return
 
     NINTENDO_SDK_ROOT = get_sdk_root()
 
@@ -141,7 +143,6 @@ def setup_vars_nx(conf, build_util):
     _set_includes(conf, CPPPATH)
 
     conf.env.program_PATTERN = '%s.nss'
-    conf.env.bundle_PATTERN = '%s.nspd'
 
     conf.env['SHLIB_VULKAN']            = ['vulkan', 'opengl']
     conf.env['STATICLIB_DMGLFW']        = []
@@ -153,6 +154,8 @@ def setup_vars_nx(conf, build_util):
 
     # Until we've implemented the crash module
     conf.env['STATICLIB_CRASH'] = ['crashext_null']
+
+    waf_dynamo.remove_flag(conf.env['LINKFLAGS'], '-Wl,--enable-auto-import', 0)
 
 
 NX64_MANIFEST="""<?xml version="1.0"?>
@@ -207,13 +210,6 @@ def create_bundle_dirs(self, path, dir):
         dir=subdir
     return dir
 
-@feature('cprogram', 'cxxprogram', 'cshlib')
-@before('apply_core')
-@after('default_flags')
-def switch_modify_linkflags_fn(self):
-    if self.env['PLATFORM'] in ['arm64-nx64']:
-        waf_dynamo.remove_flag(self.env['LINKFLAGS'], '-Wl,--enable-auto-import', 0)
-
 Task.simple_task_type('switch_nso', '${MAKENSO} ${SRC} ${TGT}', color='YELLOW', shell=True, after='cxx_link cc_link')
 
 Task.simple_task_type('switch_meta', '${MAKEMETA} --desc ${SWITCH_DESC} --meta ${SWITCH_META} -o ${TGT} -d DefaultIs64BitInstruction=True -d DefaultProcessAddressSpace=AddressSpace64Bit',
@@ -240,9 +236,15 @@ Task.simple_task_type('switch_nspd', '${AUTHORINGTOOL} createnspd -o ${NSPD_DIR}
 Task.simple_task_type('switch_nsp', '${AUTHORINGTOOL} creatensp -o ${TGT} --desc ${SWITCH_DESC} --meta ${SWITCH_META} --type Application --program ${CODE_DIR} ${DATA_DIR} --utf8',
                     color='YELLOW', shell=True, after='switch_nspd')
 
+
+
+@taskgen
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')
+@before('create_app_bundle')
 def switch_make_app(self):
+    if self.env.PLATFORM != 'arm64-nx64':
+        return
     for task in self.tasks:
         if task.name in ['cxx_link', 'cc_link']:
             break
@@ -450,3 +452,9 @@ def supports_feature(platform, feature, data):
     if platform in ['arm64-nx64']:
         return supports_feature_nx(platform, feature, data)
     return True
+
+def transform_runnable_path(platform, path):
+    if platform in ['arm64-nx64']:
+        path, suffix = os.path.splitext(path)
+        return path + '.nspd'
+    return path

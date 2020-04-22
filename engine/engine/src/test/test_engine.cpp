@@ -173,6 +173,7 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
     http_ctx->m_PreCount++;
 }
 
+#if !defined(__NX__)
 TEST_F(EngineTest, HttpPost)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
@@ -200,6 +201,7 @@ TEST_F(EngineTest, ConnectionReboot)
     dmThread::Join(ctx.m_Thread);
     ASSERT_EQ(0, g_PostExitResult);
 }
+#endif
 
 TEST_F(EngineTest, DEF_841)
 {
@@ -261,6 +263,7 @@ TEST_F(EngineTest, SpineIK)
     ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
+#if !defined(__NX__) // until we've added suport for it
 TEST_F(EngineTest, MemCpuProfiler)
 {
     #ifndef SANITIZE_ADDRESS
@@ -275,6 +278,7 @@ TEST_F(EngineTest, MemCpuProfiler)
         ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
     #endif
 }
+#endif
 
 // Verify that project.dependencies config entry is stripped during build.
 TEST_F(EngineTest, ProjectDependency)
@@ -317,6 +321,7 @@ TEST_F(EngineTest, RunScript)
     ASSERT_EQ(0, Launch(sizeof(argv5)/sizeof(argv5[0]), (char**)argv5, 0, 0, 0));
 }
 
+#if !defined(__NX__) // until we support connections
 TEST_F(EngineTest, ConnectionRunScript)
 {
     const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/init_script/game_connection.projectc"};
@@ -327,6 +332,7 @@ TEST_F(EngineTest, ConnectionRunScript)
     dmThread::Join(ctx.m_Thread);
     ASSERT_EQ(0, g_PostExitResult);
 }
+#endif
 
 /* Draw Count */
 
@@ -358,6 +364,7 @@ DrawCountParams draw_count_params[] =
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
+#if !defined(__NX__) // until we support connections
 // Test that we can reload a full collection containing a spine scene
 // while the first gameobject has been already been deleted (marked for
 // deletion through a `go.delete()` call, invalidating any "delayed delete"
@@ -372,6 +379,7 @@ TEST_F(EngineTest, DEF_3652)
     dmThread::Join(ctx.m_Thread);
     ASSERT_EQ(0, g_PostExitResult);
 }
+#endif
 
 int main(int argc, char **argv)
 {

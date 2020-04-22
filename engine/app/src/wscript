@@ -29,4 +29,10 @@ def build(bld):
                               defines   = defines)
     applib.find_sources_in_dirs(source_dirs)
 
+    applibtest = bld.new_task_gen(features   = 'cc cxx cstaticlib',
+                      includes  = '. ..',
+                      target    = 'app_test',
+                      defines   = defines + ['DM_APP_TEST_MODE'])
+    applibtest.find_sources_in_dirs(source_dirs)
+
     bld.install_files('${PREFIX}/include/app', 'app/app.h')
