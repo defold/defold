@@ -82,7 +82,7 @@ namespace dmGraphics
     {
     }
 
-    static void OnWindowResize(int width, int height)
+    void OnWindowResize(int width, int height)
     {
         assert(g_Context);
         g_Context->m_WindowWidth  = (uint32_t)width;
@@ -96,7 +96,7 @@ namespace dmGraphics
         }
     }
 
-    static int OnWindowClose()
+    int OnWindowClose()
     {
         assert(g_Context);
         if (g_Context->m_WindowCloseCallback != 0x0)
@@ -106,7 +106,7 @@ namespace dmGraphics
         return 1;
     }
 
-    static void OnWindowFocus(int focus)
+    void OnWindowFocus(int focus)
     {
         assert(g_Context);
         if (g_Context->m_WindowFocusCallback != 0x0)
@@ -169,11 +169,6 @@ namespace dmGraphics
         context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
 
         return WINDOW_RESULT_OK;
-    }
-
-    static void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value)
-    {
-        DestroyPipeline(context->m_LogicalDevice.m_Device, value);
     }
 
     void VulkanCloseWindow(HContext context)
@@ -327,7 +322,8 @@ namespace dmGraphics
     {
         if (context->m_WindowOpened)
         {
-            glfwSetWindowSize((int)width, (int)height);
+            //glfwSetWindowSize((int)width, (int)height);
+            VulkanSetWindowSize(context, width, height);
         }
     }
 

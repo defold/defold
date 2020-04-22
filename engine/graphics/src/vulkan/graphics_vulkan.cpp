@@ -2537,10 +2537,10 @@ bail:
         // Reference: https://github.com/KhronosGroup/Vulkan-Samples-Deprecated/blob/master/external/include/vulkan/vk_format.h
         assert(format <= TEXTURE_FORMAT_COUNT);
         const VkFormat conversion_table[] = {
-            VK_FORMAT_R8_SRGB,                     // TEXTURE_FORMAT_LUMINANCE
-            VK_FORMAT_R8G8_SRGB,                   // TEXTURE_FORMAT_LUMINANCE_ALPHA
-            VK_FORMAT_R8G8B8_SRGB,                 // TEXTURE_FORMAT_RGB
-            VK_FORMAT_R8G8B8A8_SRGB,               // TEXTURE_FORMAT_RGBA
+            VK_FORMAT_R8_UNORM,                     // TEXTURE_FORMAT_LUMINANCE
+            VK_FORMAT_R8G8_UNORM,                   // TEXTURE_FORMAT_LUMINANCE_ALPHA
+            VK_FORMAT_R8G8B8_UNORM,                 // TEXTURE_FORMAT_RGB
+            VK_FORMAT_R8G8B8A8_UNORM,               // TEXTURE_FORMAT_RGBA
             VK_FORMAT_R16G16B16_UNORM,              // TEXTURE_FORMAT_RGB_16BPP
             VK_FORMAT_R16G16B16A16_UNORM,           // TEXTURE_FORMAT_RGBA_16BPP
             VK_FORMAT_BC1_RGB_UNORM_BLOCK,         // TEXTURE_FORMAT_RGB_DXT1
@@ -3011,7 +3011,7 @@ bail:
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
             RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
-            vk_format     = VK_FORMAT_R8G8B8A8_SRGB;
+            vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
             tex_bpp       = bpp_new;
         }
