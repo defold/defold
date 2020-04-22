@@ -31,7 +31,12 @@ namespace dmDeviceJS
         assert(params);
         assert(device);
         JSDevice *dev = new JSDevice();
-        dev->devId = dmDeviceJSOpen(params->m_BufferCount);
+        int deviceId = dmDeviceJSOpen(params->m_BufferCount);
+        if (deviceId < 0)
+        {
+            return dmSound::RESULT_DEVICE_NOT_FOUND;
+        }
+        dev->devId = deviceId;
         dev->isStarted = false;
         *device = dev;
         return dmSound::RESULT_OK;
