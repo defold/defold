@@ -44,10 +44,6 @@ def _exec_command(arg_list, **kwargs):
 
     return output
 
-def command_no_quit(args):
-    # Executes a command and raises an ExecException if it fails
-    return _exec_command(args, shell = False)
-
 def command(args, **kwargs):
     if kwargs.get("shell") is None:
         kwargs["shell"] = False
