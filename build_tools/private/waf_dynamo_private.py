@@ -276,7 +276,7 @@ def switch_make_app(self):
         self.env['LINKFLAGS'].insert(index, path)
 
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
-    app_icon = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/NintendoSDK_Application.bmp')
+    app_icon = os.path.join(self.env.DYNAMO_HOME, '../../engine/engine/content/builtins/assets/images/logo/logo_blue_1024.bmp')
 
     # We want the debug app to launch with automatic user selection
     app_user_automatic = """
