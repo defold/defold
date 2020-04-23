@@ -540,6 +540,9 @@ namespace dmGraphics
     void     LoadVulkanFunctions(VkInstance vk_instance);
 
 
+    void SwapBuffers();
+
+
     bool NativeInit(const struct ContextParams& params);
     void NativeExit();
     
