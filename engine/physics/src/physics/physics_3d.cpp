@@ -555,18 +555,11 @@ namespace dmPhysics
             break;
         }
 
-        bool has_world_transform = world->m_GetWorldTransform != 0x0;
+        bool has_world_transform = world->m_GetWorldTransform != 0x0 && data.m_UserData;
         dmTransform::Transform world_transform;
         if (has_world_transform)
         {
             world->m_GetWorldTransform(data.m_UserData, world_transform);
-
-            Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-            if (isnan(rotation.getX()) || isnan(rotation.getY()) || isnan(rotation.getZ()) || isnan(rotation.getW()))
-            {
-                dmLogError("Collision object rotation is not valid.");
-                return 0x0;
-            }
         }
 
         float object_scale = 1.0f;

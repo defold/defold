@@ -763,11 +763,6 @@ namespace dmPhysics
                 (*world->m_GetWorldTransformCallback)(data.m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                if (isnan(rotation.getX()) || isnan(rotation.getY()) || isnan(rotation.getZ()) || isnan(rotation.getW()))
-                {
-                    dmLogError("Collision object rotation component is not valid.");
-                    return 0x0;
-                }
                 ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                 scale = world_transform.GetUniformScale();
