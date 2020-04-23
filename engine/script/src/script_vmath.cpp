@@ -2344,7 +2344,12 @@ namespace dmScript
 
     Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
+        if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()))
+        {
+            luaL_error(L, "Vector3 contains a value which is not a number");
+        }
+        return v;
     }
 
     void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v)
@@ -2357,7 +2362,12 @@ namespace dmScript
 
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
+        if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()) || isnan(v->getW()))
+        {
+            luaL_error(L, "Vector4 contains a value which is not a number");
+        }
+        return v;
     }
 
     void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q)
@@ -2370,7 +2380,12 @@ namespace dmScript
 
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
+        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
+        if (isnan(q->getX()) || isnan(q->getY()) || isnan(q->getZ()) || isnan(q->getW()))
+        {
+            luaL_error(L, "Quaternion contains a value which is not a number");
+        }
+        return q;
     }
 
     void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m)
