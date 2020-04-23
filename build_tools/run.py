@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 from log import log
 import subprocess
 import sys
