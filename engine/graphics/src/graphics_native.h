@@ -2,11 +2,10 @@
 #define DM_GRAPHICS_NATIVE_H
 
 #include <dmsdk/graphics/graphics_native.h>
-#include <graphics/graphics.h>
 
 namespace dmGraphics
 {
-	bool NativeInit(const ContextParams& params);
+	bool NativeInit(const struct ContextParams& params);
 	void NativeExit();
     
     void NativeBeginFrame(HContext context);
