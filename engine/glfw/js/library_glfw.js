@@ -211,10 +211,16 @@ var LibraryGLFW = {
       if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
+      if (event.keyCode === 32) {
+        if (GLFW.charFunc) {
+          Runtime.dynCall('vii', GLFW.charFunc, [32, 1]);
+          event.preventDefault();
+        }
+      }
       // This logic comes directly from the sdl implementation. We cannot
       // call preventDefault on all keydown events otherwise onKeyPress will
       // not get called
-      if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */ || event.keyCode === 13 /* enter */) {
+      else if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */ || event.keyCode === 13 /* enter */) {
         event.preventDefault();
       }
     },
