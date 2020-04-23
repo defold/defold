@@ -158,6 +158,7 @@ namespace dmGameSystem
             world3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
             if (world3D == 0x0)
             {
+                *params.m_World = 0x0;
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
         }
@@ -166,6 +167,7 @@ namespace dmGameSystem
             world2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
             if (world2D == 0x0)
             {
+                *params.m_World = 0x0;
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
         }
