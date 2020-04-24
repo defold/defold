@@ -17,6 +17,6 @@ def build(bld):
                          includes = ['../../src', '../../proto'],
                          exported_symbols = ['GraphicsAdapterVulkan'],
                          source = 'test_app_vulkan.cpp',
-                         uselib = 'APP PLATFORM DDF DLIB DMGLFW_VULKAN VULKAN',
+                         uselib = 'APP PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN',
                          uselib_local = 'graphics_vulkan',
                          target = 'test_app_vulkan')
