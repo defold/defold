@@ -11,7 +11,7 @@ def build(bld):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-arndroid','armv7-android'):
+    if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW'
 
     obj = bld.new_task_gen(
