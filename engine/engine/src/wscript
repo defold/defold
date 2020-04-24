@@ -151,7 +151,7 @@ def build(bld):
         additional_libs.append('SWITCHEXT')
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-arndroid','armv7-android'):
+    if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
 
     obj = bld.new_task_gen(
