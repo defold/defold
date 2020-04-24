@@ -2,10 +2,9 @@
 
 #include <assert.h>
 #include <malloc.h>
-#include <dmsdk/sdk.h>
-#include <dmsdk/dlib/log.h>
-#include <dmsdk/extension/extension.h>
-#include <dmsdk/script/script.h>
+#include <dlib/log.h>
+#include <extension/extension.h>
+#include <script/script.h>
 #include <nn/fs.h>
 
 #include <hid/hid.h>
