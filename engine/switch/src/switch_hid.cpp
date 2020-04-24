@@ -69,4 +69,18 @@ namespace Hid {
         nn::hid::SetSupportedNpadStyleSet(styleset);
         return RESULT_OK;
     }
+    
+    Result ShowControllerSupport(bool multi_player)
+    {
+        nn::hid::ControllerSupportArg controllerArg;
+        controllerArg.SetDefault();
+        controllerArg.enableSingleMode = !multi_player;
+        nn::Result result = nn::hid::ShowControllerSupport(controllerArg);
+
+        if (nn::hid::ResultControllerSupportCanceled::Includes(result))
+            return RESULT_USER_CANCELLED;
+        if (nn::hid::ResultControllerSupportNotSupportedNpadStyle::Includes(result))
+            return RESULT_UNSUPPORTED;
+        return RESULT_OK;
+    }
 }}

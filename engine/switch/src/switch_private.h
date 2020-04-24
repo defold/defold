@@ -67,6 +67,8 @@ namespace dmSwitch
             RESULT_OK,
             RESULT_NOT_CONNECTED,
             RESULT_NO_COLOR,
+            RESULT_UNSUPPORTED,
+            RESULT_USER_CANCELLED,
             RESULT_ERROR,
         };
 
@@ -93,6 +95,18 @@ namespace dmSwitch
          * @param mode [type:int] 0 = dual, 1 = single
          */
         Result SetGamepadAssignmentMode(int gamepad, int mode);
+
+        enum GamepadActivationMode
+        {
+            ACTIVATION_MODE_DUAL,
+            ACTIVATION_MODE_SINGLE,
+        };
+
+        /*#
+         * @param gamepad [type:int] the gamepad id
+         * @param mode [type:int] 0 = dual, 1 = single
+         */
+        Result SetGamepadActivationMode(int mode);
 
         enum GamepadStyle
         {

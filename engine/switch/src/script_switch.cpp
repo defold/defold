@@ -215,6 +215,22 @@ namespace dmSwitchScript
         return 0;
     }
 
+    /*# shows the dialog that let's the user configure the controllers
+     *
+     * Shows the dialog that let's the user configure the controllers
+     *
+     * @name switch.hid_show_gamepad_dialog
+     * @param multiplayer 0 = single player, non-zero = multiplayer
+     * @return `switch.HID_RESULT_USER_CANCELLED`, `switch.HID_RESULT_UNSUPPORTED` or `switch.HID_RESULT_OK`
+     */
+    static int Switch_Hid_ShowGamepadDialog(lua_State* L)
+    {
+        int multiplayer = luaL_checkint(L, 1);
+        dmSwitch::Hid::Result result = dmSwitch::Hid::ShowControllerSupport(multiplayer!=0);
+        lua_pushinteger(L, (int)result);
+        return 1;
+    }
+
     static const luaL_reg Switch_methods[] =
     {
         // account
@@ -229,6 +245,7 @@ namespace dmSwitchScript
         {"hid_get_gamepad_color", Switch_Hid_GetGamepadColor},
         {"hid_set_gamepad_assignmentmode", Switch_Hid_SetGamePadAssignmentMode},
         {"hid_set_gamepad_supported_styleset", Switch_Hid_SetGamepadSupportedStyleset},
+        {"hid_show_gamepad_dialog", Switch_Hid_ShowGamepadDialog},
         
         {0, 0}
     };
@@ -284,6 +301,18 @@ namespace dmSwitchScript
          * @variable
          */
         SETCONSTANT(HID_RESULT_NO_COLOR, dmSwitch::Hid::RESULT_NO_COLOR);
+
+        /*# The operation was cancelled
+         * @name switch.HID_RESULT_USER_CANCELLED
+         * @variable
+         */
+        SETCONSTANT(HID_RESULT_USER_CANCELLED, dmSwitch::Hid::RESULT_USER_CANCELLED);
+
+        /*# The chosen parameters are unsupported
+         * @name switch.HID_RESULT_UNSUPPORTED
+         * @variable
+         */
+        SETCONSTANT(HID_RESULT_UNSUPPORTED, dmSwitch::Hid::RESULT_UNSUPPORTED);
 
 
         /*# Dual assignment mode 
