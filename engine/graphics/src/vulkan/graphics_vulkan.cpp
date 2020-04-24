@@ -760,6 +760,9 @@ namespace dmGraphics
                         break;
                     case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
                         DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
+                    case RESOURCE_TYPE_PROGRAM:
+                        DestroyProgram(vk_device, &resource.m_Program);
+                        break;
                     default:
                         assert(0);
                         break;
@@ -1309,6 +1312,9 @@ bail:
             case RESOURCE_TYPE_DEVICE_BUFFER:
                 resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
                 break;
+            case RESOURCE_TYPE_PROGRAM:
+                resource_to_destroy.m_Program = ((Program*) resource)->m_Handle;
+                break;
             default:
                 assert(0);
                 break;
@@ -1772,7 +1778,7 @@ bail:
         uint32_t* dynamic_offsets, const uint32_t alignment)
     {
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -1790,7 +1796,7 @@ bail:
             alignment, dynamic_offsets);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
             0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
             num_uniform_buffers, dynamic_offsets);
 
@@ -2164,18 +2170,18 @@ bail:
 
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_VERTEX],
-                0, &program->m_DescriptorSetLayout[Program::MODULE_TYPE_VERTEX]);
+                0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_VERTEX]);
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_FRAGMENT],
-                0, &program->m_DescriptorSetLayout[Program::MODULE_TYPE_FRAGMENT]);
+                0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_FRAGMENT]);
 
             VkPipelineLayoutCreateInfo vk_layout_create_info;
             memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
             vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             vk_layout_create_info.setLayoutCount = Program::MODULE_TYPE_COUNT;
-            vk_layout_create_info.pSetLayouts    = program->m_DescriptorSetLayout;
+            vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayout;
 
-            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_PipelineLayout);
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
     }
@@ -2195,18 +2201,7 @@ bail:
             delete[] program->m_UniformDataOffsets;
         }
 
-        if (program->m_PipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program->m_PipelineLayout, 0);
-        }
-
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
-        {
-            if (program->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
-            {
-                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program->m_DescriptorSetLayout[i], 0);
-            }
-        }
+        DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], program);
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)

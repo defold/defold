@@ -211,10 +211,16 @@ var LibraryGLFW = {
       if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
+      if (event.keyCode === 32) {
+        if (GLFW.charFunc) {
+          Runtime.dynCall('vii', GLFW.charFunc, [32, 1]);
+          event.preventDefault();
+        }
+      }
       // This logic comes directly from the sdl implementation. We cannot
       // call preventDefault on all keydown events otherwise onKeyPress will
       // not get called
-      if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */ || event.keyCode === 13 /* enter */) {
+      else if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */ || event.keyCode === 13 /* enter */) {
         event.preventDefault();
       }
     },
@@ -484,8 +490,10 @@ var LibraryGLFW = {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
         if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
           GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
+          if (!GLFW.lastGamepadState) {
+            return;
+          }
           GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
-
           for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
             var gamepad = GLFW.lastGamepadState[joy];
 

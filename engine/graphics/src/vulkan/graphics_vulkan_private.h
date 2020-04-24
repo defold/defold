@@ -16,6 +16,7 @@ namespace dmGraphics
         RESOURCE_TYPE_DEVICE_BUFFER        = 0,
         RESOURCE_TYPE_TEXTURE              = 1,
         RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR = 2,
+        RESOURCE_TYPE_PROGRAM              = 3,
     };
 
     struct DeviceBuffer
@@ -109,17 +110,6 @@ namespace dmGraphics
         VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
         void     Release(VkDevice vk_device);
         const    VulkanResourceType GetType();
-    };
-
-    struct ResourceToDestroy
-    {
-        union
-        {
-            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
-            Texture::VulkanHandle             m_Texture;
-            DescriptorAllocator::VulkanHandle m_DescriptorAllocator;
-        };
-        VulkanResourceType m_ResourceType;
     };
 
     struct VertexDeclaration
@@ -286,6 +276,8 @@ namespace dmGraphics
 
     struct Program
     {
+        Program();
+
         enum ModuleType
         {
             MODULE_TYPE_VERTEX   = 0,
@@ -293,14 +285,34 @@ namespace dmGraphics
             MODULE_TYPE_COUNT    = 2
         };
 
+        struct VulkanHandle
+        {
+            VkDescriptorSetLayout m_DescriptorSetLayout[MODULE_TYPE_COUNT];
+            VkPipelineLayout      m_PipelineLayout;
+        };
+
         uint64_t                        m_Hash;
         uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
+        VulkanHandle                    m_Handle;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
-        VkDescriptorSetLayout           m_DescriptorSetLayout[MODULE_TYPE_COUNT];
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
-        VkPipelineLayout                m_PipelineLayout;
+        uint8_t                         m_Destroyed : 1;
+
+        const VulkanResourceType GetType();
+    };
+
+    struct ResourceToDestroy
+    {
+        union
+        {
+            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
+            Texture::VulkanHandle             m_Texture;
+            DescriptorAllocator::VulkanHandle m_DescriptorAllocator;
+            Program::VulkanHandle             m_Program;
+        };
+        VulkanResourceType m_ResourceType;
     };
 
     struct SwapChainCapabilities
@@ -487,6 +499,7 @@ namespace dmGraphics
     void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle);
     void           DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     void           DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
+    void           DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle);
     // Get functions
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);

@@ -78,7 +78,7 @@ var LibrarySoundDevice =
             shared.devices[id] = device;
             return id;
         } 
-        return 0;
+        return -1;
     },
     
     dmDeviceJSQueue: function(id, samples, sample_count) {
