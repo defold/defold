@@ -133,7 +133,9 @@ namespace dmHID
             nn::hid::SetSupportedNpadStyleSet(
                 nn::hid::NpadStyleFullKey::Mask |
                 nn::hid::NpadStyleJoyDual::Mask |
-                nn::hid::NpadStyleHandheld::Mask);
+                nn::hid::NpadStyleHandheld::Mask|
+                nn::hid::NpadStyleJoyLeft::Mask | 
+                nn::hid::NpadStyleJoyRight::Mask);
 
             // TODO: This call should be configurable or callable from Lua
             nn::hid::SetNpadJoyHoldType(nn::hid::NpadJoyHoldType::NpadJoyHoldType_Horizontal);
