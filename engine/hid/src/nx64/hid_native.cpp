@@ -247,9 +247,9 @@ namespace dmHID
         nn::hid::NpadButtonSet convButton = button;
         if (nn::hid::GetNpadJoyHoldType() == nn::hid::NpadJoyHoldType_Horizontal)
         {
-            convButton.Reset();
             if (style.Test<nn::hid::NpadStyleJoyLeft>())
             {
+                convButton.Reset();
                 convButton.Set<nn::hid::NpadButton::A>(button.Test<nn::hid::NpadButton::Down>());
                 convButton.Set<nn::hid::NpadButton::B>(button.Test<nn::hid::NpadButton::Left>());
                 convButton.Set<nn::hid::NpadButton::X>(button.Test<nn::hid::NpadButton::Right>());
@@ -268,16 +268,17 @@ namespace dmHID
             }
             else if (style.Test<nn::hid::NpadStyleJoyRight>())
             {
+                convButton.Reset();
                 convButton.Set<nn::hid::NpadButton::A>(button.Test<nn::hid::NpadButton::X>());
                 convButton.Set<nn::hid::NpadButton::B>(button.Test<nn::hid::NpadButton::A>());
                 convButton.Set<nn::hid::NpadButton::X>(button.Test<nn::hid::NpadButton::Y>());
                 convButton.Set<nn::hid::NpadButton::Y>(button.Test<nn::hid::NpadButton::B>());
 
-                convButton.Set<nn::hid::NpadButton::StickRRight>(button.Test<nn::hid::NpadButton::StickRUp>());
-                convButton.Set<nn::hid::NpadButton::StickRDown>(button.Test<nn::hid::NpadButton::StickRRight>());
-                convButton.Set<nn::hid::NpadButton::StickRUp>(button.Test<nn::hid::NpadButton::StickRLeft>());
-                convButton.Set<nn::hid::NpadButton::StickRLeft>(button.Test<nn::hid::NpadButton::StickRDown>());
-                convButton.Set<nn::hid::NpadButton::StickR>(button.Test<nn::hid::NpadButton::StickR>());
+                convButton.Set<nn::hid::NpadButton::StickLRight>(button.Test<nn::hid::NpadButton::StickRUp>());
+                convButton.Set<nn::hid::NpadButton::StickLDown>(button.Test<nn::hid::NpadButton::StickRRight>());
+                convButton.Set<nn::hid::NpadButton::StickLUp>(button.Test<nn::hid::NpadButton::StickRLeft>());
+                convButton.Set<nn::hid::NpadButton::StickLLeft>(button.Test<nn::hid::NpadButton::StickRDown>());
+                convButton.Set<nn::hid::NpadButton::StickL>(button.Test<nn::hid::NpadButton::StickR>());
 
                 convButton.Set<nn::hid::NpadButton::L>(button.Test<nn::hid::NpadJoyButton::RightSL>());
                 convButton.Set<nn::hid::NpadButton::R>(button.Test<nn::hid::NpadJoyButton::RightSR>());
@@ -374,7 +375,7 @@ namespace dmHID
                     nn::hid::GetNpadState(&state, g_NPads[i].m_Id);
                     connected = state.attributes.Test<nn::hid::NpadAttribute::IsConnected>();
                     buttons  = ConvertHorizontalButtonLayout(style, state.buttons);
-                    stickR   = ConvertHorizontalAnalogStick(style, state.analogStickR);
+                    stickL   = ConvertHorizontalAnalogStick(style, state.analogStickR);
                     left = 0;
                     right = 1;
                 }
