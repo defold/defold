@@ -10,9 +10,13 @@ def build(bld):
     if bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
+    graphics_lib = 'GRAPHICS_NULL'
+    if bld.env['PLATFORM'] in ('arm64-arndroid','armv7-android'):
+        graphics_lib = 'GRAPHICS_NULL DMGLFW'
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'APP_TEST RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES',
+        uselib = 'APP_TEST RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB LIVEUPDATE CARES'.split() + graphics_lib.split(),
         exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'],
         uselib_local = 'engine engine_service',
         web_libs = ['library_sys.js', 'library_script.js'],
