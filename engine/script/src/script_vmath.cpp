@@ -2398,6 +2398,16 @@ namespace dmScript
 
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
+        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
+        if (
+            isnan(m->getElem(0, 0)) || isnan(m->getElem(1, 0)) || isnan(m->getElem(2, 0)) || isnan(m->getElem(3, 0)) ||
+            isnan(m->getElem(0, 1)) || isnan(m->getElem(1, 1)) || isnan(m->getElem(2, 1)) || isnan(m->getElem(3, 1)) ||
+            isnan(m->getElem(0, 2)) || isnan(m->getElem(1, 2)) || isnan(m->getElem(2, 2)) || isnan(m->getElem(3, 2)) ||
+            isnan(m->getElem(0, 3)) || isnan(m->getElem(1, 3)) || isnan(m->getElem(2, 3)) || isnan(m->getElem(3, 3))
+        )
+        {
+            luaL_error(L, "Matrix4 contains a value which is not a number");
+        }
+        return m;
     }
 }
