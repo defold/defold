@@ -268,7 +268,7 @@ def apply_framework(self):
         self.env.append_unique('LINKFLAGS',frameworkpath_st%x)
     for x in self.to_list(self.env['FRAMEWORK']):
         self.env.append_value('LINKFLAGS',['-framework',x])
-        
+
 feature('cc','cxx')(apply_framework)
 after('apply_lib_vars')(apply_framework)
 
@@ -1720,7 +1720,7 @@ def detect(conf):
         conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
- 
+
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
@@ -1732,7 +1732,7 @@ def detect(conf):
         conf.env['LIB_OPENAL'] = ['OpenAL32']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
- 
+
     conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
@@ -1759,23 +1759,24 @@ def detect(conf):
     conf.env['STATICLIB_GRAPHICS']          = 'graphics'
     conf.env['STATICLIB_GRAPHICS_VULKAN']   = 'graphics_vulkan'
 
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+
     if platform in ('x86_64-darwin'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('x86_64-linux',):
         conf.env['STATICLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):
-        conf.env['STATICLIB_VULKAN'] = ['vulkan']
+        conf.env['LIB_VULKAN'] = ['vulkan']
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-    conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
-    
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 

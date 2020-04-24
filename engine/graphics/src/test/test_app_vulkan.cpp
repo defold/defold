@@ -149,6 +149,7 @@ TEST(dmApp, Run)
 
     uint64_t t = dmTime::GetTime();
     float elapsed = (t - g_EngineCtx.m_TimeStart) / 1000000.0f;
+    (void)elapsed;
 
     ASSERT_EQ(1, ctx.m_Created);
     ASSERT_EQ(1, ctx.m_Destroyed);
