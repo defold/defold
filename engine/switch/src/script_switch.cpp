@@ -206,7 +206,7 @@ namespace dmSwitchScript
      * Sets the supported stylesets
      *
      * @name switch.hid_set_gamepad_supported_styleset
-     * @param mask a bitmask of the supported styles
+     * @param mask [type:int] a bitmask of the supported styles
      */
     static int Switch_Hid_SetGamepadSupportedStyleset(lua_State* L)
     {
@@ -220,7 +220,7 @@ namespace dmSwitchScript
      * Shows the dialog that let's the user configure the controllers
      *
      * @name switch.hid_show_gamepad_dialog
-     * @param multiplayer 0 = single player, non-zero = multiplayer
+     * @param multiplayer [type:int] 0 = single player, non-zero = multiplayer
      * @return `switch.HID_RESULT_USER_CANCELLED`, `switch.HID_RESULT_UNSUPPORTED` or `switch.HID_RESULT_OK`
      */
     static int Switch_Hid_ShowGamepadDialog(lua_State* L)

@@ -124,6 +124,14 @@ namespace dmSwitch
          * @param mask [type:int] the mask of bits in the enum GamepadStyle
          */
         Result SetGamepadSupportedStyleset(int mask);
+
+        /*# show the gamepad selection screen
+         *
+         * Show the gamepad selection screen
+         *
+         * @param multiplayer true if a multiplayer setup
+         */
+        Result ShowControllerSupport(bool multi_player);
     }
 }
 
