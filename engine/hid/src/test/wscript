@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 from BuildUtility import create_build_utility
+import Options  
 
 def build(bld):
     build_util = create_build_utility(bld.env)
@@ -12,12 +13,20 @@ def build(bld):
                     target = 'test_hid',
                     source = 'test_hid.cpp')
 
+    graphics_lib = ['GRAPHICS']
+    graphics_lib_symbols = 'GraphicsAdapterOpenGL'
+    if Options.options.with_vulkan:
+        graphics_lib_symbols = 'GraphicsAdapterVulkan'
+        graphics_lib = ['GRAPHICS_VULKAN']
+
+    exported_symbols = [graphics_lib_symbols]
 
     web_libs = ['library_glfw.js', 'library_sys.js']  
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     includes = ['../%s' % build_util.get_target_os(), '..', '.'],
-                    uselib = 'APP DLIB OPENGL DMGLFW CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT',
+                    uselib = 'APP DLIB OPENGL DMGLFW CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT'.split() + graphics_lib,
                     uselib_local = 'hid',
                     web_libs = web_libs,
+                    exported_symbols = exported_symbols,
                     target = 'test_app_hid',
                     source = 'test_app_hid.cpp')

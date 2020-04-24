@@ -1756,6 +1756,9 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
+    conf.env['STATICLIB_GRAPHICS']          = 'graphics'
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = 'graphics_vulkan'
+
     if platform in ('x86_64-darwin'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
@@ -1770,13 +1773,9 @@ def detect(conf):
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
-    if Options.options.with_vulkan:
-        conf.env['STATICLIB_DMGLFW'] = 'dmglfw_vulkan'
-    else:
-        conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-
-    conf.env['STATICLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
-
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+    conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+    
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 
