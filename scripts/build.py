@@ -42,6 +42,8 @@ except Exception, e:
             pass
         @classmethod
         def is_library_supported(cls, platform, library):
+            if library in ["switch"]:
+                return False;
             return True
 
 
