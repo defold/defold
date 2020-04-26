@@ -296,14 +296,26 @@ class Configuration(object):
             tf.extractall(path)
             tf.close()
 
-    def _extract_tgz_rename_folder(self, src, target_folder):
+    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
+        src = src.replace('\\', '/')
+
+        force_local = ''
+        if os.environ.get('GITHUB_SHA', None) is not None and os.environ.get('TERM', '') == 'cygwin':
+            force_local = '--force-local' # to make tar not try to "connect" because it found a colon in the source file
+
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        run.env_command(self._form_env(), ['tar', 'xfz', src, '-C', dirname, '--strip-components', '1'])
+
+        cmd = ['tar', 'xfz', src, '-C', dirname]
+        if strip_components:
+            cmd.extend(['--strip-components', '%d' % strip_components])
+        if force_local:
+            cmd.append(force_local)
+        run.env_command(cmd)
         os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
@@ -452,12 +464,12 @@ class Configuration(object):
         self.install_sdk()
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder):
+        def download_sdk(url, targetfolder, strip_components=1):
             if not os.path.exists(targetfolder):
                 if not os.path.exists(os.path.dirname(targetfolder)):
                     os.makedirs(os.path.dirname(targetfolder))
                 dlpath = self._download(url)
-                self._extract_tgz_rename_folder(dlpath, targetfolder)
+                self._extract_tgz_rename_folder(dlpath, targetfolder, strip_components)
 
         sdkfolder = join(self.ext, 'SDKs')
 
