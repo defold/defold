@@ -24,7 +24,9 @@ namespace dmGameSystem
         dmGameObject::HInstance m_Instance;
         float                   m_Delay;
         uint32_t                m_PlayId;
-        uint32_t                m_StopRequested : 1;
+        uint32_t                m_StopRequested  : 1;
+        uint32_t                m_PauseRequested : 1;
+        uint32_t                m_Paused         : 1;
     };
 
     struct World
@@ -121,7 +123,7 @@ namespace dmGameSystem
                             // so that the instance can be removed
                         }
                     }
-                    else if (!dmSound::IsPlaying(entry.m_SoundInstance))
+                    else if (!dmSound::IsPlaying(entry.m_SoundInstance) && !(entry.m_PauseRequested || entry.m_Paused))
                     {
                         dmResource::Release(entry.m_Factory, entry.m_Sound);
                         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
@@ -163,6 +165,16 @@ namespace dmGameSystem
                         if (r != dmSound::RESULT_OK)
                         {
                             dmLogError("Error deleting sound: (%d)", r);
+                            update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+                        }
+                    }
+                    else if (entry.m_PauseRequested)
+                    {
+                        entry.m_PauseRequested = 0;
+                        dmSound::Result r = dmSound::Pause(entry.m_SoundInstance, (bool)entry.m_Paused);
+                        if (r != dmSound::RESULT_OK)
+                        {
+                            dmLogError("Error pausing sound: (%d)", r);
                             update_result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                         }
                     }
@@ -316,6 +328,8 @@ namespace dmGameSystem
                 entry.m_Factory = factory;
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
+                entry.m_PauseRequested = 0;
+                entry.m_Paused = 0;
                 entry.m_Instance = params.m_Instance;
                 entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
@@ -360,6 +374,21 @@ namespace dmGameSystem
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
                 {
                     entry.m_StopRequested = 1;
+                }
+            }
+        }
+        else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor)
+        {
+            World* world = (World*)params.m_World;
+            dmGameSystemDDF::PauseSound* pause_sound = (dmGameSystemDDF::PauseSound*)params.m_Message->m_Data;
+            uint32_t pause = (uint32_t)pause_sound->m_Pause;
+            for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
+            {
+                PlayEntry& entry = world->m_Entries[i];
+                if (entry.m_SoundInstance != 0 && entry.m_Sound == (Sound*) *params.m_UserData && entry.m_Instance == params.m_Instance)
+                {
+                    entry.m_PauseRequested = 1;
+                    entry.m_Paused = pause;
                 }
             }
         }
