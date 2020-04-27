@@ -11,20 +11,22 @@ namespace dmSocket
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
-        unsigned int i = 0;
         ULONG flags = GAA_FLAG_INCLUDE_PREFIX;
         ULONG family = AF_INET;
-        char buffer[0x8000];
-        PIP_ADAPTER_ADDRESSES paddresses = (IP_ADAPTER_ADDRESSES*) buffer;
-        ULONG out_buf_len = sizeof(buffer);
+
+        ULONG out_buf_len;
+        PIP_ADAPTER_ADDRESSES paddresses;
+
+        // Ask for the length first
+        DWORD ret = GetAdaptersAddresses(family, flags, NULL, NULL, &out_buf_len);
+
+        if(ret == ERROR_BUFFER_OVERFLOW) { // the address pointer is null ofc
+            paddresses = (IP_ADAPTER_ADDRESSES*)malloc(out_buf_len);
+            ret = GetAdaptersAddresses(family, flags, NULL, paddresses, &out_buf_len);
+        }
+
         PIP_ADAPTER_ADDRESSES pcurraddresses = NULL;
         PIP_ADAPTER_UNICAST_ADDRESS punicast = NULL;
-        DWORD ret = GetAdaptersAddresses(family, flags, NULL, paddresses, &out_buf_len);
-
-        if (ret == ERROR_BUFFER_OVERFLOW) {
-            dmLogError("Failed to call GetAdaptersAddresses. Buffer too small.");
-            return;
-        }
 
         if (ret == NO_ERROR) {
             pcurraddresses = paddresses;
@@ -32,7 +34,7 @@ namespace dmSocket
                 if (pcurraddresses->IfType != IF_TYPE_SOFTWARE_LOOPBACK) {
                     punicast = pcurraddresses->FirstUnicastAddress;
                     if (punicast) {
-                        for (i = 0; punicast != NULL; i++) {
+                        for (unsigned i = 0; punicast != NULL; i++) {
                             IfAddr* a = &addresses[*count];
                             memset(a, 0, sizeof(*a));
 
@@ -77,6 +79,8 @@ namespace dmSocket
                 dmLogError("GetAdaptersAddresses failed (%d)\n", ret);
             }
         }
+
+        free(paddresses);
         return;
     }
 }

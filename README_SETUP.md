@@ -41,7 +41,7 @@ Install Python using:
 
     > sudo apt-get install python 2.7 python-setuptools
 
-Configure use of Easy Install:
+Configure use of Easy Install (if it's not already installed: `which easy_install`):
 
     > sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
     > sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
@@ -78,8 +78,13 @@ You need additional files and tools to be able to build and work with Defold on 
 
 Download and install using `apt-get`:
 
-    > sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev libopenal-dev build-essential rpm git curl autoconf libtool automake cmake tofrodos valgrind
+    > sudo apt-get install -y --no-install-recommends gcc-5 g++-5 libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+    > sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 10 && sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20 && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 10 && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20 && sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30 && sudo update-alternatives --set cc /usr/bin/gcc && sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30 && sudo update-alternatives --set c++ /usr/bin/g++
 
+Verify the compiler installation with
+
+    > gcc --version
+    gcc (Ubuntu 5.5.0-12ubuntu1) 5.5.0 20171010
 
 ### Windows
 

@@ -60,6 +60,10 @@
    :help "use single Lua state shared between all script types",
    :default false,
    :path ["script" "shared_state"]}
+  {:type :boolean,
+   :help "allow the engine to continue running while iconfied (desktop platforms only)",
+   :default false,
+   :path ["engine" "run_while_iconified"]}
   {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
