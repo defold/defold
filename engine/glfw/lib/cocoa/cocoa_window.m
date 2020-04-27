@@ -414,13 +414,12 @@ static int convertMacKeyCode( unsigned int macKeyCode )
 
         if( [event modifierFlags] & NSCommandKeyMask )
         {
-            printf("keyDown NSCommandKeyMask\n");
             if( !_glfwWin.sysKeysDisabled )
             {
                 [super keyDown:event];
             }
         }
-        else if( code != GLFW_KEY_LEFT && code != GLFW_KEY_RIGHT && code != GLFW_KEY_UP && code != GLFW_KEY_DOWN )
+        else
         {
             characters = [event characters];
             length = [characters length];
