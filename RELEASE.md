@@ -75,12 +75,15 @@ Beta beta channel is automatically released for e very successful push to beta.
 
 1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
 
+        $ cd defold.github.io
         $ ./update.py --download refdoc
         $ git commit -am "Updated reference documentation to 1.2.xxx"
         $ git push
 
 1. Upload release artifacts to GitHub:
 
+        $ cd defold
+        $ git checkout master
         $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
 
 
