@@ -50,6 +50,7 @@ Beta beta channel is automatically released for e very successful push to beta.
 
  1. Tag the release in git:
 
+        $ git checkout master
         $ git tag -a X.Y.Z (same as version produced by the bump)
 
     Use tag message: Release X.Y.Z
