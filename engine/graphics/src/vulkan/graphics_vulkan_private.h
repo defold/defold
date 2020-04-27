@@ -13,6 +13,7 @@ namespace dmGraphics
         RESOURCE_TYPE_DEVICE_BUFFER        = 0,
         RESOURCE_TYPE_TEXTURE              = 1,
         RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR = 2,
+        RESOURCE_TYPE_PROGRAM              = 3,
     };
 
     struct DeviceBuffer
@@ -46,20 +47,7 @@ namespace dmGraphics
 
     struct Texture
     {
-        Texture()
-        : m_Type(TEXTURE_TYPE_2D)
-        , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
-        , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
-        , m_Width(0)
-        , m_Height(0)
-        , m_OriginalWidth(0)
-        , m_OriginalHeight(0)
-        , m_MipMapCount(0)
-        , m_TextureSamplerIndex(0)
-        , m_Destroyed(0)
-        {
-            memset(&m_Handle, 0, sizeof(m_Handle));
-        }
+    	Texture();
 
         struct VulkanHandle
         {
@@ -121,17 +109,6 @@ namespace dmGraphics
         const    VulkanResourceType GetType();
     };
 
-    struct ResourceToDestroy
-    {
-        union
-        {
-            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
-            Texture::VulkanHandle             m_Texture;
-            DescriptorAllocator::VulkanHandle m_DescriptorAllocator;
-        };
-        VulkanResourceType m_ResourceType;
-    };
-
     struct VertexDeclaration
     {
         struct Stream
@@ -166,18 +143,7 @@ namespace dmGraphics
 
     struct RenderTarget
     {
-        RenderTarget(const uint32_t rtId)
-        : m_TextureColor(0)
-        , m_TextureDepthStencil(0)
-        , m_RenderPass(VK_NULL_HANDLE)
-        , m_Framebuffer(VK_NULL_HANDLE)
-        , m_Id(rtId)
-        , m_IsBound(0)
-        {
-            m_Extent.width  = 0;
-            m_Extent.height = 0;
-        }
-
+    	RenderTarget(const uint32_t rtId);
         Texture*       m_TextureColor;
         Texture*       m_TextureDepthStencil;
         TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
@@ -307,6 +273,8 @@ namespace dmGraphics
 
     struct Program
     {
+        Program();
+
         enum ModuleType
         {
             MODULE_TYPE_VERTEX   = 0,
@@ -314,14 +282,34 @@ namespace dmGraphics
             MODULE_TYPE_COUNT    = 2
         };
 
+        struct VulkanHandle
+        {
+            VkDescriptorSetLayout m_DescriptorSetLayout[MODULE_TYPE_COUNT];
+            VkPipelineLayout      m_PipelineLayout;
+        };
+
         uint64_t                        m_Hash;
         uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
+        VulkanHandle                    m_Handle;
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
-        VkDescriptorSetLayout           m_DescriptorSetLayout[MODULE_TYPE_COUNT];
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
-        VkPipelineLayout                m_PipelineLayout;
+        uint8_t                         m_Destroyed : 1;
+
+        const VulkanResourceType GetType();
+    };
+
+    struct ResourceToDestroy
+    {
+        union
+        {
+            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
+            Texture::VulkanHandle             m_Texture;
+            DescriptorAllocator::VulkanHandle m_DescriptorAllocator;
+            Program::VulkanHandle             m_Program;
+        };
+        VulkanResourceType m_ResourceType;
     };
 
     struct SwapChainCapabilities
@@ -418,6 +406,7 @@ namespace dmGraphics
     void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle);
     void           DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     void           DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
+    void           DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle);
     // Get functions
     uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
     void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
@@ -425,7 +414,7 @@ namespace dmGraphics
     QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
         uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount);
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
     // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
@@ -443,5 +432,7 @@ namespace dmGraphics
 
     // Implemented per supported platform
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    bool     LoadVulkanLibrary();
+    void     LoadVulkanFunctions(VkInstance vk_instance);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

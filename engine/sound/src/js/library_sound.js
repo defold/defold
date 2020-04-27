@@ -72,70 +72,13 @@ var LibrarySoundDevice =
                     return left;
                 }
             };
-            
-        } else {
-            // Create flash audio device
-            if (document.getElementById('DEFOLD_FLASH_SND') == null) {
-                var el = document.createElement('div');
-                el.id = 'DEFOLD_FLASH_SND';
-                el.setAttribute("id", "DEFOLD_FLASH_SND");
-                el.setAttribute("style","background:#ff00ff;position:static;");
-                var body = document.getElementsByTagName("BODY");
-                body[0].appendChild(el);
-                el.innerHTML = "<div style=\"position:fixed;right:0px;bottom:0px\"> <object id=\"defold_sound_swf\" style=\"display: block;\" classid=\"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000\" codebase=\"http:\/\/download.macromedia.com\/pub\/shockwave\/cabs\/flash\/swflash.cab#version=4,0,0,0\" width=\"1\" height=\"1\"><param name=\"movie\" value=\"defold_sound.swf\"><param name=\"LOOP\" value=\"false\"><param name=\"quality\" value=\"high\"><param name=\"allowScriptAccess\" value=\"always\"><embed src=\"defold_sound.swf\" width=\"1\" height=\"1\" loop=\"false\" quality=\"high\" pluginspage=\"http:\/\/www.macromedia.com\/shockwave\/download\/index.cgi?P1_Prod_Version=ShockwaveFlash\" type=\"application\/x-shockwave-flash\" allowscriptaccess=\"always\"><\/object><\/div>";
-            }
-            device = {
-                sampleRate: 44100,
-                buffered: [],
-                bufferSize: 0,
-                flashMinSize: 4096,
-                _queue: function(samples, sample_count) {
-                    var s = "";
-                    for (var i=0;i<2*sample_count;i++) {
-                        s += String.fromCharCode(32768 + getValue(samples+2*i, 'i16') / 2);
-                    }
-                    var l = this.buffered.length - 1;
-                    if (this.buffered.length > 0 && this.buffered[l].length < this.flashMinSize) {
-                        // there is a buffer that is not big enough yet.
-                        this.buffered[l] = this.buffered[l] + s;
-                    } else {
-                        this.buffered.push(s);
-                    }
-                    this.bufferSize = 2 * sample_count;
-                },
-                _freeBufferSlots: function() {
-                    if (this.bufferSize == 0)
-                        return 1;
-                    var tot = 0;
-                    for (var k=0;k<this.buffered.length;k++)
-                        tot = tot + this.buffered[k].length;
-
-                    // ignore the buffer count for flash; it does internal buffering and we need to ask for at least
-                    // 2*4096 bytes which is a little more than typical buffer count * size gives.
-                    var left = Math.floor((2 * this.flashMinSize - tot) / this.bufferSize);
-                    if (left < 0)
-                        return 0;
-                    return left;
-                }
-            };
-            window.dmFlashGetSoundData = function() {
-                if (device.buffered.length > 0 && device.buffered[0].length >= device.flashMinSize) {
-                    var buf = device.buffered.splice(0, 1)[0];
-                    return buf;
-                } else {
-                    var s = "";
-                    for (var i=0;i<device.flashMinSize;i++) 
-                        s += String.fromCharCode(32768);
-                    return s;
-                }
-            };
         }
         
         if (device != null) {
             shared.devices[id] = device;
             return id;
         } 
-        return 0;
+        return -1;
     },
     
     dmDeviceJSQueue: function(id, samples, sample_count) {

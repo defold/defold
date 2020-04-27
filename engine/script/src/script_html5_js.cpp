@@ -25,6 +25,12 @@ namespace dmScript
      * @namespace html5
      */
 
+    static bool isOperationSuccessful;
+    extern "C" void EMSCRIPTEN_KEEPALIVE dmScript_Html5ReportOperationSuccess(int result)
+    {
+        isOperationSuccessful = (bool)result;
+    }
+
     /*# run JavaScript code, in the browser, from Lua
      *
      * Executes the supplied string as JavaScript inside the browser.
@@ -46,8 +52,34 @@ namespace dmScript
     int Html5_Run(lua_State* L)
     {
         const char* code = luaL_checkstring(L, 1);
-        char *ret = emscripten_run_script_string(code);
-        lua_pushstring(L, ret);
+
+        char* result = (char*)EM_ASM_INT({
+            var jsResult;
+            var isSuccess = 1;
+            try 
+            {
+                jsResult = eval(UTF8ToString($0));
+            }
+            catch (err)
+            {
+                isSuccess = 0;
+                jsResult = err;
+            }
+            _dmScript_Html5ReportOperationSuccess(isSuccess);
+            jsResult += '';
+            var lengthBytes = lengthBytesUTF8(jsResult) + 1; 
+            var stringOnWasmHeap = _malloc(lengthBytes);
+            stringToUTF8(jsResult, stringOnWasmHeap, lengthBytes);
+            return stringOnWasmHeap;
+        }, code);
+        if (!isOperationSuccessful)
+        {
+            luaL_error(L, result);
+            free(result);
+            return 0;
+        }
+        lua_pushstring(L, result);
+        free(result);
         return 1;
     }
 

@@ -11,9 +11,9 @@
 set -e
 
 SDK_10_VERSION="10.0.18362.0"
-MSVC_VERSION="14.23.28105"
+MSVC_VERSION="14.25.28610"
 
-VS_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community"
+VC_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Community"
 
 SDK_PATH="C:\Program Files (x86)\Windows Kits"
 
@@ -28,12 +28,12 @@ if [ ! -d "${TMP_PATH}" ]; then
 	mkdir ${TMP_PATH}
 fi
 
-if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
-	echo "Packing to ${PACKAGES_WIN32_SDK_8}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} -C "${SDK_PATH}" 8.1/Include 8.1/Lib 8.1/sdk_license.rtf 8.1/sdk_third_party_notices.rtf
-else
-	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
-fi
+# if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
+# 	echo "Packing to ${PACKAGES_WIN32_SDK_8}"
+# 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} -C "${SDK_PATH}" 8.1/Include 8.1/Lib 8.1/sdk_license.rtf 8.1/sdk_third_party_notices.rtf
+# else
+# 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
+# fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
@@ -44,7 +44,21 @@ fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_TOOLCHAIN}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "${VS_PATH}" DIA\ SDK VC/Tools
+	TMP=MicrosoftVisualStudio2019
+
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/include
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x64
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x86
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/atlmfc
+
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64"
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/include" "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/atlmfc"  "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
+
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "$TMP" VC
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} already existed"
 fi

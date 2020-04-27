@@ -20,6 +20,8 @@ namespace dmGraphics
         void*                   m_WindowCloseCallbackUserData;
         WindowFocusCallback     m_WindowFocusCallback;
         void*                   m_WindowFocusCallbackUserData;
+        WindowIconifyCallback   m_WindowIconifyCallback;
+        void*                   m_WindowIconifyCallbackUserData;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
@@ -112,4 +114,3 @@ namespace dmGraphics
 
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__
-

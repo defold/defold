@@ -1,10 +1,14 @@
 package com.dynamo.bob.tile.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertThat;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.awt.image.BufferedImage;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.ByteOrder;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -118,6 +122,117 @@ public class ConvexHull2DTest {
             assertThat(points, hasItem(new Point(3, 6)));
             assertThat(points, hasItem(new Point(7, 0)));
         }
+    }
+
+    private static byte[] createImageBytes(int width, int height) {
+        final int bytes_per_pixel = 4;
+        return new byte[width * height * bytes_per_pixel];
+    }
+
+    private static void plotTexelARGB(byte[] data, int width, int height, int x, int y, int r, int g, int b, int a) {
+        final int bytes_per_pixel = 4;
+        int index = y * height * bytes_per_pixel + x * bytes_per_pixel;
+        data[index+0] = (byte)a;
+        data[index+1] = (byte)r;
+        data[index+2] = (byte)g;
+        data[index+3] = (byte)b;
+    }
+
+    private static BufferedImage getTestImage(byte[] data, int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        IntBuffer intBuf = ByteBuffer.wrap(data)
+                                     .order(ByteOrder.LITTLE_ENDIAN)
+                                     .asIntBuffer();
+        int[] array = new int[intBuf.remaining()];
+        intBuf.get(array);
+        image.setRGB(0, 0, width, height, array, 0, width);
+        return image;
+    }
+
+    private static int[] getImageAlpha(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int[] alpha = new int[width * height];
+        alpha = image.getAlphaRaster().getPixels(0, 0, width, height, alpha);
+        return alpha;
+    }
+
+    private boolean hasArrayItem(ConvexHull2D.PointF[] points, ConvexHull2D.PointF point) {
+        for (ConvexHull2D.PointF p : points) {
+            double dx = point.getX() - p.getX();
+            double dy = point.getY() - p.getY();
+            if ( (dx*dx+dy*dy) < 0.001 ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    private ConvexHull2D.PointF sub(ConvexHull2D.PointF a, ConvexHull2D.PointF b) {
+        return new ConvexHull2D.PointF(b.getX()-a.getX(), b.getY()-a.getY());
+    }
+
+    private double simpleCross(ConvexHull2D.PointF a, ConvexHull2D.PointF b) {
+        // Since we know the z=0, the X/Y of the cross product is 0, and only the Z component is valid
+        // x = Ay * Bz - By * Az
+        // y = Az * Bx - Bz * Ax
+        double z = a.getX() * b.getY() - b.getX() * a.getY();
+        // <0 CW
+        // >0 CCW
+        return z;
+    }
+
+    @Test
+    public void testImageHullWinding() {
+        int width;
+        int height;
+        byte[] data;
+        BufferedImage image;
+        int offset;
+        ConvexHull2D.PointF[] points;
+
+        // *****************************************************************************************
+        width = 64;
+        height = 64;
+        offset = 0;
+        data = createImageBytes(width, height);
+
+        plotTexelARGB(data, width, height,       offset  ,        offset , 1,2,3,4);
+        plotTexelARGB(data, width, height, width-offset-1, height-offset-1, 1,2,3,4);
+        plotTexelARGB(data, width, height,       offset  , height-offset-1, 1,2,3,4);
+        plotTexelARGB(data, width, height, width-offset-1,        offset , 1,2,3,4);
+        image = getTestImage(data, width, height);
+
+        points = ConvexHull2D.imageConvexHullCorners(getImageAlpha(image), width, height, 4);
+
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF(-0.5, -0.5)));
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF(-0.5,  0.5)));
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF( 0.5, -0.5)));
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF( 0.5,  0.5)));
+
+        // *****************************************************************************************
+        width = 64;
+        height = 64;
+        offset = 16;
+        data = createImageBytes(width, height);
+
+        plotTexelARGB(data, width, height,       offset  ,        offset , 1,2,3,4);
+        plotTexelARGB(data, width, height, width-offset-1, height-offset-1, 1,2,3,4);
+        plotTexelARGB(data, width, height,       offset  , height-offset-1, 1,2,3,4);
+        plotTexelARGB(data, width, height, width-offset-1,        offset , 1,2,3,4);
+        image = getTestImage(data, width, height);
+
+        points = ConvexHull2D.imageConvexHullCorners(getImageAlpha(image), width, height, 4);
+
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF(-0.25, -0.25)));
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF(-0.25,  0.25)));
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF( 0.25, -0.25)));
+        assertTrue(hasArrayItem(points, new ConvexHull2D.PointF( 0.25,  0.25)));
+
+        // Assert CCW
+        assertTrue(simpleCross(sub(points[1], points[0]), sub(points[2], points[0])) < 0);
+        assertTrue(simpleCross(sub(points[2], points[0]), sub(points[3], points[0])) < 0);
     }
 
 }

@@ -1,3 +1,7 @@
+![CI - Main](https://github.com/defold/defold/workflows/CI%20-%20Main/badge.svg)
+![CI - Editor Only](https://github.com/defold/defold/workflows/CI%20-%20Editor%20Only/badge.svg)
+![CI - Engine nightly](https://github.com/defold/defold/workflows/CI%20-%20Engine%20nightly/badge.svg)
+
 # Defold
 
 Repository for the Defold engine, editor and command line tools.
@@ -41,7 +45,7 @@ An overview of the engine architecture and additional engine information can be 
 
 The release process is documented [here](RELEASE.md).
 
+
 ## Licenses
 
 See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip`
-

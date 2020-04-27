@@ -12,25 +12,35 @@ set -e
 
 ANDROID_PLATFORM=29
 ANDROID_TARGET_API_LEVEL=29
-ANDROID_BUILD_TOOLS_VERSION=23.0.2
+ANDROID_BUILD_TOOLS_VERSION=29.0.3
 
 PLATFORM=android-${ANDROID_PLATFORM}
 
 HOST=`uname | tr '[:upper:]' '[:lower:]'`
 
+TOOLHOSTNAME=$HOST
+if [ "$HOST" == "darwin" ]; then
+	TOOLHOSTNAME="mac"
+fi
+
+if [ "$TERM" == "cygwin" ]; then
+	TOOLHOSTNAME="win"
+fi
+
+echo TOOLHOSTNAME $TOOLHOSTNAME
+
 # Contains the sdkmanager, which is used to install the sdk
-ANDROID_TOOLS_FILENAME=sdk-tools-${HOST}-4333796.zip
+ANDROID_TOOLS_FILENAME=commandlinetools-${TOOLHOSTNAME}-6200805_latest.zip
 ANDROID_TOOLS_URL=https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
 
 PWD=`pwd`
 TMP=${PWD}/_tmpdir/${HOST}
 
-ANDROID_SDK_NAME=android-sdk-${HOST}-android-${ANDROID_TARGET_API_LEVEL}
+ANDROID_SDK_NAME=android-sdk-${HOST}-android-${ANDROID_TARGET_API_LEVEL}-${ANDROID_BUILD_TOOLS_VERSION}
 ANDROID_SDK_INSTALLDIR=${TMP}/${ANDROID_SDK_NAME}
 
-if [ ! -e "${ANDROID_SDK_INSTALLDIR}" ]; then
-	mkdir -p ${ANDROID_SDK_INSTALLDIR}
-fi
+TMP_ANDROID_HOME=${PWD}/_tmpdir/${HOST}/android_home/${ANDROID_SDK_NAME}
+
 
 if [ ! -e "${TMP}" ]; then
 	mkdir -p ${TMP}
@@ -40,9 +50,16 @@ fi
 if [ ! -e "${TMP}/${ANDROID_TOOLS_FILENAME}" ]; then
 	echo "Downloading sdkmanager" ${ANDROID_TOOLS_URL}
 	(cd ${TMP} && wget -q ${ANDROID_TOOLS_URL})
+else
+	echo "Found downloaded package" ${TMP}/${ANDROID_TOOLS_FILENAME}
+fi
+
+if [ ! -d "${ANDROID_SDK_INSTALLDIR}" ]; then
+	echo "Unpacking sdkmanager" ${ANDROID_TOOLS_URL}
+	mkdir -p ${ANDROID_SDK_INSTALLDIR}
 	(cd ${ANDROID_SDK_INSTALLDIR} && unzip -q ${TMP}/${ANDROID_TOOLS_FILENAME})
 else
-	echo "Found sdkmanager" ${TMP}/${ANDROID_TOOLS_FILENAME}
+	echo "Found unpacked sdkmanager" ${ANDROID_SDK_INSTALLDIR}
 fi
 
 echo "cd ${ANDROID_SDK_INSTALLDIR}"
@@ -52,16 +69,19 @@ echo "cd ${ANDROID_SDK_INSTALLDIR}"
 #export JAVA_OPTS="-XX:+IgnoreUnrecognizedVMOptions --add-modules java.se.ee"
 
 if [ ! -e ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx ]; then
-	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose "tools" "platform-tools" )
-	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" )
+	mkdir -p ${TMP_ANDROID_HOME}
+
+	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose --sdk_root=${TMP_ANDROID_HOME} "tools" "platform-tools" )
+	(cd ${ANDROID_SDK_INSTALLDIR} && echo y | ./tools/bin/sdkmanager --verbose --sdk_root=${TMP_ANDROID_HOME} "extras;android;m2repository" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" )
 
 	# make sure it installed properly!
-	(cd ${ANDROID_SDK_INSTALLDIR} && ls -la ./build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx )
+	ls -la ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
 
 	echo "Removing folders..."
-	(cd ${TMP} && rm -rf ${ANDROID_SDK_NAME}/extras/android/m2repository/com/android/support/test)
+	rm -rf ${TMP_ANDROID_HOME}/extras/android/m2repository/com/android/support/test
+	rm -rf ${TMP_ANDROID_HOME}/emulator
 else
-	echo "Found" ${ANDROID_SDK_INSTALLDIR}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
+	echo "Found" ${TMP_ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/dx
 	echo "Skipping reinstallation"
 fi
 
@@ -69,7 +89,7 @@ OUT_ARCHIVE=${TMP}/${ANDROID_SDK_NAME}.tar.gz
 if [ ! -e ${OUT_ARCHIVE} ]; then
 	echo "Packing ${ANDROID_SDK_NAME}..."
 
-	(cd ${TMP} && tar -czf ${OUT_ARCHIVE} ${ANDROID_SDK_NAME} )
+	(cd ${TMP_ANDROID_HOME}/.. && GZIP=-9 tar -czf ${OUT_ARCHIVE} ${ANDROID_SDK_NAME})
 
 	echo "Wrote ${OUT_ARCHIVE}"
 else

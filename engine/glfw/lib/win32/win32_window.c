@@ -749,6 +749,8 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
             _glfwWin.iconified = iconified;
             if(_glfwWin.windowFocusCallback)
                 _glfwWin.windowFocusCallback( _glfwWin.active ? 1 : 0 );
+            if(_glfwWin.windowIconifyCallback)
+                _glfwWin.windowIconifyCallback( _glfwWin.iconified ? 1 : 0);
             return 0;
         }
 
@@ -2018,6 +2020,10 @@ void* _glfwPlatformAcquireAuxContext()
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
     wglMakeCurrent( NULL, NULL );
+}
+
+void _glfwPlatformSetViewType(int view_type)
+{
 }
 
 GLFWAPI void glfwAccelerometerEnable()

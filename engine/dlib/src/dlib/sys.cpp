@@ -64,7 +64,7 @@ extern "C" const char* dmSysGetUserPersistentDataRoot();
 extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
-extern "C" bool dmSysOpenURL(const char* url);
+extern "C" bool dmSysOpenURL(const char* url, const char* target);
 extern "C" const char* dmSysGetApplicationPath();
 
 #endif
@@ -307,7 +307,7 @@ namespace dmSys
         return RESULT_OK;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         int ret = (int) ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
@@ -381,7 +381,7 @@ namespace dmSys
         return res;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         if (*url == 0x0)
         {
@@ -454,9 +454,9 @@ namespace dmSys
             return r;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
-        if (dmSysOpenURL(url)) {
+        if (dmSysOpenURL(url, target)) {
             return RESULT_OK;
         } else {
             return RESULT_UNKNOWN;
@@ -506,7 +506,7 @@ namespace dmSys
             return r;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         char buf[1024];
         dmSnPrintf(buf, 1024, "xdg-open %s", url);

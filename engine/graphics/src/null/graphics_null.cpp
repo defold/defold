@@ -9,6 +9,7 @@
 
 #include "../graphics_private.h"
 #include "../graphics_native.h"
+#include "../graphics_adapter.h"
 #include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
@@ -36,12 +37,19 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
-    bool Initialize()
+    static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
+    static bool                         NullIsSupported();
+    static const int8_t    g_null_adapter_priority = 2;
+    static GraphicsAdapter g_null_adapter;
+
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
+
+    static bool NullInitialize()
     {
         return true;
     }
 
-    void Finalize()
+    static void NullFinalize()
     {
         // nop
     }
@@ -60,7 +68,7 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
-    HContext NewContext(const ContextParams& params)
+    static HContext NullNewContext(const ContextParams& params)
     {
         if (!g_ContextCreated)
         {
@@ -73,7 +81,12 @@ namespace dmGraphics
         }
     }
 
-    void DeleteContext(HContext context)
+    static bool NullIsSupported()
+    {
+        return true;
+    }
+
+    static void NullDeleteContext(HContext context)
     {
         assert(context);
         if (g_ContextCreated)
@@ -83,7 +96,7 @@ namespace dmGraphics
         }
     }
 
-    WindowResult OpenWindow(HContext context, WindowParams* params)
+    static WindowResult NullOpenWindow(HContext context, WindowParams* params)
     {
         assert(context);
         assert(params);
@@ -115,13 +128,13 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
-    uint32_t GetWindowRefreshRate(HContext context)
+    static uint32_t NullGetWindowRefreshRate(HContext context)
     {
         assert(context);
         return 0;
     }
 
-    void CloseWindow(HContext context)
+    static void NullCloseWindow(HContext context)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -138,16 +151,16 @@ namespace dmGraphics
         }
     }
 
-    void IconifyWindow(HContext context)
+    static void NullIconifyWindow(HContext context)
     {
         assert(context);
     }
 
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    static void NullAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
     {
     }
 
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
+    static void NullRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
         {
@@ -155,7 +168,7 @@ namespace dmGraphics
         }
     }
 
-    uint32_t GetWindowState(HContext context, WindowState state)
+    static uint32_t NullGetWindowState(HContext context, WindowState state)
     {
         switch (state)
         {
@@ -166,33 +179,33 @@ namespace dmGraphics
         }
     }
 
-    uint32_t GetDisplayDpi(HContext context)
+    static uint32_t NullGetDisplayDpi(HContext context)
     {
         assert(context);
         return context->m_Dpi;
     }
 
-    uint32_t GetWidth(HContext context)
+    static uint32_t NullGetWidth(HContext context)
     {
         return context->m_Width;
     }
 
-    uint32_t GetHeight(HContext context)
+    static uint32_t NullGetHeight(HContext context)
     {
         return context->m_Height;
     }
 
-    uint32_t GetWindowWidth(HContext context)
+    static uint32_t NullGetWindowWidth(HContext context)
     {
         return context->m_WindowWidth;
     }
 
-    uint32_t GetWindowHeight(HContext context)
+    static uint32_t NullGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
     }
 
-    void SetWindowSize(HContext context, uint32_t width, uint32_t height)
+    static void NullSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -217,7 +230,7 @@ namespace dmGraphics
         }
     }
 
-    void ResizeWindow(HContext context, uint32_t width, uint32_t height)
+    static void NullResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
         if (context->m_WindowOpened)
@@ -230,13 +243,13 @@ namespace dmGraphics
         }
     }
 
-    void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
+    static void NullGetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
         out_min_filter = context->m_DefaultTextureMinFilter;
         out_mag_filter = context->m_DefaultTextureMagFilter;
     }
 
-    void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
+    static void NullClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
         if (flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
@@ -263,12 +276,12 @@ namespace dmGraphics
         }
     }
 
-    void BeginFrame(HContext context)
+    static void NullBeginFrame(HContext context)
     {
         // NOP
     }
 
-    void Flip(HContext context)
+    static void NullFlip(HContext context)
     {
         // Mimick glfw
         if (context->m_RequestWindowClose)
@@ -282,7 +295,7 @@ namespace dmGraphics
         g_Flipped = 1;
     }
 
-    void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
+    static void NullSetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
     {
         // NOP
     }
@@ -307,7 +320,7 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
-    HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();
         vb->m_Buffer = new char[size];
@@ -318,15 +331,17 @@ namespace dmGraphics
         return (uintptr_t)vb;
     }
 
-    void DeleteVertexBuffer(HVertexBuffer buffer)
+    static void NullDeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
         delete vb;
     }
 
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void NullSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
@@ -337,14 +352,14 @@ namespace dmGraphics
             memcpy(vb->m_Buffer, data, size);
     }
 
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    static void NullSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         if (offset + size <= vb->m_Size && data != 0x0)
             memcpy(&(vb->m_Buffer)[offset], data, size);
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    static void* NullMapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         vb->m_Copy = new char[vb->m_Size];
@@ -352,7 +367,7 @@ namespace dmGraphics
         return vb->m_Copy;
     }
 
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    static bool NullUnmapVertexBuffer(HVertexBuffer buffer)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
         memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
@@ -361,12 +376,12 @@ namespace dmGraphics
         return true;
     }
 
-    uint32_t GetMaxElementsVertices(HContext context)
+    static uint32_t NullGetMaxElementsVertices(HContext context)
     {
         return 65536;
     }
 
-    HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HIndexBuffer NullNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         IndexBuffer* ib = new IndexBuffer();
         ib->m_Buffer = new char[size];
@@ -376,15 +391,17 @@ namespace dmGraphics
         return (uintptr_t)ib;
     }
 
-    void DeleteIndexBuffer(HIndexBuffer buffer)
+    static void NullDeleteIndexBuffer(HIndexBuffer buffer)
     {
+        if (!buffer)
+            return;
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
         delete ib;
     }
 
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void NullSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
@@ -395,14 +412,14 @@ namespace dmGraphics
             memcpy(ib->m_Buffer, data, size);
     }
 
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    static void NullSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         if (offset + size <= ib->m_Size && data != 0x0)
             memcpy(&(ib->m_Buffer)[offset], data, size);
     }
 
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    static void* NullMapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         ib->m_Copy = new char[ib->m_Size];
@@ -410,7 +427,7 @@ namespace dmGraphics
         return ib->m_Copy;
     }
 
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    static bool NullUnmapIndexBuffer(HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
@@ -419,22 +436,22 @@ namespace dmGraphics
         return true;
     }
 
-    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    static bool NullIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return true;
     }
 
-    uint32_t GetMaxElementsIndices(HContext context)
+    static uint32_t NullGetMaxElementsIndices(HContext context)
     {
         return 65536;
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
         return NewVertexDeclaration(context, element, count);
     }
 
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration NullNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
     {
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(*vd));
@@ -447,7 +464,7 @@ namespace dmGraphics
         return vd;
     }
 
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    static void NullDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete vertex_declaration;
     }
@@ -477,7 +494,7 @@ namespace dmGraphics
         s.m_Source = 0x0;
     }
 
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
     {
         assert(context);
         assert(vertex_declaration);
@@ -498,12 +515,12 @@ namespace dmGraphics
         }
     }
 
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void NullEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
     {
-        EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+        NullEnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
     }
 
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void NullDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         assert(context);
         assert(vertex_declaration);
@@ -549,7 +566,7 @@ namespace dmGraphics
         return ~0;
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void NullDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -580,7 +597,7 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void NullDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context);
 
@@ -592,6 +609,7 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
+    // For tests
     uint64_t GetDrawCount()
     {
         return g_DrawCount;
@@ -655,7 +673,7 @@ namespace dmGraphics
         program->m_Uniforms.Push(uniform);
     }
 
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         VertexProgram* vertex = 0x0;
         FragmentProgram* fragment = 0x0;
@@ -666,12 +684,12 @@ namespace dmGraphics
         return (HProgram) new Program(vertex, fragment);
     }
 
-    void DeleteProgram(HContext context, HProgram program)
+    static void NullDeleteProgram(HContext context, HProgram program)
     {
         delete (Program*) program;
     }
 
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
         VertexProgram* p = new VertexProgram();
@@ -681,7 +699,7 @@ namespace dmGraphics
         return (uintptr_t)p;
     }
 
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         assert(ddf);
         FragmentProgram* p = new FragmentProgram();
@@ -691,7 +709,7 @@ namespace dmGraphics
         return (uintptr_t)p;
     }
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);
         assert(ddf);
@@ -702,7 +720,7 @@ namespace dmGraphics
         return !g_ForceVertexReloadFail;
     }
 
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
         assert(prog);
         assert(ddf);
@@ -713,7 +731,7 @@ namespace dmGraphics
         return !g_ForceFragmentReloadFail;
     }
 
-    void DeleteVertexProgram(HVertexProgram program)
+    static void NullDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
         VertexProgram* p = (VertexProgram*)program;
@@ -721,7 +739,7 @@ namespace dmGraphics
         delete p;
     }
 
-    void DeleteFragmentProgram(HFragmentProgram program)
+    static void NullDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
         FragmentProgram* p = (FragmentProgram*)program;
@@ -729,24 +747,24 @@ namespace dmGraphics
         delete p;
     }
 
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context)
     {
         return ShaderDesc::LANGUAGE_GLSL;
     }
 
-    void EnableProgram(HContext context, HProgram program)
+    static void NullEnableProgram(HContext context, HProgram program)
     {
         assert(context);
         context->m_Program = (void*)program;
     }
 
-    void DisableProgram(HContext context)
+    static void NullDisableProgram(HContext context)
     {
         assert(context);
         context->m_Program = 0x0;
     }
 
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool NullReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         (void) context;
         (void) program;
@@ -754,12 +772,12 @@ namespace dmGraphics
         return true;
     }
 
-    uint32_t GetUniformCount(HProgram prog)
+    static uint32_t NullGetUniformCount(HProgram prog)
     {
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -770,7 +788,7 @@ namespace dmGraphics
         return (uint32_t)strlen(buffer);
     }
 
-    int32_t GetUniformLocation(HProgram prog, const char* name)
+    static int32_t NullGetUniformLocation(HProgram prog, const char* name)
     {
         Program* program = (Program*)prog;
         uint32_t count = program->m_Uniforms.Size();
@@ -785,11 +803,12 @@ namespace dmGraphics
         return -1;
     }
 
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void NullSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
     }
 
+    // Tests Only
     const Vector4& GetConstantV4Ptr(HContext context, int base_register)
     {
         assert(context);
@@ -797,25 +816,25 @@ namespace dmGraphics
         return context->m_ProgramRegisters[base_register];
     }
 
-    void SetConstantV4(HContext context, const Vector4* data, int base_register)
+    static void NullSetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
     }
 
-    void SetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void NullSetConstantM4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
     }
 
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    static void NullSetSampler(HContext context, int32_t location, int32_t unit)
     {
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    static HRenderTarget NullNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
@@ -849,7 +868,7 @@ namespace dmGraphics
         return rt;
     }
 
-    void DeleteRenderTarget(HRenderTarget rt)
+    static void NullDeleteRenderTarget(HRenderTarget rt)
     {
         if (rt->m_ColorBufferTexture)
             DeleteTexture(rt->m_ColorBufferTexture);
@@ -858,21 +877,21 @@ namespace dmGraphics
         delete rt;
     }
 
-    void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
+    static void NullSetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
     {
         (void) transient_buffer_types;
         assert(context);
         context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
     }
 
-    HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
+    static HTexture NullGetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
         if(buffer_type != BUFFER_TYPE_COLOR_BIT)
             return 0;
         return rendertarget->m_ColorBufferTexture;
     }
 
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void NullGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         assert(render_target);
         uint32_t i = GetBufferTypeIndex(buffer_type);
@@ -881,7 +900,7 @@ namespace dmGraphics
         height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
-    void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
+    static void NullSetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
 
@@ -907,17 +926,17 @@ namespace dmGraphics
         }
     }
 
-    bool IsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
     {
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
-    uint32_t GetMaxTextureSize(HContext context)
+    static uint32_t NullGetMaxTextureSize(HContext context)
     {
         return 1024;
     }
 
-    HTexture NewTexture(HContext context, const TextureCreationParams& params)
+    static HTexture NullNewTexture(HContext context, const TextureCreationParams& params)
     {
         Texture* tex = new Texture();
 
@@ -937,7 +956,7 @@ namespace dmGraphics
         return tex;
     }
 
-    void DeleteTexture(HTexture t)
+    static void NullDeleteTexture(HTexture t)
     {
         assert(t);
         if (t->m_Data != 0x0)
@@ -945,7 +964,7 @@ namespace dmGraphics
         delete t;
     }
 
-    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    static HandleResult NullGetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
 
@@ -958,12 +977,12 @@ namespace dmGraphics
         return HANDLE_RESULT_OK;
     }
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void NullSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
     {
         assert(texture);
     }
 
-    void SetTexture(HTexture texture, const TextureParams& params)
+    static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= texture->m_Width));
@@ -979,11 +998,13 @@ namespace dmGraphics
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
     }
 
-    uint8_t* GetTextureData(HTexture texture) {
+    // Not used?
+    uint8_t* GetTextureData(HTexture texture)
+    {
         return 0x0;
     }
 
-    uint32_t GetTextureResourceSize(HTexture texture)
+    static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
         uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Format)) >> 3;
@@ -995,27 +1016,27 @@ namespace dmGraphics
         return size_total + sizeof(Texture);
     }
 
-    uint16_t GetTextureWidth(HTexture texture)
+    static uint16_t NullGetTextureWidth(HTexture texture)
     {
         return texture->m_Width;
     }
 
-    uint16_t GetTextureHeight(HTexture texture)
+    static uint16_t NullGetTextureHeight(HTexture texture)
     {
         return texture->m_Height;
     }
 
-    uint16_t GetOriginalTextureWidth(HTexture texture)
+    static uint16_t NullGetOriginalTextureWidth(HTexture texture)
     {
         return texture->m_OriginalWidth;
     }
 
-    uint16_t GetOriginalTextureHeight(HTexture texture)
+    static uint16_t NullGetOriginalTextureHeight(HTexture texture)
     {
         return texture->m_OriginalHeight;
     }
 
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void NullEnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
@@ -1024,14 +1045,14 @@ namespace dmGraphics
         context->m_Textures[unit] = texture;
     }
 
-    void DisableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
         context->m_Textures[unit] = 0;
     }
 
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void NullReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {
         uint32_t w = dmGraphics::GetWidth(context);
         uint32_t h = dmGraphics::GetHeight(context);
@@ -1039,22 +1060,22 @@ namespace dmGraphics
         memset(buffer, 0, w * h * 4);
     }
 
-    void EnableState(HContext context, State state)
+    static void NullEnableState(HContext context, State state)
     {
         assert(context);
     }
 
-    void DisableState(HContext context, State state)
+    static void NullDisableState(HContext context, State state)
     {
         assert(context);
     }
 
-    void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
+    static void NullSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
     }
 
-    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
+    static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
         context->m_RedMask = red;
@@ -1063,19 +1084,19 @@ namespace dmGraphics
         context->m_AlphaMask = alpha;
     }
 
-    void SetDepthMask(HContext context, bool mask)
+    static void NullSetDepthMask(HContext context, bool mask)
     {
         assert(context);
         context->m_DepthMask = mask;
     }
 
-    void SetDepthFunc(HContext context, CompareFunc func)
+    static void NullSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
         context->m_DepthFunc = func;
     }
 
-    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void NullSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
         context->m_ScissorRect[0] = (int32_t) x;
@@ -1084,13 +1105,13 @@ namespace dmGraphics
         context->m_ScissorRect[3] = (int32_t) y+height;
     }
 
-    void SetStencilMask(HContext context, uint32_t mask)
+    static void NullSetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
         context->m_StencilMask = mask;
     }
 
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
+    static void NullSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         context->m_StencilFunc = func;
@@ -1098,7 +1119,7 @@ namespace dmGraphics
         context->m_StencilFuncMask = mask;
     }
 
-    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    static void NullSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
         context->m_StencilOpSFail = sfail;
@@ -1106,45 +1127,155 @@ namespace dmGraphics
         context->m_StencilOpDPPass = dppass;
     }
 
-    void SetCullFace(HContext context, FaceType face_type)
+    static void NullSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
     }
 
-    void SetPolygonOffset(HContext context, float factor, float units)
+    static void NullSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
     }
 
+    // Not used?
     bool AcquireSharedContext()
     {
         return false;
     }
 
+    // Not used?
     void UnacquireContext()
     {
 
     }
 
-    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    static void NullSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         SetTexture(texture, params);
     }
 
-    uint32_t GetTextureStatusFlags(HTexture texture)
+    static uint32_t NullGetTextureStatusFlags(HTexture texture)
     {
         return TEXTURE_STATUS_OK;
     }
 
+    // Tests only
     void SetForceFragmentReloadFail(bool should_fail)
     {
         g_ForceFragmentReloadFail = should_fail;
     }
 
+    // Tests only
     void SetForceVertexReloadFail(bool should_fail)
     {
         g_ForceVertexReloadFail = should_fail;
     }
 
+    static GraphicsAdapterFunctionTable NullRegisterFunctionTable()
+    {
+        GraphicsAdapterFunctionTable fn_table;
+        memset(&fn_table,0,sizeof(fn_table));
+        fn_table.m_NewContext = NullNewContext;
+        fn_table.m_DeleteContext = NullDeleteContext;
+        fn_table.m_Initialize = NullInitialize;
+        fn_table.m_Finalize = NullFinalize;
+        fn_table.m_AppBootstrap = NullAppBootstrap;
+        fn_table.m_GetWindowRefreshRate = NullGetWindowRefreshRate;
+        fn_table.m_OpenWindow = NullOpenWindow;
+        fn_table.m_CloseWindow = NullCloseWindow;
+        fn_table.m_IconifyWindow = NullIconifyWindow;
+        fn_table.m_GetWindowState = NullGetWindowState;
+        fn_table.m_GetDisplayDpi = NullGetDisplayDpi;
+        fn_table.m_GetWidth = NullGetWidth;
+        fn_table.m_GetHeight = NullGetHeight;
+        fn_table.m_GetWindowWidth = NullGetWindowWidth;
+        fn_table.m_GetWindowHeight = NullGetWindowHeight;
+        fn_table.m_SetWindowSize = NullSetWindowSize;
+        fn_table.m_ResizeWindow = NullResizeWindow;
+        fn_table.m_GetDefaultTextureFilters = NullGetDefaultTextureFilters;
+        fn_table.m_BeginFrame = NullBeginFrame;
+        fn_table.m_Flip = NullFlip;
+        fn_table.m_SetSwapInterval = NullSetSwapInterval;
+        fn_table.m_Clear = NullClear;
+        fn_table.m_NewVertexBuffer = NullNewVertexBuffer;
+        fn_table.m_DeleteVertexBuffer = NullDeleteVertexBuffer;
+        fn_table.m_SetVertexBufferData = NullSetVertexBufferData;
+        fn_table.m_SetVertexBufferSubData = NullSetVertexBufferSubData;
+        fn_table.m_MapVertexBuffer = NullMapVertexBuffer;
+        fn_table.m_UnmapVertexBuffer = NullUnmapVertexBuffer;
+        fn_table.m_GetMaxElementsVertices = NullGetMaxElementsVertices;
+        fn_table.m_NewIndexBuffer = NullNewIndexBuffer;
+        fn_table.m_DeleteIndexBuffer = NullDeleteIndexBuffer;
+        fn_table.m_SetIndexBufferData = NullSetIndexBufferData;
+        fn_table.m_SetIndexBufferSubData = NullSetIndexBufferSubData;
+        fn_table.m_MapIndexBuffer = NullMapIndexBuffer;
+        fn_table.m_UnmapIndexBuffer = NullUnmapIndexBuffer;
+        fn_table.m_IsIndexBufferFormatSupported = NullIsIndexBufferFormatSupported;
+        fn_table.m_NewVertexDeclaration = NullNewVertexDeclaration;
+        fn_table.m_NewVertexDeclarationStride = NullNewVertexDeclarationStride;
+        fn_table.m_DeleteVertexDeclaration = NullDeleteVertexDeclaration;
+        fn_table.m_EnableVertexDeclaration = NullEnableVertexDeclaration;
+        fn_table.m_EnableVertexDeclarationProgram = NullEnableVertexDeclarationProgram;
+        fn_table.m_DisableVertexDeclaration = NullDisableVertexDeclaration;
+        fn_table.m_DrawElements = NullDrawElements;
+        fn_table.m_Draw = NullDraw;
+        fn_table.m_NewVertexProgram = NullNewVertexProgram;
+        fn_table.m_NewFragmentProgram = NullNewFragmentProgram;
+        fn_table.m_NewProgram = NullNewProgram;
+        fn_table.m_DeleteProgram = NullDeleteProgram;
+        fn_table.m_ReloadVertexProgram = NullReloadVertexProgram;
+        fn_table.m_ReloadFragmentProgram = NullReloadFragmentProgram;
+        fn_table.m_DeleteVertexProgram = NullDeleteVertexProgram;
+        fn_table.m_DeleteFragmentProgram = NullDeleteFragmentProgram;
+        fn_table.m_GetShaderProgramLanguage = NullGetShaderProgramLanguage;
+        fn_table.m_EnableProgram = NullEnableProgram;
+        fn_table.m_DisableProgram = NullDisableProgram;
+        fn_table.m_ReloadProgram = NullReloadProgram;
+        fn_table.m_GetUniformName = NullGetUniformName;
+        fn_table.m_GetUniformCount = NullGetUniformCount;
+        fn_table.m_GetUniformLocation = NullGetUniformLocation;
+        fn_table.m_SetConstantV4 = NullSetConstantV4;
+        fn_table.m_SetConstantM4 = NullSetConstantM4;
+        fn_table.m_SetSampler = NullSetSampler;
+        fn_table.m_SetViewport = NullSetViewport;
+        fn_table.m_EnableState = NullEnableState;
+        fn_table.m_DisableState = NullDisableState;
+        fn_table.m_SetBlendFunc = NullSetBlendFunc;
+        fn_table.m_SetColorMask = NullSetColorMask;
+        fn_table.m_SetDepthMask = NullSetDepthMask;
+        fn_table.m_SetDepthFunc = NullSetDepthFunc;
+        fn_table.m_SetScissor = NullSetScissor;
+        fn_table.m_SetStencilMask = NullSetStencilMask;
+        fn_table.m_SetStencilFunc = NullSetStencilFunc;
+        fn_table.m_SetStencilOp = NullSetStencilOp;
+        fn_table.m_SetCullFace = NullSetCullFace;
+        fn_table.m_SetPolygonOffset = NullSetPolygonOffset;
+        fn_table.m_NewRenderTarget = NullNewRenderTarget;
+        fn_table.m_DeleteRenderTarget = NullDeleteRenderTarget;
+        fn_table.m_SetRenderTarget = NullSetRenderTarget;
+        fn_table.m_GetRenderTargetTexture = NullGetRenderTargetTexture;
+        fn_table.m_GetRenderTargetSize = NullGetRenderTargetSize;
+        fn_table.m_SetRenderTargetSize = NullSetRenderTargetSize;
+        fn_table.m_IsTextureFormatSupported = NullIsTextureFormatSupported;
+        fn_table.m_NewTexture = NullNewTexture;
+        fn_table.m_DeleteTexture = NullDeleteTexture;
+        fn_table.m_SetTexture = NullSetTexture;
+        fn_table.m_SetTextureAsync = NullSetTextureAsync;
+        fn_table.m_SetTextureParams = NullSetTextureParams;
+        fn_table.m_GetTextureResourceSize = NullGetTextureResourceSize;
+        fn_table.m_GetTextureWidth = NullGetTextureWidth;
+        fn_table.m_GetTextureHeight = NullGetTextureHeight;
+        fn_table.m_GetOriginalTextureWidth = NullGetOriginalTextureWidth;
+        fn_table.m_GetOriginalTextureHeight = NullGetOriginalTextureHeight;
+        fn_table.m_EnableTexture = NullEnableTexture;
+        fn_table.m_DisableTexture = NullDisableTexture;
+        fn_table.m_GetMaxTextureSize = NullGetMaxTextureSize;
+        fn_table.m_GetTextureStatusFlags = NullGetTextureStatusFlags;
+        fn_table.m_ReadPixels = NullReadPixels;
+        fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
+        fn_table.m_GetTextureHandle = NullGetTextureHandle;
+        fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
+        return fn_table;
+    }
 }
 

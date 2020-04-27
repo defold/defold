@@ -31,6 +31,9 @@ A clear and concise description of what you expected to happen.
 **Minimal repro case project (OPTIONAL):**
 Please attach a minimal project where the bug is reproduced. This will greatly help the person trying to investigate and fix the bug.
 
+**Logs (OPTIONAL):**
+Please provide relevant logs from engine, editor or build server. Learn where the logs are stored [here](https://defold.com/manuals/getting-help/#log-files).
+
 **Workaround (OPTIONAL):**
 If there is a workaround, please describe it here.
 

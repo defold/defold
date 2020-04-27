@@ -232,11 +232,16 @@ public class BundleHelper {
         return null;
     }
 
-    public File getTargetManifestDir(){
-        return new File(project.getBuildDirectory(), "manifests");
+    public File getTargetManifestDir(Platform platform){
+        String outputDir = project.getBinaryOutputDirectory();
+        File buildDir = new File(FilenameUtils.concat(outputDir, platform.getExtenderPair()));
+        File manifestsDir = new File(buildDir, "manifests");
+        return manifestsDir;
     }
 
     // This is used in the step prior to upload all sources (and manifests) to the extender server
+    // Each manifest has to be named like the default name (much easier for the server), even the main manifest file
+    // This isn't an issue since there cannot be two manifests in the same folder
     public List<ExtenderResource> writeManifestFiles(Platform platform, File manifestDir) throws CompileExceptionError, IOException {
         List<ExtenderResource> resolvedManifests = new ArrayList<>();
 
@@ -244,27 +249,24 @@ public class BundleHelper {
         String exeName = BundleHelper.projectNameToBinaryName(title);
 
         IResource mainManifest;
-        String mainManifestName;
         Map<String, Object> properties = new HashMap<>();
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_IOS;
         } else if (platform == Platform.X86_64Darwin) {
             mainManifest = getResource("osx", "infoplist");
             properties = createOSXManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_OSX;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             mainManifest = getResource("android", "manifest");
             properties = createAndroidManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             mainManifest = getResource("html5", "htmlfile");
             properties = createHtml5ManifestProperties(exeName);
-            mainManifestName = MANIFEST_NAME_HTML5;
         } else {
             return resolvedManifests;
         }
+
+        String mainManifestName = getMainManifestName(platform);
 
         // First, list all extension manifests
         List<IResource> sourceManifests = ExtenderUtil.getExtensionPlatformManifests(project, platform, getManifestName(platform));
@@ -292,7 +294,7 @@ public class BundleHelper {
     }
 
     public File getAppManifestFile(Platform platform, File appDir) {
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios  ) {
             return new File(appDir, "Info.plist");
         } else if (platform == Platform.X86_64Darwin) {
             return new File(appDir, "Contents/Info.plist");
@@ -304,30 +306,29 @@ public class BundleHelper {
         return null;
     }
 
+    public static String getMainManifestName(Platform platform) {
+        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+            return MANIFEST_NAME_IOS;
+        } else if (platform == Platform.X86_64Darwin) {
+            return MANIFEST_NAME_OSX;
+        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
+            return MANIFEST_NAME_ANDROID;
+        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+            return MANIFEST_NAME_HTML5;
+        }
+        return null;
+    }
+
     // either copies the merged manifest or writes a new resolved manifest from single source file
     public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
-        File sourceManifest;
-        if (platform == Platform.Armv7Darwin || platform == Platform.Arm64Darwin) {
-            sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
-        } else if (platform == Platform.X86_64Darwin) {
-            sourceManifest = new File(projectProperties.getStringValue("ios", "infoplist"));
-        } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            sourceManifest = new File(projectProperties.getStringValue("android", "manifest"));
-        } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
-            sourceManifest = new File(projectProperties.getStringValue("html5", "htmlfile"));
-        } else {
-            return;
-        }
-
         File targetManifest = getAppManifestFile(platform, appDir);
 
-        File extenderPlatformDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair());
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
 
         File manifestFile;
         if (!hasExtensions) {
             // Write a resolved manifest to this directory (should only be one)
-            List<ExtenderResource> manifests = writeManifestFiles(platform, getTargetManifestDir());
+            List<ExtenderResource> manifests = writeManifestFiles(platform, getTargetManifestDir(platform));
 
             ExtenderResource resource = manifests.get(0);
             if (resource instanceof FileExtenderResource) {
@@ -336,7 +337,11 @@ public class BundleHelper {
                 throw new IOException("Manifest file is of wrong type");
             }
         } else {
-            manifestFile = new File(extenderPlatformDir, sourceManifest.getName()); // the merged manifest
+            // At this stage, in case of a cloud build, we've written the main manifest down in the default name.
+            String mainManifestName = getMainManifestName(platform);
+
+            File extenderPlatformDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair());
+            manifestFile = new File(extenderPlatformDir, mainManifestName); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
     }
@@ -360,11 +365,6 @@ public class BundleHelper {
             args.add("-M"); args.add(manifestFile.getAbsolutePath());
             args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
             args.add("-F"); args.add(apk.getAbsolutePath());
-
-            boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG) || Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
-            if (debuggable) {
-                args.add("--debug-mode");
-            }
 
             File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
@@ -487,7 +487,7 @@ public class BundleHelper {
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
 
-            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, resDir));
+            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, packagesDir));
         }
 
         return resources;
@@ -651,6 +651,10 @@ public class BundleHelper {
             return copyFile(projectProperties, projectRoot, resDir, category, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
+    public List<String> createArrayFromString(String line) {
+        return line != null ? new ArrayList<String>(Arrays.asList(line.trim().split("\\s*,\\s*"))) : new ArrayList<String>();
+    }
+
     public Map<String, Object> createAndroidManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -670,12 +674,29 @@ public class BundleHelper {
         } else {
             properties.put("orientation-support", "sensor");
         }
+
+        // Since we started to always fill in the default values to the propject properties
+        // it is harder to distinguish what is a user defined value.
+        // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
+        if (projectProperties.isDefault("android", "debuggable")) {
+            Map<String, Object> propGroup = propertiesMap.get("android");
+            if (propGroup != null && propGroup.containsKey("debuggable")) {
+                boolean debuggable = this.variant.equals(Bob.VARIANT_DEBUG);
+                propGroup.put("debuggable", debuggable ? "true":"false");
+            }
+        }
+
         return properties;
     }
 
     public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
+
+        String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
+        List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
+        properties.put("application-localizations", applicationLocalizations);
+
         return properties;
     }
 
@@ -709,15 +730,17 @@ public class BundleHelper {
             orientationSupport.add("LandscapeRight");
         }
         properties.put("orientation-support", orientationSupport);
+
+        String applicationLocalizationsStr = projectProperties.getStringValue("ios", "localizations", null);
+        List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
+        properties.put("application-localizations", applicationLocalizations);
+
         return properties;
     }
 
 
     public Map<String, Object> createHtml5ManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
-
-        IResource customCSS = getResource("html5", "cssfile");
-        properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
 
         properties.put("exe-name", exeName);
 
@@ -748,7 +771,7 @@ public class BundleHelper {
         properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
 
         String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
-        List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
+        List<String> engineArguments = createArrayFromString(engineArgumentsString);
 
         properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
         properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
@@ -779,6 +802,9 @@ public class BundleHelper {
             properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
         }
 
+        IResource customCSS = getResource("html5", "cssfile");
+        properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
+
         return properties;
     }
 
@@ -798,8 +824,8 @@ public class BundleHelper {
     };
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
-    private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(fatal error|error|warning|note).*?:\\s*(.+)"); // CL.exe
+    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
+    private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload\\/packages|upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(fatal error|error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
     private static Pattern resourceIssueLinkerLLDLINKre = Pattern.compile("^(?:.*lld-link|.*ld):\\s(?:(warning|error)?:\\s)?(?:([\\w-.]+)\\([\\w.]+\\):\\s)?(.*)");
@@ -827,6 +853,9 @@ public class BundleHelper {
 
     // In case something really bad happened on the server
     private static Pattern internalServerIssue = Pattern.compile("Internal Server Error*.+");
+
+    // This regexp catches issues when merging android manifests
+    private static Pattern manifestMergeAndroidRe = Pattern.compile("(?:\\/tmp\\/job\\d*?\\/)(?:build|upload)\\/(.*?):(\\d*?):\\s(.*?):\\s(.*)");
 
     private static List<String> excludeMessages = new ArrayList<String>() {{
         add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message

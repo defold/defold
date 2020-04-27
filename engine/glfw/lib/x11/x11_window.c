@@ -1328,6 +1328,9 @@ static GLboolean processSingleEvent( void )
             // The window was mapped
 
             _glfwWin.iconified = GL_FALSE;
+
+            if(_glfwWin.windowIconifyCallback)
+                _glfwWin.windowIconifyCallback(0);
             break;
         }
 
@@ -1336,6 +1339,9 @@ static GLboolean processSingleEvent( void )
             // The window was unmapped
 
             _glfwWin.iconified = GL_TRUE;
+
+            if(_glfwWin.windowIconifyCallback)
+                _glfwWin.windowIconifyCallback(1);
             break;
         }
 
@@ -2041,6 +2047,10 @@ void _glfwPlatformUnacquireAuxContext(void* context)
     {
         glXMakeCurrent( _glfwLibrary.display, None, NULL );
     }
+}
+
+void _glfwPlatformSetViewType(int view_type)
+{
 }
 
 

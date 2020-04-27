@@ -6,14 +6,15 @@
 
 ### Java JDK 11
 
-You need Java JDK 11 installed to build the tools. [Download and install from Oracle](https://www.oracle.com/technetwork/java/javase/downloads/index.html). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+You need Java JDK 11 installed to build the tools. [Download and install from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
 
 Set PATH and JAVA_HOME:
 
     > nano ~/.bashrc
 
-    export PATH=<JAVA_INSTALL_DIR>:$PATH
-    export JAVA_HOME=<JAVA_INSTALL_DIR>
+    export JAVA_HOME=<JAVA_INSTALL_PATH>
+    export PATH=$JAVA_HOME/bin:$PATH
+
 
 Verify that Java is installed and working:
 
@@ -40,7 +41,7 @@ Install Python using:
 
     > sudo apt-get install python 2.7 python-setuptools
 
-Configure use of Easy Install:
+Configure use of Easy Install (if it's not already installed: `which easy_install`):
 
     > sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
     > sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
@@ -77,8 +78,13 @@ You need additional files and tools to be able to build and work with Defold on 
 
 Download and install using `apt-get`:
 
-    > sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev libopenal-dev build-essential rpm git curl autoconf libtool automake cmake tofrodos valgrind
+    > sudo apt-get install -y --no-install-recommends gcc-5 g++-5 libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+    > sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 10 && sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20 && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 10 && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20 && sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30 && sudo update-alternatives --set cc /usr/bin/gcc && sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30 && sudo update-alternatives --set c++ /usr/bin/g++
 
+Verify the compiler installation with
+
+    > gcc --version
+    gcc (Ubuntu 5.5.0-12ubuntu1) 5.5.0 20171010
 
 ### Windows
 
@@ -90,15 +96,17 @@ Download and install using `apt-get`:
 
 This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](http://www.mingw.org/download/installer) and run the installer and check these packages (binary):
 
-	* MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
-	* MSYS Base System: `msys-base`, `msys-bash`
-	* optional packages `msys-dos2unix`
+	* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
+	* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
+    * MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
 
 Select the menu option `Installation -> Apply Changes`.
 
 You also need to install `wget`. From the mingw terminal run:
 
 	> mingw-get install msys-wget-bin msys-zip msys-unzip
+
+**NOTE:** You can start the visual installer again by simply running `mingw-get`
 
 #### Git
 
@@ -110,11 +118,46 @@ You need to [download](https://git-scm.com/download/win) a command line version 
 	- Add the public key to your Github profile
 	- You might need to run `start-ssh-agent` (in `C:\Program Files\Git\cmd`)
 
+Alternatively, you can easily create your own key from command line:
+
+    $ ssh-keygen -t rsa -b 1024 -C "user@domain.com"
+    # Copy the contents of the public file
+    $ cat ~/.ssh/id_rsa.pub
+    # Add the public key to your Github profile
+    # Test your new key:
+    $ ssh -T git@github.com
+
 Now you should be able to clone the defold repo from a command prompt:
 
 	> git clone git@github.com:defold/defold.git
 
 If this won't work, you can try cloning using Github Desktop.
+
+#### Misc
+
+These tools are not essential, but merely things that might help during your development
+
+##### [Chocolatey](https://chocolatey.org/docs/installation)
+
+Chocolatey is another package installer that will help install various helper tools such as [ripgrep](https://github.com/BurntSushi/ripgrep)
+
+
+### Command Prompt
+
+It's useful to modify your command prompt to show the statuss of the repo you're in.
+E.g. it makes it easier to keep the git beanches apart.
+
+You do this by editing the `PS1` variable. Put it in the recommended config for your system (e.g. `.profile` or `.bashrc`)
+Here's a very small improvement on the default prompt, whic shows you the time of the last command, as well as the current git branch name and its status:
+
+    git_branch() {
+        git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
+    }
+    acolor() {
+      [[ -n $(git status --porcelain=v2 2>/dev/null) ]] && echo 31 || echo 33
+    }
+    export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
+
 
 
 ### macOS

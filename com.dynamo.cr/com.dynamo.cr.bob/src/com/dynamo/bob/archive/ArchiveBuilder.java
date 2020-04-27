@@ -127,27 +127,26 @@ public class ArchiveBuilder {
         }
     }
 
+    // Checks if any of the parents are excluded
+    // Parents are sorted, deepest parent first, root parent last
+    public boolean isTreeExcluded(List<String> parents, List<String> excludedResources) {
+        for (String parent : parents) {
+            if (excludedResources.contains(parent))
+                return true;
+        }
+        return false;
+    }
+
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
         if (this.manifestBuilder != null) {
-            List<ArrayList<String>> totalParentCollectionProxies = this.manifestBuilder.getParentCollectionProxies(filepath);
-            for (List<String> parentCollectionProxies : totalParentCollectionProxies) {
-                for (int i = 0; i < parentCollectionProxies.size(); i++) {
-                    String parentCollectionProxy = parentCollectionProxies.get(i);
-                    for (String excludedResource : excludedResources) {
-                        if (parentCollectionProxy.equals(excludedResource)) {
-                            result = true;
-                            i = parentCollectionProxies.size(); // break outer loop as well, move on to next tree in totalParentCollectionProxies 
-                            break;
-                        } else {
-                            result = false;
-                        }
-                    }
+            List<ArrayList<String>> parentChains = this.manifestBuilder.getParentCollections(filepath);
+            for (List<String> parents : parentChains) {
+                boolean excluded = isTreeExcluded(parents, excludedResources);
+                if (!excluded) {
+                    return false; // as long as one tree path requires this resource, we cannot exclude it
                 }
-
-                if (result == false) { // Traversed an entire tree in totalParentCollectionProxies without hitting exclusion -> in should not be excluded, it is needed in bundle
-                    return false;
-                }
+                result = true;
             }
         }
 

@@ -26,31 +26,23 @@ import org.junit.Test;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.fs.DefaultFileSystem;
 
 public class ExtenderUtilTest {
 
-    private MockFileSystem fileSystem;
+    private DefaultFileSystem fileSystem;
     private Project project;
     private File tmpDir;
 
-    private void createDirs(MockFileSystem fileSystem, String path) {
-        if (!path.isEmpty()) {
-            String accumulate = "";
-            String[] parts = path.split("/");
-            for (int i = 0; i < parts.length - 1; ++i) {
-                accumulate += parts[i] + "/";
-
-                fileSystem.addDirectory(accumulate);
-            }
-        }
+    private void createDirs(DefaultFileSystem fileSystem, String path) {
+        File dir = new File(tmpDir, path);
+        dir.mkdirs();
     }
 
-    private void createFile(MockFileSystem fileSystem, String path, byte[] data) throws IOException {
-        // For simplicity, we create a directory with the name of the file...
-        createDirs(fileSystem, path);
-        // ...but we immediately replace it with the intended mock file
-        fileSystem.addFile(path,  data);
+    private void createFile(DefaultFileSystem fileSystem, String path, byte[] data) throws IOException {
+        File f = new File(tmpDir, path);
+        f.getParentFile().mkdirs();
+        Files.write(f.toPath(), data);
     }
 
 
@@ -58,9 +50,8 @@ public class ExtenderUtilTest {
     public void setUp() throws Exception {
 
         tmpDir = Files.createTempDirectory("defold_").toFile();
-        tmpDir.deleteOnExit();
 
-        fileSystem = new MockFileSystem();
+        fileSystem = new DefaultFileSystem();
         createFile(fileSystem, "extension1/ext.manifest", "name: Extension1\n".getBytes());
         createFile(fileSystem, "extension1/src/ext1.cpp", "// ext1.cpp".getBytes());
         createFile(fileSystem, "extension1/res/android/res/values/values.xml", "<xml>/<xml>".getBytes());
@@ -76,7 +67,14 @@ public class ExtenderUtilTest {
 
         createDirs(fileSystem, "notextension/res/android/res/bla");
 
+        createFile(fileSystem, "bundle1/armv7-android/res/values/strings.xml", "<xml>/<xml>".getBytes());
+        createFile(fileSystem, "bundle2/arm64-android/res/values/strings.xml", "<xml>/<xml>".getBytes());
+
+        createFile(fileSystem, "game.project", "[project]\nbundle_resources = /bundle1,/bundle2".getBytes());
+
         project = new Project(fileSystem, tmpDir.getAbsolutePath(), "build/default");
+
+        project.loadProjectFile();
     }
 
     @After
@@ -92,7 +90,18 @@ public class ExtenderUtilTest {
     @Test
     public void testGetAndroidResources() throws Exception {
         Map<String, IResource> resources = ExtenderUtil.getAndroidResources(project);
-        assertFalse(resources.isEmpty());
+        for (String key : resources.keySet()) {
+            IResource r = resources.get(key);
+            System.out.printf("key: %s -> %s\n", key, r.getAbsPath());
+        }
+        assertEquals(6, resources.size());
+        assertTrue(resources.containsKey("extension1/values/values.xml"));
+        assertTrue(resources.containsKey("extension2/com.foo.org/values/values.xml"));
+        assertTrue(resources.containsKey("extension3/com.foo.org/values/values.xml"));
+        assertTrue(resources.containsKey("extension3/com.bar.org/values/values.xml"));
+        // Check bundle resources
+        assertTrue(resources.containsKey("bundle1/values/strings.xml"));
+        assertTrue(resources.containsKey("bundle2/values/strings.xml"));
     }
 }
 

@@ -1,10 +1,31 @@
 # Defold Editor
 
 ## Requirements
-* [Java 11](https://jdk.java.net/11/)
-Note that we do not yet officially support development with a newer version of Java than 11.
+* [Java 11](https://jdk.java.net/11/) ([installation instructions](#installing-jdk11) - Note that we do not yet officially support development with a newer version of Java than 11.
+* Leiningen ([install instructions](#install-leiningen))
 
-## Windows
+## Installing JDK 11
+### macOS
+
+* Download the [macOS](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
+* Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
+* Verify that the jdk version is available by running `/usr/libexec/java_home -V`
+* Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
+
+### Linux
+
+* Download [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it somewhere
+* Run `sudo update-alternatives --install "/usr/bin/java" "java" "/path/to/jdk/bin/java" 1102`
+* Run `sudo update-alternatives --install "/usr/bin/javac" "javac" "/path/to/jdk/bin/javac" 1102`
+* If require, switch to new version using `sudo update-alternatives --config java` and `sudo update-alternatives --config javac`
+
+### Notes
+
+If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
+and then set the project SDK setting (file->project structure/Project) to the new version.
+
+## Installing Leiningen
+### Windows
 
 First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
@@ -27,45 +48,42 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
 
           export HTTP_CLIENT='wget --no-check-certificate -O'
 
-* Follow the OS X/Linux instructions!
+### macOS/Linux
 
-## macOS/Linux
-
-* `cd` to the `defold` directory
-* run `./scripts/build.py shell --platform=...`
-
-This is the shell environment that you must have to run the project.
-Consider putting it in an alias in your bash profile.
-
-## Updating jdk to JDK11
-
-### macOS
-
-* Download the [macOS](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_osx-x64_bin.tar.gz) version and extract it
-* Run `sudo cp -R <path-to-extracted-folder>/jdk-11.0.2.jdk /Library/Java/JavaVirtualMachines/`
-* Verify that the jdk version is available by running `/usr/libexec/java_home -V`
-* Switch to the new version by running `/usr/libexec/java_home -v 11.0.2`
-
-### Linux
-
-* Download [Linux](https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz) version and extract it somewhere
-* Run `sudo update-alternatives --install "/usr/bin/java" "java" "/path/to/jdk/bin/java" 1102`
-* Run `sudo update-alternatives --install "/usr/bin/javac" "javac" "/path/to/jdk/bin/javac" 1102`
-* If require, switch to new version using `sudo update-alternatives --config java` and `sudo update-alternatives --config javac`
-
-### Notes
-
-If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
-and then set the project SDK setting (file->project structure/Project) to the new version.
+* Install Leiningen `brew install leiningen`
 
 ## Setup
-* Run install_ext for the correct platform `scripts/build.py install_ext --platform=...`
-* Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
-  from the `defold` directory
-* Build builtins with `scripts/build.py build_builtins`
-* Build Bob with `scripts/build.py build_bob`
-  from the `defold` directory
-* From the `defold/editor` directory, run `lein init`
+* Open a terminal/console and change directory to `defold`.
+
+    `cd defold`
+
+* Setup the shell environment (consider putting it in an alias in your bash profile):
+
+    `./scripts/build.py shell --platform=...`
+    
+* Run install_ext for the correct platform:
+    
+    `./scripts/build.py install_ext --platform=...`
+
+* Build the engine:
+
+    `./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
+  
+* Build builtins:
+
+    `scripts/build.py build_builtins`
+    
+* Build Bob:
+
+    `scripts/build.py build_bob`
+
+* Change directory to the editor directory
+
+    `cd editor`
+    
+* Run:
+
+    `lein init`
 
 ## Cursive IDE Setup
 Some of the remaining instructions are about EMACS. If instead you want to use the Cursive IDE, read the [Cursive setup guide](README_CURSIVE.md).

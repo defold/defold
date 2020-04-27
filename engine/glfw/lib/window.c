@@ -1055,6 +1055,20 @@ GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun )
     _glfwWin.windowFocusCallback = cbfun;
 }
 
+//========================================================================
+// Set callback function for window iconify events
+//========================================================================
+GLFWAPI void GLFWAPIENTRY glfwSetWindowIconifyCallback( GLFWwindowiconifyfun cbfun )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    // Set callback function
+    _glfwWin.windowIconifyCallback = cbfun;
+}
+
 
 //========================================================================
 // Poll for new window and input events
@@ -1112,3 +1126,7 @@ GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
     _glfwPlatformUnacquireAuxContext(context);
 }
 
+GLFWAPI void glfwSetViewType(int view_type)
+{
+    _glfwPlatformSetViewType(view_type);
+}

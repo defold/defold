@@ -1,29 +1,39 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
+# add build_tools folder to the import search path
+import sys, os
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
+sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
+
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes
 import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
-from datetime import datetime
+import github
+import run
+import s3
+import release_to_github
+import BuildUtility
+import http_cache
 from tarfile import TarFile
-from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 from glob import glob
 from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
+
 
 """
     Build utility for installing external packages, building engine, editor and cr
     Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.5 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
 PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
@@ -54,11 +64,6 @@ EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
-
-class ExecException(Exception):
-    def __init__(self, retcode, output):
-        self.retcode = retcode
-        self.output = output
 
 
 def is_64bit_machine():
@@ -189,14 +194,15 @@ class Configuration(object):
                  archive_path = None,
                  package_path = None,
                  set_version = None,
-                 branch = None,
                  channel = None,
                  engine_artifacts = None,
                  waf_options = [],
                  save_env_path = None,
                  notarization_username = None,
                  notarization_password = None,
-                 notarization_itc_provider = None):
+                 notarization_itc_provider = None,
+                 github_token = None,
+                 version = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -212,11 +218,7 @@ class Configuration(object):
         self.host2 = get_host_platform2()
         self.target_platform = target_platform
 
-        # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
-        # N.B. If we upgrade to more recent versions of python, then the method of module loading should also change.
-        build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
-        self.build_utility = build_utility_module.BuildUtility(self.target_platform, self.host, self.dynamo_home)
-        self._http_cache_module = imp.load_source('http_cache', os.path.join(self.defold, 'build_tools', 'http_cache.py'))
+        self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
@@ -228,7 +230,6 @@ class Configuration(object):
         self.archive_path = archive_path
         self.package_path = package_path
         self.set_version = set_version
-        self.branch = branch
         self.channel = channel
         self.engine_artifacts = engine_artifacts
         self.waf_options = waf_options
@@ -236,14 +237,18 @@ class Configuration(object):
         self.notarization_username = notarization_username
         self.notarization_password = notarization_password
         self.notarization_itc_provider = notarization_itc_provider
+        self.github_token = github_token
+        self.version = version
 
+        if self.github_token is None:
+            self.github_token = os.environ.get("GITHUB_TOKEN")
 
         self.thread_pool = None
-        self.s3buckets = {}
         self.futures = []
 
-        with open('VERSION', 'r') as f:
-            self.version = f.readlines()[0].strip()
+        if version is None:
+            with open('VERSION', 'r') as f:
+                self.version = f.readlines()[0].strip()
 
         self._create_common_dirs()
 
@@ -285,20 +290,32 @@ class Configuration(object):
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
         if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            self.exec_env_command(['tar', 'xfz', file], cwd = path)
+            run.env_command(self._form_env(), ['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
             tf.extractall(path)
             tf.close()
 
-    def _extract_tgz_rename_folder(self, src, target_folder):
+    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
+        src = src.replace('\\', '/')
+
+        force_local = ''
+        if os.environ.get('GITHUB_SHA', None) is not None and os.environ.get('TERM', '') == 'cygwin':
+            force_local = '--force-local' # to make tar not try to "connect" because it found a colon in the source file
+
         self._log('Extracting %s to %s/' % (src, target_folder))
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        self.exec_env_command(['tar', 'xfz', src, '-C', dirname, '--strip-components', '1'])
+
+        cmd = ['tar', 'xfz', src, '-C', dirname]
+        if strip_components:
+            cmd.extend(['--strip-components', '%d' % strip_components])
+        if force_local:
+            cmd.append(force_local)
+        run.env_command(self._form_env(), cmd)
         os.chdir(old_dir)
 
     def _extract_zip(self, file, path):
@@ -323,7 +340,7 @@ class Configuration(object):
 
     def _download(self, url):
         self._log('Downloading %s' % (url))
-        path = self._http_cache_module.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
         if not path:
             self._log('Downloading %s failed' % (url))
         return path
@@ -417,9 +434,10 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python eggs")
+        run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
-            self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+            run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -446,12 +464,12 @@ class Configuration(object):
         self.install_sdk()
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder):
+        def download_sdk(url, targetfolder, strip_components=1):
             if not os.path.exists(targetfolder):
                 if not os.path.exists(os.path.dirname(targetfolder)):
                     os.makedirs(os.path.dirname(targetfolder))
                 dlpath = self._download(url)
-                self._extract_tgz_rename_folder(dlpath, targetfolder)
+                self._extract_tgz_rename_folder(dlpath, targetfolder, strip_components)
 
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -466,7 +484,7 @@ class Configuration(object):
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform and not ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
@@ -483,7 +501,7 @@ class Configuration(object):
             # Android NDK
             download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk('%s/%s-%s-android-29.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)
@@ -513,10 +531,10 @@ class Configuration(object):
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
 
-        self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
         # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
         # Does not seem to help to pre-create it or explicitly setting the --cache flag
-        self.exec_env_command(['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
+        run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
@@ -703,7 +721,7 @@ class Configuration(object):
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
-        self.exec_shell_command("%s %s" % (strip, path))
+        run.shell_command("%s %s" % (strip, path))
         return True
 
     def archive_engine(self):
@@ -741,7 +759,6 @@ class Configuration(object):
                     self.upload_file(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
             if 'web' in self.target_platform:
-                self.upload_file(join(bin_dir, 'defold_sound.swf'), join(full_archive_path, 'defold_sound.swf'))
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
@@ -826,7 +843,7 @@ class Configuration(object):
             skip_build_tests.append('--skip-build-tests')
         cwd = join(self.defold_root, '%s/%s' % (dir, lib))
         plf_args = ['--platform=%s' % platform]
-        self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+        run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
         self._log('Building bob light')
@@ -834,10 +851,10 @@ class Configuration(object):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
 
         env = self._form_env()
-        self._exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
+        run.command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-bob-light']),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
@@ -876,7 +893,7 @@ class Configuration(object):
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            self.exec_command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            run.command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
@@ -892,12 +909,12 @@ class Configuration(object):
             self._log("Missing go for target platform, run install_ext with --platform set.")
             exit(5)
 
-        self.exec_env_command([go, 'clean', '-i', 'github.com/...'])
-        self.exec_env_command([go, 'install', 'github.com/...'])
-        self.exec_env_command([go, 'clean', '-i', 'defold/...'])
+        run.env_command(self._form_env(), [go, 'clean', '-i', 'github.com/...'])
+        run.env_command(self._form_env(), [go, 'install', 'github.com/...'])
+        run.env_command(self._form_env(), [go, 'clean', '-i', 'defold/...'])
         if not self.skip_tests:
-            self.exec_env_command([go, 'test', 'defold/...'])
-        self.exec_env_command([go, 'install', 'defold/...'])
+            run.env_command(self._form_env(), [go, 'test', 'defold/...'])
+        run.env_command(self._form_env(), [go, 'install', 'defold/...'])
 
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
@@ -937,7 +954,7 @@ class Configuration(object):
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['x86_64-linux', 'x86_64-linux']]])
-        js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
+        js_files = {}
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
@@ -985,7 +1002,7 @@ class Configuration(object):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = cwd)
         else:
             self.copy_local_bob_artefacts()
 
@@ -997,12 +1014,12 @@ class Configuration(object):
 
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         args = [ant, 'clean', 'install'] + ant_args
-        self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+        run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
         if not self.skip_tests:
             cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
             args = [ant, 'test-clean', 'test'] + ant_args
-            self._exec_command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+            run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
 
     def build_sdk(self):
@@ -1010,7 +1027,7 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
+        bucket = s3.get_bucket(u.hostname)
 
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
@@ -1048,7 +1065,7 @@ class Configuration(object):
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
-        self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
+        run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
@@ -1059,8 +1076,8 @@ class Configuration(object):
     def download_editor2(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
-        bucket = self._get_s3_bucket(bucket_name)
-        prefix = self._get_s3_archive_prefix()
+        bucket = s3.get_bucket(bucket_name)
+        prefix = s3.get_archive_prefix(self.archive_path, self._git_sha1())
 
         editor_filename = "Defold-%s.zip" % self.target_platform
         editor_path = join(self.defold_root, 'editor', 'target', 'editor')
@@ -1081,7 +1098,7 @@ class Configuration(object):
 
     def run_editor_script(self, cmd):
         cwd = join(self.defold_root, 'editor')
-        self.exec_env_command(cmd, cwd = cwd)
+        run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
         cmd = ['./scripts/bundle.py',
@@ -1109,9 +1126,6 @@ class Configuration(object):
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--version=%s' % self.version,
-               '--channel=%s' % self.channel,
-               '--engine-artifacts=%s' % self.engine_artifacts,
                '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
                'installer']
         self.run_editor_script(cmd)
@@ -1123,34 +1137,6 @@ class Configuration(object):
                self.notarization_password,
                self.notarization_itc_provider]
         self.run_editor_script(cmd)
-
-    def release_editor2(self):
-        if not self.channel:
-            self._log("Tried to release with no channel specified, aborting")
-            return
-
-        sha1 = self._git_sha1()
-
-        self._log("Releasing editor2 '%s' for channel '%s'" % (sha1, self.channel))
-
-        # Rather than accessing S3 from its web end-point, we always go through the CDN
-        archive_url = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(archive_url.hostname)
-
-        key_v3 = bucket.new_key('editor2/channels/%(channel)s/update-v3.json' % {'channel': self.channel})
-        key_v3.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
-        key_v3.set_contents_from_string(json.dumps({'sha1': sha1}))
-
-        # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
-        # For example;
-        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
-        for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
-            redirect = '/archive/%s/%s/editor2/%s' % (sha1, self.channel, name)
-            self._log('Creating link from %s -> %s' % (key_name, redirect))
-            key = bucket.new_key(key_name)
-            key.set_redirect(redirect)
 #
 # END: EDITOR 2
 # ------------------------------------------------------------
@@ -1205,73 +1191,6 @@ class Configuration(object):
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
-    # Get archive files for a single release/sha1
-    def _get_files(self, bucket, sha1):
-        root = urlparse.urlparse(self.archive_path).path[1:]
-        base_prefix = os.path.join(root, sha1)
-        files = []
-        prefix = os.path.join(base_prefix, 'engine')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-
-        prefix = os.path.join(base_prefix, 'bob')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/bob.jar)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-
-        prefix = os.path.join(base_prefix, self.channel, 'editor')
-        for x in bucket.list(prefix = prefix):
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                if re.match('.*(/Defold-*)$', x.name):
-                    name = os.path.relpath(x.name, base_prefix)
-                    files.append({'name': name, 'path': '/' + x.name})
-        return files
-
-    def _get_single_release(self, version_tag, sha1):
-        u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
-        files = self._get_files(bucket, sha1)
-
-        return {'tag': version_tag,
-                'sha1': sha1,
-                'abbrevsha1': sha1[:7],
-                'files': files}
-
-    def _get_tagged_releases(self):
-        u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
-
-        tags = self.exec_shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
-        tags.reverse()
-        releases = []
-        for line in tags:
-            line = line.strip()
-            if not line:
-                continue
-            m = re.match('(.*?) refs/tags/(.*?)$', line)
-            sha1, tag = m.groups()
-            epoch = self.exec_shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
-            date = datetime.fromtimestamp(float(epoch))
-            files = self._get_files(bucket, sha1)
-            if len(files) > 0:
-                releases.append({'tag': tag,
-                                 'sha1': sha1,
-                                 'abbrevsha1': sha1[:7],
-                                 'date': str(date),
-                                 'files': files})
-
-        return releases
 
 
     def release(self):
@@ -1363,35 +1282,15 @@ class Configuration(object):
 </html>
 """
 
-        artifacts = """<?xml version='1.0' encoding='UTF-8'?>
-<?compositeArtifactRepository version='1.0.0'?>
-<repository name='"Defold"'
-    type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
-    version='1.0.0'>
-  <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
-  </children>
-</repository>"""
-
-        content = """<?xml version='1.0' encoding='UTF-8'?>
-<?compositeMetadataRepository version='1.0.0'?>
-<repository name='"Defold"'
-    type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
-    version='1.0.0'>
-  <children size='1'>
-      <child location='http://%(host)s/archive/%(sha1)s/%(channel)s/editor/repository'/>
-  </children>
-</repository>
-"""
-        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
+        if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
             self._log('Running git fetch to get latest tags and refs...')
-            self.exec_shell_command('git fetch')
+            run.shell_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
+        bucket = s3.get_bucket(u.hostname)
         host = 'd.defold.com'
 
         model = {'releases': [],
@@ -1399,10 +1298,10 @@ class Configuration(object):
 
         if self.channel == 'stable':
             # Move artifacts to a separate page?
-            model['releases'] = self._get_tagged_releases()
+            model['releases'] = s3.get_tagged_releases(self.archive_path)
             model['has_releases'] = True
         else:
-            model['releases'] = self._get_single_release(self.version, self._git_sha1())
+            model['releases'] = s3.get_single_release(self.archive_path, self.version, self._git_sha1())
             model['has_releases'] = True
 
         # NOTE
@@ -1426,10 +1325,16 @@ class Configuration(object):
 
         # We handle the stable channel seperately, since we want it to point
         # to the editor-dev release (which uses the latest stable engine).
+        editor_channel = None
         if self.channel == "stable":
-            model['release'] = {'editor': [ dict(name='macOS 10.7+', url='https://d.defold.com/archive/'+release_sha1+'/stable/editor2/Defold-x86_64-darwin.dmg'),
-                                            dict(name='Windows', url='https://d.defold.com/archive/'+release_sha1+'/stable/editor2/Defold-x86_64-win32.zip'),
-                                            dict(name='Ubuntu 16.04+', url='https://d.defold.com/archive/'+release_sha1+'/stable/editor2/Defold-x86_64-linux.zip')] }
+            editor_channel = "editor-alpha"
+        else:
+            editor_channel = self.channel or "stable"
+
+        model['release'] = {'editor': [ dict(name='macOS 10.11+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.dmg'),
+                                        dict(name='macOS 10.7-10.10', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.zip'),
+                                        dict(name='Windows', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-win32.zip'),
+                                        dict(name='Ubuntu 16.04+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-linux.zip')] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -1445,31 +1350,36 @@ class Configuration(object):
         key.set_contents_from_string(json.dumps({'version': self.version,
                                                  'sha1' : release_sha1}))
 
-        # Create redirection keys for editor
+        # Editor update-v3.json
+        key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.channel)
+        key_v3.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
+        key_v3.set_contents_from_string(json.dumps({'sha1': release_sha1}))
+
+        # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
+        # Used by www.defold.com/download
+        # For example;
+        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
         for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
-            key_name = '%s/%s' % (self.channel, name)
+            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
             redirect = '/archive/%s/%s/editor2/%s' % (release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
 
-        for name, template in [['compositeArtifacts.xml', artifacts], ['compositeContent.xml', content]]:
-            full_name = '%s/update/%s' % (self.channel, name)
-            self._log('Uploading %s' % full_name)
-            key = bucket.new_key(full_name)
-            key.content_type = 'text/xml'
-            key.set_contents_from_string(template % {'host': host,
-                                                     'sha1': release_sha1,
-                                                     'channel': self.channel})
 #
 # END: RELEASE
 # ------------------------------------------------------------
 
 
+    def release_to_github(self):
+        release_to_github.release(self)
+
+
     def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
-        bucket = self._get_s3_bucket(bucket_name)
+        bucket = s3.get_bucket(bucket_name)
 
         local_dir = os.path.join(self.dynamo_home, 'archive')
         self._mkdirs(local_dir)
@@ -1489,7 +1399,7 @@ class Configuration(object):
         # * Defold SDK files
         # * launcher files, used to launch editor2
         pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
-        prefix = self._get_s3_archive_prefix()
+        prefix = s3.get_archive_prefix(self.archive_path, self._git_sha1())
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
 
@@ -1525,7 +1435,7 @@ class Configuration(object):
         host2 = get_host_platform2()
         install_path = join('tmp', 'smoke_test')
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'attach', path])
+            out = run.command(['hdiutil', 'attach', path])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
             words = last.split()
@@ -1554,7 +1464,7 @@ class Configuration(object):
         host2 = get_host_platform2()
         shutil.rmtree(info['install_path'])
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'detach', info['fs']])
+            out = run.command(['hdiutil', 'detach', info['fs']])
 
     def _get_config(self, config, section, option, overrides):
         combined = '%s.%s' % (section, option)
@@ -1586,7 +1496,7 @@ class Configuration(object):
         if 'win32' in host2:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
         elif 'linux' in host2:
-            self.exec_command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
+            run.command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
             java = join('Defold', 'packages', jdk, 'bin', 'java')
         else:
             java = join('Defold.app', 'Contents', 'Resources', 'packages', jdk, 'bin', 'java')
@@ -1663,46 +1573,6 @@ class Configuration(object):
 # END: SMOKE TEST
 # ------------------------------------------------------------
 
-
-    def _get_s3_archive_prefix(self):
-        u = urlparse.urlparse(self.archive_path)
-        assert (u.scheme == 's3')
-        sha1 = self._git_sha1()
-        prefix = os.path.join(u.path, sha1)[1:]
-        return prefix
-
-    def _get_s3_bucket(self, bucket_name):
-        if bucket_name in self.s3buckets:
-            return self.s3buckets[bucket_name]
-
-        configpath = os.path.expanduser("~/.s3cfg")
-        if os.path.exists(configpath):
-            config = ConfigParser()
-            config.read(configpath)
-            key = config.get('default', 'access_key')
-            secret = config.get('default', 'secret_key')
-        else:
-            key = os.getenv("S3_ACCESS_KEY")
-            secret = os.getenv("S3_SECRET_KEY")
-
-        print("_get_s3_bucket key %s" % (key))
-
-        if not (key and secret):
-            self._log('S3 key and/or secret not found in .s3cfg or environment variables')
-            sys.exit(5)
-
-        from boto.s3.connection import S3Connection
-        from boto.s3.connection import OrdinaryCallingFormat
-        from boto.s3.key import Key
-
-        # NOTE: We hard-code host (region) here and it should not be required.
-        # but we had problems with certain buckets with period characters in the name.
-        # Probably related to the following issue https://github.com/boto/boto/issues/621
-        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
-        bucket = conn.get_bucket(bucket_name)
-        self.s3buckets[bucket_name] = bucket
-        return bucket
-
     def download_file(self, path, url):
         url = url.replace('\\', '/')
         self._log('Downloading %s -> %s' % (url, path))
@@ -1714,7 +1584,7 @@ class Configuration(object):
         elif u.scheme == 's3':
             from boto.s3.key import Key
 
-            bucket = self._get_s3_bucket(u.netloc)
+            bucket = s3.get_bucket(u.netloc)
             k = Key(bucket)
             k.key = u.path
             k.get_contents_to_filename(path)
@@ -1734,10 +1604,10 @@ class Configuration(object):
                 if path[1] == ':':
                     path = "/" + path[:1] + path[2:]
 
-            self.exec_env_command(['ssh', u.scheme, 'mkdir -p %s' % u.path])
-            self.exec_env_command(['scp', path, url])
+            run.env_command(self._form_env(), ['ssh', u.scheme, 'mkdir -p %s' % u.path])
+            run.env_command(self._form_env(), ['scp', path, url])
         elif u.scheme == 's3':
-            bucket = self._get_s3_bucket(u.netloc)
+            bucket = s3.get_bucket(u.netloc)
 
             if not self.thread_pool:
                 self.thread_pool = ThreadPool(8)
@@ -1807,59 +1677,6 @@ class Configuration(object):
             f()
         self.futures = []
 
-    def _exec_command(self, arg_list, **kwargs):
-        arg_str = arg_list
-        if not isinstance(arg_str, basestring):
-            arg_str = ' '.join(arg_list)
-        self._log('[exec] %s' % arg_str)
-
-        if sys.stdout.isatty():
-            # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
-            if not 'stdout' in kwargs:
-                kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
-            process = subprocess.Popen(arg_list, **kwargs)
-            output = process.communicate()[0]
-            if process.returncode != 0:
-                self._log(output)
-        else:
-            # On the CI machines, we make sure we produce a steady stream of output
-            # However, this also makes us lose the color information
-            if 'stdout' in kwargs:
-                del kwargs['stdout']
-            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
-
-            output = ''
-            while True:
-                line = process.stdout.readline()
-                if line != '':
-                    output += line
-                    self._log(line.rstrip())
-                else:
-                    break
-
-        if process.wait() != 0:
-            raise ExecException(process.returncode, output)
-
-        return output
-
-    def exec_command_no_quit(self, args):
-        # Executes a command and raises an ExecException if it fails
-        return self._exec_command(args, shell = False)
-
-    def exec_command(self, args):
-        # Executes a command, and exits if it fails
-        try:
-            return self._exec_command(args, shell = False)
-        except ExecException, e:
-            sys.exit(e.returncode)
-
-    def exec_shell_command(self, args):
-        # Executes a command, and exits if it fails
-        try:
-            return self._exec_command(args, shell = True)
-        except ExecException, e:
-            sys.exit(e.returncode)
-
     def _form_env(self):
         env = dict(os.environ)
 
@@ -1917,12 +1734,6 @@ class Configuration(object):
             env['NODE_PATH'] = xhr2_path
 
         return env
-
-    def exec_env_command(self, args, **kwargs):
-        return self._exec_command(args, shell = False, stdout = None, env = self._form_env(), **kwargs)
-
-    def exec_env_shell_command(self, args, **kwargs):
-        return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
@@ -2015,10 +1826,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Set version explicitily when bumping version')
 
-    parser.add_option('--branch', dest='branch',
-                      default = None,
-                      help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
-
     parser.add_option('--channel', dest='channel',
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
@@ -2042,6 +1849,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--notarization-itc-provider', dest='notarization_itc_provider',
                       default = None,
                       help = 'Optional iTunes Connect provider to use when sending the editor for notarization')
+
+    parser.add_option('--github-token', dest='github_token',
+                      default = None,
+                      help = 'GitHub authentication token when releasing to GitHub')
+
+    parser.add_option('--version', dest='version',
+                      default = None,
+                      help = 'Version to use instead of from VERSION file')
 
     options, all_args = parser.parse_args()
 
@@ -2069,14 +1884,15 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       archive_path = options.archive_path,
                       package_path = options.package_path,
                       set_version = options.set_version,
-                      branch = options.branch,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,
                       waf_options = waf_options,
                       save_env_path = options.save_env_path,
                       notarization_username = options.notarization_username,
                       notarization_password = options.notarization_password,
-                      notarization_itc_provider = options.notarization_itc_provider)
+                      notarization_itc_provider = options.notarization_itc_provider,
+                      github_token = options.github_token,
+                      version = options.version)
 
     for cmd in args:
         f = getattr(c, cmd, None)

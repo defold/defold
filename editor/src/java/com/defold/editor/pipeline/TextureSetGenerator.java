@@ -193,11 +193,12 @@ public class TextureSetGenerator {
 
         // We must respect the upper limit of the vertex hull count
         if (points == null || points.length > hullVertexCount) {
+            // Generates a CW rect
             points = new ConvexHull2D.PointF[4];
             points[0] = new ConvexHull2D.PointF(-0.5,-0.5);
-            points[1] = new ConvexHull2D.PointF( 0.5,-0.5);
+            points[1] = new ConvexHull2D.PointF(-0.5, 0.5);
             points[2] = new ConvexHull2D.PointF( 0.5, 0.5);
-            points[3] = new ConvexHull2D.PointF(-0.5, 0.5);
+            points[3] = new ConvexHull2D.PointF( 0.5,-0.5);
         }
 
         for (int i = 0; i < points.length; ++i) {
@@ -369,20 +370,17 @@ public class TextureSetGenerator {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
-        // if all sizes are 0, then we skip this step entirely
-        List<SpriteGeometry> imageHulls = null;
-
         int usesSpriteTrimming = 0;
         for (Integer hullSize : imageHullSizes) {
             usesSpriteTrimming += hullSize;
         }
-        if (usesSpriteTrimming != 0)
-        {
-            imageHulls = new ArrayList<SpriteGeometry>();
-            for (int i = 0; i < images.size(); ++i) {
-                BufferedImage image = images.get(i);
-                imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
-            }
+
+        // if all sizes are 0, we still need to generate hull (or rect) data
+        // since it will still be part of the new code path if there is another atlas with trimming enabled
+        List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
+        for (int i = 0; i < images.size(); ++i) {
+            BufferedImage image = images.get(i);
+            imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
         }
 
         // The layout step will expand the rect, and possibly rotate them

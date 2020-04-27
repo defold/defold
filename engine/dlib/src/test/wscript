@@ -48,7 +48,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 def build(bld):
 
     bld.new_task_gen(features='javac seq',
-                     classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
+                     classpath=os.pathsep.join(['../ext/jetty-all-7.0.2.v20100331.jar','../ext/servlet-api-2.5.jar']),
                      source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
