@@ -42,4 +42,8 @@ jobs:
       {
         name: 'Archive editor',
         run: 'ci/ci.sh archive-editor'
+      },
+      {
+        name: 'Release editor',
+        run: 'ci/ci.sh release'
       }]
