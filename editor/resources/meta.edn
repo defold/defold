@@ -315,6 +315,10 @@
    :default 256,
    :path ["sound" "max_sound_instances"]}
   {:type :integer,
+   :help "max number of sound comonents in a collection, 32 by default",
+   :default 32,
+   :path ["sound" "max_component_count"]}
+  {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
    :path ["sprite" "max_count"]}

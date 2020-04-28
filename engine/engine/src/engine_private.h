@@ -128,6 +128,7 @@ namespace dmEngine
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
         dmGameSystem::TilemapContext                m_TilemapContext;
+        dmGameSystem::SoundContext                  m_SoundContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
