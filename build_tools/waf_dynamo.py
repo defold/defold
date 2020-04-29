@@ -946,7 +946,7 @@ def android_package(task):
         error('Error running zipalign')
         return 1
 
-    apkc = '%s/../../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-%s/apkc' % (os.environ['DYNAMO_HOME'], task.env.BUILD_PLATFORM)
+    apkc = '%s/ext/bin/x86_64-%s/apkc' % (os.environ['DYNAMO_HOME'], task.env.BUILD_PLATFORM)
     if not os.path.exists(apkc):
         error("file doesn't exist: %s" % apkc)
         return 1
