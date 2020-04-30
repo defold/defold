@@ -52,6 +52,19 @@ nn::os::SystemEvent g_DisplayResolutionChangeEvent;
 
 namespace dmGraphics
 {
+
+    static void CreateLayer(int width, int height)
+    {
+        nn::vi::LayerCreationSettings layerCreationSettings(width, height);
+        nn::Result result = nn::vi::CreateLayer(&g_pLayer, g_pDisplay, &layerCreationSettings);
+        NN_ASSERT(result.IsSuccess());
+    }
+
+    static void DestroyLayer()
+    {
+        nn::vi::DestroyLayer(g_pLayer);
+    }
+
     bool NativeInit(const ContextParams& params)
     {
         if (!g_NativeInitialized)
@@ -82,8 +95,11 @@ namespace dmGraphics
             nn::Result result = nn::vi::OpenDefaultDisplay(&g_pDisplay);
             NN_ASSERT(result.IsSuccess());
             NN_UNUSED(result);
+        
+            int width, height;
+            nn::oe::GetDefaultDisplayResolution(&width, &height);
+            CreateLayer(width, height);
 
-            result = nn::vi::CreateLayer(&g_pLayer, g_pDisplay);
             NN_ASSERT(result.IsSuccess());
 
             nn::oe::GetDefaultDisplayResolutionChangeEvent( &g_DisplayResolutionChangeEvent );
@@ -95,7 +111,7 @@ namespace dmGraphics
 
     void NativeExit()
     {
-        nn::vi::DestroyLayer(g_pLayer);
+        DestroyLayer();
         nn::vi::CloseDisplay(g_pDisplay);
         nn::vi::Finalize();
     }
@@ -226,15 +242,12 @@ namespace dmGraphics
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
             DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
-            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
-
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
-            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-            {
-                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
-            }
+            DestroyMainFrameBuffers(context);
+
+            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
             for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
             {
@@ -341,6 +354,14 @@ namespace dmGraphics
         nn::oe::GetDefaultDisplayResolution((int*)width, (int*)height);
     }
 
+    static VkResult ReCreateLayer(void* ctx)
+    {
+        HContext context = (HContext)ctx;
+        DestroyLayer();
+        CreateLayer((int)context->m_WindowWidth, (int)context->m_WindowHeight);
+        return VK_SUCCESS;
+    }
+
     void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
@@ -351,7 +372,8 @@ namespace dmGraphics
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, true, ReCreateLayer, (void*)context);
 
             if (context->m_WindowResizeCallback)
             {
@@ -362,7 +384,10 @@ namespace dmGraphics
 
     void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
-        VulkanSetWindowSize(context, width, height);
+        if (width != context->m_WindowWidth || height != context->m_WindowHeight)
+        {
+            VulkanSetWindowSize(context, width, height);
+        }
     }
 
     void SwapBuffers()
