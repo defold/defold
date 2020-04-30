@@ -54,14 +54,27 @@ local function toggle_info(self)
     gui.set_enabled(self.node_info, self.show_info)
 end
 
+local function action_test(self, action_id, action)
+    if action_id == hash("touch") or action_id == hash("ok") then
+        return true 
+    end
+
+    if action.gamepad ~= nil and action.released then
+        return true
+    end
+
+    return false
+end
+
 function on_input(self, action_id, action)
-    if action_id == hash("touch") then
+    if action_test(self, action_id, action) then
         if self.show_info then
             if action.released then
                 toggle_info(self)
             end
         else
-            local hit = gui.pick_node(self.node_info_btn_hit, action.x, action.y)
+            local hit = action_id == hash("touch") and gui.pick_node(self.node_info_btn_hit, action.x, action.y) or true
+
             -- visual feedback on button pressed
             if hit then
                 gui.cancel_animation(self.node_info_btn, "color.w")
