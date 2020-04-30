@@ -2663,6 +2663,8 @@ bail:
         assert(renderTarget);
         DestroyFrameBuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer);
         DestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass);
+        renderTarget->m_Framebuffer = VK_NULL_HANDLE;
+        renderTarget->m_RenderPass = VK_NULL_HANDLE;
     }
 
     static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
