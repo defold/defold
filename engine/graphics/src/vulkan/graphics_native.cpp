@@ -308,7 +308,7 @@ namespace dmGraphics
             context->m_WindowWidth  = window_width;
             context->m_WindowHeight = window_height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, false, 9, 0);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, false, 0, 0);
 
             // The callback is not called from glfw when the size is set manually
             if (context->m_WindowResizeCallback)
