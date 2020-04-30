@@ -2,7 +2,127 @@ key_trigger {
   input: KEY_ENTER
   action: "ok"
 }
+key_trigger {
+  input: KEY_SPACE
+  action: "ok"
+}
 mouse_trigger {
   input: MOUSE_BUTTON_1
   action: "touch"
 }
+
+gamepad_trigger {
+  input: GAMEPAD_CONNECTED
+  action: "CONNECTED"
+}
+gamepad_trigger {
+  input: GAMEPAD_DISCONNECTED
+  action: "DISCONNECTED"
+}
+
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_LEFT
+  action: "LSTICK_LEFT"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_RIGHT
+  action: "LSTICK_RIGHT"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_UP
+  action: "LSTICK_UP"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_DOWN
+  action: "LSTICK_DOWN"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_CLICK
+  action: "LSTICK_BUTTON"
+}
+
+
+gamepad_trigger {
+  input: GAMEPAD_RSTICK_LEFT
+  action: "RSTICK_LEFT"
+}
+gamepad_trigger {
+  input: GAMEPAD_RSTICK_RIGHT
+  action: "RSTICK_RIGHT"
+}
+gamepad_trigger {
+  input: GAMEPAD_RSTICK_UP
+  action: "RSTICK_UP"
+}
+gamepad_trigger {
+  input: GAMEPAD_RSTICK_DOWN
+  action: "RSTICK_DOWN"
+}
+gamepad_trigger {
+  input: GAMEPAD_RSTICK_CLICK
+  action: "RSTICK_BUTTON"
+}
+
+
+gamepad_trigger {
+  input: GAMEPAD_LSHOULDER
+  action: "LSHOULDER"
+}
+gamepad_trigger {
+  input: GAMEPAD_RSHOULDER
+  action: "RSHOULDER"
+}
+gamepad_trigger {
+  input: GAMEPAD_LTRIGGER
+  action: "LTRIGGER"
+}
+gamepad_trigger {
+  input: GAMEPAD_RTRIGGER
+  action: "RTRIGGER"
+}
+
+
+gamepad_trigger {
+  input: GAMEPAD_LPAD_LEFT
+  action: "LPAD_LEFT"
+}
+gamepad_trigger {
+  input: GAMEPAD_LPAD_RIGHT
+  action: "LPAD_RIGHT"
+}
+gamepad_trigger {
+  input: GAMEPAD_LPAD_UP
+  action: "LPAD_UP"
+}
+gamepad_trigger {
+  input: GAMEPAD_LPAD_DOWN
+  action: "LPAD_DOWN"
+}
+
+gamepad_trigger {
+  input: GAMEPAD_RPAD_LEFT
+  action: "RPAD_LEFT"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_RIGHT
+  action: "RPAD_RIGHT"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_UP
+  action: "RPAD_UP"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_DOWN
+  action: "RPAD_DOWN"
+}
+
+
+gamepad_trigger {
+  input: GAMEPAD_BACK
+  action: "BACK"
+}
+gamepad_trigger {
+  input: GAMEPAD_START
+  action: "START"
+}
+
