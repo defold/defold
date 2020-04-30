@@ -1,3 +1,4 @@
+#include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 
@@ -77,8 +78,8 @@ namespace dmGraphics
     }
 
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight,
-        const bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
+        uint32_t* wantedWidth, uint32_t* wantedHeight, bool force_dimensions,
+        bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
     {
         VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
         VkDevice vk_device                  = logicalDevice->m_Device;
@@ -106,7 +107,7 @@ namespace dmGraphics
         VkExtent2D vk_current_extent = capabilities.m_SurfaceCapabilities.currentExtent;
         VkExtent2D vk_extent         = {};
 
-        if (vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.width == 0xFFFFFFFF)
+        if (force_dimensions || vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.width == 0xFFFFFFFF)
         {
             // Clamp swap buffer extent to our wanted width / height.
             vk_extent.width  = *wantedWidth;

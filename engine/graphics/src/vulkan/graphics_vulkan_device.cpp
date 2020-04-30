@@ -410,6 +410,15 @@ namespace dmGraphics
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
+    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
+    {
+        if (vk_framebuffer != VK_NULL_HANDLE)
+        {
+            vkDestroyFramebuffer(vk_device, vk_framebuffer, 0);
+        }
+        return VK_SUCCESS;
+    }
+
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
     {
         VkCommandBufferAllocateInfo vk_buffers_allocate_info;
@@ -800,6 +809,14 @@ bail:
         return res;
     }
 
+    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass)
+    {
+        if (render_pass != VK_NULL_HANDLE)
+        {
+            vkDestroyRenderPass(vk_device, render_pass, 0);
+        }
+    }
+
     // These lookup values should match the ones in graphics_vulkan_constants.cpp
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
@@ -1074,23 +1091,6 @@ bail:
         {
             vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
             handle->m_DescriptorPool = VK_NULL_HANDLE;
-        }
-    }
-
-    void DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
-    {
-        assert(logicalDevice);
-        assert(renderTarget);
-        if (renderTarget->m_Framebuffer != VK_NULL_HANDLE)
-        {
-            vkDestroyFramebuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer, 0);
-            renderTarget->m_Framebuffer = VK_NULL_HANDLE;
-        }
-
-        if (renderTarget->m_RenderPass != VK_NULL_HANDLE)
-        {
-            vkDestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass, 0);
-            renderTarget->m_RenderPass = VK_NULL_HANDLE;
         }
     }
 
