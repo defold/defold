@@ -59,8 +59,8 @@ extern uint32_t DEBUG_FPC_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
 
-    extern unsigned char CONNECT_PROJECT[];
-    extern uint32_t CONNECT_PROJECT_SIZE;
+    extern unsigned char GAME_PROJECT[];
+    extern uint32_t GAME_PROJECT_SIZE;
 #endif
 
 using namespace Vectormath::Aos;
@@ -501,7 +501,7 @@ namespace dmEngine
             dmLogFatal("Unable to load project");
             return false;
 #else
-            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
+            dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) GAME_PROJECT, GAME_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
                 dmLogFatal("Unable to load builtin connect project");
