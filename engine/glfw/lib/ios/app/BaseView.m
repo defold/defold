@@ -405,11 +405,25 @@ static BaseView*            g_BaseView = 0;
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesMoved");
+    int32_t i = 0;
+    for (UITouch* t in [event allTouches])
+    {
+        NSLog(@"    touchesMoved %d %p", i++, t);
+    }
+
     [self fillTouch: event forPhase: UITouchPhaseMoved];
 }
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesBegan");
+    int32_t i = 0;
+    for (UITouch* t in [event allTouches])
+    {
+        NSLog(@"    touchesBegan %d %p", i++, t);
+    }
+
     if (self.keyboardActive && self.autoCloseKeyboard) {
         // Implicitly hide keyboard
         _glfwShowKeyboard(0, 0, 0);
@@ -420,11 +434,26 @@ static BaseView*            g_BaseView = 0;
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesEnded");
+    int32_t i = 0;
+    for (UITouch* t in [event allTouches])
+    {
+        NSLog(@"    touchesEnded %d %p", i++, t);
+    }
+
+
     [self fillTouch: event forPhase: UITouchPhaseEnded];
 }
 
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    NSLog(@"touchesCancelled");
+    int32_t i = 0;
+    for (UITouch* t in [event allTouches])
+    {
+        NSLog(@"    touchesCancelled %d %p", i++, t);
+    }
+
     [self fillTouch: event forPhase: UITouchPhaseCancelled];
 }
 
