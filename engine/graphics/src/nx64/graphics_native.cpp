@@ -376,7 +376,7 @@ namespace dmGraphics
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, true, RecreateSurface, (void*)context);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, RecreateSurface, (void*)context);
 
             if (context->m_WindowResizeCallback)
             {
