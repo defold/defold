@@ -453,7 +453,7 @@ namespace dmGraphics
     // Implemented in graphics_vulkan.cpp
     VkResult CreateMainFrameBuffers(HContext context);
     VkResult DestroyMainFrameBuffers(HContext context);
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, bool force_dimensions, VkResult (*cb)(void* ctx), void* cb_ctx);
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
@@ -528,7 +528,7 @@ namespace dmGraphics
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight, bool force_dimensions, bool wantVSync,
+        uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync,
         SwapChainCapabilities& capabilities, SwapChain* swapChain);
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);

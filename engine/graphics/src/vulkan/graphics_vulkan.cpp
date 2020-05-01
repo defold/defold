@@ -878,7 +878,7 @@ namespace dmGraphics
         context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
         context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family);
 
-        res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, false, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
+        res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
