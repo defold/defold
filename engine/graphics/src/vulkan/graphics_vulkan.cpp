@@ -620,7 +620,7 @@ namespace dmGraphics
         return res;
     }
 
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, bool force_dimensions, VkResult (*cb)(void* ctx), void* cb_ctx)
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         // Flush all current commands
@@ -633,11 +633,6 @@ namespace dmGraphics
         DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
 
-        // Update swap chain capabilities
-        SwapChainCapabilities swap_chain_capabilities;
-        GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
-        context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
-
         DestroySwapChain(vk_device, context->m_SwapChain);
 
         // At this point, we've destroyed the framebuffers, depth/stencil textures, and the swapchain
@@ -648,8 +643,13 @@ namespace dmGraphics
             CHECK_VK_ERROR(res);
         }
 
+        // Update swap chain capabilities
+        SwapChainCapabilities swap_chain_capabilities;
+        GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
+        context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
+
         // Create the swap chain
-        VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, force_dimensions, true, context->m_SwapChainCapabilities, context->m_SwapChain);
+        VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, true, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
 
         // Create the main Depth/Stencil buffer
@@ -1015,9 +1015,9 @@ bail:
                 VulkanGetNativeWindowSize(&width, &height);
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
-                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, false, 0, 0);
+                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
                 res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
-                assert(res == VK_SUCCESS);
+                CHECK_VK_ERROR(res);
             }
             else if (res == VK_SUBOPTIMAL_KHR)
             {
