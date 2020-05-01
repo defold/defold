@@ -95,12 +95,6 @@ namespace dmGraphics
             nn::Result result = nn::vi::OpenDefaultDisplay(&g_pDisplay);
             NN_ASSERT(result.IsSuccess());
             NN_UNUSED(result);
-        
-            int width, height;
-            nn::oe::GetDefaultDisplayResolution(&width, &height);
-            CreateLayer(width, height);
-
-            NN_ASSERT(result.IsSuccess());
 
             nn::oe::GetDefaultDisplayResolutionChangeEvent( &g_DisplayResolutionChangeEvent );
 
@@ -173,6 +167,15 @@ namespace dmGraphics
     // Called from InitializeVulkan
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
+        if (g_pLayer != 0)
+        {
+            DestroyLayer();
+        }
+
+        int width, height;
+        nn::oe::GetDefaultDisplayResolution(&width, &height);
+        CreateLayer(width, height);
+
         VkViSurfaceCreateInfoNN createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_VI_SURFACE_CREATE_INFO_NN;
         createInfo.pNext = NULL;
@@ -354,12 +357,13 @@ namespace dmGraphics
         nn::oe::GetDefaultDisplayResolution((int*)width, (int*)height);
     }
 
-    static VkResult ReCreateLayer(void* ctx)
+    static VkResult RecreateSurface(void* ctx)
     {
         HContext context = (HContext)ctx;
-        DestroyLayer();
-        CreateLayer((int)context->m_WindowWidth, (int)context->m_WindowHeight);
-        return VK_SUCCESS;
+        vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0); // TODO: wrap in a function
+        
+        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, false);
+        return res;
     }
 
     void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
@@ -372,8 +376,7 @@ namespace dmGraphics
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
 
-
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, true, ReCreateLayer, (void*)context);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, true, RecreateSurface, (void*)context);
 
             if (context->m_WindowResizeCallback)
             {

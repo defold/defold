@@ -78,7 +78,7 @@ namespace dmGraphics
     }
 
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight, bool force_dimensions,
+        uint32_t* wantedWidth, uint32_t* wantedHeight,
         bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
     {
         VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
@@ -107,7 +107,7 @@ namespace dmGraphics
         VkExtent2D vk_current_extent = capabilities.m_SurfaceCapabilities.currentExtent;
         VkExtent2D vk_extent         = {};
 
-        if (force_dimensions || vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.width == 0xFFFFFFFF)
+        if (vk_current_extent.width == 0xFFFFFFFF || vk_current_extent.width == 0xFFFFFFFF)
         {
             // Clamp swap buffer extent to our wanted width / height.
             vk_extent.width  = *wantedWidth;
