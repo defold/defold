@@ -361,15 +361,6 @@ namespace dmGraphics
         nn::oe::GetDefaultDisplayResolution((int*)width, (int*)height);
     }
 
-    static VkResult RecreateSurface(void* ctx)
-    {
-        HContext context = (HContext)ctx;
-        vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0); // TODO: wrap in a function
-        
-        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, false);
-        return res;
-    }
-
     void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         assert(context);
@@ -392,10 +383,7 @@ namespace dmGraphics
 
     void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
     {
-        if (width != context->m_WindowWidth || height != context->m_WindowHeight)
-        {
-            VulkanSetWindowSize(context, width, height);
-        }
+        VulkanSetWindowSize(context, width, height);
     }
 
     void SwapBuffers()
