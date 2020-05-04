@@ -521,7 +521,7 @@ namespace dmGameSystem
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component pause all playing voices:
      *
      * ```lua
-     * sound.pause("#sound")
+     * sound.pause("#sound", true)
      * ```
      */
     static int Sound_Pause(lua_State* L)
