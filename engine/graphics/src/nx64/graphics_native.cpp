@@ -52,6 +52,8 @@ nn::os::SystemEvent g_DisplayResolutionChangeEvent;
 
 namespace dmGraphics
 {
+    static const int GRAPHICS_BACKGROUND_WIDTH = 1920;
+    static const int GRAPHICS_BACKGROUND_HEIGHT = 1080;
 
     static void CreateLayer(int width, int height)
     {
@@ -95,6 +97,10 @@ namespace dmGraphics
             nn::Result result = nn::vi::OpenDefaultDisplay(&g_pDisplay);
             NN_ASSERT(result.IsSuccess());
             NN_UNUSED(result);
+
+            // The advice given by the NSDK, is to create a 1080p layer, and instead use the nn::vi::SetLayerCrop
+            // to set the region (as opposed to recreate the swapchain etc)
+            CreateLayer(GRAPHICS_BACKGROUND_WIDTH, GRAPHICS_BACKGROUND_HEIGHT);
 
             nn::oe::GetDefaultDisplayResolutionChangeEvent( &g_DisplayResolutionChangeEvent );
 
@@ -167,15 +173,6 @@ namespace dmGraphics
     // Called from InitializeVulkan
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
-        if (g_pLayer != 0)
-        {
-            DestroyLayer();
-        }
-
-        int width, height;
-        nn::oe::GetDefaultDisplayResolution(&width, &height);
-        CreateLayer(width, height);
-
         VkViSurfaceCreateInfoNN createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_VI_SURFACE_CREATE_INFO_NN;
         createInfo.pNext = NULL;
@@ -208,16 +205,23 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
 
+        params->m_Width = GRAPHICS_BACKGROUND_WIDTH;
+        params->m_Height = GRAPHICS_BACKGROUND_HEIGHT;
+
         if (!InitializeVulkan(context, params))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        int width, height;
+        nn::oe::GetDefaultDisplayResolution(&width, &height);
+        nn::vi::SetLayerCrop(g_pLayer, 0, 0, width, height);
+
         context->m_WindowOpened                  = 1;
-        context->m_Width                         = params->m_Width;
-        context->m_Height                        = params->m_Height;
-        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
+        context->m_Width                         = width;
+        context->m_Height                        = height;
+        context->m_WindowWidth                   = width;
+        context->m_WindowHeight                  = height;
         context->m_WindowResizeCallback          = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
         context->m_WindowCloseCallback           = params->m_CloseCallback;
@@ -376,7 +380,8 @@ namespace dmGraphics
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, RecreateSurface, (void*)context);
+            // According to the NSDK documentation, this is the most effective way to resize since it skips recreating the swapchain
+            nn::vi::SetLayerCrop(g_pLayer, 0, 0, width, height);
 
             if (context->m_WindowResizeCallback)
             {
