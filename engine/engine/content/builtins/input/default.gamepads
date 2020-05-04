@@ -865,7 +865,7 @@ driver {
     map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 1 hat_mask: 0 }
     map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 2 hat_mask: 0 }
     map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 hat_mask: 0 }
-    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 22 hat_mask: 0 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 22 hat_mask: 0 }
 }
 
 driver
