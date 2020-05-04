@@ -996,6 +996,7 @@ class Configuration(object):
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
+        switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
@@ -1007,14 +1008,16 @@ class Configuration(object):
                      'js-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': osx_files,
-                     'linux-bundling': linux_files}
+                     'linux-bundling': linux_files,
+                     'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
-                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
+                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']],
+                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
