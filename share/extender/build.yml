@@ -1,6 +1,6 @@
 context:
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include']
-    symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt", "GraphicsAdapterOpenGL"]
+    symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt", "GraphicsAdapterOpenGL"]
     allowedLibs: ["app","engine","engine_release","webviewext","profilerext","profilerext_null","crashext","crashext_null","facebookext","iapext","pushext","iacext","record","record_null","gameobject","ddf","resource","gamesys","graphics","graphics_null","physics_2d","physics_3d","physics_null","BulletDynamics","BulletCollision","LinearMath","Box2D","render","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","dmglfw","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libapp.lib","libengine.lib","libengine_release.lib","libwebviewext.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","libfacebookext.lib","libiapext.lib","libpushext.lib","libiacext.lib","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgraphics.lib","libgraphics_null.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libLinearMath.lib","libBox2D.lib","librender.lib",
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
@@ -491,7 +491,7 @@ platforms:
         LDSCRIPT: "{{env.NINTENDO_SDK_ROOT}}/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
         TRIPLET:  "aarch64-nintendo-nx-elf"
     context:
-        excludeSymbols:     ["WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "NullSoundDevice", "GraphicsAdapterOpenGL"]
+        excludeSymbols:     ["WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "GraphicsAdapterOpenGL"]
         symbols:            ["AudioDecoderStbVorbis", "GraphicsAdapterVulkan", "SwitchExt"]
         engineLibs:         ["app", "engine", "engine_service", "mbedtls", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics_vulkan", "physics_2d", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "gui", "crashext", "sound", "liveupdate", "switchext"]
         libPaths:           ["{{dynamo_home}}/lib/arm64-nx64", "{{dynamo_home}}/ext/lib/arm64-nx64", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Debug", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop"]
