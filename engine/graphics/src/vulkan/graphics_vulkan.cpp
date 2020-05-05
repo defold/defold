@@ -411,7 +411,7 @@ namespace dmGraphics
         return res;
     }
 
-    static VkResult CreateMainRenderTarget(HContext context)
+    VkResult CreateMainFrameBuffers(HContext context)
     {
         assert(context->m_SwapChain);
 
@@ -449,21 +449,37 @@ namespace dmGraphics
                 num_attachments = 2;
             }
 
-            res = CreateFramebuffer(context->m_LogicalDevice.m_Device,context->m_MainRenderPass,
+            res = CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
                 swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
                 vk_image_attachments, num_attachments, &context->m_MainFrameBuffers[i]);
             CHECK_VK_ERROR(res);
         }
 
+        return res;
+    }
+
+    VkResult DestroyMainFrameBuffers(HContext context)
+    {
+        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
+        {
+            DestroyFrameBuffer(context->m_LogicalDevice.m_Device, context->m_MainFrameBuffers[i]);
+        }
+        context->m_MainFrameBuffers.SetCapacity(0);
+        context->m_MainFrameBuffers.SetSize(0);
+        return VK_SUCCESS;
+    }
+
+    static VkResult SetupMainRenderTarget(HContext context)
+    {
         // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
         RenderTarget& rt = context->m_MainRenderTarget;
         rt.m_RenderPass  = context->m_MainRenderPass;
         rt.m_Framebuffer = context->m_MainFrameBuffers[0];
-        rt.m_Extent      = swapChain->m_ImageExtent;
+        rt.m_Extent      = context->m_SwapChain->m_ImageExtent;
 
-        return res;
+        return VK_SUCCESS;
     }
 
     static VkResult CreateMainRenderingResources(HContext context)
@@ -502,7 +518,10 @@ namespace dmGraphics
         res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
         CHECK_VK_ERROR(res);
 
-        res = CreateMainRenderTarget(context);
+        res = CreateMainFrameBuffers(context);
+        CHECK_VK_ERROR(res);
+
+        res = SetupMainRenderTarget(context);
         CHECK_VK_ERROR(res);
         context->m_CurrentRenderTarget = &context->m_MainRenderTarget;
 
@@ -601,24 +620,39 @@ namespace dmGraphics
         return res;
     }
 
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height)
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         // Flush all current commands
         SynchronizeDevice(vk_device);
+
+        DestroyMainFrameBuffers(context);
+
+        // Destroy main Depth/Stencil buffer
+        Texture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
+        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
+
+        DestroySwapChain(vk_device, context->m_SwapChain);
+
+        // At this point, we've destroyed the framebuffers, depth/stencil textures, and the swapchain
+        // and the platform may do extra setup
+        if (cb)
+        {
+            VkResult res = cb(cb_ctx);
+            CHECK_VK_ERROR(res);
+        }
 
         // Update swap chain capabilities
         SwapChainCapabilities swap_chain_capabilities;
         GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
+        // Create the swap chain
         VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, true, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
 
-        // Reset & create main Depth/Stencil buffer
-        Texture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
-        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
-        DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
+        // Create the main Depth/Stencil buffer
         VkFormat vk_depth_format;
         VkImageTiling vk_depth_tiling;
         GetDepthFormatAndTiling(context->m_PhysicalDevice.m_Device, 0, 0, &vk_depth_format, &vk_depth_tiling);
@@ -627,22 +661,16 @@ namespace dmGraphics
             context->m_SwapChain->m_ImageExtent.width,
             context->m_SwapChain->m_ImageExtent.height,
             context->m_SwapChain->m_SampleCountFlag,
-            depth_stencil_texture);
+            &context->m_MainTextureDepthStencil);
         CHECK_VK_ERROR(res);
 
         context->m_WindowWidth  = context->m_SwapChain->m_ImageExtent.width;
         context->m_WindowHeight = context->m_SwapChain->m_ImageExtent.height;
 
-        // Reset main rendertarget (but not the render pass)
-        RenderTarget* mainRenderTarget = &context->m_MainRenderTarget;
-        mainRenderTarget->m_RenderPass = VK_NULL_HANDLE;
-        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-        {
-            mainRenderTarget->m_Framebuffer = context->m_MainFrameBuffers[i];
-            DestroyRenderTarget(&context->m_LogicalDevice, mainRenderTarget);
-        }
+        res = CreateMainFrameBuffers(context);
+        CHECK_VK_ERROR(res);
 
-        res = CreateMainRenderTarget(context);
+        res = SetupMainRenderTarget(context);
         CHECK_VK_ERROR(res);
 
         // Flush once again to make sure all transitions are complete
@@ -987,9 +1015,9 @@ bail:
                 VulkanGetNativeWindowSize(&width, &height);
                 context->m_WindowWidth  = width;
                 context->m_WindowHeight = height;
-                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+                SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
                 res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
-                assert(res == VK_SUCCESS);
+                CHECK_VK_ERROR(res);
             }
             else if (res == VK_SUBOPTIMAL_KHR)
             {
@@ -2627,6 +2655,16 @@ bail:
         rtOut->m_Extent.height       = fb_height;
 
         return VK_SUCCESS;
+    }
+
+    static void DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget)
+    {
+        assert(logicalDevice);
+        assert(renderTarget);
+        DestroyFrameBuffer(logicalDevice->m_Device, renderTarget->m_Framebuffer);
+        DestroyRenderPass(logicalDevice->m_Device, renderTarget->m_RenderPass);
+        renderTarget->m_Framebuffer = VK_NULL_HANDLE;
+        renderTarget->m_RenderPass = VK_NULL_HANDLE;
     }
 
     static HRenderTarget VulkanNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])

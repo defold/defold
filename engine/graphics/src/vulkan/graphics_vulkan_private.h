@@ -450,12 +450,18 @@ namespace dmGraphics
         const char** validationLayerExtensions, uint16_t validationLayerExtensionCount);
     void     DestroyInstance(VkInstance* vkInstance);
 
+    // Implemented in graphics_vulkan.cpp
+    VkResult CreateMainFrameBuffers(HContext context);
+    VkResult DestroyMainFrameBuffers(HContext context);
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
     VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass,
         uint32_t width, uint32_t height,
         VkImageView* vk_attachments, uint8_t attachmentCount, // Color & depth/stencil attachments
         VkFramebuffer* vk_framebuffer_out);
+    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool,
         uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
     VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes,
@@ -480,6 +486,7 @@ namespace dmGraphics
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
         RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
+    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,
@@ -492,7 +499,6 @@ namespace dmGraphics
     // Destroy funcions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
-    void           DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
     void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
     void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
     void           DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
@@ -522,7 +528,7 @@ namespace dmGraphics
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight, const bool wantVSync,
+        uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync,
         SwapChainCapabilities& capabilities, SwapChain* swapChain);
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
@@ -538,8 +544,6 @@ namespace dmGraphics
     {
         vkDeviceWaitIdle(vk_device);
     }
-
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height);
 
     // Implemented per supported platform
 
