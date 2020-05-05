@@ -154,7 +154,7 @@ public class SwitchBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Collect bundle/package resources to be included in APK zip
+        // Collect bundle/package resources to be included in the bundle
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
@@ -170,7 +170,7 @@ public class SwitchBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into the app folder
-        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, dataDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
