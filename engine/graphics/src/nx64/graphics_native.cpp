@@ -52,6 +52,21 @@ nn::os::SystemEvent g_DisplayResolutionChangeEvent;
 
 namespace dmGraphics
 {
+    static const int DM_GRAPHICS_BACKGROUND_WIDTH = 1920;
+    static const int DM_GRAPHICS_BACKGROUND_HEIGHT = 1080;
+
+    static void CreateLayer(int width, int height)
+    {
+        nn::vi::LayerCreationSettings layerCreationSettings(width, height);
+        nn::Result result = nn::vi::CreateLayer(&g_pLayer, g_pDisplay, &layerCreationSettings);
+        NN_ASSERT(result.IsSuccess());
+    }
+
+    static void DestroyLayer()
+    {
+        nn::vi::DestroyLayer(g_pLayer);
+    }
+
     bool NativeInit(const ContextParams& params)
     {
         if (!g_NativeInitialized)
@@ -83,8 +98,9 @@ namespace dmGraphics
             NN_ASSERT(result.IsSuccess());
             NN_UNUSED(result);
 
-            result = nn::vi::CreateLayer(&g_pLayer, g_pDisplay);
-            NN_ASSERT(result.IsSuccess());
+            // The advice given by the NSDK, is to create a 1080p layer, and instead use the nn::vi::SetLayerCrop
+            // to set the region (as opposed to recreate the swapchain etc)
+            CreateLayer(DM_GRAPHICS_BACKGROUND_WIDTH, DM_GRAPHICS_BACKGROUND_HEIGHT);
 
             nn::oe::GetDefaultDisplayResolutionChangeEvent( &g_DisplayResolutionChangeEvent );
 
@@ -95,7 +111,7 @@ namespace dmGraphics
 
     void NativeExit()
     {
-        nn::vi::DestroyLayer(g_pLayer);
+        DestroyLayer();
         nn::vi::CloseDisplay(g_pDisplay);
         nn::vi::Finalize();
     }
@@ -189,16 +205,23 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
 
+        params->m_Width = DM_GRAPHICS_BACKGROUND_WIDTH;
+        params->m_Height = DM_GRAPHICS_BACKGROUND_HEIGHT;
+
         if (!InitializeVulkan(context, params))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        int width, height;
+        nn::oe::GetDefaultDisplayResolution(&width, &height);
+        nn::vi::SetLayerCrop(g_pLayer, 0, 0, width, height);
+
         context->m_WindowOpened                  = 1;
-        context->m_Width                         = params->m_Width;
-        context->m_Height                        = params->m_Height;
-        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
+        context->m_Width                         = width;
+        context->m_Height                        = height;
+        context->m_WindowWidth                   = width;
+        context->m_WindowHeight                  = height;
         context->m_WindowResizeCallback          = params->m_ResizeCallback;
         context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
         context->m_WindowCloseCallback           = params->m_CloseCallback;
@@ -226,15 +249,12 @@ namespace dmGraphics
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
             DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
-            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
-
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
-            for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
-            {
-                vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
-            }
+            DestroyMainFrameBuffers(context);
+
+            vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
             for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
             {
@@ -351,7 +371,8 @@ namespace dmGraphics
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+            // According to the NSDK documentation, this is the most effective way to resize since it skips recreating the swapchain
+            nn::vi::SetLayerCrop(g_pLayer, 0, 0, width, height);
 
             if (context->m_WindowResizeCallback)
             {

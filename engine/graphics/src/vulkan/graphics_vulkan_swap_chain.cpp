@@ -78,7 +78,7 @@ namespace dmGraphics
 
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
         uint32_t* wantedWidth, uint32_t* wantedHeight,
-        const bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
+        bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
     {
         VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
         VkDevice vk_device                  = logicalDevice->m_Device;
