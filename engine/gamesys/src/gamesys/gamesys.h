@@ -132,6 +132,15 @@ namespace dmGameSystem
         uint32_t                    m_MaxModelCount;
     };
 
+    struct SoundContext
+    {
+        SoundContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        uint32_t                    m_MaxComponentCount;
+    };
+
     struct ScriptLibContext
     {
         ScriptLibContext();
@@ -140,6 +149,7 @@ namespace dmGameSystem
         dmResource::HFactory m_Factory;
         dmGameObject::HRegister m_Register;
     };
+
 
     struct CollectionProxyContext
     {
@@ -193,7 +203,8 @@ namespace dmGameSystem
                                                   SpineModelContext* spine_model_context,
                                                   ModelContext* model_context,
                                                   LabelContext* label_context,
-                                                  TilemapContext* tilemap_context);
+                                                  TilemapContext* tilemap_context,
+                                                  SoundContext* sound_context);
 
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
