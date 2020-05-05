@@ -1831,6 +1831,13 @@ bail:
                     vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
             }
 
+            VkRect2D vk_scissor;
+            vk_scissor.extent   = context->m_CurrentRenderTarget->m_Extent;
+            vk_scissor.offset.x = 0;
+            vk_scissor.offset.y = 0;
+
+            vkCmdSetScissor(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], 0, 1, &vk_scissor);
+
             context->m_ViewportChanged = 0;
         }
 
