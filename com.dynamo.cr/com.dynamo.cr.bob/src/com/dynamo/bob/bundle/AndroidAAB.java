@@ -50,7 +50,6 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.ZipUtils;
 
 import com.defold.extender.client.ExtenderResource;
 
@@ -126,6 +125,71 @@ public class AndroidAAB {
 
 
 	/**
+	* Create module zip (for use when creating an .aab)
+	*/
+	private static void zipModule(File inDir, File outFile) throws IOException {
+		outFile.createNewFile();
+		try {
+			ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(outFile));
+
+			for (File file : inDir.listFiles()) {
+				final long fileSize = file.length();
+				BundleHelper.throwIfCanceled(canceled);
+
+				ZipEntry ze = new ZipEntry(file.getName());
+				ze.setSize(fileSize);
+				byte[] entryData = null;
+				CRC32 crc = null;
+
+				// Some files need to be STORED instead of DEFLATED to
+				// get "correct" memory mapping at runtime.
+				int zipMethod = ZipEntry.DEFLATED;
+				boolean isAsset = file.getName().startsWith("assets");
+				if (isAsset) {
+					// Set up an uncompressed file, unfortunately need to calculate crc32 and other data for this to work.
+					// https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
+					crc = new CRC32();
+					zipMethod = ZipEntry.STORED;
+					ze.setCompressedSize(fileSize);
+				}
+
+				ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+				try {
+					if (fileSize > 0) {
+						int count;
+						entryData = new byte[(int) fileSize];
+						InputStream stream = new FileInputStream(file);
+						while((count = stream.read(entryData, 0, (int)fileSize)) != -1) {
+							byteOut.write(entryData, 0, count);
+							if (zipMethod == ZipEntry.STORED) {
+								crc.update(entryData, 0, count);
+							}
+						}
+					}
+				} finally {
+					if(null != byteOut) {
+						byteOut.close();
+						entryData = byteOut.toByteArray();
+					}
+				}
+
+				if (zipMethod == ZipEntry.STORED) {
+					ze.setCrc(crc.getValue());
+					ze.setMethod(zipMethod);
+				}
+
+				zipOut.putNextEntry(ze);
+				zipOut.write(entryData);
+				zipOut.closeEntry();
+			}
+
+		}
+		finally {
+			IOUtils.closeQuietly(zipOut);
+		}
+	}
+
+	/**
 	* Copy an engine binary to a destination file and optionally strip it of debug symbols
 	*/
 	private static void copyEngineBinary(Project project, Platform architecture, File dest) throws IOException {
@@ -188,6 +252,12 @@ public class AndroidAAB {
 		return classesDex;
 	}
 
+
+	private static File copyAppManifestFile(Project project, File bundleDir, File appDir) throws IOException {
+		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+		BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
+		return helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
+	}
 
 	/**
 	* Copy Android resources per package
@@ -365,7 +435,7 @@ public class AndroidAAB {
 
 			// create base.zip
 			File baseZip = new File(aabDir, "base.zip");
-			ZipUtils.zipFolder(baseDir, baseZip);
+			zipModule(baseDir, baseZip);
 			return baseZip;
 		} catch (Exception e) {
 			throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
@@ -409,29 +479,24 @@ public class AndroidAAB {
 
 		BundleHelper.throwIfCanceled(canceled);
 
-		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-		BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
-		helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
+		// STEP 1. copy android resources (icons, extension resources and manifest)
+		File manifestFile = copyAppManifestFile(project, bundleDir, appDir);
+		File androidResDir = copyResources(project, appDir);
 		BundleHelper.throwIfCanceled(canceled);
 
-		// STEP 0. copy android resources (icons and extension resources)
-		File androidResDir = copyResources(project, appDir);
-
-		// STEP 1. Use aapt2 to compile resources (to *.flat files)
+		// STEP 2. Use aapt2 to compile resources (to *.flat files)
 		File compiledResDir = aapt2CompileResources(project, appDir, androidResDir);
 		BundleHelper.throwIfCanceled(canceled);
 
-		// STEP 2. Use aapt2 to create an APK containing resource files in protobuf format
-		File manifestFile = helper.getAppManifestFile(Platform.Armv7Android, appDir);
+		// STEP 3. Use aapt2 to create an APK containing resource files in protobuf format
 		File apk = aapt2LinkResources(project, appDir, compiledResDir, manifestFile);
 		BundleHelper.throwIfCanceled(canceled);
 
-		// STEP 3. Extract protobuf files from the APK and create base.zip (manifest, assets, dex, res, lib, *.pb etc)
-		// TODO: STRIP EXECUTABLE!
+		// STEP 4. Extract protobuf files from the APK and create base.zip (manifest, assets, dex, res, lib, *.pb etc)
 		File baseZip = createAppBundleBaseZip(project, appDir, apk);
 		BundleHelper.throwIfCanceled(canceled);
 
-		// STEP 4. Use bundletool to create AAB from base.zip
+		// STEP 5. Use bundletool to create AAB from base.zip
 		// TODO: INVESTIGATE: Some files need to be STORED instead of DEFLATED to get "correct" memory mapping at runtime
 		File baseAab = createBundle(project, appDir, baseZip);
 		BundleHelper.throwIfCanceled(canceled);

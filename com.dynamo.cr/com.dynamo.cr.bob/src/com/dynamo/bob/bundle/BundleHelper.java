@@ -320,7 +320,7 @@ public class BundleHelper {
     }
 
     // either copies the merged manifest or writes a new resolved manifest from single source file
-    public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
+    public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
@@ -344,6 +344,7 @@ public class BundleHelper {
             manifestFile = new File(extenderPlatformDir, mainManifestName); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
+        return targetManifest;
     }
 
     private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
