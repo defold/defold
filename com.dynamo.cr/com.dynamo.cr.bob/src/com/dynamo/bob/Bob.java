@@ -388,6 +388,8 @@ public class Bob {
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
+        options.addOption("aab", "create-aab", false, "Create Android Application Bundle when bundling for Android");
+
         // debug options
         options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
 
@@ -568,6 +570,10 @@ public class Bob {
 
         if (cmd.hasOption("use-vanilla-lua")) {
             project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("create-aab")) {
+            project.setOption("create-aab", "true");
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
