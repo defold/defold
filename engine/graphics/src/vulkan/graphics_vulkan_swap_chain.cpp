@@ -1,4 +1,3 @@
-#include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
 
