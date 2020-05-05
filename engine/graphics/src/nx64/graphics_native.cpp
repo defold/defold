@@ -52,8 +52,8 @@ nn::os::SystemEvent g_DisplayResolutionChangeEvent;
 
 namespace dmGraphics
 {
-    static const int GRAPHICS_BACKGROUND_WIDTH = 1920;
-    static const int GRAPHICS_BACKGROUND_HEIGHT = 1080;
+    static const int DM_GRAPHICS_BACKGROUND_WIDTH = 1920;
+    static const int DM_GRAPHICS_BACKGROUND_HEIGHT = 1080;
 
     static void CreateLayer(int width, int height)
     {
@@ -100,7 +100,7 @@ namespace dmGraphics
 
             // The advice given by the NSDK, is to create a 1080p layer, and instead use the nn::vi::SetLayerCrop
             // to set the region (as opposed to recreate the swapchain etc)
-            CreateLayer(GRAPHICS_BACKGROUND_WIDTH, GRAPHICS_BACKGROUND_HEIGHT);
+            CreateLayer(DM_GRAPHICS_BACKGROUND_WIDTH, DM_GRAPHICS_BACKGROUND_HEIGHT);
 
             nn::oe::GetDefaultDisplayResolutionChangeEvent( &g_DisplayResolutionChangeEvent );
 
@@ -205,8 +205,8 @@ namespace dmGraphics
         if (context->m_WindowOpened)
             return WINDOW_RESULT_ALREADY_OPENED;
 
-        params->m_Width = GRAPHICS_BACKGROUND_WIDTH;
-        params->m_Height = GRAPHICS_BACKGROUND_HEIGHT;
+        params->m_Width = DM_GRAPHICS_BACKGROUND_WIDTH;
+        params->m_Height = DM_GRAPHICS_BACKGROUND_HEIGHT;
 
         if (!InitializeVulkan(context, params))
         {
