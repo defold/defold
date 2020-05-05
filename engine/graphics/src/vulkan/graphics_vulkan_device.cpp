@@ -986,14 +986,14 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
 
-        const VkDynamicState vk_dynamic_state = VK_DYNAMIC_STATE_VIEWPORT;
+        const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         vk_dynamic_state_create_info.pNext             = NULL;
         vk_dynamic_state_create_info.flags             = 0;
-        vk_dynamic_state_create_info.dynamicStateCount = 1;
-        vk_dynamic_state_create_info.pDynamicStates    = &vk_dynamic_state;
+        vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_state) / sizeof(VkDynamicState);
+        vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_state;
 
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
