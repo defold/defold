@@ -16,7 +16,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
-#include <nn/htc.h> // For host getenv
+//#include <nn/htc.h> // For host getenv
 #include <nn/fs.h>
 #include <nn/nifm.h>
 #include <nn/crypto.h>
@@ -248,6 +248,7 @@ namespace dmSys
 
     char* GetEnv(const char* name)
     {
+        /* Only allowed when compiling towards the debug libraries
         if (dLib::IsDebugMode())
         {
             nn::htc::Initialize();
@@ -262,6 +263,7 @@ namespace dmSys
 
             nn::htc::Finalize();
         }
+        */
 
         return getenv(name);
     }

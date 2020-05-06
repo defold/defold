@@ -375,19 +375,17 @@ namespace dmEngine
             char* paths[3];
             uint32_t count = 0;
 
-            bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+            const char* mountstr = "";
 #if defined(__NX__)
             // there's no way to check for a named mount, and it will assert
             // So we'll only enter here if it's set on this platform
-            if (has_host_mount)
+            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
+                mountstr = "host:/";
 #endif
-            {
-                const char* mountstr = has_host_mount ? "host:/" : "";
-                dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
-                dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
-                paths[count++] = p1;
-                paths[count++] = p2;
-            }
+            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
+            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
+            paths[count++] = p1;
+            paths[count++] = p2;
 
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
