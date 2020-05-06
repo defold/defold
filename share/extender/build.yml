@@ -483,32 +483,33 @@ platforms:
 
   arm64-nx64:
     env:
-        SDK:      "{{env.NINTENDO_SDK_ROOT}}"
-        CLANG:    "{{env.NINTENDO_SDK_ROOT}}/Compilers/NX/nx/aarch64/bin/clang++.exe"
-        AR:       "{{env.NINTENDO_SDK_ROOT}}/Compilers/NX/nx/aarch64/bin/llvm-ar.exe"
-        MAKENSO:  "{{env.NINTENDO_SDK_ROOT}}/Tools/CommandLineTools/MakeNso/MakeNso.exe"
-        MAKEMETA: "{{env.NINTENDO_SDK_ROOT}}/Tools/CommandLineTools/MakeMeta/MakeMeta.exe"
-        LDSCRIPT: "{{env.NINTENDO_SDK_ROOT}}/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
-        TRIPLET:  "aarch64-nintendo-nx-elf"
+        SDK:            "{{env.NINTENDO_SDK_ROOT}}"
+        CLANG:          "{{env.NINTENDO_SDK_ROOT}}/Compilers/NX/nx/aarch64/bin/clang++.exe"
+        AR:             "{{env.NINTENDO_SDK_ROOT}}/Compilers/NX/nx/aarch64/bin/llvm-ar.exe"
+        MAKENSO:        "{{env.NINTENDO_SDK_ROOT}}/Tools/CommandLineTools/MakeNso/MakeNso.exe"
+        MAKEMETA:       "{{env.NINTENDO_SDK_ROOT}}/Tools/CommandLineTools/MakeMeta/MakeMeta.exe"
+        LDSCRIPT:       "{{env.NINTENDO_SDK_ROOT}}/Resources/SpecFiles/Application.aarch64.lp64.ldscript"
+        LIBVERSION:     "Release"
+        TRIPLET:        "aarch64-nintendo-nx-elf"
     context:
         excludeSymbols:     ["WebViewExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "GraphicsAdapterOpenGL"]
         symbols:            ["AudioDecoderStbVorbis", "GraphicsAdapterVulkan", "SwitchExt"]
         engineLibs:         ["app", "engine", "engine_service", "mbedtls", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics_vulkan", "physics_2d", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "gui", "crashext", "sound", "liveupdate", "switchext"]
-        libPaths:           ["{{dynamo_home}}/lib/arm64-nx64", "{{dynamo_home}}/ext/lib/arm64-nx64", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Debug", "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop"]
+        libPaths:           ["{{dynamo_home}}/lib/arm64-nx64", "{{dynamo_home}}/ext/lib/arm64-nx64"]
         defines:            ["DM_PLATFORM_SWITCH", "LUA_BYTECODE_ENABLE_64", "NN_ENABLE_LOG", "NN_ENABLE_ASSERT", "NN_ENABLE_ABORT_MESSAGE", "NN_NINTENDO_SDK", "NN_SDK_BUILD_DEBUG"]
         platformIncludes:   ["{{env.SDK}}/Common/Configs/Targets/NX-NXFP2-a64/Include", "{{env.SDK}}/Include"]
         flags:              ["-g", "-O2", "-fno-exceptions", "-fvisibility=hidden","-Werror=format","-fPIC"]
         linkFlags:          ["--gc-sections","--build-id=sha1","-init=_init","-fini=_fini","-pie","-z,combreloc","-z,relro","--enable-new-dtags","-u,malloc","-u,calloc","-u,realloc","-u,aligned_alloc","-u,free"]
-        platformLibs:       ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/rocrt.o",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnApplication.o",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/vulkan.nss",
-                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/opengl.nss"]
-        sdknss:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss"]
-        crtend:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/crtend.o"]
+        platformLibs:       ["{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/rocrt.o",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/nnApplication.o",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/libnn_init_memory.a",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/libnn_gll.a",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/libnn_gfx.a",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/libnn_mii_draw.a",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/vulkan.nss",
+                            "{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/opengl.nss"]
+        sdknss:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/nnSdkEn.nss"]
+        crtend:     ["{{env.SDK}}/Libraries/NX-NXFP2-a64/{{env.LIBVERSION}}/crtend.o"]
 
     exePrefix: 'lib'
     exeExt: '.so'
