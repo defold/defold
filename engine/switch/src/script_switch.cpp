@@ -6,6 +6,7 @@
 #include <extension/extension.h>
 #include <script/script.h>
 #include <nn/fs.h>
+#include <nn/oe.h>
 
 #include <hid/hid.h>
 
@@ -362,7 +363,10 @@ namespace dmSwitchScript
     #undef SETCONSTANT
 
     static dmExtension::Result AppInitializeSwitch(dmExtension::AppParams* params)
-    {
+    {    
+        nn::oe::Initialize();
+        nn::oe::SetOperationModeChangedNotificationEnabled(true); // Detect docking/undocking
+
         dmSwitch::Account::InitUser();
 
         int automatic_user_select = dmConfigFile::GetInt(params->m_ConfigFile, "switch.automatic_user_select", 1);
