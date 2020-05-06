@@ -16,13 +16,21 @@ namespace dmEngine
 dmEngine::HEngine   dmEngineCreate(int argc, char *argv[]);
 void                dmEngineDestroy(dmEngine::HEngine engine);
 
+
+enum dmEngineUpdateResult
+{
+    RESULT_OK       =  0,
+    RESULT_REBOOT   =  1,
+    RESULT_EXIT     = -1,
+};
+
 /*
  * Updates the engine one tick
  *   Returns:
  *   0: Valid for more updates
  * !=0: Engine want to exit or reboot
  */
-dmApp::Result      dmEngineUpdate(dmEngine::HEngine engine);
+dmEngineUpdateResult dmEngineUpdate(dmEngine::HEngine engine);
 
 /* Gets the result from the engine
  *      run_action: 0 == update, 1 == reboot, -1 == exit

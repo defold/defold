@@ -44,7 +44,7 @@ static void TestEngineDestroy(dmEngine::HEngine engine)
         g_PostRun(engine, g_TextCtx);
 }
 
-static dmApp::Result TestEngineUpdate(dmEngine::HEngine engine)
+static dmEngineUpdateResult TestEngineUpdate(dmEngine::HEngine engine)
 {
     return dmEngineUpdate(engine);
 }
@@ -60,17 +60,17 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     g_PostRun = post_run;
     g_TextCtx = context;
 
-    dmApp::Params params;
+    dmEngine::RunLoopParams params;
     params.m_Argc = argc;
     params.m_Argv = argv;
     params.m_AppCtx = 0;
     params.m_AppCreate = 0;
     params.m_AppDestroy = 0;
-    params.m_EngineCreate = (dmApp::EngineCreate)TestEngineCreate;
-    params.m_EngineDestroy = (dmApp::EngineDestroy)TestEngineDestroy;
-    params.m_EngineUpdate = (dmApp::EngineUpdate)TestEngineUpdate;
-    params.m_EngineGetResult = (dmApp::EngineGetResult)TestEngineGetResult;
-    return dmApp::Run(&params);
+    params.m_EngineCreate = (dmEngine::EngineCreate)TestEngineCreate;
+    params.m_EngineDestroy = (dmEngine::EngineDestroy)TestEngineDestroy;
+    params.m_EngineUpdate = (dmEngine::EngineUpdate)TestEngineUpdate;
+    params.m_EngineGetResult = (dmEngine::EngineGetResult)TestEngineGetResult;
+    return dmEngine::RunLoop(&params);
 }
 
 
