@@ -9,11 +9,12 @@ def build(bld):
 
     bld.new_task_gen(features = 'cxx cprogram test',
                     includes = ['../%s' % build_util.get_target_os(), '..', '.'],
-                    uselib = 'APP DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT',
+                    uselib = 'TESTMAIN DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT',
                     uselib_local = 'hid_null',
                     target = 'test_hid',
                     source = 'test_hid.cpp')
 
+    """
     graphics_lib = ['GRAPHICS']
     graphics_lib_symbols = 'GraphicsAdapterOpenGL'
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
@@ -28,9 +29,10 @@ def build(bld):
     web_libs = ['library_glfw.js', 'library_sys.js']
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     includes = ['../%s' % build_util.get_target_os(), '..', '.'],
-                    uselib = 'APP DLIB CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT'.split() + graphics_lib,
+                    uselib = 'TESTMAIN DLIB CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT APP'.split() + graphics_lib,
                     uselib_local = 'hid',
                     web_libs = web_libs,
                     exported_symbols = exported_symbols,
                     target = 'test_app_hid',
                     source = 'test_app_hid.cpp')
+    """

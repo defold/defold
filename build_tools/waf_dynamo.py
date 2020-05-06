@@ -1701,16 +1701,7 @@ def detect(conf):
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
-    conf.env['STATICLIB_APP'] = ['app_test'] # we'll use this for all internal tests/tools except for dmengine
-    if platform in ('x86_64-darwin',):
-        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
-    elif platform in ('armv7-android', 'arm64-android'):
-        conf.env['STATICLIB_APP'] += ['android']
-    elif platform in ('x86_64-linux',):
-        conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
-    elif platform in ('win32', 'x86_64-win32'):
-        conf.env['LINKFLAGS_APP'] = ['user32.lib', 'shell32.lib']
-
+    conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']

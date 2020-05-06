@@ -4,11 +4,10 @@
 // Exiting the program:
 //    https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Package/contents/Pages/Page_162179114.html
 
-#include <app/app.h>
-#include "app_test.h"
 #include <stdio.h>
 
 #include <nn/fs.h>
+#include <nn/fs/fs_Debug.h>
 #include <nn/os.h>
 #include <nn/oe.h>
 
@@ -20,9 +19,11 @@ extern "C" void nnMain()
     size_t mount_rom_cache_size = 0;
     nn::fs::QueryMountRomCacheSize(&mount_rom_cache_size);
     void* mount_rom_cache_buffer = malloc(mount_rom_cache_size);
-    nn::fs::MountRom("data", mount_rom_cache_buffer, mount_rom_cache_size);
 
-    dmApp::TestInitialize(); // nop in the correct library
+    nn::fs::MountRom("data", mount_rom_cache_buffer, mount_rom_cache_size);
+    nn::fs::MountSaveDataForDebug("save"); // using this instead of relying on the user account selection
+    nn::fs::MountCacheStorage("cache");
+    nn::fs::MountHost("host", ".");
 
     nn::oe::Initialize();
     nn::oe::SetOperationModeChangedNotificationEnabled(true); // Detect docking/undocking
@@ -30,8 +31,9 @@ extern "C" void nnMain()
     int r = main(nn::os::GetHostArgc(), nn::os::GetHostArgv());
     (void)r;
 
-    dmApp::TestFinalize();
-
+    nn::fs::Unmount("host");
+    nn::fs::Unmount("cache");
+    nn::fs::Unmount("save");
     nn::fs::Unmount("data");
     free(mount_rom_cache_buffer);
 }
