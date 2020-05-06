@@ -331,7 +331,8 @@ namespace dmSys
     Result NativeToResult(int r);
 
     /**
-     *
+     * Gets an environment variable from the system
+     * @return variable or 0 if not found
      */
     char* GetEnv(const char* name);
 }
