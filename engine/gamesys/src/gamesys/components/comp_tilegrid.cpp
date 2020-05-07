@@ -352,10 +352,6 @@ namespace dmGameSystem
                 dmGameSystemDDF::TileCell* cell = &layer_ddf->m_Cell[j];
                 uint32_t cell_index = CalculateCellIndex(i, cell->m_X - min_x, cell->m_Y - min_y, column_count, row_count);
                 component->m_Cells[cell_index] = (uint16_t)cell->m_Tile;
-
-                TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-                flags->m_FlipHorizontal = cell->m_HFlip;
-                flags->m_FlipVertical = cell->m_VFlip;
             }
         }
 
