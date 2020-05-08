@@ -351,7 +351,12 @@ public class Fontc {
         // Shadow_spread is the maximum distance to the glyph outline.
         float sdf_shadow_spread = 0.0f;
 
-        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+        if (this.fontDesc.getFont().toLowerCase().endsWith("fnt"))
+        {
+            padding = 0;
+            cell_padding = 1;
+        }
+        else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             sdf_spread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
             sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
 
