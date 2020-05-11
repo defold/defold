@@ -32,6 +32,7 @@ def run(cmd):
     return out
 
 def get_version():
+    return ('3b188e533c08bdf4a615d25b49f7aae83b0ce71d', '1.2.169')
     # get the latest commit to the VERSION file
     sha1 = run('git log -n 1 --pretty=format:%H -- VERSION')
     with open('VERSION', 'rb') as f:
@@ -51,7 +52,9 @@ def get_engine_issues(lines):
     issues = []
     for line in lines:
         # 974d82a24 Issue-4684 - Load vulkan functions dynamically on android (#4692)
-        issue_match = re.search("^([a-fA-F0-9]+) Issue\-#?(\d+):? (.*)", line)
+        if '4725' in line:
+            print "MAWE:", line
+        issue_match = re.search("^(?i)([a-fA-F0-9]+) issue[\-\s]?#?(\d+):? (.*)", line)
         if issue_match:
             sha1 = issue_match.group(1)
             issue = issue_match.group(2)
@@ -63,6 +66,9 @@ def get_engine_issues(lines):
             issues.append("[`Issue-%s`](https://github.com/defold/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
             print(git_log(sha1))
             continue
+        else:
+            if '4725' in line:
+                print "not a match",
 
         # bca92cc0f Check that there's a world before creating a collision object (#4747)
         pull_match = re.search("([a-fA-F0-9]+) (.*) \(\#(\d+)\)$", line)
