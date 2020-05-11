@@ -1128,6 +1128,7 @@ namespace dmGameSystem
             if (!use_slice_nine && use_geometries)
             {
                 int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
+                if (frame_index == -1) continue;
                 frame_index = texture_set_ddf->m_FrameIndices[frame_index];
 
                 const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
