@@ -555,17 +555,19 @@ namespace dmPhysics
             break;
         }
 
-        float object_scale = 1.0f;
-        if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER )
+        bool has_world_transform = world->m_GetWorldTransform != 0x0 && data.m_UserData;
+        dmTransform::Transform world_transform;
+        if (has_world_transform)
         {
-            if (world->m_GetWorldTransform != 0x0)
+            world->m_GetWorldTransform(data.m_UserData, world_transform);
+        }
+
+        float object_scale = 1.0f;
+        if (has_world_transform)
+        {
+            if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
             {
-                if (data.m_UserData != 0x0)
-                {
-                    dmTransform::Transform world_transform;
-                    world->m_GetWorldTransform(data.m_UserData, world_transform);
-                    object_scale = world_transform.GetUniformScale();
-                }
+                object_scale = world_transform.GetUniformScale();
             }
         }
 
@@ -639,10 +641,8 @@ namespace dmPhysics
         {
             collision_object = new btGhostObject();
             btTransform world_t;
-            if (world->m_GetWorldTransform != 0x0)
+            if (has_world_transform)
             {
-                dmTransform::Transform world_transform;
-                world->m_GetWorldTransform(data.m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 btVector3 bt_pos;
