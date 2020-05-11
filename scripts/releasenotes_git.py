@@ -60,7 +60,7 @@ def get_engine_issues(lines):
             m = re.search("^(.*) \(\#\d+\)$", desc)
             if m:
                 desc = m.group(1)
-            issues.append("[`Issue-%s`](https://github.com/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
+            issues.append("[`Issue-%s`](https://github.com/defold/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
             print(git_log(sha1))
             continue
 
@@ -70,7 +70,7 @@ def get_engine_issues(lines):
             sha1 = pull_match.group(1)
             desc = pull_match.group(2)
             pr = pull_match.group(3)
-            issues.append("[`PR #%s`](https://github.com/defold/pull/%s) - **Fixed**: %s" % (pr, pr, desc))
+            issues.append("[`PR #%s`](https://github.com/defold/defold/pull/%s) - **Fixed**: %s" % (pr, pr, desc))
             print(git_log(sha1))
     return issues
 
