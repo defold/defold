@@ -12,7 +12,6 @@ def build(bld):
                          uselib_local = 'graphics_null',
                          target = name)
 
-    """
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and bld.env.PLATFORM not in ('armv7-android', 'arm64-android', 'x86_64-linux'):
         bld.new_task_gen(features = 'cxx cprogram test skip_test',
                          includes = ['../../src', '../../proto'],
@@ -21,4 +20,3 @@ def build(bld):
                          uselib = 'TESTMAIN PLATFORM DDF DLIB APP DMGLFW GRAPHICS_VULKAN VULKAN',
                          uselib_local = 'graphics_vulkan',
                          target = 'test_app_vulkan')
-    """
