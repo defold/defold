@@ -377,6 +377,7 @@ namespace dmEngine
 
             const char* mountstr = "";
 #if defined(__NX__)
+            mountstr = "data:/";
             // there's no way to check for a named mount, and it will assert
             // So we'll only enter here if it's set on this platform
             if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
