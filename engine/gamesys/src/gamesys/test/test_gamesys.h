@@ -50,6 +50,7 @@ protected:
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
+    dmGameSystem::SoundContext m_SoundContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
@@ -219,6 +220,7 @@ void GamesysTest<T>::SetUp()
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
+    dmGraphics::Initialize();
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
@@ -288,6 +290,8 @@ void GamesysTest<T>::SetUp()
 
     dmBuffer::NewContext();
 
+    m_SoundContext.m_MaxComponentCount = 32;
+
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
     assert(dmResource::RESULT_OK == r);
 
@@ -297,7 +301,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
-                                                                                                    &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext));
+                                                                                                    &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

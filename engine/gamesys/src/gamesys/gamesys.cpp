@@ -149,7 +149,8 @@ namespace dmGameSystem
                                                 ModelContext* model_context,
                                                 MeshContext* mesh_context,
                                                 LabelContext* label_context,
-                                                TilemapContext* tilemap_context)
+                                                TilemapContext* tilemap_context,
+                                                SoundContext* sound_context)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -226,7 +227,7 @@ namespace dmGameSystem
                 &CompCameraUpdate, 0, 0, &CompCameraOnMessage, 0, &CompCameraOnReload, 0, 0,
                 1);
 
-        REGISTER_COMPONENT_TYPE("soundc", 600, 0x0,
+        REGISTER_COMPONENT_TYPE("soundc", 600, sound_context,
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate, 0,
                 CompSoundUpdate, 0, 0, CompSoundOnMessage, 0, 0, CompSoundGetProperty, CompSoundSetProperty,

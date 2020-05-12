@@ -568,6 +568,7 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 // Defold extensions
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
+GLFWAPI void glfwSetViewType(int view_type);
 
 // Accelerometer control
 GLFWAPI void glfwAccelerometerEnable();

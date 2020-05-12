@@ -102,8 +102,8 @@ namespace dmGameSystem
                 return dmGraphics::PRIMITIVE_TRIANGLES;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP:
                 return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
-            case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
-                return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
+            // case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
+            //     return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
         }
     }
 

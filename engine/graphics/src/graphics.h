@@ -57,43 +57,50 @@ namespace dmGraphics
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
     // primitive type
-    typedef uint32_t PrimitiveType;
-    extern const PrimitiveType PRIMITIVE_LINES;
-    extern const PrimitiveType PRIMITIVE_TRIANGLES;
-    extern const PrimitiveType PRIMITIVE_TRIANGLE_STRIP;
-    extern const PrimitiveType PRIMITIVE_TRIANGLE_FAN;
+    enum PrimitiveType
+    {
+        PRIMITIVE_LINES          = 0,
+        PRIMITIVE_TRIANGLES      = 1,
+        PRIMITIVE_TRIANGLE_STRIP = 2,
+    };
 
     // buffer clear types, each value is guaranteed to be separate bits
-    typedef uint32_t BufferType;
-    extern const BufferType BUFFER_TYPE_COLOR_BIT;
-    extern const BufferType BUFFER_TYPE_DEPTH_BIT;
-    extern const BufferType BUFFER_TYPE_STENCIL_BIT;
-    static const BufferType MAX_BUFFER_TYPE_COUNT = 3;
+    enum BufferType
+    {
+        BUFFER_TYPE_COLOR_BIT   = 0x1,
+        BUFFER_TYPE_DEPTH_BIT   = 0x2,
+        BUFFER_TYPE_STENCIL_BIT = 0x4,
+    };
+    static const uint8_t MAX_BUFFER_TYPE_COUNT = 3;
 
     // render states
-    typedef uint32_t State;
-    extern const State STATE_DEPTH_TEST;
-    extern const State STATE_SCISSOR_TEST;
-    extern const State STATE_STENCIL_TEST;
-    extern const State STATE_ALPHA_TEST;
-    extern const State STATE_BLEND;
-    extern const State STATE_CULL_FACE;
-    extern const State STATE_POLYGON_OFFSET_FILL;
-    extern const bool  STATE_ALPHA_TEST_SUPPORTED;
+    enum State
+    {
+        STATE_DEPTH_TEST           = 0,
+        STATE_SCISSOR_TEST         = 1,
+        STATE_STENCIL_TEST         = 2,
+        STATE_ALPHA_TEST           = 3,
+        STATE_BLEND                = 4,
+        STATE_CULL_FACE            = 5,
+        STATE_POLYGON_OFFSET_FILL  = 6,
+        STATE_ALPHA_TEST_SUPPORTED = 7,
+    };
 
     // data types
-    typedef uint32_t Type;
-    extern const Type TYPE_BYTE;
-    extern const Type TYPE_UNSIGNED_BYTE;
-    extern const Type TYPE_SHORT;
-    extern const Type TYPE_UNSIGNED_SHORT;
-    extern const Type TYPE_INT;
-    extern const Type TYPE_UNSIGNED_INT;
-    extern const Type TYPE_FLOAT;
-    extern const Type TYPE_FLOAT_VEC4;
-    extern const Type TYPE_FLOAT_MAT4;
-    extern const Type TYPE_SAMPLER_2D;
-    extern const Type TYPE_SAMPLER_CUBE;
+    enum Type
+    {
+        TYPE_BYTE           = 0,
+        TYPE_UNSIGNED_BYTE  = 1,
+        TYPE_SHORT          = 2,
+        TYPE_UNSIGNED_SHORT = 3,
+        TYPE_INT            = 4,
+        TYPE_UNSIGNED_INT   = 5,
+        TYPE_FLOAT          = 6,
+        TYPE_FLOAT_VEC4     = 7,
+        TYPE_FLOAT_MAT4     = 8,
+        TYPE_SAMPLER_2D     = 9,
+        TYPE_SAMPLER_CUBE   = 10,
+    };
 
     // Index buffer format
     enum IndexBufferFormat
@@ -151,84 +158,102 @@ namespace dmGraphics
     };
 
     // Texture type
-    typedef uint32_t TextureType;
-    extern const TextureType TEXTURE_TYPE_2D;
-    extern const TextureType TEXTURE_TYPE_CUBE_MAP;
+    enum TextureType
+    {
+        TEXTURE_TYPE_2D       = 0,
+        TEXTURE_TYPE_CUBE_MAP = 1,
+    };
 
     // Texture filter
-    typedef uint32_t TextureFilter;
-    extern const TextureFilter TEXTURE_FILTER_DEFAULT;
-    extern const TextureFilter TEXTURE_FILTER_NEAREST;
-    extern const TextureFilter TEXTURE_FILTER_LINEAR;
-    extern const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
-    extern const TextureFilter TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
-    extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    extern const TextureFilter TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+    enum TextureFilter
+    {
+        TEXTURE_FILTER_DEFAULT                = 0,
+        TEXTURE_FILTER_NEAREST                = 1,
+        TEXTURE_FILTER_LINEAR                 = 2,
+        TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 3,
+        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 4,
+        TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 5,
+        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 6,
+    };
 
     // Texture wrap
-    typedef uint32_t TextureWrap;
-    extern const TextureWrap TEXTURE_WRAP_CLAMP_TO_BORDER;
-    extern const TextureWrap TEXTURE_WRAP_CLAMP_TO_EDGE;
-    extern const TextureWrap TEXTURE_WRAP_MIRRORED_REPEAT;
-    extern const TextureWrap TEXTURE_WRAP_REPEAT;
+    enum TextureWrap
+    {
+        TEXTURE_WRAP_CLAMP_TO_BORDER = 0,
+        TEXTURE_WRAP_CLAMP_TO_EDGE   = 1,
+        TEXTURE_WRAP_MIRRORED_REPEAT = 2,
+        TEXTURE_WRAP_REPEAT          = 3,
+    };
 
     // Blend factor
-    typedef uint32_t BlendFactor;
-    extern const BlendFactor BLEND_FACTOR_ZERO;
-    extern const BlendFactor BLEND_FACTOR_ONE;
-    extern const BlendFactor BLEND_FACTOR_SRC_COLOR;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-    extern const BlendFactor BLEND_FACTOR_DST_COLOR;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-    extern const BlendFactor BLEND_FACTOR_SRC_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_DST_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_SRC_ALPHA_SATURATE;
-    extern const BlendFactor BLEND_FACTOR_CONSTANT_COLOR;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-    extern const BlendFactor BLEND_FACTOR_CONSTANT_ALPHA;
-    extern const BlendFactor BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    enum BlendFactor
+    {
+        BLEND_FACTOR_ZERO                     = 0,
+        BLEND_FACTOR_ONE                      = 1,
+        BLEND_FACTOR_SRC_COLOR                = 2,
+        BLEND_FACTOR_ONE_MINUS_SRC_COLOR      = 3,
+        BLEND_FACTOR_DST_COLOR                = 4,
+        BLEND_FACTOR_ONE_MINUS_DST_COLOR      = 5,
+        BLEND_FACTOR_SRC_ALPHA                = 6,
+        BLEND_FACTOR_ONE_MINUS_SRC_ALPHA      = 7,
+        BLEND_FACTOR_DST_ALPHA                = 8,
+        BLEND_FACTOR_ONE_MINUS_DST_ALPHA      = 9,
+        BLEND_FACTOR_SRC_ALPHA_SATURATE       = 10,
+        BLEND_FACTOR_CONSTANT_COLOR           = 11,
+        BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12,
+        BLEND_FACTOR_CONSTANT_ALPHA           = 13,
+        BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
+    };
 
     // Compare func
-    typedef uint32_t CompareFunc;
-    extern const CompareFunc COMPARE_FUNC_NEVER;
-    extern const CompareFunc COMPARE_FUNC_LESS;
-    extern const CompareFunc COMPARE_FUNC_LEQUAL;
-    extern const CompareFunc COMPARE_FUNC_GREATER;
-    extern const CompareFunc COMPARE_FUNC_GEQUAL;
-    extern const CompareFunc COMPARE_FUNC_EQUAL;
-    extern const CompareFunc COMPARE_FUNC_NOTEQUAL;
-    extern const CompareFunc COMPARE_FUNC_ALWAYS;
+    enum CompareFunc
+    {
+        COMPARE_FUNC_NEVER    = 0,
+        COMPARE_FUNC_LESS     = 1,
+        COMPARE_FUNC_LEQUAL   = 2,
+        COMPARE_FUNC_GREATER  = 3,
+        COMPARE_FUNC_GEQUAL   = 4,
+        COMPARE_FUNC_EQUAL    = 5,
+        COMPARE_FUNC_NOTEQUAL = 6,
+        COMPARE_FUNC_ALWAYS   = 7,
+    };
 
     // Stencil operation
-    typedef uint32_t StencilOp;
-    extern const StencilOp STENCIL_OP_KEEP;
-    extern const StencilOp STENCIL_OP_ZERO;
-    extern const StencilOp STENCIL_OP_REPLACE;
-    extern const StencilOp STENCIL_OP_INCR;
-    extern const StencilOp STENCIL_OP_INCR_WRAP;
-    extern const StencilOp STENCIL_OP_DECR;
-    extern const StencilOp STENCIL_OP_DECR_WRAP;
-    extern const StencilOp STENCIL_OP_INVERT;
+    enum StencilOp
+    {
+        STENCIL_OP_KEEP      = 0,
+        STENCIL_OP_ZERO      = 1,
+        STENCIL_OP_REPLACE   = 2,
+        STENCIL_OP_INCR      = 3,
+        STENCIL_OP_INCR_WRAP = 4,
+        STENCIL_OP_DECR      = 5,
+        STENCIL_OP_DECR_WRAP = 6,
+        STENCIL_OP_INVERT    = 7,
+    };
 
     // Buffer usage
-    typedef uint32_t BufferUsage;
-    extern const BufferUsage BUFFER_USAGE_STREAM_DRAW;
-    extern const BufferUsage BUFFER_USAGE_DYNAMIC_DRAW;
-    extern const BufferUsage BUFFER_USAGE_STATIC_DRAW;
+    enum BufferUsage
+    {
+        BUFFER_USAGE_STREAM_DRAW  = 0,
+        BUFFER_USAGE_DYNAMIC_DRAW = 1,
+        BUFFER_USAGE_STATIC_DRAW  = 2,
+    };
 
     // Buffer access
-    typedef uint32_t BufferAccess;
-    extern const BufferAccess BUFFER_ACCESS_READ_ONLY;
-    extern const BufferAccess BUFFER_ACCESS_WRITE_ONLY;
-    extern const BufferAccess BUFFER_ACCESS_READ_WRITE;
+    enum BufferAccess
+    {
+        BUFFER_ACCESS_READ_ONLY  = 0,
+        BUFFER_ACCESS_WRITE_ONLY = 1,
+        BUFFER_ACCESS_READ_WRITE = 2,
+    };
 
     // Face type
-    typedef uint32_t FaceType;
-    extern const FaceType FACE_TYPE_FRONT;
-    extern const FaceType FACE_TYPE_BACK;
-    extern const FaceType FACE_TYPE_FRONT_AND_BACK;
+    enum FaceType
+    {
+        FACE_TYPE_FRONT          = 0,
+        FACE_TYPE_BACK           = 1,
+        FACE_TYPE_FRONT_AND_BACK = 2,
+    };
 
     enum MemoryType
     {

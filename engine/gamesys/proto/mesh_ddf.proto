@@ -17,7 +17,7 @@ message MeshDesc
         // PRIMITIVE_LINE_STRIP        = 3 [(displayName) = "Line Strip"];
         PRIMITIVE_TRIANGLES         = 4 [(displayName) = "Triangles"];
         PRIMITIVE_TRIANGLE_STRIP    = 5 [(displayName) = "Triangle Strip"];
-        PRIMITIVE_TRIANGLE_FAN      = 6 [(displayName) = "Triangle Fan"];
+        // PRIMITIVE_TRIANGLE_FAN      = 6 [(displayName) = "Triangle Fan"];
     }
 
     required string material = 1 [(resource)=true];

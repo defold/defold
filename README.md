@@ -46,6 +46,6 @@ An overview of the engine architecture and additional engine information can be 
 The release process is documented [here](RELEASE.md).
 
 
-## Licenses
+## Third party licenses
 
-See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip`
+See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip` for licenses of libraries and source code used in this project.

@@ -179,6 +179,7 @@
                                 :source-paths ["sidecar"]}
                       :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
+                      :vscode {:plugins [[nrepl "0.6.0"]]}
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
                                         ;;[refactor-nrepl "2.4.0"] ;; -- this does not seem to work well together with cider-nrepl 0.24.0 so it might be better to just skip.
                                         [com.billpiel/sayid "0.0.18"]]}
