@@ -6,7 +6,6 @@
 #define VK_USE_PLATFORM_VI_NN
 #endif
 
-#include <dlib/sys.h>
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "../vulkan/graphics_vulkan_defines.h"
@@ -146,16 +145,16 @@ namespace dmGraphics
         return g_extension_names;
     }
 
-    const char** GetValidationLayers(uint16_t* num_layers)
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc)
     {
         uint16_t count = 0;
         g_validation_layers[count++] = DM_VULKAN_LAYER_SWAPCHAIN;
 
-        if (dmSys::GetEnv("DM_VULKAN_VALIDATION"))
+        if (use_validation)
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
         }
-        if (dmSys::GetEnv("DM_VULKAN_RENDERDOC"))
+        if (use_renderdoc)
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_RENDERDOC;
         }
