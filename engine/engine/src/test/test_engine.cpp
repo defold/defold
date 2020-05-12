@@ -1,6 +1,5 @@
 #include <assert.h>
 
-#include <app/app.h>
 #include <dlib/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>

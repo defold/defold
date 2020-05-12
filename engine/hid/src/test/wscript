@@ -14,7 +14,6 @@ def build(bld):
                     target = 'test_hid',
                     source = 'test_hid.cpp')
 
-    """
     graphics_lib = ['GRAPHICS']
     graphics_lib_symbols = 'GraphicsAdapterOpenGL'
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
@@ -35,4 +34,3 @@ def build(bld):
                     exported_symbols = exported_symbols,
                     target = 'test_app_hid',
                     source = 'test_app_hid.cpp')
-    """
