@@ -406,8 +406,9 @@ namespace dmGraphics
         TextureFilter m_DefaultTextureMagFilter;
         uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
         uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;
-        uint8_t       : 6;
+        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t       : 5;
     };
 
     /** Creates a graphics context

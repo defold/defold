@@ -64,6 +64,8 @@ namespace dmGraphics
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
     , m_GraphicsMemorySize(0)
     , m_VerifyGraphicsCalls(false)
+    , m_RenderDocSupport(0)
+    , m_UseValidationLayers(0)
     {
 
     }

@@ -105,12 +105,20 @@ public class SwitchBundler implements IBundler {
 
         Platform targetPlatform = architectures.get(0);
 
-        String libDir = isDebug ? "Develop" : "Release";
+        boolean use_renderdoc = projectProperties.getBooleanValue("graphics", "use_renderdoc", false);
+
+        // since this can essentially be controlled in two places (build.yml, and in bob with --variant=debug/release)
+        // we cannot be certain what libraries we linked with.
+        // For now It should suffice to use the release versions of the libraries
+        String libDir = "Release";
+
+        String vulkanLib = use_renderdoc ? "vulkanOpenGlDebug.nso" : "vulkan.nso";
+
 
         File mainSrc = platformToExeFileMap.get(targetPlatform);
         File nnrtldSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnrtld.nso"));
         File nnSdkEnSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnSdkEn.nso"));
-        File vulkanSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/vulkan.nso"));
+        File vulkanSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/" + vulkanLib));
         File openglSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/opengl.nso"));
         File applicationDesc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/Resources/SpecFiles/Application.desc"));
 
