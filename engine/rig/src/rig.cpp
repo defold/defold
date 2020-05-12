@@ -1274,7 +1274,7 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    static RigSpineModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, uint32_t color, RigSpineModelVertex* out_write_ptr)
+    static RigSpineModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const Vector4 color, RigSpineModelVertex* out_write_ptr)
     {
         uint32_t indices_count = mesh->m_PositionIndices.m_Count;
         const uint32_t* indices = mesh->m_PositionIndices.m_Data;
@@ -1292,7 +1292,10 @@ namespace dmRig
             e = vi << 1;
             out_write_ptr->u = (uv0[e+0]);
             out_write_ptr->v = (uv0[e+1]);
-            out_write_ptr->rgba = color;
+            out_write_ptr->r = color.getX();
+            out_write_ptr->g = color.getY();
+            out_write_ptr->b = color.getZ();
+            out_write_ptr->a = color.getW();
             out_write_ptr++;
         }
         return out_write_ptr;
@@ -1434,12 +1437,7 @@ namespace dmRig
                         slot_color[2] = mesh_color[2] * slot_color[2];
                         slot_color[3] = mesh_color[3] * slot_color[3];
                         slot_color = mulPerElem(color, slot_color);
-                        slot_color = slot_color * 255.0f;
-
-                        uint32_t rgba = (((uint32_t) slot_color.getW()) << 24) | (((uint32_t) slot_color.getZ()) << 16) |
-                                (((uint32_t) slot_color.getY()) << 8) | ((uint32_t) slot_color.getX());
-
-                        vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
+                        vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, slot_color, (RigSpineModelVertex*)vertex_data_out);
                     }
                 }
             }

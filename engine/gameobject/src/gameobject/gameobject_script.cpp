@@ -735,7 +735,7 @@ namespace dmGameObject
     }
 
     /*# gets the rotation of the game object instance
-     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
+     * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world rotation.
      *
      * @name go.get_rotation
      * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
@@ -954,7 +954,11 @@ namespace dmGameObject
 
     /*# sets the parent for a specific game object instance
      * Sets the parent for a game object instance. This means that the instance will exist in the geometrical space of its parent,
-     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world space.
+     * like a basic transformation hierarchy or scene graph. If no parent is specified, the instance will be detached from any parent and exist in world
+     * space.
+     * This function will generate a `set_parent` message. It is not until the message has been processed that the change actually takes effect. This
+     * typically happens later in the same frame or the beginning of the next frame. Refer to the manual to learn how messages are processed by the
+     * engine.
      *
      * @name go.set_parent
      * @param [id] [type:string|hash|url] optional id of the game object instance to set parent for, defaults to the instance containing the calling script
@@ -1230,8 +1234,7 @@ namespace dmGameObject
 
     void LuaCurveRelease(dmEasing::Curve* curve)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)curve->userdata1;
-        lua_State* L = GetLuaState(script_instance);
+        lua_State *L = (lua_State*)curve->userdata1;
 
         int top = lua_gettop(L);
         (void) top;
@@ -1266,7 +1269,7 @@ namespace dmGameObject
                                         bool finished, void* userdata1, void* userdata2)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
-        if (dmScript::IsValidCallback(cbk) && finished)
+        if (dmScript::IsCallbackValid(cbk) && finished)
         {
             dmMessage::URL url;
             url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection);
@@ -1276,7 +1279,7 @@ namespace dmGameObject
             LuaAnimationStoppedArgs args(url, property_id);
             dmScript::InvokeCallback(cbk, LuaAnimationStoppedCallback, &args);
         }
-        dmScript::DeleteCallback(cbk);
+        dmScript::DestroyCallback(cbk);
     }
 
     /*# animates a named property of the specified game object or component
@@ -1400,7 +1403,7 @@ namespace dmGameObject
 
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
-            curve.userdata1 = i;
+            curve.userdata1 = L;
             curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
@@ -1774,7 +1777,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed
+     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.

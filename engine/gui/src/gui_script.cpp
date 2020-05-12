@@ -618,7 +618,7 @@ namespace dmGui
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
         int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
 
-        if( finished && dmScript::IsValidCallback(cbk))
+        if( finished && dmScript::IsCallbackValid(cbk))
         {
             LuaAnimationCompleteArgs args(scene, node_ref);
             dmScript::InvokeCallback(cbk, LuaCallbackCustomArgsCB, &args);
@@ -627,7 +627,7 @@ namespace dmGui
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
         luaL_unref(L, -1, node_ref);
         lua_pop(L, 1);
-        dmScript::DeleteCallback(cbk);
+        dmScript::DestroyCallback(cbk);
     }
 
     /*# once forward
@@ -1222,7 +1222,7 @@ namespace dmGui
      * @name gui.new_pie_node
      * @param pos [type:vector3|vector4] node position
      * @param size [type:vector3] node size
-     * @return node [type:node] new box node
+     * @return node [type:node] new pie node
      */
     static int LuaNewPieNode(lua_State* L)
     {
@@ -4284,7 +4284,7 @@ namespace dmGui
     {
         GuiEmitterStateChangedData* data = (GuiEmitterStateChangedData*)(user_data);
 
-        if (!dmScript::IsValidCallback(data->m_LuaInfo.m_Callback))
+        if (!dmScript::IsCallbackValid(data->m_LuaInfo.m_Callback))
             return;
 
         GuiPfxEmitterScriptCallbackData callback_data = { data, emitter_id, emitter_state };
@@ -4293,7 +4293,7 @@ namespace dmGui
         // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
         if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
         {
-            dmScript::DeleteCallback(data->m_LuaInfo.m_Callback);
+            dmScript::DestroyCallback(data->m_LuaInfo.m_Callback);
             data->m_LuaInfo.m_Callback = 0x0;
         }
     }

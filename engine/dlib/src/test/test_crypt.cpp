@@ -7,56 +7,6 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/crypt.h"
 
-int jc_test_cmp_array(const uint8_t* a, const uint8_t* b, size_t len, const char* format, size_t offsetstride, const char* exprA, const char* exprB) {
-    if (memcmp(a, b, sizeof(uint8_t)*len) == 0) return 1;
-    const int max_num_to_display = 32; // max number of differing characters
-    char stra[max_num_to_display*2+1] = {0};
-    char strb[max_num_to_display*2+1] = {0};
-    char diff[max_num_to_display*2+1] = {0};
-    int erroroffset = 0;
-    for (int i = 0; i < len; ++i) { // find the first difference
-        if (a[i] != b[i]) {
-            erroroffset = i;
-            break;
-        }
-    }
-    int start = (erroroffset - max_num_to_display/2); // to make it look good
-    start -= start & 1;
-    if (start<0)
-        start = 0;
-    int end = start + max_num_to_display;
-    if (end > len)
-        end = len;
-
-    for(int i = start; i < end; ++i) {
-        int offset = (i - start) * offsetstride;
-        JC_TEST_SNPRINTF(stra+offset, sizeof(stra) - offset, format, (uint32_t)a[i]);
-        JC_TEST_SNPRINTF(strb+offset, sizeof(strb) - offset, format, (uint32_t)b[i]);
-        diff[offset+0] = (a[i] == b[i]) ? ' ' : '^';
-        diff[offset+1] = diff[offset+0];
-    }
-
-    const char* emptyprefix = "   ";
-    const char* ellipsis = "...";
-    const char* prefix = start != 0 ? ellipsis : emptyprefix;
-    const char* suffix = end < len ? ellipsis : emptyprefix;
-    JC_TEST_LOGF(jc_test_get_fixture(), jc_test_get_test(), 0, JC_TEST_EVENT_ASSERT_FAILED, "\nValue of %s == %s\nOffset:      %d\nExpected: %s%s%s\nActual:   %s%s%s\nDiff:     %s%s\n", exprA, exprB, start, prefix, stra, suffix, prefix, strb, suffix, emptyprefix, diff);
-    return 0;
-}
-
-template<size_t N>
-int jc_test_cmp_ARRAY_EQ(const char (&a)[N], const char (&b)[N], const char* exprA, const char* exprB) {
-    return jc_test_cmp_array((const uint8_t*)a, (const uint8_t*)b, N, "%c", 1, exprA, exprB);
-}
-
-template<size_t N, typename T>
-int jc_test_cmp_ARRAY_EQ(T (&a)[N], T (&b)[N], const char* exprA, const char* exprB) {
-    return jc_test_cmp_array(a, b, N, "%02x", 2, exprA, exprB);
-}
-
-#define ASSERT_ARRAY_EQ( A, B )  JC_ASSERT_TEST_OP( ARRAY_EQ, A, B, JC_TEST_FATAL_FAILURE )
-
-
 TEST(dmCrypt, SameAsLibMCrypt)
 {
     uint8_t buf[19];

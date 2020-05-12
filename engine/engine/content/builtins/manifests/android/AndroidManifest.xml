@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- BEGIN_INCLUDE(manifest) -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
         package="{{android.package}}"
         android:versionCode="{{android.version_code}}"
         android:versionName="{{project.version}}"
@@ -13,7 +14,8 @@
         android:icon="@drawable/icon"
         {{/has-icons?}}
         android:label="{{project.title}}" android:hasCode="true"
-        android:name="android.support.multidex.MultiDexApplication">
+        android:name="android.support.multidex.MultiDexApplication"
+        android:debuggable="{{android.debuggable}}">
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />
         <meta-data android:name="android.notch_support" android:value="true"/>

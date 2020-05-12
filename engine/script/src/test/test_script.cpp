@@ -541,7 +541,7 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     int top = lua_gettop(L);
 
     dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, -1);
-    ASSERT_TRUE(IsValidCallback(cbk));
+    ASSERT_TRUE(dmScript::IsCallbackValid(cbk));
 
     dmScript::InvokeCallback(cbk, 0, 0); // no custom arguments, means the callback gets called with nil args
 
@@ -556,9 +556,9 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     ASSERT_TRUE(RunString(L, "assert(_a == hash(\"hello\"))"));
     ASSERT_TRUE(RunString(L, "assert(_b == 42)"));
 
-    ASSERT_TRUE(IsValidCallback(cbk));
-    dmScript::DeleteCallback(cbk);
-    ASSERT_FALSE(IsValidCallback(cbk));
+    ASSERT_TRUE(dmScript::IsCallbackValid(cbk));
+    dmScript::DestroyCallback(cbk);
+    ASSERT_FALSE(dmScript::IsCallbackValid(cbk));
 
     char* test_string = (char*)lua_newuserdata(L, strlen("test_ref_data") + 1);
     strcpy(test_string, "test_ref_data");

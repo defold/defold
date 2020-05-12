@@ -7,9 +7,9 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 
-#include "../graphics.h"
+#include "../graphics_private.h"
 #include "../graphics_native.h"
-#include "graphics_null.h"
+#include "graphics_null_private.h"
 #include "glsl_uniform_parser.h"
 
 using namespace Vectormath::Aos;
@@ -141,6 +141,10 @@ namespace dmGraphics
     void IconifyWindow(HContext context)
     {
         assert(context);
+    }
+
+    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
+    {
     }
 
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
@@ -316,6 +320,8 @@ namespace dmGraphics
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        if (!buffer)
+            return;
         VertexBuffer* vb = (VertexBuffer*)buffer;
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
@@ -374,6 +380,8 @@ namespace dmGraphics
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
+        if (!buffer)
+            return;
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
@@ -561,7 +569,7 @@ namespace dmGraphics
         }
         else if (type == dmGraphics::TYPE_FLOAT)
         {
-            return ((float*)index_buffer)[index];
+            return (uint32_t)((float*)index_buffer)[index];
         }
 
         assert(0);
@@ -778,7 +786,7 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
         assert(index < program->m_Uniforms.Size());
@@ -786,6 +794,7 @@ namespace dmGraphics
         *buffer = '\0';
         dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
+        return (uint32_t)strlen(buffer);
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
@@ -999,13 +1008,6 @@ namespace dmGraphics
 
     uint8_t* GetTextureData(HTexture texture) {
         return 0x0;
-    }
-
-    uint32_t GetTextureFormatBPP(TextureFormat format)
-    {
-        static TextureFormatToBPP g_TextureFormatToBPP;
-        assert(format < TEXTURE_FORMAT_COUNT);
-        return g_TextureFormatToBPP.m_FormatToBPP[format];
     }
 
     uint32_t GetTextureResourceSize(HTexture texture)

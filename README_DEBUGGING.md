@@ -63,14 +63,19 @@ iOS + OSX:
 
 	E.g. in the non symbolicated callstack on Crash Analytics, it could look like this
 
-	#00 pc 00257224 libblossom_blast_saga.so
+	`#00 pc 00257224 libblossom_blast_saga.so`
 
 	Where *00257224* is the address
 
 1. Resolve the address
 
+```
+    # 32 bit
     $ arm-linux-androideabi-addr2line -C -f -e dmengine_1_2_105/lib/armeabi-v7a/libdmengine.so <address>
 
+    # 64 bit
+    $ aarch64-linux-android-addr2line -C -f -e build/default/extension-push/extension-push.apk.symbols/lib/arm64-v8a/libextensionpush.so <address>
+```
 
 ### iOS
 
@@ -83,22 +88,23 @@ iOS + OSX:
 1. If you are using Native Extensions, the server can provide those for you (pass "--with-symbols" to bob.jar)
 
 	$ unzip <project>/build/arm64-darwin/build.zip
-	# it will produce a Contents/Resources/DWARF/dmengine
+
+	it will produce a Contents/Resources/DWARF/dmengine
 
 1. Symbolicate using load address
 
 	For some reason, simply putting the address from the callstack doesn't work (i.e. load address 0x0)
 
-		$ atos -arch arm64 -o Contents/Resources/DWARF/dmengine 0x1492c4
+	$ atos -arch arm64 -o Contents/Resources/DWARF/dmengine 0x1492c4
 
-	# Neither does specifying the load address directly
+	Neither does specifying the load address directly
 
-		$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp -l0x100000000 0x1492c4
+	$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp -l0x100000000 0x1492c4
 
 	Adding the load address to the address works:
 
-		$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp 0x1001492c4
-		dmCrash::OnCrash(int) (in MyApp) (backtrace_execinfo.cpp:27)
+	$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp 0x1001492c4
+	dmCrash::OnCrash(int) (in MyApp) (backtrace_execinfo.cpp:27)
 
 ### macOS
 
@@ -125,4 +131,3 @@ UUID:
 	$ ... dmengine.js.symbols
 
 1. Match the callstack with the symbols
-

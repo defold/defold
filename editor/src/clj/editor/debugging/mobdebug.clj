@@ -211,9 +211,46 @@
     :else
     (lua-value->identity-string x)))
 
+(defn- tuple->map-entry
+  ^MapEntry [[k v]]
+  (MapEntry. k v))
+
+(defn- sequence->map-entries [coll]
+  (sequence (comp (partition-all 2)
+                  (map tuple->map-entry))
+            coll))
+
+(defn- classify-type [x]
+  (cond (number? x) :number
+        (string? x) :string
+        (instance? Comparable x) :comparable
+        :else :other))
+
+(defn- compare-keys [a b]
+  (let [a-type (classify-type a)
+        b-type (classify-type b)]
+    (case a-type
+      :number (case b-type
+                :number (compare a b)
+                (:string :comparable :other) -1)
+      :string (case b-type
+                :number 1
+                :string (compare a b)
+                (:comparable :other) -1)
+      :comparable (case b-type
+                    (:number :string) 1
+                    :comparable (compare a b)
+                    :other -1)
+      :other (case b-type
+               (:number :string :comparable) 1
+               :other (compare (System/identityHashCode a)
+                               (System/identityHashCode b))))))
+
 (def ^:private lua-readers
   {'lua/table (fn [{:keys [content string]}]
-                (with-meta (apply array-map content) {:string string}))
+                (with-meta (into (sorted-map-by compare-keys)
+                                 (sequence->map-entries content))
+                           {:string string}))
    'lua/ref (fn [address]
               (LuaRef. address))
    'lua/structure (fn [{:keys [value refs]}]

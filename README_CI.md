@@ -1,38 +1,38 @@
 # Continuous Integration
 
-http://ci.defold.com/waterfall
+CI is based on [GitHub Actions](https://github.com/features/actions). Current and old jobs can be seen on the [Actions page](https://github.com/defold/defold/actions) of the main Defold repository.
 
+The Defold CI jobs are divided into three main categories, each represented by a separate GitHub Actions Workflow:
 
-# Login to Windows Builders
+* [Editor Only](/.github/workflows/editor-only.yml) - Builds editor feature branches (branches starting with `DEFEDIT-`)
+* [Main](/.github/workflows/main-ci.yml) - Builds and tests changes to all other branches. The workflow varies slightly depending on the type of branch being built (dev, beta, master or a feature branch).
+* [Engine Nightly](/.github/workflows/engine-nightly.yml) - Runs Address Sanitizer (ASAN) and Valgrind nightly to detect leaks and other problems. This is done on the `dev` branch.
 
-* Enable WiFi
+The workflow files listed above sets up the jobs and distributes them to multiple workers to build, test and release the engine and/or editor. The bulk of the work is done in the [ci.py](/ci/ci.py) script.
 
-	* Login to K-Guest (the other networks doesn't allow remote desktops!)
+## How to trigger builds manually
 
-* Goto [sso.king.com](https://sso.king.com)
+You can use the `ci/trigger-build.py` script to manually trigger a build using the `Main` workflow:
 
-	* Login to the **"Amazon Web Services - Defold"**
+```
+./ci/trigger-build.py --token=<personal_access_token> --branch=9a32ac5e9513e8aff669cf4cbe4334aeec2fbf8e --skip-engine --skip-sdk --skip-bob
+```
 
-* Select **Services -> EC2** from the menu
+Available options are:
 
-* Under **"Resources"**, click **Running instances**
+```
+$ ./ci/trigger-build.py --help                                                                   
+usage: trigger-build.py [-h] [--token TOKEN] [--action ACTION]
+                        [--branch BRANCH] [--skip-engine] [--skip-sdk]
+                        [--skip-bob] [--skip-editor]
 
-* [Optional] You can filter the list, by e.g. "ci-slave-windows"
-
-	* You should see e.g. **"ci-slave-windows-64-2"** and **"ci-slave-windows-64-3"**
-
-* Select one of the windows builds
-
-	* Copy the **"IPv4 Public IP"**
-
-* Open your remote desktop client
-
-	* E.g. Parallels Client
-
-* Connect to the IP using the remote desktop client
-
-	* User: **"administrator"**
-	* Pass: Ask mikael.lothman@king.com for the password
-
-* Done!
-
+optional arguments:
+  -h, --help       show this help message and exit
+  --token TOKEN    GitHub API personal access token
+  --action ACTION  The trigger action
+  --branch BRANCH  The branch to build
+  --skip-engine    Skip building the engine
+  --skip-sdk       Skip building the Defold SDK
+  --skip-bob       Skip building bob
+  --skip-editor    Skip building the editor
+```

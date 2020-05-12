@@ -124,28 +124,8 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
-    URL getResource(BobProjectProperties projectProperties, File projectRoot, String category, String key, String defaultValue) {
-        String s = projectProperties.getStringValue(category, key);
-        if (s != null && s.trim().length() > 0) {
-            try {
-                return new File(projectRoot, s).toURI().toURL();
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            if (defaultValue != null) {
-                return getClass().getResource(String.format("resources/jsweb/%s", defaultValue));
-            }
-            return null;
-        }
-    }
-
     URL getResource(String name) {
         return getClass().getResource(String.format("resources/jsweb/%s", name));
-    }
-
-    String getName(URL url) {
-        return FilenameUtils.getName(url.getPath());
     }
 
     @Override
@@ -153,13 +133,17 @@ public class HTML5Bundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BundleHelper.throwIfCanceled(canceled);
+
+        final Platform platform = Platform.JsWeb;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, Platform.JsWeb);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         BundleHelper.throwIfCanceled(canceled);
-        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
@@ -198,71 +182,9 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         File projectRoot = new File(project.getRootDirectory());
 
-        URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", null);
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
-        // Same value as engine is compiled with; 268435456
-        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
-        
-        {// Deprecated method of setting the heap sie. For backwards compatibility
-            if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
-                Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
-                if (null != size) {
-                    customHeapSize = size.intValue();
-                }
-            }
-        }
-
-        BundleHelper.throwIfCanceled(canceled);
-        Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("exe-name", enginePrefix);
-
-        if (splashImage != null) {
-            infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
-        } else {
-            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
-            // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
-            infoData.put("DEFOLD_SPLASH_IMAGE", false);
-        }
-        infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
-
-        // Check if game has configured a Facebook App ID
-        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        infoData.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
-
-        String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
-        List<String> engineArguments = engineArgumentsString != null ? new ArrayList<String>(Arrays.asList(engineArgumentsString.split(","))) : new ArrayList<String>();
-
-        // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        if (localLaunch) {
-            infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
-            infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
-            infoData.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
-            engineArguments.add("--verify-graphics-calls=false");
-        } else {
-            infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
-            infoData.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
-        }
-        infoData.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
-        infoData.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
-
-        /// Legacy properties for backwards compatibility
-        {
-            infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
-            infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
-
-            String version = projectProperties.getStringValue("project", "version", "0.0");
-            infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
-
-            infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix); // replaced by "exe-name"
-        }
-
-        BundleHelper.throwIfCanceled(canceled);
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
@@ -283,6 +205,18 @@ public class HTML5Bundler implements IBundler {
             }
         }
 
+        // Copy debug symbols if they were generated
+        String zipDir = FilenameUtils.concat(extenderExeDir, Platform.JsWeb.getExtenderPair());
+        File bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        if (!bundleSymbols.exists()) {
+            zipDir = FilenameUtils.concat(extenderExeDir, Platform.WasmWeb.getExtenderPair());
+            bundleSymbols = new File(zipDir, "dmengine.js.symbols");
+        }
+        if (bundleSymbols.exists()) {
+            File symbolsOut = new File(appDir, enginePrefix + ".symbols");
+            FileUtils.copyFile(bundleSymbols, symbolsOut);
+        }
+
         for (File bin : binsWasm) {
             BundleHelper.throwIfCanceled(canceled);
             String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
@@ -296,22 +230,19 @@ public class HTML5Bundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
-        // Flash audio swf
-        FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
-        BundleHelper helper = new BundleHelper(project, Platform.JsWeb, appDir, "", variant);
+        BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
 
-        IResource customCSS = helper.getResource("html5", "cssfile");
-        infoData.put("DEFOLD_CUSTOM_CSS_INLINE", helper.formatResource(infoData, customCSS));
-
-        File manifestFile = new File(appDir, "index.html");
-        IResource sourceManifestFile = helper.getResource("html5", "htmlfile");
-        helper.mergeManifests(infoData, sourceManifestFile, manifestFile);
-
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
-        if (splashImage != null) {
-            FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
+
+        String splashImageName = projectProperties.getStringValue("html5", "splash_image");
+        if (splashImageName != null && !splashImageName.isEmpty()) {
+            File splashImage = new File(project.getRootDirectory(), splashImageName);
+            if (splashImage.exists()) {
+                FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
+            }
         }
     }
 

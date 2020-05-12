@@ -31,8 +31,10 @@ public class Win32Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         // Collect bundle/package resources to be included in bundle directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -78,6 +80,14 @@ public class Win32Bundler implements IBundler {
         FileUtils.copyFile(bundleExe, exeOut);
         FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
         FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
+
+        // Copy debug symbols if they were generated
+        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        File bundlePdb = new File(zipDir, "dmengine.pdb");
+        if (bundlePdb.exists()) {
+            File pdbOut = new File(appDir, "dmengine.pdb");
+            FileUtils.copyFile(bundlePdb, pdbOut);
+        }
 
         BundleHelper.throwIfCanceled(canceled);
 

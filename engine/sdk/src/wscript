@@ -1,5 +1,9 @@
 #! /usr/bin/env python
 import os
+from waf_dynamo import dmsdk_add_files
 
 def build(bld):
     bld.add_subdirs('test')
+
+    # the dmsdk_add_files needs to be after a build group for some reason
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

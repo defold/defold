@@ -15,7 +15,7 @@ Important: *Make sure your branches are up to date!*
 
  1. Make sure dev builds are green
 
-    Run the [Defold SDK Tests](https://jenkins-dfold.ess.midasplayer.com/job/defoldsdk-tests/) to test that the alpha release still works as expected
+    Check the [Defold SDK Tests](https://github.com/defold/test-sdk) to test that the alpha release still works as expected
 
  1. Make sure dev is up to date:
 
@@ -36,7 +36,8 @@ Important: *Make sure your branches are up to date!*
 
     This will trigger the beta channel to be built on build bot.
 
- 1. Wait for [editor2-beta](http://ci.defold.com/builders/editor2-beta) to finish, make sure autobuilders are green.
+ 1. Wait for [builds](https://github.com/defold/defold/actions) to finish, make sure they are green.
+
  1. (Optional) Download and run beta:
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -45,15 +46,10 @@ Important: *Make sure your branches are up to date!*
 
     http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-linux.zip
 
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
-
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.zip
-
-    http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-linux.gtk.x86_64.zip
-
-    The SHA1 can be found in the latest [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) build, or `git log` on beta branch.
+    The SHA1 can be found using `git log` on the beta branch.
 
  1. (Optional) Verify new features and bug fixes.
+
  1. (Optional) Verify dev mobile apps.
 
  1. If everything is OK, time to release beta:
@@ -62,42 +58,12 @@ Important: *Make sure your branches are up to date!*
 
     Important: *Make sure the SHA1 and channel is correct!*
 
- 1. Build QRT test apps on [Jenkins](https://jenkins-defold.ess.midasplayer.com/job/defold-qrt_pipeline) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/)) ([older link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
-
-    Log in and open "Build with Parameters"
-
-    In "DEFOLD_CHANNEL" select "beta"
-
-    Let ATL or PO know about the started build so they can monitor and smoke test the apps when build is done.
-
  1. Write release beta release notes (while CI builds the test apps)
-
- 1. (Optional) Verify dev mobile apps from [app store](https://app-store.king.com/#/builds/DefoldQRT?filterByUserAgent=true&buildName=beta&onlyFeaturedBuilds=false)
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
- 1. Send notification email with release notes to defold-users@king.com
+ 1. Post beta release notes on the forum
 
-## Smoke Tests of Beta
-
-### QRT
-When the beta has been released the following apps needs to be bundled and sent to QRT:
-* Defold Examples - iOS, Android, desktops
-* Defold IAP Tester - iOS, Android (Google Play and Amazon)
-* "Geometry Wars" - iOS, Android, desktops
-* Defold Facebook test app - iOs, Android
-* BBS - iOS, Android, desktops
-* Presto - iOS, Android
-
-Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [App Store/DefoldQRT](https://app-store.king.com/#/builds/DefoldQRT)
-
-You can also download desktop and html5 versions from the artifacts on that page.
-
-Upload the IAP Tester to Amazon by following [these instructions](https://kingfluence.com/display/Defold/How+to+upload+to+Amazon)
-
-### Defold Team
-The following smoke tests are currently performed by the team on each platform (OSX, Win, Linux):
-* Start editor, build BBS for desktop and HTML5
 
 ## Stable
 
@@ -112,7 +78,18 @@ The following smoke tests are currently performed by the team on each platform (
         $ git push
 
     This will trigger a build of the engines and editors for stable.
-    Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
+    Make a note of the release sha1 (the latest commit to the master branch on GitHub)
+
+ 1. Merge `master` into `editor-dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
+
+    This will trigger a build of the engines and editors for editor-alpha.
+
+ 1. When the `editor-dev` is built, all channels have been updated
 
  1. Fetch editor via:
 
@@ -122,41 +99,43 @@ The following smoke tests are currently performed by the team on each platform (
 
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-linux.zip
 
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
-
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-win32.win32.x86.zip
-
-    http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-linux.gtk.x86_64.zip
-
  1. Tag the release in git:
 
         $ git tag -a X.Y.Z (same as version produced by the bump)
     Use tag message: Release X.Y.Z
+    Add `-f` to force update the tag (in the case you need to amend an existing release for some reason).
 
         $ git push origin --tags
-    This will push the tags to github, which is then used later in the release step.
+    This will push the tags to github, which is then used later in the release step. Add `-f` to force update the tags.
 
 ### Publishing Stable Release
 
 1. If everything is OK, time to release stable
+
 1. If there is a pending Native Extension server change, [publish the production server](https://github.com/defold/extender#releasing), which updates https://build.defold.com
+
 1. Next, release the stable engine/editor:
 
         $ ./scripts/build.py release
     Important: *Make sure the SHA1 and channel is correct!*
 
-1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since noone uses editor-stable)
-1. Publish latest API documentation by logging into http://www.defold.com/ref/update/latest
-1. If there are Documentation changes pending, public those according to [the Documentation repo](https://github.com/defold/doc#build-and-publish)
-1. Send notification email to defold-users@king.com and releasenotification@king.com
-1. Post release notes on forum.defold.com
-1. Post release notes on http://www.defold.com/admin/base/releasenote/
+1. Verify release by updating an old editor, OSX, Win and Linux. (Currently a bit deprecated workflow, since no one uses editor-stable)
 
-1. Merge master into dev
+1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
+
+        $ ./update.py --download refdoc
+        $ git commit -am "Updated reference documentation to 1.2.xxx"
+        $ git push
+
+1. Merge `master` into dev
 
         $ git checkout dev
         $ git pull
         $ git merge master
+
+1. Merge `editor-dev` into `dev`
+
+        $ git merge editor-dev
 
 1. Bump version:
 
@@ -167,4 +146,4 @@ The following smoke tests are currently performed by the team on each platform (
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-1. Tell the editor team to update and release the Editor 2
+1. Post release notes on [forum.defold.com](https://forum.defold.com)

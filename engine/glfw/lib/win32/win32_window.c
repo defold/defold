@@ -749,6 +749,8 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
             _glfwWin.iconified = iconified;
             if(_glfwWin.windowFocusCallback)
                 _glfwWin.windowFocusCallback( _glfwWin.active ? 1 : 0 );
+            if(_glfwWin.windowIconifyCallback)
+                _glfwWin.windowIconifyCallback( _glfwWin.iconified ? 1 : 0);
             return 0;
         }
 
@@ -1249,20 +1251,20 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
         return GL_FALSE;
     }
 
-    if( !createContext( _glfwWin.DC, wndconfig, pixelFormat ) )
-    {
-        fprintf( stderr, "Unable to create OpenGL context\n" );
-        return GL_FALSE;
-    }
-
-    if( !wglMakeCurrent( _glfwWin.DC, _glfwWin.context ) )
-    {
-        fprintf( stderr, "Unable to make OpenGL context current\n" );
-        return GL_FALSE;
-    }
-
     if (wndconfig->clientAPI != GLFW_NO_API)
     {
+        if( !createContext( _glfwWin.DC, wndconfig, pixelFormat ) )
+        {
+            fprintf( stderr, "Unable to create OpenGL context\n" );
+            return GL_FALSE;
+        }
+
+        if( !wglMakeCurrent( _glfwWin.DC, _glfwWin.context ) )
+        {
+            fprintf( stderr, "Unable to make OpenGL context current\n" );
+            return GL_FALSE;
+        }
+
         initWGLExtensions();
     }
 

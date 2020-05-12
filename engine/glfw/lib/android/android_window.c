@@ -158,6 +158,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
     if (_glfwWin.clientAPI == GLFW_NO_API)
     {
         final_gl(&_glfwWin);
+        _glfwWin.hasSurface = 1;
     }
     else
     {
@@ -332,12 +333,11 @@ void _glfwPlatformPollEvents( void )
    struct android_poll_source* source;
 
    // TODO: Terrible hack. See comment in top of file
-   if (g_KeyboardActive) {
+   if (g_SpecialKeyActive > 0) {
+       g_SpecialKeyActive--;
        if (g_SpecialKeyActive == 0) {
            _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
            _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
-       } else {
-           g_SpecialKeyActive--;
        }
    }
 

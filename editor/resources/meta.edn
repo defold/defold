@@ -60,6 +60,10 @@
    :help "use single Lua state shared between all script types",
    :default false,
    :path ["script" "shared_state"]}
+  {:type :boolean,
+   :help "allow the engine to continue running while iconfied (desktop platforms only)",
+   :default false,
+   :path ["engine" "run_while_iconified"]}
   {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
@@ -110,6 +114,26 @@
    :severity-default :warning
    :help "This setting is deprecated. When checked, will disable \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
    :path ["display" "variable_dt"]}
+  {:type :number,
+   :help "Render clear color - red channel",
+   :label "Clear Color Red"
+   :default 0,
+   :path ["render" "clear_color_red"]}
+  {:type :number,
+   :help "Render clear color - green channel",
+   :label "Clear Color Green"
+   :default 0,
+   :path ["render" "clear_color_green"]}
+  {:type :number,
+   :help "Render clear color - blue channel",
+   :label "Clear Color Blue"
+   :default 0,
+   :path ["render" "clear_color_blue"]}
+  {:type :number,
+   :help "Render clear color - alpha channel",
+   :label "Clear Color Alpha"
+   :default 0,
+   :path ["render" "clear_color_alpha"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
@@ -471,13 +495,43 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X portrait launch image (.png)",
+   :help "iPad Pro 11 portrait launch image (.png)",
+   :path ["ios" "launch_image_1668x2388"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 11 landscape launch image (.png)",
+   :path ["ios" "launch_image_2388x1668"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone X and XS portrait launch image (.png)",
    :path ["ios" "launch_image_1125x2436"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone X landscape launch image (.png)",
+   :help "iPhone X and XS landscape launch image (.png)",
    :path ["ios" "launch_image_2436x1125"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XR portrait launch image (.png)",
+   :path ["ios" "launch_image_828x1792"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XR landscape launch image (.png)",
+   :path ["ios" "launch_image_1792x828"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XS Max portrait launch image (.png)",
+   :path ["ios" "launch_image_1242x2688"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone XS Max landscape launch image (.png)",
+   :path ["ios" "launch_image_2688x1242"]}
   {:type :boolean,
    :help "set to true if the icons are prerendered",
    :default false,

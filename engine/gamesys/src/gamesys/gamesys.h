@@ -213,7 +213,9 @@ namespace dmGameSystem
     void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
     void OnWindowFocus(bool focus);
+    void OnWindowIconify(bool iconfiy);
     void OnWindowResized(int width, int height);
+    void OnWindowCreated(int width, int height);
 }
 
 #endif // DM_GAMESYS_H

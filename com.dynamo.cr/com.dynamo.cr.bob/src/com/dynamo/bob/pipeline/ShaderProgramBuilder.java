@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Collections;
+import java.util.Comparator;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -37,7 +39,6 @@ import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
@@ -142,6 +143,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     {
         switch(typeAsString)
         {
+            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
+            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
+            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
             case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
             case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
             case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
@@ -157,8 +161,20 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
     }
 
+    static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
+    {
+        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
+               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
+               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+    }
+
     static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
     static private class SetEntry extends HashMap<Integer,BindingEntry> {}
+    static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
+        public int compare(SPIRVReflector.Resource a, SPIRVReflector.Resource b) {
+            return a.binding - b.binding;
+        }
+    }
 
     private ShaderDesc.Shader.Builder compileGLSLToSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
@@ -232,6 +248,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         ArrayList<String> shaderIssues    = new ArrayList<String>();
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
 
+        // Put all shader resources on a separate list that will be sorted by binding number later
+        ArrayList<SPIRVReflector.Resource> resource_list = new ArrayList();
+
         // Generate a mapping of Uniform Set -> List of Bindings for that set
         // so that we can check for duplicate bindings.
         //
@@ -271,6 +290,21 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 uniform.binding = ubo.binding;
                 uniform.set     = ubo.set;
                 bindingEntry.add(uniform);
+
+                ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
+
+                int issue_count = shaderIssues.size();
+                if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
+                    shaderIssues.add("Unsupported type for uniform '" + uniform.name + "'");
+                }
+
+                if (uniform.set > 1) {
+                    shaderIssues.add("Unsupported set value for uniform '" + uniform.name + "', expected <= 1 but found " + uniform.set);
+                }
+
+                if (issue_count == shaderIssues.size()) {
+                    resource_list.add(uniform);
+                }
             }
         }
 
@@ -291,12 +325,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             if (type != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D) {
                 shaderIssues.add("Unsupported type for texture sampler '" + tex.name + "'");
             } else {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                resourceBindingBuilder.setName(MurmurHash.hash64(tex.name));
-                resourceBindingBuilder.setType(type);
-                resourceBindingBuilder.setSet(tex.set);
-                resourceBindingBuilder.setBinding(tex.binding);
-                builder.addUniforms(resourceBindingBuilder);
+                resource_list.add(tex);
             }
 
             bindingEntry.add(tex);
@@ -318,22 +347,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                         }
                     }
 
-                    shaderIssues.add("Uniforms '" + duplicateList + " from set " + setIndex + " have the same binding " + bindingIndex);
+                    shaderIssues.add("Uniforms '" + duplicateList + "' from set " + setIndex + " have the same binding " + bindingIndex);
                 }
-            }
-        }
-
-        // Process all vertex attributes (inputs)
-        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
-            // Note: No need to check for duplicates for vertex attributes,
-            // the SPIR-V compiler will complain about it.
-            for (SPIRVReflector.Resource input : reflector.getInputs()) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                resourceBindingBuilder.setName(MurmurHash.hash64(input.name));
-                resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
-                resourceBindingBuilder.setSet(input.set);
-                resourceBindingBuilder.setBinding(input.binding);
-                builder.addAttributes(resourceBindingBuilder);
             }
         }
 
@@ -351,6 +366,37 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
 
             return null;
+        }
+
+        // Build vertex attributes (inputs)
+        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
+            ArrayList<SPIRVReflector.Resource> attributes = reflector.getInputs();
+
+            Collections.sort(attributes, new SortBindingsComparator());
+
+            // Note: No need to check for duplicates for vertex attributes,
+            // the SPIR-V compiler will complain about it.
+            for (SPIRVReflector.Resource input : attributes) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+                resourceBindingBuilder.setName(input.name);
+                resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
+                resourceBindingBuilder.setSet(input.set);
+                resourceBindingBuilder.setBinding(input.binding);
+                builder.addAttributes(resourceBindingBuilder);
+            }
+        }
+
+        // Sort shader resources by increasing binding number
+        Collections.sort(resource_list, new SortBindingsComparator());
+
+        // Build uniforms
+        for (SPIRVReflector.Resource res : resource_list) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+            resourceBindingBuilder.setName(res.name);
+            resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
+            resourceBindingBuilder.setSet(res.set);
+            resourceBindingBuilder.setBinding(res.binding);
+            builder.addUniforms(resourceBindingBuilder);
         }
 
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);

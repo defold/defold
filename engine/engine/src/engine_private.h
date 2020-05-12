@@ -35,13 +35,15 @@ namespace dmEngine
         RunResult()
         {
             memset(this, 0, sizeof(*this));
-            m_Action = EXIT;
         }
 
+        //`RunResult::EXIT` value (as `run_action` in `AppDelegate.m` `ShutdownEngine()`)
+        // compares with GLFW_APP_RUN_EXIT, that's why `RunResult` should have the same values as `glfwAppRunAction`
         enum Action
         {
-            EXIT,
-            REBOOT,
+            NONE,
+            EXIT = -1,
+            REBOOT = 1,
         };
 
         void Free()
@@ -144,12 +146,14 @@ namespace dmEngine
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
+        bool                                        m_RunWhileIconified;
         uint64_t                                    m_PreviousFrameTime;
         uint64_t                                    m_PreviousRenderTime;
         uint64_t                                    m_FlipTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
+        uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
         Vsync                                       m_VsyncMode;

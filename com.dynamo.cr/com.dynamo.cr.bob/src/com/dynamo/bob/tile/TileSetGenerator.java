@@ -10,11 +10,14 @@ import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
+import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.textureset.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Animation;
+import com.dynamo.tile.proto.Tile.SpriteTrimmingMode;
 import com.dynamo.tile.proto.Tile.TileSet;
 
 public class TileSetGenerator {
@@ -85,31 +88,51 @@ public class TileSetGenerator {
         }
     }
 
-    public static TextureSetResult generate(TileSet tileSet, BufferedImage image,
-            BufferedImage collisionImage, boolean genOutlines, boolean genAtlasVertices) {
-        TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
-                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
+    public static TextureSetResult generate(TileSet tileSet, BufferedImage image, BufferedImage collisionImage) {
+        Rect imageRect = image != null ? new Rect(null, -1, image.getWidth(), image.getHeight()) : null;
+        Rect collisionRect = collisionImage != null ? new Rect(null, -1, collisionImage.getWidth(), collisionImage.getHeight()) : null;
+        TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(imageRect, tileSet.getTileWidth(),
+                tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionRect, 1.0f, 0.0f);
 
         if (metrics == null) {
             return null;
         }
 
+        int hullVertexSize = 6;
+        SpriteTrimmingMode mode = tileSet.getSpriteTrimMode();
+        switch (mode) {
+            case SPRITE_TRIM_MODE_OFF:   hullVertexSize = 0; break;
+            case SPRITE_TRIM_MODE_4:     hullVertexSize = 4; break;
+            case SPRITE_TRIM_MODE_5:     hullVertexSize = 5; break;
+            case SPRITE_TRIM_MODE_6:     hullVertexSize = 6; break;
+            case SPRITE_TRIM_MODE_7:     hullVertexSize = 7; break;
+            case SPRITE_TRIM_MODE_8:     hullVertexSize = 8; break;
+        }
+
         List<BufferedImage> images = split(image, tileSet, metrics);
+        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        List<String> names = new ArrayList<String>();
+        int tileIndex = 0;
+        for (BufferedImage tmp : images) {
+            imageHullSizes.add(hullVertexSize);
+            names.add(String.format("tile%d", tileIndex++));
+        }
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, names, iterator, 0,
                 tileSet.getInnerPadding(),
-                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices, false, true, grid_size );
+                tileSet.getExtrudeBorders(), false, true, grid_size );
 
         TextureSet.Builder builder = result.builder;
 
         builder.setTileWidth(tileSet.getTileWidth()).setTileHeight(tileSet.getTileHeight());
 
-        buildConvexHulls(tileSet, collisionImage, builder);
+        // These hulls are for collision detection
+        buildCollisionConvexHulls(tileSet, collisionImage, builder);
 
         return result;
     }
@@ -150,11 +173,10 @@ public class TileSetGenerator {
         return iterator;
     }
 
-    private static void buildConvexHulls(TileSet tileSet,
-            BufferedImage collisionImage, TextureSet.Builder textureSet) {
-        if (collisionImage != null) {
-            ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(collisionImage.getAlphaRaster(), 16,
-                    collisionImage.getWidth(), collisionImage.getHeight(), tileSet.getTileWidth(),
+    private static void buildCollisionConvexHulls(TileSet tileSet, BufferedImage image, TextureSet.Builder textureSet) {
+        if (image != null) {
+            ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(image.getAlphaRaster(), 16,
+                    image.getWidth(), image.getHeight(), tileSet.getTileWidth(),
                     tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing());
 
             for (int i = 0; i < convexHulls.hulls.length; ++i) {
@@ -171,10 +193,9 @@ public class TileSetGenerator {
             }
 
             for (int i = 0; i < convexHulls.points.length; ++i) {
-                textureSet.addConvexHullPoints(convexHulls.points[i]);
+                textureSet.addCollisionHullPoints(convexHulls.points[i]);
             }
         }
         textureSet.addAllCollisionGroups(tileSet.getCollisionGroupsList());
     }
-
 }

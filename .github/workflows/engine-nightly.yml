@@ -5,17 +5,47 @@ on:
     # nightly at 03:00
     - cron: 0 3 * * *
 
+env:
+  S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+  S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+
+
 jobs:
   build-engine-darwin-64:
-    runs-on: macOS-10.14
+    runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1, ref: dev } },
+      { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=x86_64-darwin --branch=dev --with-asan --with-vanilla-lua --skip-builtins --skip-docs install engine' }]
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'Build engine',
+        run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@master,
+         if: always(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+      }]
 
   build-engine-linux-64:
     runs-on: ubuntu-18.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v1, with: { fetch-depth: 1, ref: dev } },
+      { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Build engine', run: 'python ci/ci.py --platform=x86_64-linux --branch=dev --with-valgrind --skip-builtins --skip-docs install engine' }]
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'Build engine',
+        run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@master,
+         if: always(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+      }]

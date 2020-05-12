@@ -6,6 +6,7 @@
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"
+#include "dlib/math.h"
 #include "dlib/thread.h"
 #include "dlib/uri.h"
 #include "dlib/http_client.h"
@@ -64,11 +65,12 @@ public:
         return strlen(s);
     }
 
-    static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
+    static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, uint32_t offset, uint32_t length, void* user_data)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         const char* s = self->m_ToPost.c_str();
-        return dmHttpClient::Write(response, s, strlen(s));
+        uint32_t len = dmMath::Min((uint32_t)self->m_ToPost.size() - offset, length);
+        return dmHttpClient::Write(response, &s[offset], len);
     }
 
     static dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
@@ -103,9 +105,14 @@ public:
         {
             port = g_HttpPortSSLTest;
         }
-        ASSERT_NE(-1, port);
+        else {
+            // no port
+        }
 
-        sprintf(portstr, "%d", port);
+        if (port != -1)
+        {
+            sprintf(portstr, "%d", port);
+        }
 
         dmURI::Result parse_r = dmURI::Parse(url, &m_URI);
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
@@ -144,7 +151,12 @@ public:
 
 class dmHttpClientTestSSL : public dmHttpClientTest
 {
-    // for gtest
+    // for jctest
+};
+
+class dmHttpClientTestExternal : public dmHttpClientTest
+{
+    // for jctest
 };
 
 class dmHttpClientParserTest: public jc_test_base_class
@@ -422,7 +434,11 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
+#if defined(GITHUB_CI)
+    const int thread_count = 2;    // 32 is the maximum number of items in the connection pool, stay below that
+#else
     const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
+#endif
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
 
@@ -494,7 +510,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // The TCP + SSL connection handshake take up a considerable amount of time on linux (peaks of 60+ ms), and
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 175 * 1000); // microseconds
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)
@@ -705,6 +721,34 @@ TEST_P(dmHttpClientTest, Post)
     }
 }
 
+
+TEST_P(dmHttpClientTest, PostLarge)
+{
+    for (int i = 0; i < 10; ++i)
+    {
+        int n = 13777 * i;
+        int sum = 0;
+        m_ToPost = "";
+
+        for (int j = 0; j < n; ++j) {
+            char buf[2] = { (char)((rand() % 255) - 128), 0 };
+            m_ToPost.append(buf);
+            sum += buf[0];
+        }
+
+        dmHttpClient::Result r;
+        m_Content = "";
+        m_StatusCode = -1;
+        printf("m_ToPost: len: %lu\n", m_ToPost.size());
+
+        r = dmHttpClient::Post(m_Client, "/post");
+        printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(200, m_StatusCode);
+        ASSERT_EQ(sum, atoi(m_Content.c_str()));
+    }
+}
+
 TEST_P(dmHttpClientTest, Cache)
 {
     dmHttpClient::Delete(m_Client);
@@ -808,8 +852,46 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     ASSERT_STREQ(message, m_Content.c_str());
 }
 
+
+TEST_P(dmHttpClientTestExternal, PostExternal)
+{
+    int n = 17000;
+
+    if (strstr(m_URI.m_Location, "ptsv2.com")) {
+        n = 1500; // They have a max limit
+    }
+
+    m_ToPost = "";
+
+    for (int j = 0; j < n; ++j) {
+        char buf[2] = { 'a', 0 };
+        m_ToPost.append(buf);
+    }
+
+    dmHttpClient::Result r;
+    m_Content = "";
+    m_StatusCode = -1;
+
+    r = dmHttpClient::Post(m_Client, m_URI.m_Path);
+    printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
+
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_EQ(200, m_StatusCode);
+
+    printf("STATUS: %d\n", m_StatusCode);
+    printf("CONTENT:\n%s\n", m_Content.c_str());
+}
+
 const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
+
+// For easier debugging, we can use external sites to monitor their responses
+// NOTE: These buckets might expire. If so, we'll have to disable that server test
+const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
+													// during development "https://hookb.in/je1lZ3X0ngTobX0plMME",
+                                                    "https://httpbin.org/post",
+                                                    "https://ptsv2.com/t/csphn-1581795004/post"};
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
 
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
@@ -1033,11 +1115,15 @@ TEST(dmHttpClient, ConnectionRefused)
 {
     dmHttpClient::NewParams params;
     dmDNS::NewChannel(&params.m_DNSChannel);
-    dmHttpClient::HClient client = dmHttpClient::New(&params, "localhost", 9999);
+    dmHttpClient::HClient client = dmHttpClient::New(&params, "0.0.0.0", 9999);
     ASSERT_NE((void*) 0, client);
     dmHttpClient::Result r = dmHttpClient::Get(client, "");
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
+    #ifndef _WIN32
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
+    #else
+    ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
+    #endif
     dmHttpClient::Delete(client);
     dmDNS::DeleteChannel(params.m_DNSChannel);
 }

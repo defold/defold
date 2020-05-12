@@ -83,11 +83,12 @@ BUILD="${ROOT}/build"
 PROVISION="${ROOT}/provision.plist"
 ENTITLEMENT="${ROOT}/entitlement.plist"
 
-APPLICATION="$(basename "${SOURCE}" ".ipa")"
-TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
-
 mkdir -p "${BUILD}"
 "${UNZIP}" "${SOURCE}" -d "${BUILD}" > /dev/null 2>&1
+
+APPLICATION="$(cd ${BUILD}/Payload && find . -iname "*.app")"
+APPLICATION="$(basename "${APPLICATION}" ".app")"
+TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 
 (
     cd "${BUILD}"
@@ -99,8 +100,8 @@ mkdir -p "${BUILD}"
     chmod +x "Payload/${APPLICATION}.app/${APPLICATION}"
 
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"
-    cp "${PROVISION}" "Payload/${APPLICATION}.app/embedded.mobileprovision"
-    "${CODESIGN}" -f -s "${IDENTITY}" --entitlements "${ENTITLEMENT}" "Payload/${APPLICATION}.app"
+    cp "${PROFILE}" "Payload/${APPLICATION}.app/embedded.mobileprovision"
+    EMBEDDED_PROFILE_NAME="embedded.mobileprovision" "${CODESIGN}" -f -s "${IDENTITY}" --entitlements "${ENTITLEMENT}" "Payload/${APPLICATION}.app"
 
     if [ "$ASAN" != "" ]; then
         cp -v "${ASAN_PATH}/${ASAN}" "Payload/${APPLICATION}.app/${ASAN}"

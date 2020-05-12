@@ -58,7 +58,10 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-21)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-22)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-23)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-24)
+
+	# We keep the 24 version for support of vulkan
+	#(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-24)
+
 	# there is no 25
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-26)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-27)

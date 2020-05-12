@@ -1587,11 +1587,11 @@
             (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]))
             anim-data))))
 
-(g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture samplers]
+(g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
   (when (and (some? anim-data) (some? gpu-texture))
-    (let [gpu-texture (let [params (material/sampler->tex-params (first samplers))]
+    (let [gpu-texture (let [params (material/sampler->tex-params (first samplers) default-tex-params)]
                         (texture/set-params gpu-texture params))]
       ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
       (if (empty? anim-data)
@@ -1630,6 +1630,7 @@
                                   :ext ["atlas" "tilesource"]})))
 
   (input name-counts NameCounts)
+  (input default-tex-params g/Any)
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute (constantly nil))
   (input gpu-texture g/Any :substitute nil)
@@ -2257,6 +2258,8 @@
   (input particlefx-resources-node g/NodeID)
   (input dep-build-targets g/Any :array)
   (input project-settings g/Any)
+  (input default-tex-params g/Any)
+  (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (input display-profiles g/Any)
   (input current-layout g/Str)
   (output current-layout g/Str (g/fnk [current-layout visible-layout] (or current-layout visible-layout)))
@@ -2403,7 +2406,8 @@
          (g/connect texture :node-outline textures-node :child-outlines)
          (g/connect texture :name textures-node :names)
          (g/connect textures-node :name-counts texture :name-counts)
-         (g/connect self :samplers texture :samplers))))))
+         (g/connect self :samplers texture :samplers)
+         (g/connect self :default-tex-params texture :default-tex-params))))))
 
 (defn- attach-layer
   ([layers-node layer]
@@ -2473,12 +2477,6 @@
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
-
-(defn make-texture-node [self parent name resource]
-  (g/make-nodes (g/node-id->graph-id self) [texture [TextureNode
-                                                     :name name
-                                                     :texture resource]]
-    (attach-texture self parent texture)))
 
 (defn- browse [title project exts]
   (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
@@ -2723,6 +2721,7 @@
       (g/set-property self :background-color (:background-color scene))
       (g/set-property self :max-nodes (:max-nodes scene))
       (g/connect project :settings self :project-settings)
+      (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :display-profiles self :display-profiles)
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode

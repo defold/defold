@@ -5,7 +5,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import javax.imageio.ImageIO;
 
@@ -22,6 +25,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.tile.proto.Tile.Playback;
+import com.dynamo.tile.proto.Tile.SpriteTrimmingMode;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
@@ -79,20 +83,42 @@ public class AtlasUtil {
         }
     }
 
-    public static List<String> collectImages(Atlas atlas) {
-        List<String> images = new ArrayList<String>();
+    private static final class AtlasImageSortKey {
+        public final String path;
+        public final SpriteTrimmingMode mode;
+        public AtlasImageSortKey(String path, SpriteTrimmingMode mode) {
+            this.path = path;
+            this.mode = mode;
+        }
+        @Override
+        public int hashCode() {
+            return path.hashCode() + 31 * this.mode.hashCode();
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            AtlasImageSortKey b = (AtlasImageSortKey)o;
+            return this.mode == b.mode && this.path.equals(b.path);
+        }
+    }
+
+    public static List<AtlasImage> collectImages(Atlas atlas) {
+        Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<AtlasImageSortKey, AtlasImage>();
+        List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
-            String p = image.getImage();
-            if (!images.contains(p)) {
-                images.add(p);
+            AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+            if (!uniqueImages.containsKey(key)) {
+                uniqueImages.put(key, image);
+                images.add(image);
             }
         }
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             for (AtlasImage image : anim.getImagesList() ) {
-                String p = image.getImage();
-                if (!images.contains(p)) {
-                    images.add(p);
+                AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+                if (!uniqueImages.containsKey(key)) {
+                    uniqueImages.put(key, image);
+                    images.add(image);
                 }
             }
         }
@@ -147,12 +173,30 @@ public class AtlasUtil {
         return animDescs;
     }
 
+    private static int spriteTrimModeToInt(SpriteTrimmingMode mode) {
+        switch (mode) {
+            case SPRITE_TRIM_MODE_OFF:   return 0;
+            case SPRITE_TRIM_MODE_4:     return 4;
+            case SPRITE_TRIM_MODE_5:     return 5;
+            case SPRITE_TRIM_MODE_6:     return 6;
+            case SPRITE_TRIM_MODE_7:     return 7;
+            case SPRITE_TRIM_MODE_8:     return 8;
+        }
+        return 0;
+    }
+
     public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
 
-        List<String> imagePaths = collectImages(atlas);
+        List<AtlasImage> atlasImages = collectImages(atlas);
+        List<String> imagePaths = new ArrayList<String>();
+        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        for (AtlasImage image : atlasImages) {
+            imagePaths.add(image.getImage());
+            imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
+        }
         List<IResource> imageResources = toResources(atlasResource, imagePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
         PathTransformer transformer = new PathTransformer() {
@@ -167,9 +211,9 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
-        return TextureSetGenerator.generate(images, iterator,
+        return TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
-                Math.max(0, atlas.getExtrudeBorders()), false, false, true, false, null);
+                Math.max(0, atlas.getExtrudeBorders()), true, false, null);
     }
 }

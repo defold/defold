@@ -11,7 +11,7 @@
 
 set -e
 
-TARGET_DIR="new_packages"
+TARGET_DIR="$(pwd)/new_packages"
 
 PLATFORMS="/Applications/Xcode.app/Contents/Developer/Platforms"
 XCODE="/Applications/Xcode.app/Contents/Developer/Toolchains"
@@ -30,16 +30,20 @@ function make_archive() {
 	shift
 	shift
 	local archive=${TARGET_DIR}/${tgtname}.tar.gz
-	echo Packaging ${src} to ${archive}
+	if [ ! -e "$archive" ]; then
+		echo Packaging ${src} to ${archive}
 
-	local tarflags=czf
-	if [ "${VERBOSE}" != "" ]; then
-		tarflags=${tarflags}v
+		local tarflags=czf
+		if [ "${VERBOSE}" != "" ]; then
+			tarflags=${tarflags}v
+		fi
+
+		echo EXTRA ARGS: $@
+		echo tar ${tarflags} ${archive} $@ ${src}
+		tar ${tarflags} ${archive} $@ ${src}
+	else
+		echo "Found existing $archive"
 	fi
-
-	echo EXTRA ARGS: $@
-	echo tar ${tarflags} ${archive} $@ ${src}
-	tar ${tarflags} ${archive} $@ ${src}
 }
 
 function package_platform() {
@@ -73,7 +77,6 @@ function package_xcode() {
 		EXTRA_ARGS="--exclude ${f} ${EXTRA_ARGS}"
 	done
 
-	echo MAKING ARCHIVE ${_name} ${target}
 	make_archive ${_name} ${target} ${EXTRA_ARGS}
 	popd
 }

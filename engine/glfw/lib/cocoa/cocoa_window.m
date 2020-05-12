@@ -81,11 +81,15 @@
 - (void)windowDidMiniaturize:(NSNotification *)notification
 {
     _glfwWin.iconified = GL_TRUE;
+    if(_glfwWin.windowIconifyCallback)
+        _glfwWin.windowIconifyCallback(1);
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)notification
 {
     _glfwWin.iconified = GL_FALSE;
+    if(_glfwWin.windowIconifyCallback)
+        _glfwWin.windowIconifyCallback(0);
 }
 
 - (void)windowDidBecomeKey:(NSNotification *)notification
@@ -679,7 +683,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
     [_glfwWin.context makeCurrentContext];
 
-    NSPoint point = [[NSCursor currentCursor] hotSpot];
+    NSPoint point = [_glfwWin.window mouseLocationOutsideOfEventStream];
     _glfwInput.MousePosX = point.x;
     _glfwInput.MousePosY = point.y;
 

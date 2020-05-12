@@ -1,18 +1,19 @@
 <project default="dist">
     <property environment="env"/>
-    <property name="classes.dir" value="build"/>
+    <property name="bob.dir" value="../com.dynamo.cr.bob"/>
+    <property name="classes.dir" value="../com.dynamo.cr.bob/build"/>
+    <property name="common.dir" value="../com.dynamo.cr.common"/>
 
     <path id="classpath">
         <fileset dir="lib" includes="*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="extender-client-*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="snakeyaml-1.24.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="jsoup-1.11.3.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext/android" includes="*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext/aws" includes="*.jar"/>
-        <fileset dir="lib" includes="*.jar"/>
+        <fileset dir="${common.dir}/ext" includes="protobuf-java*.jar"/>
+        <fileset dir="${common.dir}/ext" includes="commons*.jar"/>
+        <fileset dir="${common.dir}/ext" includes="vecmath.jar"/>
+        <fileset dir="${common.dir}/ext" includes="extender-client-*.jar"/>
+        <fileset dir="${common.dir}/ext" includes="snakeyaml-1.24.jar"/>
+        <fileset dir="${common.dir}/ext" includes="jsoup-1.11.3.jar"/>
+        <fileset dir="${common.dir}/ext/aws" includes="*.jar"/>
+        <fileset dir="${bob.dir}/lib" includes="*.jar"/>
     </path>
 
     <macrodef name="proto">
@@ -35,10 +36,10 @@
 
     <target name="clean">
         <delete dir="${classes.dir}"/>
-        <delete dir="generated"/>
-        <delete dir="dist"/>
-        <delete dir="tmp"/>
-        <delete file="lib/luajit-share.zip"/>
+        <delete dir="${bob.dir}/generated"/>
+        <delete dir="${bob.dir}/dist"/>
+        <delete dir="${bob.dir}/tmp"/>
+        <delete file="${bob.dir}/lib/luajit-share.zip"/>
     </target>
 
     <target name="git.revision" description="Store git revision in ${repository.version}">
@@ -89,13 +90,13 @@
         </parallel>
 
         <exec dir="." executable="python">
-            <arg line="engine_version_generator.py" />
+            <arg line="${bob.dir}/engine_version_generator.py" />
         </exec>
 
-        <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
+        <copy todir="${bob.dir}/lib" overwrite="true" flatten="true" failonerror="false">
             <fileset dir="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/java" includes="dlib.jar" erroronmissingdir="false" />
         </copy>
-        <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
+        <copy todir="${bob.dir}/lib" overwrite="true" flatten="true" failonerror="false">
             <fileset dir="${env.DYNAMO_HOME}/share">
                 <include name="java/dlib.jar"/>
             </fileset>
@@ -103,37 +104,37 @@
         <fail message="dlib.jar is missing">
             <condition>
                 <resourcecount count="0">
-                    <fileset dir="lib" includes="dlib.jar" />
+                    <fileset dir="${bob.dir}/lib" includes="dlib.jar" />
                 </resourcecount>
             </condition>
         </fail>
 
-        <copy todir="libexec/x86_64-darwin" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/libexec/x86_64-darwin" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-darwin">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
             </fileset>
         </copy>
-        <copy todir="libexec/x86_64-linux" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
             </fileset>
         </copy>
-        <copy todir="libexec/x86_64-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/libexec/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-win32">
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
             </fileset>
         </copy>
-        <copy todir="libexec/x86-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/libexec/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
             </fileset>
         </copy>
 
-        <copy todir="libexec" overwrite="true">
+        <copy todir="${bob.dir}/libexec" overwrite="true">
             <chainedmapper>
                 <cutdirsmapper dirs="1"/>
                 <compositemapper>
@@ -179,9 +180,8 @@
                includeantruntime="false"
                debug="true"
                encoding="UTF-8">
-            <src path="src"/>
+            <src path="${bob.dir}/src"/>
             <include name="com/**"/>
-            <exclude name="com/dynamo/bob/*Osgi*"/>
 
             <classpath>
                 <path refid="classpath"/>
@@ -190,7 +190,7 @@
         </javac>
 
         <copy todir="${classes.dir}" overwrite="true">
-            <fileset dir="src" includes="**">
+            <fileset dir="${bob.dir}/src" includes="**">
                 <exclude name="**/*.java"/>
             </fileset>
         </copy>
@@ -198,7 +198,7 @@
         <!-- NOTE: Given that we don't (yet) use qualifed platforms
              for "installed" libraries we can't do a general glob-copy here,
              e.g. **/*texc_shared* -->
-        <copy todir="lib/x86_64-darwin" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86_64-darwin" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
             </fileset>
@@ -206,7 +206,7 @@
                 <include name="x86_64-darwin/*PVRTexLib.dylib"/>
             </fileset>
         </copy>
-        <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
@@ -214,12 +214,12 @@
                 <include name="x86_64-linux/*PVRTexLib.so"/>
             </fileset>
         </copy>
-        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
               <include name="win32/*texc_shared*"/>
             </fileset>
         </copy>
-        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
             </fileset>
@@ -227,13 +227,13 @@
                 <include name="x86_64-win32/*PVRTexLib*"/>
             </fileset>
         </copy>
-        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
                 <include name="x86_64-win32/PVRTexLib.dll"/>
                 <include name="x86_64-win32/msvcr120.dll"/>
             </fileset>
         </copy>
-        <jar destfile="lib/luajit-share.zip">
+        <jar destfile="${bob.dir}/lib/luajit-share.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share">
                  <include name="luajit/**"/>
              </fileset>
@@ -242,18 +242,18 @@
     </target>
 
     <target name="compile" depends="compile-bob-light">
-        <jar destfile="lib/android-res.zip">
+        <jar destfile="${bob.dir}/lib/android-res.zip">
              <fileset dir="${env.DYNAMO_HOME}/ext/share/java">
                  <include name="res/**"/>
              </fileset>
         </jar>
-        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
                 <include name="win32/OpenAL32.dll"/>
                 <include name="win32/wrap_oal.dll"/>
             </fileset>
         </copy>
-        <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
                 <include name="x86_64-win32/OpenAL32.dll"/>
                 <include name="x86_64-win32/wrap_oal.dll"/>
@@ -262,19 +262,20 @@
     </target>
 
     <target name="dist-bob-light" depends="compile-bob-light">
-        <mkdir dir="dist"/>
-        <mkdir dir="tmp"/>
+        <mkdir dir="${bob.dir}/dist"/>
+        <mkdir dir="${bob.dir}/tmp"/>
 
-        <jar jarfile="tmp/external-libs-light.jar">
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext">
+        <jar jarfile="${bob.dir}/tmp/external-libs-light.jar">
+            <zipgroupfileset dir="${common.dir}/ext">
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
               <include name="extender-client-*.jar"/>
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
+              <include name="httpcore-4.1.4.jar"/>
             </zipgroupfileset>
-            <zipgroupfileset dir="lib">
+            <zipgroupfileset dir="${bob.dir}/lib">
               <include name="dlib.jar"/>
               <include name="lz4-1.3.0.jar"/>
               <include name="commons-cli-1.2.jar"/>
@@ -290,23 +291,23 @@
             </zipgroupfileset>
          </jar>
 
-        <jar destfile="dist/bob-light.jar">
+        <jar destfile="${bob.dir}/dist/bob-light.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
                 <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
 
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="libexec/**/glslc*"/>
                 <include name="libexec/**/spirv-cross*"/>
                 <include name="libexec/**/luajit*"/>
             </fileset>
-            <zipfileset src="tmp/external-libs-light.jar">
+            <zipfileset src="${bob.dir}/tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="lib/luajit-share.zip"/>
             </fileset>
             <manifest>
@@ -317,11 +318,11 @@
     </target>
 
     <target name="dist" depends="compile">
-        <mkdir dir="dist"/>
-        <mkdir dir="tmp"/>
+        <mkdir dir="${bob.dir}/dist"/>
+        <mkdir dir="${bob.dir}/tmp"/>
 
-        <jar jarfile="tmp/external-libs-builtins.jar">
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext">
+        <jar jarfile="${bob.dir}/tmp/external-libs-builtins.jar">
+            <zipgroupfileset dir="${common.dir}/ext">
               <include name="protobuf-java*.jar"/>
               <include name="commons*.jar"/>
               <include name="vecmath.jar"/>
@@ -329,21 +330,18 @@
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
             </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext/android">
+            <zipgroupfileset dir="${common.dir}/ext/aws">
                 <include name="*.jar" />
             </zipgroupfileset>
-            <zipgroupfileset dir="../com.dynamo.cr.common/ext/aws">
-                <include name="*.jar" />
-            </zipgroupfileset>
-            <zipgroupfileset dir="lib">
+            <zipgroupfileset dir="${bob.dir}/lib">
                 <include name="*.jar"/>
                 <exclude name="android.jar"/>
             </zipgroupfileset>
          </jar>
 
-        <jar destfile="dist/bob.jar">
+        <jar destfile="${bob.dir}/dist/bob.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
                 <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
@@ -351,17 +349,17 @@
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>
             </fileset>
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="libexec/**/*"/>
             </fileset>
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="lib/report_template.html"/>
             </fileset>
-            <zipfileset src="lib/builtins.zip"/>
-            <zipfileset src="tmp/external-libs-builtins.jar">
+            <zipfileset src="${bob.dir}/lib/builtins.zip"/>
+            <zipfileset src="${bob.dir}/tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-            <fileset dir=".">
+            <fileset dir="${bob.dir}">
                 <include name="lib/android.jar"/>
                 <include name="lib/classes.dex"/>
                 <include name="lib/*.zip"/>
@@ -373,11 +371,11 @@
     </target>
 
     <target name="install-bob-light" depends="dist-bob-light">
-        <copy file="dist/bob-light.jar" todir="${env.DYNAMO_HOME}/share/java"/>
+        <copy file="${bob.dir}/dist/bob-light.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
 
     <target name="install" depends="dist">
-        <copy file="dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
+        <copy file="${bob.dir}/dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
 
 </project>

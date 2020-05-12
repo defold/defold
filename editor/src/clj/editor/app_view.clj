@@ -1112,7 +1112,7 @@ If you do not specifically require different script states, consider changing th
   (run [] (ui/open-url "https://forum.defold.com/")))
 
 (handler/defhandler :asset-portal :global
-  (run [] (ui/open-url "https://www.defold.com/community/assets")))
+  (run [] (ui/open-url "https://www.defold.com/assets")))
 
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
@@ -1896,7 +1896,9 @@ If you do not specifically require different script states, consider changing th
                                     :err [:extension-err "ERROR:EXT: "]
                                     :out [:extension-out ""])]
         (doseq [line (string/split-lines string)]
-          (console/append-console-entry! console-type (str prefix line)))))))
+          (console/append-console-entry! console-type (str prefix line)))))
+    (on-transact-thread [_ f]
+      (ui/run-now (f)))))
 
 (defn- fetch-libraries [workspace project changes-view prefs]
   (let [library-uris (project/project-dependencies project)

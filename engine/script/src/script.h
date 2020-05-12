@@ -635,16 +635,6 @@ namespace dmScript
     void* CheckUserType(lua_State* L, int user_data_index, uint32_t type_hash, const char* error_message);
 
     /**
-     * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
-     * In the case of an error, the error is logged and popped from the stack.
-     * @param L lua state
-     * @param nargs number of arguments
-     * @param nresult number of results
-     * @return error code from pcall
-     */
-    int PCall(lua_State* L, int nargs, int nresult);
-
-    /**
      * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
      */
     int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
@@ -664,28 +654,9 @@ namespace dmScript
     */
     uint32_t GetLuaGCCount(lua_State* L);
 
-    struct LuaCallbackInfo;
-
-    /** Register a Lua callback. Stores the current Lua state plus references to the
-     * script instance (self) and the callback Expects SetInstance() to have been called
-     * prior to using this method.
-     *
-     * The allocated data is created on the Lua stack and references are made against the
-     * instances own context table.
-     *
-     * If the callback is not explicitly deleted with DeleteCallback() the references and
-     * data will stay around until the script instance is deleted.
-     */
-    LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index);
-
-    /** Check if Lua callback is valid.
-     */
-    bool IsValidCallback(LuaCallbackInfo* cbk);
-
-    /** Deletes the Lua callback
-     */
-    void DeleteCallback(LuaCallbackInfo* cbk);
-
+// DEPRECATED
+// I really don't like this callback setup (mistake on my part). It's clunky.
+// Perhaps better to have a lambda function? (now that all compilers support C++11) /MAWE
     /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
      */
     typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
@@ -697,6 +668,7 @@ namespace dmScript
      * The function takes care of setting up and restoring the current instance.
      */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
+// END DEPRECATED
 
     /**
      * Get an integer value at a specific key in a table.

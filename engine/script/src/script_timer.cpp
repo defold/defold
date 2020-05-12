@@ -484,7 +484,7 @@ namespace dmScript
     static void LuaTimerCallback(HTimerWorld timer_world, TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
     {
         LuaCallbackInfo* callback = (LuaCallbackInfo*)userdata;
-        if (!IsValidCallback(callback))
+        if (!IsCallbackValid(callback))
         {
             return;
         }
@@ -496,9 +496,9 @@ namespace dmScript
             InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
         }
 
-        if ((event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT) && IsValidCallback(callback))
+        if ((event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT) && IsCallbackValid(callback))
         {
-            DeleteCallback(callback);
+            DestroyCallback(callback);
         }
     }
 

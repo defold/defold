@@ -1,8 +1,6 @@
 # Defold API documentation
 
-The Defold API documentation is generated from source file comments, similar to Doxygen but uses
-a proprietary python tool to generate json and sdoc files that the Editor and website uses for
-rendering documentation and provide completion.
+The Defold API documentation is generated from source file comments, similar to Doxygen but uses a proprietary python tool to generate json and sdoc files that the Editor and website uses for rendering documentation and provide completion.
 
 ## Markdown support
 

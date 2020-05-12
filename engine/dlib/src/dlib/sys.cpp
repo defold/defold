@@ -64,7 +64,7 @@ extern "C" const char* dmSysGetUserPersistentDataRoot();
 extern "C" void dmSysPumpMessageQueue();
 extern "C" const char* dmSysGetUserPreferredLanguage(const char* defaultlang);
 extern "C" const char* dmSysGetUserAgent();
-extern "C" bool dmSysOpenURL(const char* url);
+extern "C" bool dmSysOpenURL(const char* url, const char* target);
 extern "C" const char* dmSysGetApplicationPath();
 
 #endif
@@ -247,30 +247,7 @@ namespace dmSys
 
 #if defined(__MACH__)
 
-#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
-    // NOTE: iOS implementation in sys_cocoa.mm
-    __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
-    {
-        FSRef file;
-        OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
-        if (err != 0)
-        {
-            return RESULT_INVAL;
-        }
-        FSRefMakePath(&file, (UInt8*) path, path_len);
-        if (dmStrlCat(path, "/", path_len) >= path_len)
-            return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
-            return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
-        if (r == RESULT_EXIST)
-            return RESULT_OK;
-        else
-            return r;
-    }
-
-    // NOTE: iOS/OSX implementation of GetApplicationPath() in sys_cocoa.mm
-#endif
+// NOTE: iOS/OSX implementation of GetApplicationPath()/GetApplicationSupportPath() in sys_cocoa.mm
 
 #elif defined(_WIN32)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
@@ -330,7 +307,7 @@ namespace dmSys
         return RESULT_OK;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         int ret = (int) ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
@@ -404,7 +381,7 @@ namespace dmSys
         return res;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         if (*url == 0x0)
         {
@@ -477,9 +454,9 @@ namespace dmSys
             return r;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
-        if (dmSysOpenURL(url)) {
+        if (dmSysOpenURL(url, target)) {
             return RESULT_OK;
         } else {
             return RESULT_UNKNOWN;
@@ -529,7 +506,7 @@ namespace dmSys
             return r;
     }
 
-    Result OpenURL(const char* url)
+    Result OpenURL(const char* url, const char* target)
     {
         char buf[1024];
         dmSnPrintf(buf, 1024, "xdg-open %s", url);
@@ -546,34 +523,43 @@ namespace dmSys
 
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-        ssize_t ret = readlink("/proc/self/exe", path_out, path_len);
-        if (ret < 0 || ret > path_len)
+        // try to read the full path of the exe using readlink()
+        // we need a new buffer that is slightly larger than the
+        // path length so that we can detect if path_len will be
+        // enough or not
+        char* path = (char*)malloc(path_len + 2);
+        ssize_t ret = readlink("/proc/self/exe", path, path_len + 2);
+        if (ret >= 0 && ret <= path_len + 1)
         {
-            const char* relative_path = (const char*)getauxval(AT_EXECFN); // Pathname used to execute program
-            if (!relative_path)
-            {
-                path_out[0] = '.';
-                path_out[1] = '\n';
-            }
-            else
-            {
-                char *absolute_path = realpath(relative_path, NULL); // realpath() resolve a pathname
-                if (!absolute_path)
-                {
-                    path_out[0] = '.';
-                    path_out[1] = '\n';
-                }
-                else
-                {
-                    if (dmStrlCpy(path_out, dirname(absolute_path), path_len) >= path_len) // dirname() returns the string up to, but not including, the final '/'
-                    {
-                        path_out[0] = '.';
-                        path_out[1] = '\n';
-                    }
-                    free(absolute_path);
-                }
-            }
+            path[ret] = '\0';
+            dmStrlCpy(path_out, dirname(path), path_len);
+            free(path);
+            return RESULT_OK;
         }
+        free(path);
+
+        // get the pathname (relative) used to execute the program
+        // from the auxilary vector
+        const char* relative_path = (const char*)getauxval(AT_EXECFN);
+        if (!relative_path)
+        {
+            path_out[0] = '.';
+            path_out[1] = '\0';
+            return RESULT_OK;
+        }
+
+        // convert the relative pathname to an absolute pathname
+        char* absolute_path = realpath(relative_path, NULL);
+        if (!absolute_path)
+        {
+            path_out[0] = '.';
+            path_out[1] = '\0';
+            return RESULT_OK;
+        }
+
+        // get the directory from the pathname (ie remove exe name)
+        dmStrlCpy(path_out, dirname(absolute_path), path_len);
+        free(absolute_path);
         return RESULT_OK;
     }
 
@@ -1033,4 +1019,48 @@ namespace dmSys
 #endif
     }
 
+    // Currently only used in tests
+    #define DM_SYS_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;
+    const char* ResultToString(Result r)
+    {
+        switch (r)
+        {
+            DM_SYS_RESULT_TO_STRING_CASE(OK);
+            DM_SYS_RESULT_TO_STRING_CASE(PERM);
+            DM_SYS_RESULT_TO_STRING_CASE(NOENT);
+            DM_SYS_RESULT_TO_STRING_CASE(SRCH);
+            DM_SYS_RESULT_TO_STRING_CASE(INTR);
+            DM_SYS_RESULT_TO_STRING_CASE(IO);
+            DM_SYS_RESULT_TO_STRING_CASE(NXIO);
+            DM_SYS_RESULT_TO_STRING_CASE(2BIG);
+            DM_SYS_RESULT_TO_STRING_CASE(NOEXEC);
+            DM_SYS_RESULT_TO_STRING_CASE(BADF);
+            DM_SYS_RESULT_TO_STRING_CASE(CHILD);
+            DM_SYS_RESULT_TO_STRING_CASE(DEADLK);
+            DM_SYS_RESULT_TO_STRING_CASE(NOMEM);
+            DM_SYS_RESULT_TO_STRING_CASE(ACCES);
+            DM_SYS_RESULT_TO_STRING_CASE(FAULT);
+            DM_SYS_RESULT_TO_STRING_CASE(BUSY);
+            DM_SYS_RESULT_TO_STRING_CASE(EXIST);
+            DM_SYS_RESULT_TO_STRING_CASE(XDEV);
+            DM_SYS_RESULT_TO_STRING_CASE(NODEV);
+            DM_SYS_RESULT_TO_STRING_CASE(NOTDIR);
+            DM_SYS_RESULT_TO_STRING_CASE(ISDIR);
+            DM_SYS_RESULT_TO_STRING_CASE(INVAL);
+            DM_SYS_RESULT_TO_STRING_CASE(NFILE);
+            DM_SYS_RESULT_TO_STRING_CASE(MFILE);
+            DM_SYS_RESULT_TO_STRING_CASE(NOTTY);
+            DM_SYS_RESULT_TO_STRING_CASE(TXTBSY);
+            DM_SYS_RESULT_TO_STRING_CASE(FBIG);
+            DM_SYS_RESULT_TO_STRING_CASE(NOSPC);
+            DM_SYS_RESULT_TO_STRING_CASE(SPIPE);
+            DM_SYS_RESULT_TO_STRING_CASE(ROFS);
+            DM_SYS_RESULT_TO_STRING_CASE(MLINK);
+            DM_SYS_RESULT_TO_STRING_CASE(PIPE);
+            DM_SYS_RESULT_TO_STRING_CASE(UNKNOWN);
+
+        }
+        return "RESULT_UNDEFINED";
+    }
+    #undef DM_SYS_RESULT_TO_STRING_CASE
 }

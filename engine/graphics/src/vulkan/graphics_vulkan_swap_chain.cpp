@@ -41,42 +41,50 @@ namespace dmGraphics
         return vk_swap_chain_format;
     }
 
-    static void ResetVkSwapChain(const VkDevice device, const VkSwapchainKHR swapChain, const dmArray<VkImageView>& imageViews)
+    static void DestroyVkSwapChain(const VkDevice vk_device, const VkSwapchainKHR vk_swap_chain, const dmArray<VkImageView>& vk_image_views)
     {
-        if (swapChain != VK_NULL_HANDLE)
+        if (vk_swap_chain != VK_NULL_HANDLE)
         {
-            for (uint32_t i=0; i < imageViews.Size(); i++)
+            for (uint32_t i=0; i < vk_image_views.Size(); i++)
             {
-                vkDestroyImageView(device, imageViews[i], 0);
+                vkDestroyImageView(vk_device, vk_image_views[i], 0);
             }
-            vkDestroySwapchainKHR(device, swapChain, 0);
+            vkDestroySwapchainKHR(vk_device, vk_swap_chain, 0);
         }
     }
 
-    SwapChain::SwapChain(const LogicalDevice* logicalDevice, const VkSurfaceKHR surface, const SwapChainCapabilities& capabilities, const QueueFamily queueFamily)
-        : m_LogicalDevice(logicalDevice)
-        , m_Surface(surface)
+    SwapChain::SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
+        const SwapChainCapabilities& capabilities, const QueueFamily queueFamily)
+        : m_Surface(surface)
         , m_QueueFamily(queueFamily)
         , m_SurfaceFormat(SwapChainFindSurfaceFormat(capabilities))
         , m_SwapChain(VK_NULL_HANDLE)
-    {
-    }
+        , m_SampleCountFlag(vk_sample_flag)
+    {}
 
-    VkResult SwapChain::Advance(VkSemaphore vk_image_available)
+    VkResult SwapChain::Advance(VkDevice vk_device, VkSemaphore vk_image_available)
     {
         uint32_t image_ix;
-        VkResult res = vkAcquireNextImageKHR(m_LogicalDevice->m_Device, m_SwapChain, UINT64_MAX,
+        VkResult res = vkAcquireNextImageKHR(vk_device, m_SwapChain, UINT64_MAX,
             vk_image_available, VK_NULL_HANDLE, &image_ix);
         m_ImageIndex = (uint8_t) image_ix;
         return res;
     }
 
-    VkResult UpdateSwapChain(SwapChain* swapChain, uint32_t* wantedWidth, uint32_t* wantedHeight,
-        const bool wantVSync, SwapChainCapabilities& capabilities)
+    bool SwapChain::HasMultiSampling()
     {
-        VkSwapchainKHR vk_old_swap_chain = swapChain->m_SwapChain;
+        return m_SampleCountFlag > VK_SAMPLE_COUNT_1_BIT;
+    }
 
-        VkPresentModeKHR vk_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
+        uint32_t* wantedWidth, uint32_t* wantedHeight,
+        const bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
+    {
+        VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
+        VkDevice vk_device                  = logicalDevice->m_Device;
+        VkPhysicalDevice vk_physical_device = physicalDevice->m_Device;
+        VkPresentModeKHR vk_present_mode    = VK_PRESENT_MODE_FIFO_KHR;
+
         if (!wantVSync)
         {
             for (uint32_t i=0; i < capabilities.m_PresentModes.Size(); i++)
@@ -165,14 +173,31 @@ namespace dmGraphics
             vk_swap_chain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         }
 
+        VkCompositeAlphaFlagBitsKHR vk_composite_alpha_flag_selected = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        VkCompositeAlphaFlagBitsKHR vk_composite_alpha_flags[4] = {
+            VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+            VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+            VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+        };
+
+        for (int i = 0; i < sizeof(vk_composite_alpha_flags)/sizeof(VkCompositeAlphaFlagBitsKHR); ++i)
+        {
+            if (capabilities.m_SurfaceCapabilities.supportedCompositeAlpha & vk_composite_alpha_flags[i])
+            {
+                vk_composite_alpha_flag_selected = vk_composite_alpha_flags[i];
+                break;
+            }
+        }
+
          // The preTransform field can be used to rotate the swap chain when presenting
         vk_swap_chain_create_info.preTransform   = capabilities.m_SurfaceCapabilities.currentTransform;
-        vk_swap_chain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        vk_swap_chain_create_info.compositeAlpha = vk_composite_alpha_flag_selected;
         vk_swap_chain_create_info.presentMode    = vk_present_mode;
         vk_swap_chain_create_info.clipped        = VK_TRUE;
         vk_swap_chain_create_info.oldSwapchain   = vk_old_swap_chain;
 
-        VkResult res = vkCreateSwapchainKHR(swapChain->m_LogicalDevice->m_Device, &vk_swap_chain_create_info, 0, &swapChain->m_SwapChain);
+        VkResult res = vkCreateSwapchainKHR(vk_device, &vk_swap_chain_create_info, 0, &swapChain->m_SwapChain);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -180,21 +205,42 @@ namespace dmGraphics
 
         if (vk_old_swap_chain != VK_NULL_HANDLE)
         {
-            ResetVkSwapChain(swapChain->m_LogicalDevice->m_Device, vk_old_swap_chain, swapChain->m_ImageViews);
+            DestroyVkSwapChain(vk_device, vk_old_swap_chain, swapChain->m_ImageViews);
+            DestroyTexture(vk_device, &swapChain->m_ResolveTexture.m_Handle);
         }
 
-        vkGetSwapchainImagesKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, &swap_chain_image_count, 0);
+        vkGetSwapchainImagesKHR(vk_device, swapChain->m_SwapChain, &swap_chain_image_count, 0);
 
         swapChain->m_Images.SetCapacity(swap_chain_image_count);
         swapChain->m_Images.SetSize(swap_chain_image_count);
 
-        vkGetSwapchainImagesKHR(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, &swap_chain_image_count, swapChain->m_Images.Begin());
+        vkGetSwapchainImagesKHR(vk_device, swapChain->m_SwapChain, &swap_chain_image_count, swapChain->m_Images.Begin());
 
         swapChain->m_ImageExtent = vk_extent;
         swapChain->m_ImageIndex  = 0;
 
         swapChain->m_ImageViews.SetCapacity(swap_chain_image_count);
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);
+
+        if (swapChain->HasMultiSampling())
+        {
+            VkResult res = CreateTexture2D(vk_physical_device, vk_device,
+                vk_extent.width, vk_extent.height, 1,
+                swapChain->m_SampleCountFlag, swapChain->m_SurfaceFormat.format, VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, &swapChain->m_ResolveTexture);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+
+            res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
+                swapChain->m_ResolveTexture.m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
+        }
 
         for (uint32_t i=0; i < swap_chain_image_count; i++)
         {
@@ -216,7 +262,7 @@ namespace dmGraphics
             vk_create_info_image_view.subresourceRange.baseArrayLayer = 0;
             vk_create_info_image_view.subresourceRange.layerCount     = 1;
 
-            res = vkCreateImageView(swapChain->m_LogicalDevice->m_Device, &vk_create_info_image_view, 0, &swapChain->m_ImageViews[i]);
+            res = vkCreateImageView(vk_device, &vk_create_info_image_view, 0, &swapChain->m_ImageViews[i]);
             if (res != VK_SUCCESS)
             {
                 return res;
@@ -226,18 +272,17 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    void ResetSwapChain(SwapChain* swapChain)
+    void DestroySwapChain(VkDevice vk_device, SwapChain* swapChain)
     {
         assert(swapChain);
-        ResetVkSwapChain(swapChain->m_LogicalDevice->m_Device, swapChain->m_SwapChain, swapChain->m_ImageViews);
+        DestroyVkSwapChain(vk_device, swapChain->m_SwapChain, swapChain->m_ImageViews);
+        DestroyTexture(vk_device, &swapChain->m_ResolveTexture.m_Handle);
+
         swapChain->m_SwapChain = VK_NULL_HANDLE;
     }
 
-    void GetSwapChainCapabilities(PhysicalDevice* device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
+    void GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities)
     {
-        assert(device);
-
-        VkPhysicalDevice vk_device = device->m_Device;
         uint32_t format_count        = 0;
         uint32_t present_modes_count = 0;
 

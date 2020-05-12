@@ -102,8 +102,18 @@ namespace dmGameSystem
         ScriptSoundOnWindowFocus(focus);
     }
 
+    void OnWindowIconify(bool iconify)
+    {
+        ScriptWindowOnWindowIconify(iconify);
+    }
+
     void OnWindowResized(int width, int height)
     {
         ScriptWindowOnWindowResized(width, height);
+    }
+
+    void OnWindowCreated(int width, int height)
+    {
+        ScriptWindowOnWindowCreated(width, height);
     }
 }

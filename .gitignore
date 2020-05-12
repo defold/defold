@@ -34,3 +34,7 @@ editor/eastwood-warnings.txt
 
 # This file is generated when starting editor in dev mode and when bundling
 editor/resources/sorted_clojure_ns_list.edn
+ci/env.sh
+
+com.dynamo.cr/com.dynamo.cr.bob.test/test/build
+com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.java

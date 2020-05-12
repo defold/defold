@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -17,13 +19,16 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 
 public class OSXBundler implements IBundler {
+    private static Logger logger = Logger.getLogger(OSXBundler.class.getName());
     public static final String ICON_NAME = "icon.icns";
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
         String name = projectProperties.getStringValue("osx", "app_icon");
-        if (name != null) {
+        if (name != null && name.trim().length() > 0) {
             File inFile = new File(projectRoot, name);
             File outFile = new File(resourcesDir, ICON_NAME);
             FileUtils.copyFile(inFile, outFile);
@@ -35,7 +40,10 @@ public class OSXBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         final Platform platform = Platform.X86_64Darwin;
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -68,12 +76,12 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app", variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
         // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, platform);
+        Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -89,10 +97,7 @@ public class OSXBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("exe-name", exeName);
-        IResource sourceManifestFile = helper.getResource("osx", "infoplist");
-        helper.format(infoData, sourceManifestFile, new File(contentsDir, "Info.plist"));
+        helper.copyOrWriteManifestFile(platform, appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -103,6 +108,33 @@ public class OSXBundler implements IBundler {
         File exeOut = new File(macosDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
+
+        // Copy debug symbols
+        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
+        File buildSymbols = new File(zipDir, "dmengine.dSYM");
+        if (buildSymbols.exists()) {
+            String symbolsDir = String.format("%s.dSYM", title);
+
+            File bundleSymbols = new File(bundleDir, symbolsDir);
+            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
+            // Also rename the executable
+            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
+            File symbolExe = new File(bundleExeOld.getParent(), exeOut.getName());
+            bundleExeOld.renameTo(symbolExe);
+        }
+
+        BundleHelper.throwIfCanceled(canceled);
+        // Strip executable
+        if( strip_executable )
+        {
+            // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+            if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+                Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
+                if (stripResult.ret != 0) {
+                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
+                }
+            }
+        }
     }
 
 }

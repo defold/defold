@@ -6,7 +6,8 @@ from TaskGen import feature, before
 @before('cc')
 def sdk_include_filter(self):
     dynamo_home = self.env['DYNAMO_HOME']
-    new_cpppath = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include')]
+    new_cpppath = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include'),
+                    os.path.join(self.bld.path.abspath(), 'src')] # Add this dir, so that the dmsdk/sdk.h can be found
     for path in self.env['CPPPATH']:
         if dynamo_home not in path:
             new_cpppath.append(path)

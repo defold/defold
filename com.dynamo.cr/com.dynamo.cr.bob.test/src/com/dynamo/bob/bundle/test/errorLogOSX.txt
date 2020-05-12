@@ -1,8 +1,8 @@
 clang++ -c -arch x86_64 -target x86_64-apple-darwin12 -isysroot /opt/MacOSX10.12.sdk/ -m64 -O2 -g -mmacosx-version-min=10.7 -DDM_PLATFORM_OSX -DLUA_BYTECODE_ENABLE   -Iupload/androidnative/include   -I/dynamo_home//include -I/dynamo_home//sdk/include  upload/androidnative/src/main.cpp -obuild/main.cpp_0.o
-upload/androidnative/src/main.cpp:15:5: error: use of undeclared identifier 'Hello'
+upload/androidnative/src/main1.cpp:15:5: error: use of undeclared identifier 'Hello'
     Hello();
     ^
-upload/androidnative/src/main.cpp:17:1: error: unknown type name 'ubar'
+upload/androidnative/src/main2.cpp:17:1: error: unknown type name 'ubar'
 ubar g_foo = 0;
 ^
 1 error generated.

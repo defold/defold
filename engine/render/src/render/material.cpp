@@ -37,14 +37,16 @@ namespace dmRender
         m->m_Program = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
 
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
-        char buffer[128];
+        const uint32_t buffer_size = 128;
+        char buffer[buffer_size];
         dmGraphics::Type type;
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
+            type = -1;
+            dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
@@ -77,8 +79,8 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
-            int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
+            uint32_t name_str_length = dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
+            int32_t location         = dmGraphics::GetUniformLocation(m->m_Program, buffer);
 
             // DEF-2971-hotfix
             // Previously this check was an assert. In Emscripten 1.38.3 they made changes
@@ -90,6 +92,8 @@ namespace dmRender
             if (location == -1) {
                 continue;
             }
+
+            assert(name_str_length > 0);
             dmhash_t name_hash = dmHashString64(buffer);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
@@ -157,7 +161,18 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location);
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    {
+                        Matrix4 ndc_matrix = Matrix4::identity();
+                        ndc_matrix.setElem(2, 2, 0.5f );
+                        ndc_matrix.setElem(3, 2, 0.5f );
+                        const Matrix4 view_projection = ndc_matrix * render_context->m_ViewProj;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, location);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location);
+                    }
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
@@ -177,7 +192,20 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                    // Vulkan NDC is [0..1] for z, so we must transform
+                    // the projection before setting the constant.
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    {
+                        Matrix4 ndc_matrix = Matrix4::identity();
+                        ndc_matrix.setElem(2, 2, 0.5f );
+                        ndc_matrix.setElem(3, 2, 0.5f );
+                        const Matrix4 proj = ndc_matrix * render_context->m_Projection;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, location);
+                    }
+                    else
+                    {
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                    }
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
@@ -203,9 +231,18 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
                 {
+                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
-                        Matrix4 world_view = render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                        Matrix4 ndc_matrix = Matrix4::identity();
+                        ndc_matrix.setElem(2, 2, 0.5f );
+                        ndc_matrix.setElem(3, 2, 0.5f );
+                        const Matrix4 world_view_projection = ndc_matrix * render_context->m_ViewProj * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, location);
+                    }
+                    else
+                    {
+                        const Matrix4 world_view_projection = render_context->m_ViewProj * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, location);
                     }
                     break;
                 }

@@ -165,6 +165,19 @@ namespace dmEngine
         dmGameSystem::OnWindowFocus(focus != 0);
     }
 
+    static void OnWindowIconify(void* user_data, uint32_t iconify)
+    {
+        Engine* engine = (Engine*)user_data;
+        dmExtension::Params params;
+        params.m_ConfigFile = engine->m_Config;
+        params.m_L          = 0;
+        dmExtension::Event event;
+        event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
+        dmExtension::DispatchEvent( &params, &event );
+
+        dmGameSystem::OnWindowIconify(iconify != 0);
+    }
+
     Stats::Stats()
     : m_FrameCount(0)
     {
@@ -195,6 +208,7 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
+    , m_RunWhileIconified(0)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -427,6 +441,8 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
@@ -566,6 +582,8 @@ namespace dmEngine
         window_params.m_CloseCallbackUserData = engine;
         window_params.m_FocusCallback = OnWindowFocus;
         window_params.m_FocusCallbackUserData = engine;
+        window_params.m_IconifyCallback = OnWindowIconify;
+        window_params.m_IconifyCallbackUserData = engine;
         window_params.m_Width = engine->m_Width;
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
@@ -592,10 +610,26 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
+#if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
+        engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
+#endif
+
+        dmGameSystem::OnWindowCreated(physical_width, physical_height);
+
         bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
         uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
+
+        float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
+        float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
+        float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
+        float clear_color_alpha = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_alpha", 0.0);
+        uint32_t clear_color = ((uint32_t)(clear_color_red * 255.0) & 0x000000ff)
+                             | (((uint32_t)(clear_color_green * 255.0) & 0x000000ff) << 8)
+                             | (((uint32_t)(clear_color_blue * 255.0) & 0x000000ff) << 16)
+                             | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
+        engine->m_ClearColor = clear_color;
 
         if (!setting_vsync)
         {
@@ -972,6 +1006,19 @@ namespace dmEngine
         dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
         dmGui::SetDisplayProfiles(engine->m_GuiContext.m_GuiContext, engine->m_DisplayProfiles);
 
+        // clear it a couple of times, due to initialization of extensions might stall the updates
+        for (int i = 0; i < 3; ++i) {
+            dmGraphics::BeginFrame(engine->m_GraphicsContext);
+            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT,
+                                        (float)((engine->m_ClearColor>> 0)&0xFF),
+                                        (float)((engine->m_ClearColor>> 8)&0xFF),
+                                        (float)((engine->m_ClearColor>>16)&0xFF),
+                                        (float)((engine->m_ClearColor>>24)&0xFF),
+                                        1.0f, 0);
+            dmGraphics::Flip(engine->m_GraphicsContext);
+        }
+
         if (engine->m_RenderScriptPrototype) {
             dmRender::RenderScriptResult script_result = InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
             if (script_result != dmRender::RENDER_SCRIPT_RESULT_OK) {
@@ -1183,23 +1230,28 @@ bail:
 
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
-                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
-                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-                dmHID::Update(engine->m_HidContext);
-                dmTime::Sleep(1000 * 100);
-                // Update time again after the sleep to avoid big leaps after iconified.
-                // In practice, it makes the delta time 1/freq even though we slept for long
-
-                time = dmTime::GetTime();
-                uint64_t i_dt = fixed_dt * 1000000;
-                if (i_dt > time) {
-                    engine->m_PreviousFrameTime = 0;
-                } else {
-                    engine->m_PreviousFrameTime = time - i_dt;
+                if (!engine->m_WasIconified)
+                {
+                    engine->m_WasIconified = true;
                 }
 
-                engine->m_WasIconified = true;
-                return;
+                if (!engine->m_RunWhileIconified) {
+                    // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                    // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                    dmHID::Update(engine->m_HidContext);
+                    dmTime::Sleep(1000 * 100);
+                    // Update time again after the sleep to avoid big leaps after iconified.
+                    // In practice, it makes the delta time 1/freq even though we slept for long
+
+                    time = dmTime::GetTime();
+                    uint64_t i_dt = fixed_dt * 1000000;
+                    if (i_dt > time) {
+                        engine->m_PreviousFrameTime = 0;
+                    } else {
+                        engine->m_PreviousFrameTime = time - i_dt;
+                    }
+                    return;
+                }
             }
             else
             {
@@ -1220,15 +1272,16 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
-                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
-                    {
-                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
-                        // might have entered background at this point and OpenGL calls are not permitted and will
-                        // crash the application
-                        dmProfile::Release(profile);
-                        return;
+                    if (!engine->m_RunWhileIconified) {
+                        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                        {
+                            // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                            // might have entered background at this point and OpenGL calls are not permitted and will
+                            // crash the application
+                            dmProfile::Release(profile);
+                            return;
+                        }
                     }
-
                     /* Script context updates */
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);
@@ -1313,7 +1366,12 @@ bail:
                     else
                     {
                         dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0, 0);
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                            (float)((engine->m_ClearColor>> 0)&0xFF),
+                                            (float)((engine->m_ClearColor>> 8)&0xFF),
+                                            (float)((engine->m_ClearColor>>16)&0xFF),
+                                            (float)((engine->m_ClearColor>>24)&0xFF),
+                                            1.0f, 0);
                         dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
                     }
 
@@ -1422,6 +1480,7 @@ bail:
     {
         engine->m_Alive = false;
         engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action =  dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -1433,26 +1492,24 @@ bail:
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
-            strdup(reboot->m_Arg1),
-            strdup(reboot->m_Arg2),
-            strdup(reboot->m_Arg3),
-            strdup(reboot->m_Arg4),
-            strdup(reboot->m_Arg5),
-            strdup(reboot->m_Arg6),
+            reboot->m_Arg1 ? strdup(reboot->m_Arg1) : 0,
+            reboot->m_Arg2 ? strdup(reboot->m_Arg2) : 0,
+            reboot->m_Arg3 ? strdup(reboot->m_Arg3) : 0,
+            reboot->m_Arg4 ? strdup(reboot->m_Arg4) : 0,
+            reboot->m_Arg5 ? strdup(reboot->m_Arg5) : 0,
+            reboot->m_Arg6 ? strdup(reboot->m_Arg6) : 0,
         };
 
-        bool empty_found = false;
         for (int i = 0; i < ARG_COUNT; ++i)
         {
             // NOTE: +1 here, see above
             engine->m_RunResult.m_Argv[i + 1] = args[i];
-            if (args[i][0] == '\0')
+            if (args[i] == 0 || args[i][0] == '\0')
             {
-                empty_found = true;
+                break;
             }
 
-            if (!empty_found)
-                argc++;
+            argc++;
         }
 
         engine->m_RunResult.m_Argc = argc;
@@ -1465,7 +1522,6 @@ bail:
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
-        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
         if (dmEngine::Init(engine, argc, argv))
         {
             if (pre_run)
@@ -1708,5 +1764,93 @@ bail:
     uint32_t GetFrameCount(HEngine engine)
     {
         return engine->m_Stats.m_FrameCount;
+    }
+}
+
+
+dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
+{
+    dmEngineService::HEngineService engine_service = 0;
+
+    if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
+    {
+        uint16_t engine_port = dmEngineService::GetServicePort(8001);
+        engine_service = dmEngineService::New(engine_port);
+    }
+
+    if (!dmGraphics::Initialize())
+    {
+        dmLogError("Could not initialize graphics.");
+        return 0;
+    }
+
+    dmEngine::HEngine engine = dmEngine::New(engine_service);
+    bool initialized = dmEngine::Init(engine, argc, argv);
+
+    if (!initialized)
+    {
+        if (engine_service)
+        {
+            dmEngineService::Delete(engine_service);
+        }
+
+        Delete(engine);
+        return 0;
+    }
+    return engine;
+}
+
+void dmEngineDestroy(dmEngine::HEngine engine)
+{
+    engine->m_RunResult.Free();
+
+    if (engine->m_EngineService)
+    {
+        dmEngineService::Delete(engine->m_EngineService);
+    }
+
+    Delete(engine);
+}
+
+int dmEngineUpdate(dmEngine::HEngine engine)
+{
+    if (dmEngine::IsRunning(engine))
+    {
+        dmEngine::PerformStep(engine);
+    }
+
+    if (engine->m_RunResult.m_Action == dmEngine::RunResult::REBOOT)
+    {
+        return 1;
+    }
+    else if (engine->m_RunResult.m_Action == dmEngine::RunResult::EXIT)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+void dmEngineGetResult(dmEngine::HEngine engine, int* run_action, int* exit_code, int* argc, char*** argv)
+{
+    if (run_action)
+        *run_action = engine->m_RunResult.m_Action;
+    if (exit_code)
+        *exit_code = engine->m_RunResult.m_ExitCode;
+
+    int _argc = engine->m_RunResult.m_Argc;
+    if (argc)
+        *argc = _argc;
+
+    if (argv)
+    {
+        *argv = (char**)malloc(sizeof(char*) * _argc);
+
+        for (int i = 0; i < _argc; ++i)
+        {
+            (*argv)[i] = strdup(engine->m_RunResult.m_Argv[i]);
+        }
     }
 }

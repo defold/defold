@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dlib/dlib.h>
 #include <dlib/log.h>
 
 #include <stdio.h>
@@ -11,6 +12,8 @@ namespace dmCrash
 {
     void WriteCrash(const char* file_name, AppState* data)
     {
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
         int fhandle = open(file_name, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (fhandle != -1)
         {
@@ -43,5 +46,6 @@ namespace dmCrash
         {
             dmLogError("Failed to write Crashdump file.");
         }
+        dLib::SetDebugMode(is_debug_mode);
     }
 }

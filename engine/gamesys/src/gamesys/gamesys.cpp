@@ -229,7 +229,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("soundc", 600, 0x0,
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate, 0,
-                CompSoundUpdate, 0, 0, CompSoundOnMessage, 0, 0, 0, 0,
+                CompSoundUpdate, 0, 0, CompSoundOnMessage, 0, 0, CompSoundGetProperty, CompSoundSetProperty,
                 0);
 
         REGISTER_COMPONENT_TYPE("modelc", 700, model_context,

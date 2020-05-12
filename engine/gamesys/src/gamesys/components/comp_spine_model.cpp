@@ -78,7 +78,7 @@ namespace dmGameSystem
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, true},
-                {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"color", 2, 4, dmGraphics::TYPE_FLOAT, true},
         };
 
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));

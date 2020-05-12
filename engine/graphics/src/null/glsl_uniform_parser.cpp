@@ -83,7 +83,7 @@ namespace dmGraphics
     {
         *word_start = SkipWS(*word_end);
         *word_end = FindWS(*word_start);
-        *size = *word_end - *word_start;
+        *size = (uint32_t) (*word_end - *word_start);
     }
 
     bool GLSLUniformParse(const char* buffer, UniformCallback cb, uintptr_t userdata)

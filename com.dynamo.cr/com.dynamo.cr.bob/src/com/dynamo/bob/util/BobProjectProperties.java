@@ -26,11 +26,16 @@ import com.dynamo.bob.Bob;
 public class BobProjectProperties {
     private Map<String, Map<String, String>> properties;
 
+    // A way to store what properties are the defaults
+    // and also not overridden by the properties member.
+    private Map<String, Map<String, String>> defaults;
+
     /**
      * Constructor with initially empty
      */
     public BobProjectProperties() {
         this.properties = new LinkedHashMap<String, Map<String, String>>();
+        this.defaults = new LinkedHashMap<String, Map<String, String>>();
     }
 
     /**
@@ -217,7 +222,7 @@ public class BobProjectProperties {
 
     // Helper class to pass tuple of Key+Value
     // via doLoad and a KeyValueFilter class.
-    private class StringKeyValue {
+    static private class StringKeyValue {
         public String key;
         public String value;
         StringKeyValue(String key, String value) {
@@ -234,7 +239,25 @@ public class BobProjectProperties {
         public boolean filter(StringKeyValue entry);
     }
 
-    private void doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
+    static private Map<String, String> copyMap(Map<String, String> map) {
+        Map<String, String> dst = new LinkedHashMap<String, String>();
+        for (String key : map.keySet()) {
+            dst.put(key, map.get(key));
+        }
+        return dst;
+    }
+
+    static private Map<String, Map<String, String>> copyProperties(Map<String, Map<String, String>> src) {
+        Map<String, Map<String, String>> dst = new LinkedHashMap<String, Map<String, String>>();
+        for (String category : src.keySet()) {
+            Map<String, String> propGroup = src.get(category);
+            dst.put(category, copyMap(propGroup));
+        }
+        return dst;
+    }
+
+    static private Map<String, Map<String, String>> doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
+        Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         Map<String, String> propGroup = null;
         int cursor = 0;
@@ -246,10 +269,10 @@ public class BobProjectProperties {
                     throw new ParseException("invalid category: " + line, cursor);
                 }
                 String category = line.substring(1, line.length() - 1);
-                propGroup = this.properties.get(category);
+                propGroup = properties.get(category);
                 if (propGroup == null) {
                     propGroup = new LinkedHashMap<String, String>();
-                    this.properties.put(category, propGroup);
+                    properties.put(category, propGroup);
                 }
             } else if (line.length() > 0) {
                 if (propGroup == null) {
@@ -282,6 +305,7 @@ public class BobProjectProperties {
             cursor += line.length();
             line = reader.readLine();
         }
+        return properties;
     }
 
     /**
@@ -307,12 +331,61 @@ public class BobProjectProperties {
 
         InputStream is = Bob.class.getResourceAsStream("meta.properties");
         try {
-            doLoad(is, filterDefaults);
+            defaults = doLoad(is, filterDefaults);
+            properties = copyProperties(defaults);
         } catch (ParseException e) {
             throw new RuntimeException("Failed to parse meta.properties", e);
         } finally {
             IOUtils.closeQuietly(is);
         }
+    }
+
+    public void removeProperty(String category, String key) throws RuntimeException {
+        Map<String, String> propGroup = properties.get(category);
+        if (propGroup != null) {
+            propGroup.remove(key);
+            return;
+        }
+        throw new RuntimeException(String.format("No such property %s.%s", category, key));
+    }
+
+    // remove any properties in b from a
+    private static void removeProperties(Map<String, Map<String, String>> a, Map<String, Map<String, String>> b) {
+        for (String category : b.keySet()) {
+            if (!a.containsKey(category)) {
+                continue;
+            }
+            Map<String, String> propGroupA = a.get(category);
+            Map<String, String> propGroupB = b.get(category);
+            for (String key : propGroupB.keySet()) {
+                if (propGroupA.containsKey(key)) {
+                    propGroupA.remove(key);
+                }
+            }
+        }
+    }
+
+    // Merge properties from b to a
+    private static void mergeProperties(Map<String, Map<String, String>> a, Map<String, Map<String, String>> b) {
+        for (String category : b.keySet()) {
+            if (!a.containsKey(category)) {
+                a.put(category, new LinkedHashMap<String, String>());
+            }
+            Map<String, String> propGroupA = a.get(category);
+            Map<String, String> propGroupB = b.get(category);
+            for (String key : propGroupB.keySet()) {
+                propGroupA.put(key, propGroupB.get(key));
+            }
+        }
+    }
+
+    // returns true if the user didn't set this value
+    public boolean isDefault(String category, String key) {
+        return defaults.containsKey(category) && defaults.get(category).containsKey(key);
+    }
+
+    public boolean containsProperty(String category, String key) {
+        return properties.containsKey(category) && properties.get(category).containsKey(key);
     }
 
     /**
@@ -323,7 +396,11 @@ public class BobProjectProperties {
      */
     public void load(InputStream in) throws IOException, ParseException {
         try {
-            doLoad(in, null);
+            Map<String, Map<String, String>> props = doLoad(in, null);
+            // remove any properties in props from defaults
+            removeProperties(defaults, props);
+            // merge into properties
+            mergeProperties(properties, props);
         } finally {
             IOUtils.closeQuietly(in);
         }

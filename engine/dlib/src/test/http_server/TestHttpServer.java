@@ -6,6 +6,7 @@ import java.net.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.regex.*;
+import java.util.Enumeration;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -105,6 +106,15 @@ public class TestHttpServer extends AbstractHandler
         }
     }
 
+    private void debugHeaders(HttpServletRequest request) {
+        System.out.printf("HEADERS:\n");
+        Enumeration headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String key = (String) headerNames.nextElement();
+            String value = request.getHeader(key);
+            System.out.printf("HEADER:  %s: %s\n", key, value);
+        }
+    }
 
     public void handle(String target,
                        Request baseRequest,

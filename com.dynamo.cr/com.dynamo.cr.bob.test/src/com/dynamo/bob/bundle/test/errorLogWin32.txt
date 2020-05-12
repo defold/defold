@@ -1,8 +1,8 @@
 wine cl.exe /nologo /TP /O2 /Oy- /Z7 /MT /D__STDC_LIMIT_MACROS /DWINVER=0x0600 /D_WIN32_WINNT=0x0600 /DWIN32 /D_CRT_SECURE_NO_WARNINGS /wd4200 /W3 /EHsc /DDM_PLATFORM_WINDOWS /DLUA_BYTECODE_ENABLE   /Iupload/androidnative/include  /I/dynamo_home//include /I/dynamo_home//sdk/include /IC:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/INCLUDE /IC:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/INCLUDE /IC:/ProgramFilesx86/WindowsKits/10/include/10.0.10240.0/ucrt /IC:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/include/um /IC:/ProgramFilesx86/WindowsKits/8.1/include/shared /IC:/ProgramFilesx86/WindowsKits/8.1/include/um /IC:/ProgramFilesx86/WindowsKits/8.1/include/winrt  upload/androidnative/src/main.cpp /c /Fobuild/main.cpp_0.o
 main.cpp
-upload/androidnative/src/main.cpp(15): error C3861: 'Hello': identifier not found
-upload/androidnative/src/main.cpp(17): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
-upload/androidnative/src/main.cpp(17): error C2146: syntax error: missing ';' before identifier 'g_foo'
+upload/androidnative/src/main1.cpp(15): error C3861: 'Hello': identifier not found
+upload/androidnative/src/main2.cpp(17): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+upload/androidnative/src/main3.cpp(17): error C2146: syntax error: missing ';' before identifier 'g_foo'
 
 # linker
 
@@ -26,9 +26,9 @@ upload/king_device_id/src/kdid.cpp(4): fatal error C1083: Cannot open include fi
 /usr/local/bin/lld-link: error: 975380ca-f446-4945-87db-070ee587b91c.lib(dopenssl.cpp_0.o): undefined symbol: _RAND_bytes
 /usr/local/bin/lld-link: warning: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): locally defined symbol imported: ___std_terminate (defined in libvcruntime.lib(frame.obj))
 /usr/local/bin/lld-link: warning: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): locally defined symbol imported: __CxxThrowException@8 (defined in libvcruntime.lib(throw.obj))
-/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _ERR_reason_error_string
-/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _ERR_clear_error
-/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _BIO_new_mem_buf
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f-1.lib(dsocket.cpp_1.o): undefined symbol: _ERR_reason_error_string
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f-2.lib(dsocket.cpp_1.o): undefined symbol: _ERR_clear_error
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f-3.lib(dsocket.cpp_1.o): undefined symbol: _BIO_new_mem_buf
 
 
 clang++ -target i386-pc-win32-msvc -m32 -g -o build/dmengine.exe -O2 -fuse-ld=lld  -L/tmp/job3725092588996651427/build -L/tmp/job3725092588996651427/upload/luasec/lib/x86-win32  -lOpenGL32 -lDelayimp -lUser32 -lshell32 -lXinput9_1_0 -lOpenAL32 -lWS2_32 -lIPHlpApi -lDbgHelp -lCrypt32.Lib -llibengine.lib  -l058a7274-7297-45b8-92c9-aee6294b246e -llibcrypto -llibssl  -L/dynamo_home//lib/win32 -L/dynamo_home//ext/lib/win32 -L/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/ -L/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86 -L/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86  -llibengine_service -llibaxtls -llibwebviewext -llibadtruthext -llibprofilerext -llibfacebookext -llibiapext -llibpushext -llibiacext -llibrecord -llibgameobject -llibddf -llibresource -llibgamesys -llibgraphics -llibphysics -llibBulletDynamics -llibBulletCollision -llibLinearMath -llibBox2D -llibrender -llibscript -llibluajit-5.1 -llibextension -llibhid -llibinput -llibparticle -llibrig -llibdlib -llibdmglfw -llibgui -llibtracking -llibcrashext -llibliveupdate -llibsound -lvpx -llibFBGPlatform  build/main_tmp69387cb9-8403-4494-83f3-c14492a67685.o build/dmengine.res

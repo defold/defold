@@ -23,6 +23,7 @@ var Combine = {
     _onAllTargetsBuilt:[],      // signature: void
     _onDownloadProgress: [],    // signature: downloaded, total
 
+    _currentDownloadBytes: 0,
     _totalDownloadBytes: 0,
 
     _retry_time: 0,             // pause before retry file loading after error
@@ -31,7 +32,7 @@ var Combine = {
 
     _archiveLocationFilter: function(path) { return "split" + path; },
 
-    can_not_download_file: function(file) { 
+    can_not_download_file: function(file) {
         if (typeof Combine._can_not_download_file_callback === 'function') {
             Combine._can_not_download_file_callback(file);
         }
@@ -91,6 +92,7 @@ var Combine = {
         this._onAllTargetsBuilt = [];
         this._onDownloadProgress = [];
 
+        this._currentDownloadBytes = 0;
         this._totalDownloadBytes = 0;
     },
 
@@ -98,6 +100,7 @@ var Combine = {
         var json = JSON.parse(xhr.responseText);
         this._targets = json.content;
         this._totalDownloadBytes = 0;
+        this._currentDownloadBytes = 0;
 
         var targets = this._targets;
         for(var i=0; i<targets.length; ++i) {
@@ -129,38 +132,42 @@ var Combine = {
             throw "Request out of order";
         }
 
-        target.lastRequestedPiece = index;
-        target.progress = {};
-
         var item = target.pieces[index];
+        target.lastRequestedPiece = index;
+
+        var total = 0;
+        var downloaded = 0;
         var xhr = new XMLHttpRequest();
-        xhr.open('GET', this._archiveLocationFilter('/' + item.name), true);
+        var url = this._archiveLocationFilter('/' + item.name);
+        xhr.open('GET', url, true);
         xhr.responseType = 'arraybuffer';
+        // called periodically with information about the transaction
         xhr.onprogress = function(evt) {
-           target.progress[item.name] = {total: 0, downloaded: 0};
             if (evt.total && evt.lengthComputable) {
-                target.progress[item.name].total = evt.total;
+                total = evt.total;
             }
             if (evt.loaded && evt.lengthComputable) {
-                target.progress[item.name].downloaded = evt.loaded;
+                var delta = evt.loaded - downloaded;
+                downloaded = evt.loaded;
+                Combine._currentDownloadBytes += delta;
                 Combine.updateProgress(target);
             }
         };
+        // called when the transaction completes successfully
         xhr.onload = function(evt) {
             item.data = new Uint8Array(xhr.response);
             item.dataLength = item.data.length;
-            target.progress[item.name].total = item.dataLength;
-            target.progress[item.name].downloaded = item.dataLength;
+            total = item.dataLength;
+            downloaded = item.dataLength;
             Combine.copyData(target, item);
             Combine.onPieceLoaded(target, item);
             Combine.updateProgress(target);
             item.data = undefined;
         };
+        // called when the transaction fails
         xhr.onerror = function(evt) {
-            if (target.progress[item.name]) {
-                target.progress[item.name].downloaded = 0;
-                Combine.updateProgress(target);
-            }
+            downloaded = 0;
+            Combine.updateProgress(target);
             attempt_count += 1;
             if (attempt_count < Combine._max_retry_count) {
                 console.warn("Can't download file '" + item.name + "' . Next try in " + Combine._retry_time + " sec.");
@@ -168,19 +175,15 @@ var Combine = {
                     Combine.requestPiece(target, index, attempt_count);
                 }, Combine._retry_time * 1000);
             } else {
-                    Combine.can_not_download_file(item.name);
+                Combine.can_not_download_file(item.name);
             }
         };
         xhr.send(null);
     },
 
     updateProgress: function(target) {
-        var total_downloaded = 0;
-        for (var p in target.progress) {
-            total_downloaded += target.progress[p].downloaded;
-        }
         for(i = 0; i<this._onDownloadProgress.length; ++i) {
-            this._onDownloadProgress[i](total_downloaded, this._totalDownloadBytes);
+            this._onDownloadProgress[i](this._currentDownloadBytes, this._totalDownloadBytes);
         }
     },
 
@@ -477,7 +480,7 @@ var Module = {
             persistent_storage: true,
             custom_heap_size: undefined,
             disable_context_menu: true,
-            retry_time: 1, 
+            retry_time: 1,
             retry_count: 10,
             can_not_download_file_callback: undefined,
         };
@@ -697,5 +700,3 @@ window.onerror = function(err, url, line, column, errObj) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
 };
-
-
