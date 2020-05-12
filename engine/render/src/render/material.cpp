@@ -45,7 +45,7 @@ namespace dmRender
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            type = -1;
+            type = (dmGraphics::Type) -1;
             dmGraphics::GetUniformName(m->m_Program, i, buffer, buffer_size, &type);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)

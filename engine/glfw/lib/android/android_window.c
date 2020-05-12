@@ -559,6 +559,10 @@ void _glfwPlatformUnacquireAuxContext(void* context)
     }
 }
 
+void _glfwPlatformSetViewType(int view_type)
+{
+}
+
 
 #define MAX_ACTIVITY_LISTENERS (32)
 static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];

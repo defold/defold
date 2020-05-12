@@ -225,7 +225,7 @@ namespace dmPhysics
     {
         shape->m_centroid = FlipPoint(shape->m_centroid, horizontal, vertical);
         int count = shape->m_vertexCount;
-        
+
         for (int i = 0; i < count; ++i)
         {
             shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);

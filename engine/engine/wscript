@@ -62,16 +62,13 @@ namespace dmEngineVersion
     architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
-    glfw_lib = 'dmglfw'
 
     if operating_sys == 'osx':
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
         if Options.options.with_vulkan and architecture == 'x86_64':
-            glfw_lib = 'dmglfw_vulkan'
-
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface'])
+            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
             # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
             validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))
@@ -85,7 +82,6 @@ namespace dmEngineVersion
 
         # For Vulkan/MoltenVK
         if Options.options.with_vulkan and architecture == 'arm64':
-            glfw_lib = 'dmglfw_vulkan'
             conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK', '-framework', 'Metal'])
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
@@ -115,7 +111,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_GAMESYS'] = 'gamesys'
     conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_DMGLFW'] = glfw_lib
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_GUI'] = 'gui'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_RIG'] = 'rig'
@@ -128,7 +124,9 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
-    conf.env['STATICLIB_UNWIND'] = 'unwind'
+    if operating_sys != "osx":
+        conf.env['STATICLIB_UNWIND'] = 'unwind'
+
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'

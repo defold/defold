@@ -11,7 +11,7 @@
   (:import [java.util.concurrent LinkedBlockingQueue]))
 
 (def ^:const search-project-path "test/resources/search_project")
-(def ^:const timeout-ms 5000)
+(def ^:const timeout-ms 10000)
 
 (defn- make-consumer [report-error!]
   (atom {:consumed [] :future nil :report-error! report-error!}))

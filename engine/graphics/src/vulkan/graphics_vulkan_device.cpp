@@ -8,6 +8,38 @@
 
 namespace dmGraphics
 {
+	Texture::Texture()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_GraphicsFormat(TEXTURE_FORMAT_RGBA)
+        , m_DeviceBuffer(VK_IMAGE_USAGE_SAMPLED_BIT)
+        , m_Width(0)
+        , m_Height(0)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_MipMapCount(0)
+        , m_TextureSamplerIndex(0)
+        , m_Destroyed(0)
+    {
+        memset(&m_Handle, 0, sizeof(m_Handle));
+    }
+
+    RenderTarget::RenderTarget(const uint32_t rtId)
+        : m_TextureColor(0)
+        , m_TextureDepthStencil(0)
+        , m_RenderPass(VK_NULL_HANDLE)
+        , m_Framebuffer(VK_NULL_HANDLE)
+        , m_Id(rtId)
+        , m_IsBound(0)
+    {
+        m_Extent.width  = 0;
+        m_Extent.height = 0;
+    }
+
+    Program::Program()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs)
     {
         uint16_t num_attributes = 0;
@@ -78,6 +110,11 @@ namespace dmGraphics
     const VulkanResourceType Texture::GetType()
     {
         return RESOURCE_TYPE_TEXTURE;
+    }
+
+    const VulkanResourceType Program::GetType()
+    {
+        return RESOURCE_TYPE_PROGRAM;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -176,21 +213,21 @@ namespace dmGraphics
         return VK_FORMAT_UNDEFINED;
     }
 
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, BufferType bufferFlags, uint8_t sampleCount)
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
     {
         VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
 
-        if (bufferFlags & BUFFER_TYPE_COLOR_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_COLOR_BIT)
         {
             vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
         }
 
-        if (bufferFlags & BUFFER_TYPE_DEPTH_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_DEPTH_BIT)
         {
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferColorSampleCounts);
         }
 
-        if (bufferFlags & BUFFER_TYPE_STENCIL_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_STENCIL_BIT)
         {
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
         }
@@ -949,14 +986,14 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
 
-        const VkDynamicState vk_dynamic_state = VK_DYNAMIC_STATE_VIEWPORT;
+        const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         vk_dynamic_state_create_info.pNext             = NULL;
         vk_dynamic_state_create_info.flags             = 0;
-        vk_dynamic_state_create_info.dynamicStateCount = 1;
-        vk_dynamic_state_create_info.pDynamicStates    = &vk_dynamic_state;
+        vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_state) / sizeof(VkDynamicState);
+        vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_state;
 
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
@@ -972,7 +1009,7 @@ bail:
         vk_pipeline_info.pDepthStencilState  = &vk_depth_stencil_create_info;
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
-        vk_pipeline_info.layout              = program->m_PipelineLayout;
+        vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
         vk_pipeline_info.renderPass          = vk_render_pass;
         vk_pipeline_info.subpass             = 0;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -986,6 +1023,25 @@ bail:
         assert(scratchBuffer);
         scratchBuffer->m_DescriptorAllocator->Release(vk_device);
         scratchBuffer->m_MappedDataCursor = 0;
+    }
+
+    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    {
+        assert(handle);
+        if (handle->m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vk_device, handle->m_PipelineLayout, 0);
+            handle->m_PipelineLayout = VK_NULL_HANDLE;
+        }
+
+        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        {
+            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
+                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+            }
+        }
     }
 
     void DestroyPhysicalDevice(PhysicalDevice* device)

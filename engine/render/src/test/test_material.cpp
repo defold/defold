@@ -26,6 +26,7 @@ static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uin
 
 TEST(dmMaterialTest, TestTags)
 {
+    dmGraphics::Initialize();
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
@@ -57,6 +58,7 @@ TEST(dmMaterialTest, TestTags)
 
 TEST(dmMaterialTest, TestMaterialConstants)
 {
+    dmGraphics::Initialize();
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
@@ -98,6 +100,7 @@ TEST(dmMaterialTest, TestMaterialConstants)
 
 TEST(dmMaterialTest, TestMaterialConstantsOverride)
 {
+    dmGraphics::Initialize();
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
     params.m_ScriptContext = dmScript::NewContext(0, 0, true);
