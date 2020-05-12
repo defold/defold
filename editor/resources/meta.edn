@@ -244,6 +244,16 @@
    "specify which texture profiles (format, mipmaps and max textures size) to use for which resource path",
    :default "/builtins/graphics/default.texture_profiles",
    :path ["graphics" "texture_profiles"]}
+   {:type :boolean,
+   :help
+   "enables use of renderdoc (vulkan only)",
+   :default false,
+   :path ["graphics" "use_renderdoc"]}
+   {:type :boolean,
+   :help
+   "enables use of validation layers (vulkan only)",
+   :default false,
+   :path ["graphics" "use_validationlayers"]}
   {:type :number,
    :help
    "seconds to wait before treating a held down keyboard-key to start repeating itself",
