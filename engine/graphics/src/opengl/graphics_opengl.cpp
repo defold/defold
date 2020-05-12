@@ -1267,6 +1267,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         for (int i = 0; i < stream_count; ++i)
         {
             VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            // TODO: We might want to store a hash of the name already in the vertexdecl,
+            //       but currently the OpenGL implementation uses the string to find
+            //       correct uniform location (if I recall correctly).
             dmHashUpdateBuffer32(state, stream.m_Name, strlen(stream.m_Name));
             dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
             dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));

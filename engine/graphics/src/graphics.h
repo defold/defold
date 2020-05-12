@@ -53,6 +53,7 @@ namespace dmGraphics
     extern const PrimitiveType PRIMITIVE_LINES;
     extern const PrimitiveType PRIMITIVE_TRIANGLES;
     extern const PrimitiveType PRIMITIVE_TRIANGLE_STRIP;
+    extern const PrimitiveType PRIMITIVE_TRIANGLE_FAN;
 
     // buffer clear types, each value is guaranteed to be separate bits
     typedef uint32_t BufferType;

@@ -2,13 +2,13 @@
 
 #include <string.h>
 #include <float.h>
+#include <stdint.h>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
-#include <dlib/dstrings.h>
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
@@ -24,6 +24,8 @@
 #include "gamesys_ddf.h"
 #include "mesh_ddf.h"
 
+#include "../resources/res_mesh.h"
+
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
@@ -32,7 +34,7 @@ namespace dmGameSystem
     struct MeshComponent
     {
         dmGameObject::HInstance     m_Instance;
-        dmTransform::Transform      m_Transform;
+        Matrix4                     m_Local;
         Matrix4                     m_World;
         uint32_t                    m_MixedHash;
         CompRenderConstants         m_RenderConstants;
@@ -51,7 +53,6 @@ namespace dmGameSystem
         uint16_t                    m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;
-        uint8_t                     m_DoRender : 1;
         /// Added to update or not
         uint8_t                     m_AddedToUpdate : 1;
         uint8_t                     m_ReHash : 1;
@@ -81,7 +82,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         MeshContext* context = (MeshContext*)params.m_Context;
-        dmRender::HRenderContext render_context = context->m_RenderContext;
 
         MeshWorld* world = new MeshWorld();
         world->m_ResourceFactory = context->m_Factory;
@@ -143,7 +143,7 @@ namespace dmGameSystem
 
     static void ReHash(MeshComponent* component)
     {
-        // Hash resource-ptr, material-handle, blend mode and render constants
+        // Hash resource-ptr, material-handle, textures and render constants
         HashState32 state;
         bool reverse = false;
         MeshResource* resource = component->m_Resource;
@@ -188,13 +188,12 @@ namespace dmGameSystem
         memset(component, 0, sizeof(MeshComponent));
         world->m_Components.Set(index, component);
         component->m_Instance = params.m_Instance;
-        component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
+        component->m_Local = Matrix4(params.m_Rotation, Vector3(params.m_Position));
         component->m_Resource = (MeshResource*)params.m_Resource;
 
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
-        component->m_DoRender = 0;
 
         ReHash(component);
 
@@ -239,14 +238,13 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
             if (dmGameObject::ScaleAlongZ(c->m_Instance))
             {
-                c->m_World = go_world * local;
+                c->m_World = go_world * c->m_Local;
             }
             else
             {
-                c->m_World = dmTransform::MulNoScaleZ(go_world, local);
+                c->m_World = dmTransform::MulNoScaleZ(go_world, c->m_Local);
             }
         }
     }
@@ -270,7 +268,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            component.m_DoRender = 0;
 
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
@@ -279,8 +276,6 @@ namespace dmGameSystem
             {
                 ReHash(&component);
             }
-
-            component.m_DoRender = 1;
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -449,42 +444,21 @@ namespace dmGameSystem
         uint32_t vert_size = mr->m_VertSize;
 
         // Find out how many elements/vertices all instances in this batch has
+        // TODO: We might want to calculate this only when a mesh/buffer changes.
         uint32_t element_count = 0;
-        int non_custom = 0;
-        int custom = 0;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const MeshComponent* c = (MeshComponent*) buf[*i].m_UserData;
-            const MeshResource* mr = c->m_Resource;
-            const BufferResource* br = GetVerticesBuffer(c, mr);
-            bool has_custom_vert_buffer = HasCustomVerticesBuffer(c, mr);
+            const BufferResource* br = GetVerticesBuffer(c, c->m_Resource);
 
-            // No idea of rendering with zero element count.
-            if ((has_custom_vert_buffer && c->m_ElementCount == 0) ||
-                br->m_ElementCount == 0) {
-                continue;
-            }
-
-            if (has_custom_vert_buffer)
-            {
-                element_count += c->m_ElementCount;
-                custom += 1;
-            } else {
-                element_count += br->m_ElementCount;
-                non_custom += 1;
-            }
+            element_count += br->m_ElementCount;
         }
 
         // Allocate a larger scratch buffer if vert count * vert size is larger than current buffer.
         if (world->m_WorldVertexDataSize < vert_size * element_count)
         {
             world->m_WorldVertexDataSize = vert_size * element_count;
-
-            if (world->m_WorldVertexData) {
-                realloc(world->m_WorldVertexData, world->m_WorldVertexDataSize);
-            } else {
-                world->m_WorldVertexData = malloc(world->m_WorldVertexDataSize);
-            }
+            world->m_WorldVertexData = realloc(world->m_WorldVertexData, world->m_WorldVertexDataSize);
         }
 
         // Fill scratch buffer with data
@@ -559,6 +533,11 @@ namespace dmGameSystem
                 vert_decl = component->m_VertexDeclaration;
                 vert_size = component->m_VertSize;
                 elem_count = component->m_ElementCount;
+
+                // TODO: In the future we'd want a way to associate a custom buffer
+                //       with its own vertex buffer, so we can minimize the usage.
+                //       E.g. creating a dynamically updating buffer, and assigning
+                //       it to multiple components.
                 vert_buf = GetFreeVertexBuffer(world, render_context);
             }
 
@@ -566,6 +545,11 @@ namespace dmGameSystem
             uint32_t size = 0;
             dmBuffer::Result r = dmBuffer::GetBytes(br->m_Buffer, (void**)&bytes, &size);
             assert(r == dmBuffer::RESULT_OK);
+
+            // NOTE: Buffers can be updated at runtime from either Lua or C, and since
+            // we always set the buffer data here each frame the change will be shown directly.
+            // Preferably we would like to just reuse the vertex buffer, and only set the data
+            // when the data has changed...
             dmGraphics::SetVertexBufferData(vert_buf, vert_size * elem_count, bytes, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
             world->m_RenderedVertexSize += vert_size * elem_count;
@@ -645,7 +629,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            if (!component.m_DoRender)
+            if (!component.m_Enabled)
                 continue;
 
             const Vector4 trans = component.m_World.getCol(3);
@@ -802,7 +786,10 @@ namespace dmGameSystem
             }
         }
 
-        return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
+        dmGameObject::PropertyResult res = SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompMeshSetConstantCallback, component);
+        component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+
+        return res;
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
@@ -816,11 +803,23 @@ namespace dmGameSystem
             if (component->m_Resource)
             {
                 const dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
-                if(component->m_Resource == params.m_Resource->m_Resource ||
-                   material == params.m_Resource->m_Resource)
+                const dmGameSystem::BufferResource* buffer_resource = GetVerticesBuffer(component, component->m_Resource);
+                if (component->m_Resource == params.m_Resource->m_Resource ||
+                   material == params.m_Resource->m_Resource ||
+                   buffer_resource == params.m_Resource->m_Resource)
                 {
                     component->m_ReHash = 1;
                     continue;
+                }
+
+                for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+                {
+                    dmGraphics::HTexture texture = GetTexture(component, component->m_Resource, i);
+                    if (texture == params.m_Resource->m_Resource)
+                    {
+                        component->m_ReHash = 1;
+                        break;
+                    }
                 }
             }
         }

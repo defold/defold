@@ -10,6 +10,7 @@
 
 #include "script_buffer.h"
 #include "../resources/res_buffer.h"
+#include "../gamesys.h"
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -387,7 +388,7 @@ namespace dmGameSystem
             return luaL_error(L, "buffer.create: Failed creating buffer: %s", dmBuffer::GetResultString(r));
         }
 
-        dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
+        dmScript::LuaHBuffer luabuf = { {buffer}, dmScript::OWNER_LUA };
         PushBuffer(L, luabuf);
 
         assert(top + 1 == lua_gettop(L));

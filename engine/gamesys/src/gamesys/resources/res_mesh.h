@@ -13,10 +13,6 @@ namespace dmGameSystem
 {
     struct MeshResource
     {
-        MeshResource() {
-            // nop?
-        }
-
         dmMeshDDF::MeshDesc*    m_MeshDDF;
         BufferResource*         m_BufferResource;
         dmRender::HMaterial     m_Material;
@@ -31,7 +27,7 @@ namespace dmGameSystem
 
         dmGraphics::PrimitiveType       m_PrimitiveType;
 
-        /// Stread id and type to know what data to modify when rendering in world space.
+        /// Stream id and type to know what data to modify when rendering in world space.
         dmhash_t                        m_PositionStreamId;
         dmBufferDDF::ValueType          m_PositionStreamType;
         dmhash_t                        m_NormalStreamId;

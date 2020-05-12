@@ -48,6 +48,8 @@
     :short :value-type-int16
     :int :value-type-int32))
 
+;; TODO: Might need to add support for uint64/int64 in the future.
+;;       (OpenGL ES 2 doesn't support this currently, but Vulkan might.)
 (defn stream-type->type [stream-type]
   (case stream-type
     :value-type-float32 :float

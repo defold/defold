@@ -1,14 +1,9 @@
 #ifndef DM_GAMESYS_SCRIPT_BUFFER_H
 #define DM_GAMESYS_SCRIPT_BUFFER_H
 
-#include <dlib/configfile.h>
-
-#include <gameobject/gameobject.h>
-#include "../gamesys.h"
-
 namespace dmGameSystem
 {
-    void ScriptBufferRegister(const ScriptLibContext& context);
+    void ScriptBufferRegister(const struct ScriptLibContext& context);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BUFFER_H

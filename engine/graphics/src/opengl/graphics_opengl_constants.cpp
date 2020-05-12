@@ -96,6 +96,7 @@ namespace dmGraphics
     const PrimitiveType PRIMITIVE_LINES          = GL_LINES;
     const PrimitiveType PRIMITIVE_TRIANGLES      = GL_TRIANGLES;
     const PrimitiveType PRIMITIVE_TRIANGLE_STRIP = GL_TRIANGLE_STRIP;
+    const PrimitiveType PRIMITIVE_TRIANGLE_FAN   = GL_TRIANGLE_FAN;
 
     const BufferType BUFFER_TYPE_COLOR_BIT       = GL_COLOR_BUFFER_BIT;
     const BufferType BUFFER_TYPE_DEPTH_BIT       = GL_DEPTH_BUFFER_BIT;

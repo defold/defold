@@ -25,7 +25,6 @@ message StreamDesc
     required string name = 1;
     required ValueType value_type = 2;
     required uint32 value_count = 3;
-    /*optional bytes data = 4;*/
     repeated uint32 ui   = 4;
     repeated int32  i    = 5;
     repeated uint64 ui64 = 6;

@@ -1,16 +1,10 @@
 #ifndef DM_GAMESYS_COMP_MESH_H
 #define DM_GAMESYS_COMP_MESH_H
 
-#include <stdint.h>
-#include <dlib/object_pool.h>
 #include <gameobject/gameobject.h>
-
-#include "../resources/res_mesh.h"
 
 namespace dmGameSystem
 {
-    using namespace Vectormath::Aos;
-
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompMeshDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

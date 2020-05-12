@@ -34,6 +34,11 @@ public class MeshBuilder extends Builder<Void> {
         res = BuilderUtil.checkResource(this.project, input, "material", meshDescBuilder.getMaterial());
         taskBuilder.addInput(res);
 
+        for (String t : meshDescBuilder.getTexturesList()) {
+            res = BuilderUtil.checkResource(this.project, input, "texture", t);
+            taskBuilder.addInput(res);
+        }
+
         return taskBuilder.build();
     }
 

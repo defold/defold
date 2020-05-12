@@ -84,6 +84,7 @@ namespace dmGraphics
     const PrimitiveType PRIMITIVE_LINES          = 0;
     const PrimitiveType PRIMITIVE_TRIANGLES      = 1;
     const PrimitiveType PRIMITIVE_TRIANGLE_STRIP = 2;
+    const PrimitiveType PRIMITIVE_TRIANGLE_FAN   = 3;
 
     const BufferUsage BUFFER_USAGE_STREAM_DRAW  = 0;
     const BufferUsage BUFFER_USAGE_STATIC_DRAW  = 1;
