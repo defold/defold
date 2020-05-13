@@ -126,6 +126,7 @@ namespace dmEngine
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
         dmGameSystem::ModelContext                  m_ModelContext;
+        dmGameSystem::MeshContext                   m_MeshContext;
         dmGameSystem::LabelContext                  m_LabelContext;
         dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameSystem::SoundContext                  m_SoundContext;

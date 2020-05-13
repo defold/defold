@@ -466,6 +466,10 @@ new_copy_task('copy prebuilt skeletonc', '.prebuilt_skeletonc', '.skeletonc')
 new_copy_task('copy prebuilt texturec', '.prebuilt_texturec', '.texturec')
 new_copy_task('copy prebuilt texturesetc', '.prebuilt_texturesetc', '.texturesetc')
 
+# Copy prebuilt mesh and buffer resources
+new_copy_task('copy prebuilt meshc', '.prebuilt_meshc', '.meshc')
+new_copy_task('copy prebuilt bufferc', '.prebuilt_bufferc', '.bufferc')
+
 from cStringIO import StringIO
 def strip_single_lua_comments(str):
     str = str.replace("\r", "");

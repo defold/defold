@@ -1,0 +1,5 @@
+name: "default"
+instances {
+  id: "go"
+  prototype: "/buffer/buffer_resources.go"
+}

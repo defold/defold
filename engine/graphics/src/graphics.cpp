@@ -297,6 +297,10 @@ namespace dmGraphics
     {
         return g_functions.m_NewVertexDeclarationStride(context, element, count, stride);
     }
+    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        return g_functions.m_SetStreamOffset(vertex_declaration, stream_index, offset);
+    }
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         g_functions.m_DeleteVertexDeclaration(vertex_declaration);
@@ -312,6 +316,10 @@ namespace dmGraphics
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         g_functions.m_DisableVertexDeclaration(context, vertex_declaration);
+    }
+    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
+    {
+        g_functions.m_HashVertexDeclaration(state, vertex_declaration);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {

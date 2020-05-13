@@ -1382,7 +1382,7 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
-SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash)
+SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
 {
     return factory->m_Resources->Get(canonical_path_hash);
 }

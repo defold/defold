@@ -804,7 +804,8 @@ bail:
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
     };
 
     static const VkCullModeFlagBits g_vk_cull_modes[] = {
