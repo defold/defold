@@ -1,0 +1,5 @@
+name: "issue-4775"
+instances {
+  id: "issue-4775"
+  prototype: "/issue-4775/issue-4775.go"
+}
