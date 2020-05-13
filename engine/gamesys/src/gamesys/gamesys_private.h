@@ -23,6 +23,7 @@ namespace dmGameSystem
     EXT_CONSTANTS(FACTORY, "factoryc")
     EXT_CONSTANTS(FONT, "fontc")
     EXT_CONSTANTS(MATERIAL, "materialc")
+    EXT_CONSTANTS(BUFFER, "bufferc")
     EXT_CONSTANTS(MODEL, "modelc")
     EXT_CONSTANTS(SPINE_MODEL, "spinemodelc")
     EXT_CONSTANTS(TEXTURE, "texturec")

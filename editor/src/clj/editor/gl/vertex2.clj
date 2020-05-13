@@ -38,6 +38,28 @@
   {:static GL2/GL_STATIC_DRAW
    :dynamic GL2/GL_DYNAMIC_DRAW})
 
+(defn type->stream-type [type]
+  (case type
+    :float :value-type-float32
+    :ubyte :value-type-uint8
+    :ushort :value-type-uint16
+    :uint :value-type-uint32
+    :byte :value-type-int8
+    :short :value-type-int16
+    :int :value-type-int32))
+
+;; TODO: Might need to add support for uint64/int64 in the future.
+;;       (OpenGL ES 2 doesn't support this currently, but Vulkan might.)
+(defn stream-type->type [stream-type]
+  (case stream-type
+    :value-type-float32 :float
+    :value-type-uint8 :ubyte
+    :value-type-uint16 :ushort
+    :value-type-uint32 :uint
+    :value-type-int8 :byte
+    :value-type-int16 :short
+    :value-type-int32 :int))
+
 ;; VertexBuffer object
 
 (defprotocol IVertexBuffer
@@ -77,7 +99,7 @@
   [attributes]
   (reduce + (attribute-sizes attributes)))
 
-(defn- make-vertex-description
+(defn make-vertex-description
   [name attributes]
   {:name name
    :attributes attributes

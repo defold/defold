@@ -1274,7 +1274,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
-        assert(count < (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
+        assert(count <= (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
 
         for (uint32_t i=0; i<count; i++)
         {
@@ -1290,6 +1290,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         vd->m_StreamCount = count;
         return vd;
+    }
+
+    bool OpenGLSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index >= vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
     }
 
     static void OpenGLDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
@@ -1403,6 +1412,24 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    void OpenGLHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    {
+        uint16_t stream_count = vertex_declaration->m_StreamCount;
+        for (int i = 0; i < stream_count; ++i)
+        {
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            // TODO: We might want to store a hash of the name already in the vertexdecl,
+            //       but currently the OpenGL implementation uses the string to find
+            //       correct uniform location (if I recall correctly).
+            dmHashUpdateBuffer32(state, stream.m_Name, strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
+            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+        }
     }
 
 
@@ -2747,10 +2774,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_IsIndexBufferFormatSupported = OpenGLIsIndexBufferFormatSupported;
         fn_table.m_NewVertexDeclaration = OpenGLNewVertexDeclaration;
         fn_table.m_NewVertexDeclarationStride = OpenGLNewVertexDeclarationStride;
+        fn_table.m_SetStreamOffset = OpenGLSetStreamOffset;
         fn_table.m_DeleteVertexDeclaration = OpenGLDeleteVertexDeclaration;
         fn_table.m_EnableVertexDeclaration = OpenGLEnableVertexDeclaration;
         fn_table.m_EnableVertexDeclarationProgram = OpenGLEnableVertexDeclarationProgram;
         fn_table.m_DisableVertexDeclaration = OpenGLDisableVertexDeclaration;
+        fn_table.m_HashVertexDeclaration = OpenGLHashVertexDeclaration;
         fn_table.m_DrawElements = OpenGLDrawElements;
         fn_table.m_Draw = OpenGLDraw;
         fn_table.m_NewVertexProgram = OpenGLNewVertexProgram;

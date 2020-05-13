@@ -1,0 +1,3 @@
+material: "/mesh/mesh.material"
+vertices: "/mesh/triangle.buffer"
+primitive_type: PRIMITIVE_TRIANGLES

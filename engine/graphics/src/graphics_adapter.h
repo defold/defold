@@ -72,10 +72,12 @@ namespace dmGraphics
     typedef uint32_t (*GetMaxElementsIndicesFn)(HContext context);
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, VertexElement* element, uint32_t count);
     typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
+    typedef bool (*SetStreamOffsetFn)(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
     typedef void (*DeleteVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
     typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
     typedef void (*EnableVertexDeclarationProgramFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
+    typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
@@ -175,10 +177,12 @@ namespace dmGraphics
         GetMaxElementsIndicesFn m_GetMaxElementsIndices;
         NewVertexDeclarationFn m_NewVertexDeclaration;
         NewVertexDeclarationStrideFn m_NewVertexDeclarationStride;
+        SetStreamOffsetFn m_SetStreamOffset;
         DeleteVertexDeclarationFn m_DeleteVertexDeclaration;
         EnableVertexDeclarationFn m_EnableVertexDeclaration;
         EnableVertexDeclarationProgramFn m_EnableVertexDeclarationProgram;
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
+        HashVertexDeclarationFn m_HashVertexDeclaration;
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
         NewVertexProgramFn m_NewVertexProgram;
