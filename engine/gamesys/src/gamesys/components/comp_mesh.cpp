@@ -374,7 +374,7 @@ namespace dmGameSystem
             return;
         }
 
-        if (components != 3 || components != 2) {
+        if (!(components == 3 || components == 2)) {
             dmLogError("Rendering mesh components in world space is only supported for streams with 3 or 2 components, %s has %d components.", dmHashReverseSafe64(stream_id), components);
             return;
         }
