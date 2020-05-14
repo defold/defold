@@ -691,6 +691,12 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result Pause(HSoundInstance sound_instance, bool pause)
+    {
+        sound_instance->m_Playing = (uint8_t)!pause;
+        return RESULT_OK;
+    }
+
     uint32_t GetAndIncreasePlayCounter()
     {
     	if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)
@@ -727,7 +733,7 @@ namespace dmSound
                 }
                 break;
             case PARAMETER_SPEED:
-                sound_instance->m_Speed = dmMath::Max(0.1f, dmMath::Min((float)SOUND_MAX_SPEED, value.getX()));
+                sound_instance->m_Speed = dmMath::Max(0.0f, dmMath::Min((float)SOUND_MAX_SPEED, value.getX()));
                 break;
             default:
                 dmLogError("Invalid parameter: %d (%s)\n", parameter, GetSoundName(g_SoundSystem, sound_instance));
@@ -991,6 +997,10 @@ namespace dmSound
         SoundSystem* sound = g_SoundSystem;
 
         if (instance->m_Gain.IsZero()) {
+            return true;
+        }
+
+        if (instance->m_Speed == 0.0f) {
             return true;
         }
 

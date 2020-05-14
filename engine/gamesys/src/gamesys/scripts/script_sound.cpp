@@ -501,6 +501,45 @@ namespace dmGameSystem
         return 0;
     }
 
+    static bool CheckBoolean(lua_State* L, int index)
+    {
+        if ( lua_isboolean( L, index ) )
+            return lua_toboolean( L, index );
+
+        return luaL_error(L, "Argument %d must be a boolean", index);
+    }
+
+    /*# pause a playing a sound(s)
+     * Pause all active voices
+     *
+     * @name sound.pause
+     * @param url [type:string|hash|url] the sound that should pause
+     * @param pause [type:bool] true if the sound should pause
+     *
+     * @examples
+     *
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component pause all playing voices:
+     *
+     * ```lua
+     * sound.pause("#sound", true)
+     * ```
+     */
+    static int Sound_Pause(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmGameSystemDDF::PauseSound msg;
+        msg.m_Pause = CheckBoolean(L, 2);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        return 0;
+    }
+
     /*# set sound gain
      * Set gain on all active playing voices of a sound.
      *
@@ -589,6 +628,7 @@ namespace dmGameSystem
         {"is_phone_call_active", Sound_IsPhoneCallActive},
         {"play", Sound_Play},
         {"stop", Sound_Stop},
+        {"pause", Sound_Pause},
         {"set_gain", Sound_SetGain},
         {"set_pan", Sound_SetPan},
         {0, 0}

@@ -6,64 +6,13 @@
 * Stable - git branch: master
 
 ## Alpha
-Alpha channel is automatically released when [cr-editor-dev](http://ci.defold.com/builders/cr-editor-dev) is built on build bot.
+The alpha channel is automatically released for every successful push to dev.
 
 ## Beta
-Important: *Make sure your branches are up to date!*
+Beta beta channel is automatically released for e very successful push to beta.
 
- 1. If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender#releasing), which updates https://build-stage.defold.com
-
- 1. Make sure dev builds are green
-
-    Check the [Defold SDK Tests](https://github.com/defold/test-sdk) to test that the alpha release still works as expected
-
- 1. Make sure dev is up to date:
-
-        $ git checkout dev
-        $ git pull
-
- 1. Merge dev into beta;
-
-        $ git checkout beta
-        $ git pull
-        $ git merge dev
-
-    (The merge changed to a specific SHA1 commit of dev.)
-
- 1. Push to beta
-
-        $ git push
-
-    This will trigger the beta channel to be built on build bot.
-
- 1. Wait for [builds](https://github.com/defold/defold/actions) to finish, make sure they are green.
-
- 1. (Optional) Download and run beta:
-
-    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
-
-    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-win32.zip
-
-    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-linux.zip
-
-    The SHA1 can be found using `git log` on the beta branch.
-
- 1. (Optional) Verify new features and bug fixes.
-
- 1. (Optional) Verify dev mobile apps.
-
- 1. If everything is OK, time to release beta:
-
-    $ `./scripts/build.py release --channel=beta --branch=beta`
-
-    Important: *Make sure the SHA1 and channel is correct!*
-
- 1. Write release beta release notes (while CI builds the test apps)
-
- 1. Verify release by updating an old editor, OSX, Win and Linux.
-
- 1. Post beta release notes on the forum
-
+* If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
+* Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 
 ## Stable
 
@@ -101,12 +50,15 @@ Important: *Make sure your branches are up to date!*
 
  1. Tag the release in git:
 
+        $ git checkout master
         $ git tag -a X.Y.Z (same as version produced by the bump)
+
     Use tag message: Release X.Y.Z
     Add `-f` to force update the tag (in the case you need to amend an existing release for some reason).
 
         $ git push origin --tags
-    This will push the tags to github, which is then used later in the release step. Add `-f` to force update the tags.
+
+    This will push the tags to GitHub, which is then used later in the release step. Add `-f` to force update the tags.
 
 ### Publishing Stable Release
 
@@ -123,9 +75,17 @@ Important: *Make sure your branches are up to date!*
 
 1. [Generate](https://github.com/defold/defold.github.io) new API documentation and other documentation changes. From the `defold/defold.github.io` repo:
 
+        $ cd defold.github.io
         $ ./update.py --download refdoc
         $ git commit -am "Updated reference documentation to 1.2.xxx"
         $ git push
+
+1. Upload release artifacts to GitHub:
+
+        $ cd defold
+        $ git checkout master
+        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
+
 
 1. Merge `master` into dev
 
@@ -146,4 +106,4 @@ Important: *Make sure your branches are up to date!*
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-1. Post release notes on [forum.defold.com](https://forum.defold.com)
+1. Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)

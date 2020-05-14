@@ -90,7 +90,7 @@ Verify the compiler installation with
 
 #### Visual C++ 2019 Community
 
-[Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence. When installing, don't forget to select VC++ and the 'Windows 8.1 and windows phone' SDK. There is also an optional 3rd party git client.
+[Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence. When installing, select the "Desktop Development with C++" workload. There is also an optional 3rd party git client.
 
 #### MSYS/MinGW
 
@@ -144,8 +144,8 @@ Chocolatey is another package installer that will help install various helper to
 
 ### Command Prompt
 
-It's useful to modify your command prompt to show the statuss of the repo you're in.
-E.g. it makes it easier to keep the git beanches apart.
+It's useful to modify your command prompt to show the status of the repo you're in.
+E.g. it makes it easier to keep the git branches apart.
 
 You do this by editing the `PS1` variable. Put it in the recommended config for your system (e.g. `.profile` or `.bashrc`)
 Here's a very small improvement on the default prompt, whic shows you the time of the last command, as well as the current git branch name and its status:

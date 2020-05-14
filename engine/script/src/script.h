@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <dmsdk/script/script.h>
 
-#include <dlib/buffer.h>
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>

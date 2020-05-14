@@ -12,3 +12,5 @@ width = 640
 [input]
 game_binding = /main/game.input_bindingc
 
+[graphics]
+texture_profiles = /main/dummy.texture_profiles
