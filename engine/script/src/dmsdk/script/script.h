@@ -268,15 +268,7 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
-    /*# Lua wrapper for a dmBuffer::HBuffer
-     *
-     * Holds info about the buffer and who owns it.
-     *
-     * @struct
-     * @name dmScript::LuaHBuffer
-     * @member m_Buffer [type:dmBuffer::HBuffer]    The buffer
-     * @member m_UseLuaGC [type:bool]               If true, it will be garbage collected by Lua. If false, the C++ extension still owns the reference.
-     */
+
     enum LuaBufferOwnership
     {
         OWNER_C   = 0,
@@ -284,6 +276,15 @@ namespace dmScript
         OWNER_RES = 2,
     };
 
+    /*# Lua wrapper for a dmBuffer::HBuffer
+     *
+     * Holds info about the buffer and who owns it.
+     *
+     * @struct
+     * @name dmScript::LuaHBuffer
+     * @member m_Buffer [type:dmBuffer::HBuffer]            The buffer (or resource)
+     * @member m_Owner  [type:dmScript::LuaBufferOwnership] What ownership the pointer has
+     */
     struct LuaHBuffer
     {
         union {
@@ -324,14 +325,14 @@ namespace dmScript
      * How to push a buffer and give Lua ownership of the buffer (GC)
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, true };
+     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_LUA };
      * PushBuffer(L, luabuf);
      * ```
      *
      * How to push a buffer and keep ownership in C++
      *
      * ```cpp
-     * dmScript::LuaHBuffer luabuf = { buffer, false };
+     * dmScript::LuaHBuffer luabuf = { buffer, dmScript::OWNER_C };
      * PushBuffer(L, luabuf);
      * ```
      */
