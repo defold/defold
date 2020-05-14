@@ -367,6 +367,8 @@ namespace dmGraphics
             m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
             m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
             m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+            m_UseValidationLayers     = params.m_UseValidationLayers;
+            m_RenderDocSupport        = params.m_RenderDocSupport;
             m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
             m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
             m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
@@ -437,7 +439,9 @@ namespace dmGraphics
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
-        uint32_t                                               : 26;
+        uint32_t                        m_UseValidationLayers  : 1;
+        uint32_t                        m_RenderDocSupport     : 1;
+        uint32_t                                               : 24;
     };
 
     // Implemented in graphics_vulkan_context.cpp
@@ -548,7 +552,7 @@ namespace dmGraphics
     // Implemented per supported platform
 
     const char** GetExtensionNames(uint16_t* num_extensions);
-    const char** GetValidationLayers(uint16_t* num_layers);
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);

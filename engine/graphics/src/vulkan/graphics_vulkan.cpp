@@ -826,7 +826,7 @@ namespace dmGraphics
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
         uint16_t validation_layers_count;
-        const char** validation_layers = GetValidationLayers(&validation_layers_count);
+        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers, context->m_RenderDocSupport);
 
         if (selected_device == NULL)
         {
@@ -943,7 +943,7 @@ bail:
             uint16_t extension_names_count;
             const char** extension_names = GetExtensionNames(&extension_names_count);
             uint16_t validation_layers_count;
-            const char** validation_layers = GetValidationLayers(&validation_layers_count);
+            const char** validation_layers = GetValidationLayers(&validation_layers_count, params.m_UseValidationLayers, params.m_RenderDocSupport);
             uint16_t validation_layers_ext_count;
             const char** validation_layers_ext = GetValidationLayersExt(&validation_layers_ext_count);
 
