@@ -87,15 +87,34 @@
   (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
     (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
-(defn- validate-stream-id [_node-id label vertices-resource stream-id stream-ids]
-  (when (and vertices-resource (not-empty stream-id))
-    (validation/prop-error :fatal _node-id label validation/prop-stream-missing? stream-id stream-ids)))
+(defn- prop-stream-id-error-message [stream-id stream-ids vertex-space prop-kw]
+  (when (seq stream-ids)
+    (if (str/blank? stream-id)
+      (when (= :vertex-space-world vertex-space)
+        (let [prop-name (validation/keyword->name prop-kw)]
+          (format "'%s' must be specified when using a material with a world-space 'Vertex Space' setting" prop-name)))
+      (when (not-any? #(= stream-id %) stream-ids)
+        (format "Stream '%s' could not be found in the specified buffer" stream-id)))))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets material vertices position-stream normal-stream stream-ids]
+(defn- validate-stream-id [_node-id prop-kw stream-id stream-ids vertices-resource vertex-space]
+  (when (some? vertices-resource)
+    (validation/prop-error :fatal _node-id prop-kw prop-stream-id-error-message stream-id stream-ids vertex-space prop-kw)))
+
+(defn position-stream-name? [stream-name specified-position-stream-name]
+  (if-not (str/blank? specified-position-stream-name)
+    (= stream-name specified-position-stream-name)
+    (= stream-name "position")))
+
+(defn normal-stream-name? [stream-name specified-normal-stream-name]
+  (if-not (str/blank? specified-normal-stream-name)
+    (= stream-name specified-normal-stream-name)
+    (= stream-name "normal")))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
   (or (some->> [(prop-resource-error :fatal _node-id :material material "Material")
                 (prop-resource-error :fatal _node-id :vertices vertices "Vertices")
-                (validate-stream-id _node-id :position-stream vertices position-stream stream-ids)
-                (validate-stream-id _node-id :normal-stream vertices normal-stream stream-ids)]
+                (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)
+                (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)]
                (filterv some?)
                not-empty
                g/error-aggregate)
@@ -298,7 +317,7 @@
                                 :passes [pass/outline]}}]})))
 
 (g/defnk produce-aabb [streams position-stream]
-  (if-some [{:keys [count data]} (util/first-where #(= position-stream (:name %)) streams)]
+  (if-some [{:keys [count data]} (util/first-where #(position-stream-name? (:name %) position-stream) streams)]
     (if (empty? data)
       geom/empty-bounding-box
       (let [[min-p max-p]
@@ -379,13 +398,13 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType))))
 
   (property position-stream g/Str
-            (dynamic error (g/fnk [_node-id vertices stream-ids position-stream]
-                             (validate-stream-id _node-id :position-stream vertices position-stream stream-ids)))
+            (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids position-stream]
+                             (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
 
   (property normal-stream g/Str
-            (dynamic error (g/fnk [_node-id vertices stream-ids normal-stream]
-                             (validate-stream-id _node-id :normal-stream vertices normal-stream stream-ids)))
+            (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids normal-stream]
+                             (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
 
   (input stream-ids g/Any)
@@ -529,12 +548,10 @@
           array-streams
           (map (fn [{:keys [name] :as array-stream} scratch-array]
                  (cond
-                   (and (not-empty position-stream-name)
-                        (= name position-stream-name))
+                   (position-stream-name? name position-stream-name)
                    (transform-array-stream! :point array-stream scratch-array world-transform)
 
-                   (and (not-empty normal-stream-name)
-                        (= name normal-stream-name))
+                   (normal-stream-name? name normal-stream-name)
                    (let [normal-transform (world-transform->normal-transform world-transform)]
                      (transform-array-stream! :normal array-stream scratch-array normal-transform))
 
