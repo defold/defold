@@ -1,0 +1,3 @@
+material: "/builtins/materials/model.material"
+vertices: "/buffer/no_data.buffer"
+primitive_type: PRIMITIVE_TRIANGLES

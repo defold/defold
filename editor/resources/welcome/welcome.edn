@@ -24,6 +24,14 @@
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "Native Extension"
+                             :description "This template contains the basic setup if you want to start creating a native extension."
+                             :image "extension.svg"
+                             :duration "Long"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/template-native-extension/archive/master.zip"
+                             :skip-root? true}
+
                             {:name "Basic 3D project"
                              :description "This template contains a basic setup for doing 3D rendering."
                              :image "3d.svg"

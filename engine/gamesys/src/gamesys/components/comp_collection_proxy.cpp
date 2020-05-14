@@ -45,6 +45,7 @@ namespace dmGameSystem
         uint32_t                        m_ComponentIndex : 16;
         uint32_t                        m_Initialized : 1;
         uint32_t                        m_Enabled : 1;
+        uint32_t                        m_DelayedEnable : 1;
         uint32_t                        m_Unloaded : 1;
         uint32_t                        m_AddedToUpdate : 1;
 
@@ -231,6 +232,11 @@ namespace dmGameSystem
             }
             if (proxy->m_Collection != 0)
             {
+                if (proxy->m_DelayedEnable != proxy->m_Enabled)
+                {
+                    proxy->m_Enabled = proxy->m_DelayedEnable;
+                }
+
                 if (proxy->m_Enabled)
                 {
                     dmGameObject::UpdateContext uc;
@@ -412,6 +418,7 @@ namespace dmGameSystem
                 proxy->m_Collection = 0;
                 proxy->m_Initialized = 0;
                 proxy->m_Enabled = 0;
+                proxy->m_DelayedEnable = 0;
                 proxy->m_Unloaded = 1;
                 proxy->m_Unloader = params.m_Message->m_Sender;
             }
@@ -455,9 +462,10 @@ namespace dmGameSystem
         {
             if (proxy->m_Collection != 0)
             {
-                if (proxy->m_Enabled == 0)
+                if (proxy->m_Enabled == 0 && proxy->m_DelayedEnable == 0)
                 {
-                    proxy->m_Enabled = 1;
+                    proxy->m_DelayedEnable = 1;
+
                     if (proxy->m_Initialized == 0)
                     {
                         dmGameObject::Init(proxy->m_Collection);
@@ -476,9 +484,9 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
-            if (proxy->m_Enabled == 1)
+            if (proxy->m_Enabled == 1 && proxy->m_DelayedEnable == 1)
             {
-                proxy->m_Enabled = 0;
+                proxy->m_DelayedEnable = 0;
             }
             else
             {
