@@ -1,1 +1,8 @@
 # Settings: Derived from src/engine/wscript, debug target
+
+platforms:
+
+  arm64-nx64:
+    context:
+        excludeObjectFiles: ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/vulkan.nss"]
+        objectFiles:        ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/vulkanOpenGlDebug.nss"]
