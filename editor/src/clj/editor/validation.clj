@@ -68,10 +68,6 @@
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))
 
-(defn prop-stream-missing? [stream stream-ids]
-  (when (and stream-ids (not-any? #(= stream %) stream-ids))
-    (format "Stream '%s' could not be found in the specified buffer" stream)))
-
 (defn prop-outside-range? [[min max] v name]
   (let [tmpl (if (integer? min)
                "'%s' must be between %d and %d"
