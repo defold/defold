@@ -43,7 +43,7 @@ static void TestEngineDestroy(dmEngine::HEngine engine)
         g_PostRun(engine, g_TextCtx);
 }
 
-static dmEngineUpdateResult TestEngineUpdate(dmEngine::HEngine engine)
+static dmEngine::UpdateResult TestEngineUpdate(dmEngine::HEngine engine)
 {
     return dmEngineUpdate(engine);
 }
