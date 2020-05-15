@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [integration.test-util :as test-util]
             [internal.node :as in]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [enable-performance-tests with-clean-system]]))
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
@@ -28,17 +28,18 @@
      (let [end# (clock)]
        (/ (- end# start#) ~(second binding)))))
 
-(deftest gui-template-outline-perf
-  (binding [in/*check-schemas* false]
-    (testing "drag-pull-outline"
-      (test-util/with-loaded-project
-        (let [node-id (test-util/resource-node project "/gui/scene.gui")
-              box (gui-node node-id "sub_scene/sub_box")]
-          ;; WARM-UP
-          (dotimes [i 50]
-            (drag-pull-outline! node-id box i))
-          (System/gc)
-          ;; GO!
-          (let [elapsed (measure [i 20]
-                          (drag-pull-outline! node-id box i))]
-            (is (< elapsed 14))))))))
+(when enable-performance-tests
+  (deftest gui-template-outline-perf
+    (binding [in/*check-schemas* false]
+      (testing "drag-pull-outline"
+        (test-util/with-loaded-project
+          (let [node-id (test-util/resource-node project "/gui/scene.gui")
+                box (gui-node node-id "sub_scene/sub_box")]
+            ;; WARM-UP
+            (dotimes [i 50]
+              (drag-pull-outline! node-id box i))
+            (System/gc)
+            ;; GO!
+            (let [elapsed (measure [i 20]
+                                   (drag-pull-outline! node-id box i))]
+              (is (< elapsed 14)))))))))
