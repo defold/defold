@@ -18,6 +18,7 @@ env:
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
+  DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
 
 
 jobs:
