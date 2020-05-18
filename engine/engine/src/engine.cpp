@@ -17,6 +17,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/http_client.h>
+#include <dlib/buffer.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
@@ -228,6 +229,8 @@ namespace dmEngine
         m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
+        m_MeshContext.m_RenderContext = 0x0;
+        m_MeshContext.m_MaxMeshCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -512,6 +515,12 @@ namespace dmEngine
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
+
+        // The default is 1, and the only way to know if the property is manually set, is if it's 0
+        // since the values are always written to the project file
+        if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1))
+            verify_graphics_calls = false;
+
         bool renderdoc_support = false;
         bool use_validation_layers = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
@@ -916,6 +925,10 @@ namespace dmEngine
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = max_model_count;
 
+        engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_MeshContext.m_Factory       = engine->m_Factory;
+        engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
+
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
@@ -927,6 +940,8 @@ namespace dmEngine
         engine->m_TilemapContext.m_RenderContext    = engine->m_RenderContext;
         engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
         engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
+
+        engine->m_SoundContext.m_MaxComponentCount  = dmConfigFile::GetInt(engine->m_Config, "sound.max_component_count", 32);
 
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
@@ -962,7 +977,8 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
+                                                                                                &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
+                                                                                                &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 

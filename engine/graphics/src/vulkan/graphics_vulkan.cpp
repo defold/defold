@@ -1536,6 +1536,15 @@ bail:
         return vd;
     }
 
+    bool VulkanSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index >= vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
+    }
+
     static void VulkanDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
     {
         delete (VertexDeclaration*) vertex_declaration;
@@ -1873,6 +1882,19 @@ bail:
         VkBuffer vk_vertex_buffer             = vertex_buffer->m_Handle.m_Buffer;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
+    }
+
+    void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    {
+        uint16_t stream_count = vertex_declaration->m_StreamCount;
+        for (int i = 0; i < stream_count; ++i)
+        {
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
+            dmHashUpdateBuffer32(state, &stream.m_Location, sizeof(stream.m_Location));
+            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Format, sizeof(stream.m_Format));
+        }
     }
 
     static void VulkanDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -3265,10 +3287,12 @@ bail:
         fn_table.m_IsIndexBufferFormatSupported = VulkanIsIndexBufferFormatSupported;
         fn_table.m_NewVertexDeclaration = VulkanNewVertexDeclaration;
         fn_table.m_NewVertexDeclarationStride = VulkanNewVertexDeclarationStride;
+        fn_table.m_SetStreamOffset = VulkanSetStreamOffset;
         fn_table.m_DeleteVertexDeclaration = VulkanDeleteVertexDeclaration;
         fn_table.m_EnableVertexDeclaration = VulkanEnableVertexDeclaration;
         fn_table.m_EnableVertexDeclarationProgram = VulkanEnableVertexDeclarationProgram;
         fn_table.m_DisableVertexDeclaration = VulkanDisableVertexDeclaration;
+        fn_table.m_HashVertexDeclaration = VulkanHashVertexDeclaration;
         fn_table.m_DrawElements = VulkanDrawElements;
         fn_table.m_Draw = VulkanDraw;
         fn_table.m_NewVertexProgram = VulkanNewVertexProgram;

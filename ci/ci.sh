@@ -3,6 +3,8 @@ set -e
 
 OLDPATH=$PATH
 
+export DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS=1
+
 echo -e "\n\n\n\n\n-----------------\nci.sh started with args: $@"
 echo "Saving environment variables to file"
 ./scripts/build.py --save-env-path=ci/env.sh save_env

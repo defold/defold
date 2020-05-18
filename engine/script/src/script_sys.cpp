@@ -412,14 +412,15 @@ union SaveLoadBuffer
      *
      * @name sys.open_url
      * @param url [type:string] url to open
-     * @param attributes [type:table] table with attributes
+     * @param [attributes] [type:table] table with attributes
      *
-     * - [type:string] [icon:html5] `target`: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * _blank - URL is loaded into a new window, or tab. This is default
-     * _parent - URL is loaded into the parent frame
-     * _self - URL replaces the current page
-     * _top - URL replaces any framesets that may be loaded
-     * name - The name of the window (Note: the name does not specify the title of the new window)
+     * `target`
+     * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
+     * - `_self` - URL replaces the current page. This is default.
+     * - `_blank` - URL is loaded into a new window, or tab.
+     * - `_parent` - URL is loaded into the parent frame.
+     * - `_top` - URL replaces any framesets that may be loaded.
+     * - `name` - The name of the window (Note: the name does not specify the title of the new window).
      *
      * @return success [type:boolean] a boolean indicating if the url could be opened or not
      * @examples

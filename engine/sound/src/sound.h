@@ -108,6 +108,7 @@ namespace dmSound
 
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
+    Result Pause(HSoundInstance sound_instance, bool pause);
     bool IsPlaying(HSoundInstance sound_instance);
     uint32_t GetAndIncreasePlayCounter();
 

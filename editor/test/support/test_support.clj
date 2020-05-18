@@ -4,6 +4,10 @@
             [clojure.java.io :as io]
             [internal.system :as is]))
 
+(def enable-performance-tests
+  (nil? (get (System/getenv)
+             "DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS")))
+
 (defmacro with-clean-system
   [& forms]
   (let [configuration (if (map? (first forms)) (first forms) {:cache-size 1000})

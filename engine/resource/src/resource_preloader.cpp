@@ -584,7 +584,7 @@ namespace dmResource
         bool destroy = false;
 
         // If someone else has loaded the resource already, use that one and mark our loaded resource for destruction
-        SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+        SResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
         if (rd)
         {
             // Use already loaded resource
@@ -816,7 +816,7 @@ namespace dmResource
         }
 
         // It might have been loaded by unhinted resource Gets or loaded by a different preloader, just grab & bump refcount
-        SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+        SResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
         if (rd)
         {
             rd->m_ReferenceCount++;

@@ -153,6 +153,8 @@ public class GameObjectBuilder extends Builder<Void> {
 
     static String[][] extensionMapping = new String[][] {
         {".camera", ".camerac"},
+        {".buffer", ".bufferc"},
+        {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
         {".collisionobject", ".collisionobjectc"},
         {".emitter", ".emitterc"},
