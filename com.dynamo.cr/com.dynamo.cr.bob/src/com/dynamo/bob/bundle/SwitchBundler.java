@@ -151,10 +151,20 @@ public class SwitchBundler implements IBundler {
         tmpResourceDir.mkdirs();
 
         // The application meta file refers to this relative path, next to the meta file itself
+        // (Needed since we might refer to a file within a zip file)
         IResource iconResource = helper.getResource("switch", "icon");
 
         File icon = new File(tmpResourceDir, "icon.bmp");
         helper.writeResourceToFile(iconResource, icon);
+
+        // The application meta file refers to this relative path, next to the meta file itself
+
+        String legalPath = projectProperties.getStringValue("switch", "legal_path", "");
+        if (!legalPath.isEmpty()) {
+            IResource legalResource = helper.getResource("switch", "legal_path");
+            File legal = new File(tmpResourceDir, "legal.zip");
+            helper.writeResourceToFile(legalResource, legal);
+        }
 
         // Only needed during the bundling
         helper.copyOrWriteManifestFile(architectures.get(0), tmpResourceDir);

@@ -921,7 +921,12 @@
    :path ["switch" "cache_storage_size"]}
   {:type :integer,
    :default 1048576,
-   :path ["switch" "cache_storage_journal_size"]}]
+   :path ["switch" "cache_storage_journal_size"]},
+  {:type :resource,
+   :filter "zip",
+   :help "The path to the legal zip file",
+   :default "",
+   :path ["switch" "legal_path"]}]
 
  :categories
  {"sound" {:help "Sound related settings"},
