@@ -90,6 +90,7 @@ namespace dmBuffer
         RESULT_STREAM_MISSING,
         RESULT_STREAM_TYPE_MISMATCH,
         RESULT_STREAM_COUNT_MISMATCH,
+        RESULT_STREAM_MISMATCH,
     };
 
     /*# StreamDeclaration struct
@@ -152,6 +153,28 @@ namespace dmBuffer
      */
     Result Create(uint32_t count, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
+    /*# copy a Buffer
+     *
+     * Copies the data from one buffer to another buffer. The stream declaration needs to be the same in both buffers.
+     *
+     * @name dmBuffer::Copy
+     * @param dst_buffer_handle [type:dmBuffer::HBuffer*] Pointer to HBuffer from where to copy buffer data.
+     * @param src_buffer_handle [type:dmBuffer::HBuffer*] Pointer to HBuffer where to copy the buffer data.
+     * @return result [type:dmBuffer::Result] BUFFER_OK if buffer was copied successfully
+     * @examples
+     *
+     * ```cpp
+     * dmBuffer::Result r = dmBuffer::Copy(buffer_a, buffer_b);
+     *
+     * if (r == dmBuffer::RESULT_OK) {
+     *     // success
+     * } else {
+     *     // handle error
+     * }
+     * ```
+     */
+    Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle);
+
     /*# destroy Buffer.
      *
      * Destroys a HBuffer and it's streams.
@@ -177,7 +200,7 @@ namespace dmBuffer
     void Destroy(HBuffer buffer);
 
     /*# check buffer handle
-     * 
+     *
      * Checks if a handle is still valid
      * @name dmBuffer::IsBufferValid
      * @param buffer [type:dmBuffer::HBuffer] The buffer
@@ -299,7 +322,7 @@ namespace dmBuffer
     Result GetCount(HBuffer buffer, uint32_t* count);
 
     /*# get stream type and type count
-     * 
+     *
      * Gets the stream type
      *
      * @name dmBuffer::GetStreamType
@@ -322,7 +345,7 @@ namespace dmBuffer
     uint32_t GetSizeForValueType(dmBuffer::ValueType type);
 
     /*# result to string
-     * 
+     *
      * Converts result to string
      *
      * @name dmBuffer::GetResultString
@@ -332,7 +355,7 @@ namespace dmBuffer
     const char* GetResultString(Result result);
 
     /*# value type to string
-     * 
+     *
      * Converts a value type to string
      *
      * @name dmBuffer::GetValueTypeString

@@ -80,8 +80,6 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
-    dmHID::Init(g_HidContext);
     dmGraphics::Initialize();
 
     dmGraphics::ContextParams graphics_context_params;
@@ -104,7 +102,10 @@ int main(int argc, char *argv[])
     window_params.m_Fullscreen = 0;
     window_params.m_PrintDeviceInfo = false;
     window_params.m_HighDPI = 0;
-    dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(graphics_context, &window_params);
+    (void)dmGraphics::OpenWindow(graphics_context, &window_params);
+
+    g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::Init(g_HidContext);
 
 retry:
     uint32_t gamepad_count = 0;

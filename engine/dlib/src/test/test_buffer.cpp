@@ -94,19 +94,11 @@ TEST_F(BufferTest, InvalidAllocation)
         {dmHashString64("dummy3"), dmBuffer::VALUE_TYPE_UINT8, 0}
     };
 
-    // Empty declaration, zero elements
-    dmBuffer::Result r = dmBuffer::Create(0, streams_decl, 0, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0U, buffer);
+    dmBuffer::Result r;
 
     // Empty declaration, 1 element
     r = dmBuffer::Create(1, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0U, buffer);
-
-    // Valid declaration, zero elements
-    r = dmBuffer::Create(0, streams_decl, 2, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
     ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but invalid valuetype count (see "dummy3" above)

@@ -25,3 +25,17 @@ cp build/default/spine/prebuilt.rigscenec ../spine/prebuilt.prebuilt_rigscenec
 cp build/default/spine/prebuilt.skeletonc ../spine/prebuilt.prebuilt_skeletonc
 cp build/default/spine/prebuilt.texturec ../spine/prebuilt.prebuilt_texturec
 cp build/default/spine/prebuilt.texturesetc ../spine/prebuilt.prebuilt_texturesetc
+
+cd ..
+
+# Move to mesh project directory
+cd mesh_prebuilt_project/
+
+# Build project using bob-light
+java -jar $DYNAMO_HOME/share/java/bob-light.jar build
+
+# Copy and rename prebuilt files to test folder
+cp build/default/mesh/no_data.bufferc ../mesh/no_data.prebuilt_bufferc
+cp build/default/mesh/no_data.meshc ../mesh/no_data.prebuilt_meshc
+cp build/default/mesh/triangle.bufferc ../mesh/triangle.prebuilt_bufferc
+cp build/default/mesh/triangle.meshc ../mesh/triangle.prebuilt_meshc

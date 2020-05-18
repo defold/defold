@@ -419,7 +419,7 @@ static int convertMacKeyCode( unsigned int macKeyCode )
                 [super keyDown:event];
             }
         }
-        else
+        else if( code != GLFW_KEY_LEFT && code != GLFW_KEY_RIGHT && code != GLFW_KEY_UP && code != GLFW_KEY_DOWN )
         {
             characters = [event characters];
             length = [characters length];
