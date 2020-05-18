@@ -433,6 +433,30 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
+/*# get resource buffer
+ * gets the buffer from a resource
+ *
+ * @name resource.get_buffer
+ *
+ * @param path [type:hash|string] The path to the resource
+ * @return buffer [type:buffer] The resource buffer
+ *
+ * @examples
+ * How to get the data from a buffer
+ *
+ * ```lua
+ * function init(self)
+ *
+ *     local res_path = go.get("#mesh", "vertices")
+ *     local buf = resource.get_buffer(res_path)
+ *     local stream_positions = buffer.get_stream(self.buffer, "position")
+ *
+ *     for i=1,#stream_positions do
+ *         print(i, stream_positions[i])
+ *     end
+ * end
+ * ```
+ */
 static int GetBuffer(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -466,7 +490,50 @@ static int GetBuffer(lua_State* L)
     return 1;
 }
 
-
+/*# set resource buffer
+ * sets the buffer of a resource
+ *
+ * @name resource.set_buffer
+ *
+ * @param path [type:hash|string] The path to the resource
+ * @param buffer [type:buffer] The resource buffer
+ *
+ * @examples
+ * How to set the data from a buffer
+ *
+ * ```lua
+ * local function fill_stream(stream, verts)
+ *     for key, value in ipairs(verts) do
+ *         stream[key] = verts[key]
+ *     end
+ * end
+ *
+ * function init(self)
+ *
+ *     local res_path = go.get("#mesh", "vertices")
+ *
+ *     local positions = {
+ *          1, -1, 0,
+ *          1,  1, 0,
+ *          -1, -1, 0
+ *     }
+ *
+ *     local num_verts = #positions / 3
+ *
+ *     -- create a new buffer
+ *     local buf = buffer.create(num_verts, {
+ *         { name = hash("position"), type=buffer.VALUE_TYPE_FLOAT32, count = 3 }
+ *     })
+ *
+ *     local buf = resource.get_buffer(res_path)
+ *     local stream_positions = buffer.get_stream(buf, "position")
+ *
+ *     fill_stream(stream_positions, positions)
+ *
+ *     resource.set_buffer(res_path, buf)
+ * end
+ * ```
+ */
 static int SetBuffer(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -503,12 +570,12 @@ static int SetBuffer(lua_State* L)
     uint32_t dst_count = 0;
     dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
     if (br != dmBuffer::RESULT_OK) {
-        return luaL_error(L, "Unable to get buffer size for %s (%d).", dmHashReverseSafe64(path_hash), br);
+        return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
     }
     uint32_t src_count = 0;
     br = dmBuffer::GetCount(src_buffer, &src_count);
     if (br != dmBuffer::RESULT_OK) {
-        return luaL_error(L, "Unable to get buffer size for source buffer (%d).", br);
+        return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
     }
 
     bool new_buffer_needed = dst_count != src_count;
@@ -530,7 +597,7 @@ static int SetBuffer(lua_State* L)
         free(streams_decl);
 
         if (br != dmBuffer::RESULT_OK) {
-            return luaL_error(L, "Unable to create copy buffer (%d).", r);
+            return luaL_error(L, "Unable to create copy buffer: %s (%d).", dmBuffer::GetResultString(br), br);
         }
     }
 
@@ -540,7 +607,7 @@ static int SetBuffer(lua_State* L)
         if (new_buffer_needed) {
             dmBuffer::Destroy(dst_buffer);
         }
-        return luaL_error(L, "Could not copy data from buffer (%d).", br);
+        return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
     }
 
     // If we created a new buffer, make sure to destroy the old one.
