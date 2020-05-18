@@ -12,7 +12,7 @@ namespace dmEngine
         char** argv = params->m_Argv;
         int exit_code = 0;
         void* engine = 0;
-        dmEngineUpdateResult result = RESULT_OK;
+        dmEngine::UpdateResult result = RESULT_OK;
         while (RESULT_OK == result)
         {
             if (engine == 0)

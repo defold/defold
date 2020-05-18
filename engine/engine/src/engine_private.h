@@ -180,7 +180,7 @@ namespace dmEngine
     // Destroys the engine instance after finalizing each system
     typedef void (*EngineDestroy)(void* engine);
     // Steps the engine 1 tick
-    typedef dmEngineUpdateResult (*EngineUpdate)(void* engine);
+    typedef dmEngine::UpdateResult (*EngineUpdate)(void* engine);
     // Called before the destroy function
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 

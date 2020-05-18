@@ -2,7 +2,7 @@
 import os
 from waf_dynamo import platform_supports_feature
 from BuildUtility import create_build_utility
-import Options  
+import Options
 
 def build(bld):
     build_util = create_build_utility(bld.env)
@@ -28,7 +28,7 @@ def build(bld):
     web_libs = ['library_glfw.js', 'library_sys.js']
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     includes = ['../%s' % build_util.get_target_os(), '..', '.'],
-                    uselib = 'TESTMAIN DLIB CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT APP'.split() + graphics_lib,
+                    uselib = 'TESTMAIN TESTAPP DLIB CARES PLATFORM PLATFORM_SOCKET LUA SCRIPT APP'.split() + graphics_lib,
                     uselib_local = 'hid',
                     web_libs = web_libs,
                     exported_symbols = exported_symbols,

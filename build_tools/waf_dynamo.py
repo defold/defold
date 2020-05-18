@@ -1768,8 +1768,17 @@ def detect(conf):
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
+    if platform in ('x86_64-darwin',):
+        conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
+    elif platform in ('armv7-android', 'arm64-android'):
+        conf.env['STATICLIB_TESTAPP'] += ['android']
+    elif platform in ('x86_64-linux',):
+        conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
+    elif platform in ('win32', 'x86_64-win32'):
+        conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
+
     if platform in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 
 
 def configure(conf):
