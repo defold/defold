@@ -408,6 +408,9 @@ namespace dmBuffer
                 src_stream.m_ValueType != dst_stream.m_ValueType ||
                 src_stream.m_ValueCount != dst_stream.m_ValueCount)
             {
+                dmLogError("Stream mismatch: src(name: %s, offset: %u, type: %s, count: %u) != dst(name: %s, offset: %u, type: %s, count: %u)",
+                    dmHashReverseSafe64(src_stream.m_Name), src_stream.m_Offset, GetValueTypeString((dmBuffer::ValueType)src_stream.m_ValueType), src_stream.m_ValueCount,
+                    dmHashReverseSafe64(dst_stream.m_Name), dst_stream.m_Offset, GetValueTypeString((dmBuffer::ValueType)dst_stream.m_ValueType), dst_stream.m_ValueCount);
                 return RESULT_STREAM_MISMATCH;
             }
         }
