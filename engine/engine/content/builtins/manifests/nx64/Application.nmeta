@@ -29,6 +29,10 @@
 
         <UserAccountSaveDataSize>{{ switch.user_account_save_data_size }}</UserAccountSaveDataSize>
         <UserAccountSaveDataJournalSize>{{ switch.user_account_save_data_journal_size }}</UserAccountSaveDataJournalSize>
+    
+    {{#SWITCH_HAS_LEGAL_PATH}}
+        <LegalInformationFilePath>./legal.zip</LegalInformationFilePath>
+    {{/SWITCH_HAS_LEGAL_PATH}}
 
     {{#switch.cache_storage_enabled}}
         <CacheStorageSize>{{ switch.cache_storage_size }}</CacheStorageSize>
