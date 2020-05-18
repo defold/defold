@@ -295,7 +295,10 @@ namespace dmScript
         /// OWNER_C   - m_Buffer is owned by C side, should not be destroyed when GCed
         /// OWNER_LUA - m_Buffer is owned by Lua side, will be destroyed when GCed
         /// OWNER_RES - m_Buffer not used, has a reference to a buffer resource instead. m_BufferRes is owned by C side, will be released when GCed
-        LuaBufferOwnership  m_Owner;
+        union {
+            bool                m_UseLuaGC; // Deprecated
+            LuaBufferOwnership  m_Owner;
+        };
     };
 
     /*# check if the value is a dmScript::LuaHBuffer
