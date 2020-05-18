@@ -72,6 +72,8 @@
             <proto dir="../../engine/gamesys/proto/" file="texture_set_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="spine_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="mesh_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="buffer_ddf.proto"/>
             <proto dir="../../engine/rig/proto/rig" file="rig_ddf.proto"/>
             <proto dir="../../engine/graphics/proto/graphics" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>
@@ -265,14 +267,11 @@
         </jar>
         <copy todir="${bob.dir}/libexec/arm64-nx64" overwrite="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.3/Libraries/NX-NXFP2-a64">
-                <include name="Develop/nnrtld.nso"/>
-                <include name="Develop/nnSdkEn.nso"/>
-                <include name="Develop/vulkan.nso"/>
-                <include name="Develop/opengl.nso"/>
                 <include name="Release/nnrtld.nso"/>
                 <include name="Release/nnSdkEn.nso"/>
                 <include name="Release/vulkan.nso"/>
                 <include name="Release/opengl.nso"/>
+                <include name="Release/vulkanOpenGlDebug.nso"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.3">
                 <include name="Resources/SpecFiles/Application.desc"/>

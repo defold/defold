@@ -17,6 +17,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/http_client.h>
+#include <dlib/buffer.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
@@ -228,6 +229,8 @@ namespace dmEngine
         m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
+        m_MeshContext.m_RenderContext = 0x0;
+        m_MeshContext.m_MaxMeshCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -375,19 +378,18 @@ namespace dmEngine
             char* paths[3];
             uint32_t count = 0;
 
-            bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+            const char* mountstr = "";
 #if defined(__NX__)
+            mountstr = "data:/";
             // there's no way to check for a named mount, and it will assert
             // So we'll only enter here if it's set on this platform
-            if (has_host_mount)
+            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
+                mountstr = "host:/";
 #endif
-            {
-                const char* mountstr = has_host_mount ? "host:/" : "";
-                dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
-                dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
-                paths[count++] = p1;
-                paths[count++] = p2;
-            }
+            dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
+            dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
+            paths[count++] = p1;
+            paths[count++] = p2;
 
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
@@ -513,9 +515,17 @@ namespace dmEngine
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
+
+        // The default is 1, and the only way to know if the property is manually set, is if it's 0
+        // since the values are always written to the project file
+        if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1))
+            verify_graphics_calls = false;
+
         bool renderdoc_support = false;
+        bool use_validation_layers = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         const char renderdoc_support_arg[] = "--renderdoc";
+        const char validation_layers_support_arg[] = "--use-validation-layers";
         for (int i = 0; i < argc; ++i)
         {
             const char* arg = argv[i];
@@ -533,6 +543,10 @@ namespace dmEngine
             else if (strncmp(renderdoc_support_arg, arg, sizeof(renderdoc_support_arg)-1) == 0)
             {
                 renderdoc_support = true;
+            }
+            else if (strncmp(validation_layers_support_arg, arg, sizeof(validation_layers_support_arg)-1) == 0)
+            {
+                use_validation_layers = true;
             }
         }
 
@@ -568,7 +582,9 @@ namespace dmEngine
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
         graphics_context_params.m_VerifyGraphicsCalls = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport = renderdoc_support;
+        graphics_context_params.m_RenderDocSupport = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+
+        graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
         graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
@@ -909,6 +925,10 @@ namespace dmEngine
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = max_model_count;
 
+        engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_MeshContext.m_Factory       = engine->m_Factory;
+        engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
+
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
@@ -920,6 +940,8 @@ namespace dmEngine
         engine->m_TilemapContext.m_RenderContext    = engine->m_RenderContext;
         engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
         engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
+
+        engine->m_SoundContext.m_MaxComponentCount  = dmConfigFile::GetInt(engine->m_Config, "sound.max_component_count", 32);
 
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
@@ -955,7 +977,8 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
+                                                                                                &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
+                                                                                                &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 

@@ -262,6 +262,12 @@ TEST_F(EngineTest, SpineIK)
     ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, BufferResources)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/buffer/buffer_resources.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
 #if !defined(__NX__) // until we've added suport for it
 TEST_F(EngineTest, MemCpuProfiler)
 {

@@ -833,6 +833,9 @@ public class BundleHelper {
         propertiesMap.get("switch").put("user_account_save_data_journal_size",   String.format("0x%016x", projectProperties.getIntValue("switch", "user_account_save_data_journal_size")));
         propertiesMap.get("switch").put("cache_storage_size",                    String.format("0x%016x", projectProperties.getIntValue("switch", "cache_storage_size")));
         propertiesMap.get("switch").put("cache_storage_journal_size",            String.format("0x%016x", projectProperties.getIntValue("switch", "cache_storage_journal_size")));
+
+        String legalPath = projectProperties.getStringValue("switch", "legal_path", "");
+        properties.put("SWITCH_HAS_LEGAL_PATH", !legalPath.isEmpty());
         return properties;
     }
 

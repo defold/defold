@@ -167,6 +167,7 @@
   {"atlas"       ["atlas" "tilesource"]
    "font"        "font"
    "material"    "material"
+   "buffer"      "buffer"
    "texture"     (conj image/exts "cubemap")
    "tile_source" "tilesource"})
 

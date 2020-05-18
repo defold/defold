@@ -105,12 +105,20 @@ public class SwitchBundler implements IBundler {
 
         Platform targetPlatform = architectures.get(0);
 
-        String libDir = isDebug ? "Develop" : "Release";
+        boolean use_renderdoc = projectProperties.getBooleanValue("graphics", "use_renderdoc", false);
+
+        // since this can essentially be controlled in two places (build.yml, and in bob with --variant=debug/release)
+        // we cannot be certain what libraries we linked with.
+        // For now It should suffice to use the release versions of the libraries
+        String libDir = "Release";
+
+        String vulkanLib = use_renderdoc ? "vulkanOpenGlDebug.nso" : "vulkan.nso";
+
 
         File mainSrc = platformToExeFileMap.get(targetPlatform);
         File nnrtldSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnrtld.nso"));
         File nnSdkEnSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnSdkEn.nso"));
-        File vulkanSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/vulkan.nso"));
+        File vulkanSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/" + vulkanLib));
         File openglSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/opengl.nso"));
         File applicationDesc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/Resources/SpecFiles/Application.desc"));
 
@@ -143,10 +151,20 @@ public class SwitchBundler implements IBundler {
         tmpResourceDir.mkdirs();
 
         // The application meta file refers to this relative path, next to the meta file itself
+        // (Needed since we might refer to a file within a zip file)
         IResource iconResource = helper.getResource("switch", "icon");
 
         File icon = new File(tmpResourceDir, "icon.bmp");
         helper.writeResourceToFile(iconResource, icon);
+
+        // The application meta file refers to this relative path, next to the meta file itself
+
+        String legalPath = projectProperties.getStringValue("switch", "legal_path", "");
+        if (!legalPath.isEmpty()) {
+            IResource legalResource = helper.getResource("switch", "legal_path");
+            File legal = new File(tmpResourceDir, "legal.zip");
+            helper.writeResourceToFile(legalResource, legal);
+        }
 
         // Only needed during the bundling
         helper.copyOrWriteManifestFile(architectures.get(0), tmpResourceDir);

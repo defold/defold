@@ -2344,7 +2344,12 @@ namespace dmScript
 
     Vectormath::Aos::Vector3* CheckVector3(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
+        Vectormath::Aos::Vector3* v = (Vectormath::Aos::Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
+        if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()))
+        {
+            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
+        }
+        return v;
     }
 
     void PushVector4(lua_State* L, const Vectormath::Aos::Vector4& v)
@@ -2357,7 +2362,12 @@ namespace dmScript
 
     Vectormath::Aos::Vector4* CheckVector4(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
+        Vectormath::Aos::Vector4* v = (Vectormath::Aos::Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
+        if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()) || isnan(v->getW()))
+        {
+            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
+        }
+        return v;
     }
 
     void PushQuat(lua_State* L, const Vectormath::Aos::Quat& q)
@@ -2370,7 +2380,12 @@ namespace dmScript
 
     Vectormath::Aos::Quat* CheckQuat(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
+        Vectormath::Aos::Quat* q = (Vectormath::Aos::Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
+        if (isnan(q->getX()) || isnan(q->getY()) || isnan(q->getZ()) || isnan(q->getW()))
+        {
+            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
+        }
+        return q;
     }
 
     void PushMatrix4(lua_State* L, const Vectormath::Aos::Matrix4& m)
@@ -2383,6 +2398,20 @@ namespace dmScript
 
     Vectormath::Aos::Matrix4* CheckMatrix4(lua_State* L, int index)
     {
-        return (Vectormath::Aos::Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
+        Vectormath::Aos::Matrix4* m = (Vectormath::Aos::Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
+        if (
+            isnan(m->getElem(0, 0)) || isnan(m->getElem(1, 0)) || isnan(m->getElem(2, 0)) || isnan(m->getElem(3, 0)) ||
+            isnan(m->getElem(0, 1)) || isnan(m->getElem(1, 1)) || isnan(m->getElem(2, 1)) || isnan(m->getElem(3, 1)) ||
+            isnan(m->getElem(0, 2)) || isnan(m->getElem(1, 2)) || isnan(m->getElem(2, 2)) || isnan(m->getElem(3, 2)) ||
+            isnan(m->getElem(0, 3)) || isnan(m->getElem(1, 3)) || isnan(m->getElem(2, 3)) || isnan(m->getElem(3, 3))
+        )
+        {
+            luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
+                m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
+                m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
+                m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
+                m->getElem(0, 3), m->getElem(1, 3), m->getElem(2, 3), m->getElem(3, 3));
+        }
+        return m;
     }
 }

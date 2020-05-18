@@ -406,8 +406,9 @@ namespace dmGraphics
         TextureFilter m_DefaultTextureMagFilter;
         uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
         uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;
-        uint8_t       : 6;
+        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t       : 5;
     };
 
     /** Creates a graphics context
@@ -593,10 +594,12 @@ namespace dmGraphics
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
+    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);

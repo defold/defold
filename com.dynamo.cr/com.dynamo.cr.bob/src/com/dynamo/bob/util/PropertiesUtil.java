@@ -110,6 +110,7 @@ public class PropertiesUtil {
         // This is not optimal, but arguably ok for this case.
         value = BuilderUtil.replaceExt(value, ".material", ".materialc");
         value = BuilderUtil.replaceExt(value, ".font", ".fontc");
+        value = BuilderUtil.replaceExt(value, ".buffer", ".bufferc");
         value = ProtoBuilders.replaceTextureName(value);
         value = ProtoBuilders.replaceTextureSetName(value);
         return value;

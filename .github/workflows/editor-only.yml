@@ -15,6 +15,7 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
+  DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
 
 
 jobs:
@@ -42,4 +43,8 @@ jobs:
       {
         name: 'Archive editor',
         run: 'ci/ci.sh archive-editor'
+      },
+      {
+        name: 'Release editor',
+        run: 'ci/ci.sh release'
       }]

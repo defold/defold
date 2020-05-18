@@ -32,12 +32,15 @@
 
 (defonce ^:private json-loaders (atom {}))
 
-(defn- read-then-close [reader]
+(defn- read-then-close [reader options]
   (with-open [pushback-reader (PushbackReader. reader)]
-    (json/read pushback-reader)))
+    (apply json/read pushback-reader options)))
 
-(def ^:private resource->json (comp read-then-close io/reader))
-(def ^:private lines->json (comp read-then-close data/lines-reader))
+(defn- resource->json [resource]
+  (read-then-close (io/reader resource) nil))
+
+(defn lines->json [lines & options]
+  (read-then-close (data/lines-reader lines) options))
 
 (defn invalid-json-error [node-id resource]
   (g/->error node-id nil :fatal nil
@@ -73,7 +76,7 @@
     (if (nil? load-fn)
       (make-code-editable project self resource (util/split-lines (slurp resource)))
       (let [content (try
-                      (read-then-close (InputStreamReader. (io/input-stream resource)))
+                      (read-then-close (InputStreamReader. (io/input-stream resource)) nil)
                       (catch Exception error
                         error))]
         (if (instance? Exception content)

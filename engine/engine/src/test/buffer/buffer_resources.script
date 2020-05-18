@@ -1,0 +1,107 @@
+go.property("res_no_data", resource.buffer("/buffer/no_data.buffer"))
+go.property("res_triangle", resource.buffer("/buffer/triangle.buffer"))
+go.property("res_all_types", resource.buffer("/buffer/all_types.buffer"))
+go.property("res_dummy", resource.buffer("/buffer/dummy.buffer"))
+go.property("res_material", resource.buffer("/builtins/materials/model.material"))
+
+
+local function assert_exit(assert_that, error_string)
+    if not assert_that then
+        if error_string then
+            print(error_string)
+        end
+        msg.post("@system:", "exit", { code = 1 })
+        assert(assert_that)
+    end
+end
+
+local function assert_error(func)
+    local r, err = pcall(func)
+    if not r then
+        print(err)
+    end
+    assert_exit(not r)
+end
+
+function verify_all_types(self)
+    local b = resource.get_buffer(go.get("#", "res_all_types"))
+
+    local s_uint8   = buffer.get_stream(b, "uint8")
+    local s_uint16  = buffer.get_stream(b, "uint16")
+    local s_uint32  = buffer.get_stream(b, "uint32")
+    local s_uint64  = buffer.get_stream(b, "uint64")
+    local s_int8    = buffer.get_stream(b, "int8")
+    local s_int16   = buffer.get_stream(b, "int16")
+    local s_int32   = buffer.get_stream(b, "int32")
+    local s_int64   = buffer.get_stream(b, "int64")
+    local s_float32 = buffer.get_stream(b, "float32")
+
+    assert_exit(#s_uint8   == 1 and
+                #s_uint16  == 1 and
+                #s_uint32  == 1 and
+                #s_uint64  == 1 and
+                #s_int8    == 1 and
+                #s_int16   == 1 and
+                #s_int32   == 1 and
+                #s_int64   == 1 and
+                #s_float32 == 1)
+
+    assert_exit(s_uint8[1]   == 1)
+    assert_exit(s_uint16[1]  == 2)
+    assert_exit(s_uint32[1]  == 3)
+    assert_exit(s_uint64[1]  == 4)
+    assert_exit(s_int8[1]    == 5)
+    assert_exit(s_int16[1]   == 6)
+    assert_exit(s_int32[1]   == 7)
+    assert_exit(s_int64[1]   == 8)
+    assert_exit(s_float32[1] == 9)
+end
+
+function init(self)
+    -- Try getting a buffer from a resource of wrong types
+    assert_error(function ()
+        resource.get_buffer(go.get("#", "res_material"))
+    end)
+
+    -- Verify that all different buffer stream types work correctly.
+    verify_all_types(self)
+
+    -- Should be able to get a buffer that has zero data.
+    local b = resource.get_buffer(go.get("#", "res_no_data"))
+    local s = buffer.get_stream(b, "position")
+    assert_exit(#s == 0)
+
+    -- Make sure we can only call set_buffer for buffer resources.
+    assert_error(function ()
+        resource.set_buffer(go.get("#", "res_material"), b)
+    end)
+
+
+    -- Create a new buffer with same stream layout as previous entry, but different element count.
+    -- Update element and verify it is the same after we get the buffer from the resource again.
+    local new_buffer = buffer.create( 1, { {name=hash("position"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } })
+    s = buffer.get_stream(new_buffer, "position")
+    s[1] = 42
+    resource.set_buffer(go.get("#", "res_no_data"), new_buffer)
+    b = resource.get_buffer(go.get("#", "res_no_data"))
+    s = buffer.get_stream(b, "position")
+    assert_exit(#s == 1*3)
+    assert_exit(s[1] == 42)
+
+    -- Compare data from buffer as Lua string
+    local dummy_data = {101,97,115,116,101,114,32,101,103,103,32,109,101,100,101,108,32,111,102,32,104,111,110,111,114,32,107,101,121,32,47,97,110,100,115,118,101,32,50,48,49,57}
+    local dummy_str = ""
+    for _,v in ipairs(dummy_data) do
+        dummy_str = dummy_str .. string.char(v)
+    end
+    b = resource.get_buffer(go.get("#", "res_dummy"))
+    s = buffer.get_stream(b, "str")
+    local res_str = ""
+    for i=1,#s do
+        res_str = res_str .. string.char(s[i])
+    end
+    assert_exit(res_str == dummy_str)
+
+
+    msg.post("@system:", "exit", {code = 0})
+end

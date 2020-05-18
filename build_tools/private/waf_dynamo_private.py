@@ -91,15 +91,17 @@ def setup_vars_nx(conf, build_util):
     if conf.env.PLATFORM != 'arm64-nx64':
         return
 
-    NINTENDO_SDK_ROOT = get_sdk_root()
-
-    BUILDTARGET = 'NX-NXFP2-a64'
-    BUILDTYPE = "Debug"
-
     opt_level = Options.options.opt_level
     # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
     if Options.options.with_asan and opt_level != '0':
         opt_level = 1
+
+    NINTENDO_SDK_ROOT = get_sdk_root()
+
+    BUILDTARGET = 'NX-NXFP2-a64'
+    BUILDTYPE = opt_level == 0 and "Debug" or "Release"
+
+    print "MAWE", BUILDTYPE
 
     CCFLAGS ="-g -O%s" % opt_level
     CCFLAGS+=" -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
