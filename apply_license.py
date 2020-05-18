@@ -10,8 +10,7 @@ https://www.defold.com/license
 Unless required by applicable law or agreed to in writing, software distributed
 under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 CONDITIONS OF ANY KIND, either express or implied. See the License for the
-specific language governing permissions and limitations under the License.
-'''
+specific language governing permissions and limitations under the License.'''
 
 extensions = [ ".h", ".c", ".cpp", ".m", ".inl", ".sh", ".py", ".java", ".clj" ]
 
@@ -28,7 +27,8 @@ ext_to_comment = {
 }
 
 for subdir, dirs, files in os.walk("."):
-    if subdir.startswith("./tmp"):
+    # Ignore tmp and build folders
+    if subdir.startswith("./tmp") or subdir.startswith("./engine/glfw/examples") or "build" in subdir:
         continue
     for file in files:
         #print os.path.join(subdir, file)
@@ -60,8 +60,8 @@ for subdir, dirs, files in os.walk("."):
                 contents = contents.replace(firstline, "")
                 license = firstline + "\n" + license
 
-            print("Applying Defold Licese to " + filepath)
+            print("Applying Defold License to " + filepath)
             f.seek(0)
-            f.write(license)
+            f.write(license + "\n")
             f.write(contents)
             f.truncate()
