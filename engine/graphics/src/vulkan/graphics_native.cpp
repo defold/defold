@@ -2,7 +2,6 @@
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/log.h>
-#include <dlib/sys.h>
 #include "../graphics.h"
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
@@ -39,10 +38,10 @@ namespace dmGraphics
         return g_extension_names;
     }
 
-    const char** GetValidationLayers(uint16_t* num_layers)
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_randerdoc)
     {
         uint16_t count = 0;
-        if (dmSys::GetEnv("DM_VULKAN_VALIDATION"))
+        if (use_validation)
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
         }

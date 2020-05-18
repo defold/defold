@@ -35,7 +35,7 @@ except:
             if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android', 'x86_64-linux'):
                 return False
             return True
-        def transform_runnable_path(cls, path):
+        def transform_runnable_path(cls, platform, path):
             return path
     globals()['waf_dynamo_private'] = waf_dynamo_private
 
