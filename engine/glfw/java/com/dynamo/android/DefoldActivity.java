@@ -77,6 +77,11 @@ public class DefoldActivity extends NativeActivity {
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
             }
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (mImmersiveMode) {
+                getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
+        }
     }
 
     public boolean isAppInstalled(String appPackageName) {
