@@ -32,6 +32,7 @@ ext_to_comment = {
 exluded_files = [
     "edn.lua",
     "mobdebug.lua",
+    "test_props.lua"
 ]
 
 exluded_patterns = [
