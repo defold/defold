@@ -79,7 +79,9 @@ public class DefoldActivity extends NativeActivity {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (mImmersiveMode) {
-                getWindow().getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+                layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                getWindow().setAttributes(layoutParams);
             }
         }
     }
