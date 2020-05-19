@@ -280,7 +280,7 @@ def switch_make_app(self):
     descfile = os.path.join(self.env.NINTENDO_SDK_ROOT, 'Resources/SpecFiles/Application.desc')
     app_icon = os.path.join(self.env.DYNAMO_HOME, '../../engine/engine/content/builtins/assets/images/logo/logo_blue_1024.bmp')
 
-    # We want the debug app to launch with automatic user selection
+    # We want the debug app to launch without automatic user selection
     app_user_automatic = """
         <StartupUserAccount>Required</StartupUserAccount>
         <UserAccountSwitchLock>Enable</UserAccountSwitchLock>

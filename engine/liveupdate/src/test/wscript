@@ -10,7 +10,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    uselib = ['APP', 'RESOURCE', 'DLIB', 'DDF', 'THREAD', 'LUA', 'CARES']
+    uselib = ['TESTMAIN', 'RESOURCE', 'DLIB', 'DDF', 'THREAD', 'LUA', 'CARES']
 
     bld.new_task_gen(features = 'cxx cprogram test',
                      includes = '../../../src',

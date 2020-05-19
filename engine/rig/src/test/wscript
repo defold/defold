@@ -3,7 +3,7 @@
 def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test',
                     includes = '../../../src . ../../proto',
-                    uselib = 'APP DLIB PLATFORM_SOCKET LUA SCRIPT',
+                    uselib = 'TESTMAIN DLIB PLATFORM_SOCKET LUA SCRIPT',
                     uselib_local = 'rig',
                     target = 'test_rig',
                     source = 'test_rig.cpp')
