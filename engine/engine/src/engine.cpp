@@ -1803,16 +1803,16 @@ void dmEngineDestroy(dmEngine::HEngine engine)
     Delete(engine);
 }
 
-static dmApp::Result GetAppResultFromAction(int action)
+static dmEngine::UpdateResult GetAppResultFromAction(int action)
 {
     switch(action) {
-    case dmEngine::RunResult::REBOOT:   return dmApp::RESULT_REBOOT;
-    case dmEngine::RunResult::EXIT:     return dmApp::RESULT_EXIT;
-    default:                            return dmApp::RESULT_OK;
+    case dmEngine::RunResult::REBOOT:   return dmEngine::RESULT_REBOOT;
+    case dmEngine::RunResult::EXIT:     return dmEngine::RESULT_EXIT;
+    default:                            return dmEngine::RESULT_OK;
     }
 }
 
-dmApp::Result dmEngineUpdate(dmEngine::HEngine engine)
+dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
     {

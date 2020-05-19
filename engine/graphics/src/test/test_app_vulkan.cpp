@@ -6,10 +6,87 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#include <app/app.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include "../graphics.h"
+
+// From engine_private.h
+
+enum UpdateResult
+{
+    RESULT_OK       =  0,
+    RESULT_REBOOT   =  1,
+    RESULT_EXIT     = -1,
+};
+
+typedef void* (*EngineCreateFn)(int argc, char** argv);
+typedef void (*EngineDestroyFn)(void* engine);
+typedef UpdateResult (*EngineUpdateFn)(void* engine);
+typedef void (*EngineGetResultFn)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+struct RunLoopParams
+{
+    int     m_Argc;
+    char**  m_Argv;
+
+    void*   m_AppCtx;
+    void    (*m_AppCreate)(void* ctx);
+    void    (*m_AppDestroy)(void* ctx);
+
+    EngineCreateFn      m_EngineCreate;
+    EngineDestroyFn     m_EngineDestroy;
+    EngineUpdateFn      m_EngineUpdate;
+    EngineGetResultFn   m_EngineGetResult;
+};
+
+// From engine_loop.cpp
+
+static int RunLoop(const RunLoopParams* params)
+{
+    if (params->m_AppCreate)
+        params->m_AppCreate(params->m_AppCtx);
+
+    int argc = params->m_Argc;
+    char** argv = params->m_Argv;
+    int exit_code = 0;
+    void* engine = 0;
+    UpdateResult result = RESULT_OK;
+    while (RESULT_OK == result)
+    {
+        if (engine == 0)
+        {
+            engine = params->m_EngineCreate(argc, argv);
+            if (!engine)
+            {
+                exit_code = 1;
+                break;
+            }
+        }
+
+        result = params->m_EngineUpdate(engine);
+
+        if (RESULT_OK != result)
+        {
+            int run_action = 0;
+            params->m_EngineGetResult(engine, &run_action, &exit_code, &argc, &argv);
+
+            params->m_EngineDestroy(engine);
+            engine = 0;
+
+            if (RESULT_REBOOT == result)
+            {
+                // allows us to reboot
+                result = RESULT_OK;
+            }
+        }
+    }
+
+    if (params->m_AppDestroy)
+        params->m_AppDestroy(params->m_AppCtx);
+
+    return exit_code;
+}
+
 
 struct AppCtx
 {
@@ -93,14 +170,14 @@ static void EngineDestroy(void* _engine)
     engine->m_WasDestroyed++;
 }
 
-static dmApp::Result EngineUpdate(void* _engine)
+static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
     uint64_t t = dmTime::GetTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     if (elapsed > 3.0f)
-        return dmApp::RESULT_EXIT;
+        return RESULT_EXIT;
 
     static uint8_t color_r = 0;
     static uint8_t color_g = 80;
@@ -119,7 +196,7 @@ static dmApp::Result EngineUpdate(void* _engine)
     color_b += 2;
     color_g += 1;
 
-    return dmApp::RESULT_OK;
+    return RESULT_OK;
 }
 
 static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int* argc, char*** argv)
@@ -128,13 +205,13 @@ static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int*
     ctx->m_WasResultCalled++;
 }
 
-TEST(dmApp, Run)
+TEST(App, Run)
 {
     AppCtx ctx;
     memset(&ctx, 0, sizeof(ctx));
     memset(&g_EngineCtx, 0, sizeof(g_EngineCtx));
 
-    dmApp::Params params;
+    RunLoopParams params;
     params.m_AppCtx = &ctx;
     params.m_AppCreate = AppCreate;
     params.m_AppDestroy = AppDestroy;
@@ -143,7 +220,7 @@ TEST(dmApp, Run)
     params.m_EngineUpdate = EngineUpdate;
     params.m_EngineGetResult = EngineGetResult;
 
-    int ret = dmApp::Run(&params);
+    int ret = RunLoop(&params);
     ASSERT_EQ(0, ret);
 
 
