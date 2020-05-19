@@ -1,0 +1,5 @@
+script: "/issue-4775/issue-4775.gui_script"
+textures {
+  name: "texture1"
+  texture: "/issue-4775/issue-4775.atlas"
+}

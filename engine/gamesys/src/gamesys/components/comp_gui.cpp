@@ -1108,10 +1108,6 @@ namespace dmGameSystem
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
         }
 
-        dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, first_node);
-        dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
-        bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
-
         // 9-slice values are specified with reference to the original graphics and not by
         // the possibly stretched texture.
         float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
@@ -1135,6 +1131,10 @@ namespace dmGameSystem
             Point3 size = dmGui::GetNodeSize(scene, node);
 
             bool use_slice_nine = sum(slice9) != 0;
+
+            dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
+            dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
+            bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
 
             // we skip sprite trimming on slice 9 nodes
             if (!use_slice_nine && use_geometries)

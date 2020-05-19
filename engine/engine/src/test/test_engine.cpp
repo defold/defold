@@ -329,6 +329,12 @@ TEST_F(EngineTest, DEF_3652)
     ASSERT_EQ(0, g_PostExitResult);
 }
 
+TEST_F(EngineTest, ISSUE_4775)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-4775/issue-4775.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(256, 1024 * 16, 128);
