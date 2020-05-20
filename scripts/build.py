@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -53,6 +53,7 @@ PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db21
 PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
+PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
@@ -67,7 +68,7 @@ PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.1.xctoolchain"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
-PACKAGES_NODE_MODULE_XHR2="xhr2-0.1.0-common"
+PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -415,6 +416,13 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(platform_packages.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
+        if target_platform in ['js-web', 'wasm-web']:
+            node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
+            for package in PACKAGES_NODE_MODULES:
+                path = join(self.defold_root, 'packages', package + '.tar.gz')
+                name = package.split('-')[0]
+                self._extract_tgz(path, join(node_modules_dir, name))
+
         installed_packages = set()
 
         for platform in other_platforms:
@@ -462,12 +470,6 @@ class Configuration(object):
         print("Installing profiles etc")
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
-
-        node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
-        self._mkdirs(node_modules_dir)
-        url = '%s/%s.tar.gz' % (self.package_path, PACKAGES_NODE_MODULE_XHR2)
-        xhr2_tarball = self._download(url)
-        self._extract_tgz(xhr2_tarball, node_modules_dir)
 
         # Simple way to reduce number of warnings in the build
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
@@ -1740,7 +1742,7 @@ class Configuration(object):
 
         env['EMSCRIPTEN'] = self._form_ems_path()
 
-        xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'lib')
+        xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
             env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
         else:
