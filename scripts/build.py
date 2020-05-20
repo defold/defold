@@ -60,7 +60,6 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
-PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
 PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
@@ -72,9 +71,9 @@ PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.38.12"
+EMSCRIPTEN_VERSION_STR = "1.39.16"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
+PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
@@ -519,25 +518,43 @@ class Configuration(object):
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
     def _form_ems_path(self):
-        path = join(self.ext, EMSCRIPTEN_DIR)
-        return path
+        return join(self.get_ems_dir(), 'upstream', 'emscripten')
 
-    def install_ems(self):
-        url = '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_EMSCRIPTEN_SDK, self.host)
-        dlpath = self._download(url)
-        if dlpath is None:
+    def get_local_or_remote_path(self, path):
+        if os.path.exists(path): # is is a local path?
+            return path
+        path = self._download(path)
+        if path is None:
             print("Error. Could not download %s" % url)
             sys.exit(1)
-        self._extract(dlpath, self.ext)
-        self.activate_ems()
-        os.environ['EMSCRIPTEN'] = self._form_ems_path()
+        return path
+
+
+    def install_ems(self):
+        # TODO: should probably be moved to install_sdk
+        emsDir = self.get_ems_dir()
+        if os.path.isdir(emsDir):
+            print "Emscripten is already installed:", emsDir
+        else:
+            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
+            path = self.get_local_or_remote_path(path)
+            self._extract(path, join(self.ext, 'SDKs'))
+            os.environ['EMSCRIPTEN'] = self._form_ems_path()
+            self.activate_ems()
+
+        home = os.path.expanduser('~')
+        config = join(home, '.emscripten')
+        if not os.path.isfile(config):
+            self.activate_ems()
+
+    def get_ems_dir(self):
+        return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
 
     def get_ems_sdk_name(self):
-        sdk = EMSCRIPTEN_SDK
-        return sdk;
+        return EMSCRIPTEN_VERSION_STR
 
     def get_ems_exe_path(self):
-        return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
+        return join(self.get_ems_dir(), 'emsdk')
 
     def activate_ems(self):
         # Compile a file warm up the emscripten caches (libc etc)
@@ -546,7 +563,7 @@ class Configuration(object):
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
 
-        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', EMSCRIPTEN_VERSION_STR])
         # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
         # Does not seem to help to pre-create it or explicitly setting the --cache flag
         run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
@@ -558,7 +575,7 @@ class Configuration(object):
         if not os.path.isfile(config):
             print 'No .emscripten file.'
             err = True
-        emsDir = join(self.ext, EMSCRIPTEN_DIR)
+        emsDir = self.get_ems_dir()
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
             err = True
