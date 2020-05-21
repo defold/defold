@@ -15,6 +15,7 @@
 	<key>CFBundleSignature</key><string>????</string>
 	<key>NSHighResolutionCapable</key><true/>
 	<key>CFBundleDevelopmentRegion</key><string>English</string>
+	<key>NSRequiresAquaSystemAppearance</key><false/>
 
 	<key>CFBundleDocumentTypes</key>
 	<array>
