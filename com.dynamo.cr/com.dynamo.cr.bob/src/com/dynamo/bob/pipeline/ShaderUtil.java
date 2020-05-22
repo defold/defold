@@ -172,7 +172,9 @@ public class ShaderUtil {
         }
 
         public static enum ShaderType {
-            VERTEX_SHADER, FRAGMENT_SHADER
+            VERTEX_SHADER,
+            FRAGMENT_SHADER,
+            UNSUPPORTED_SHADER
         };
 
         private static final String[] opaqueUniformTypesPrefix = { "sampler", "image", "atomic_uint" };
