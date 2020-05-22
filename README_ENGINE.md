@@ -53,7 +53,7 @@ One of our goals is to keep the engine as small and performant as possible.
 By this we mean both development time, and actual runtime for the released game:
 compiled code size, source code size, compile time, runtime.
 
-By thinking this in mind whenever we add new features, we can keep this goal with minimal effort.
+By keeping this in mind whenever we add new features, we can keep this goal with minimal effort.
 
 ### When to add code?
 
@@ -64,45 +64,43 @@ If we don't need it, don't add it.
 Think of _all_ the end users. Will the fix/feature have a clear benefit to most of our users?
 If not, can the feature be added as a separate native extension instead?
 
-### Design
-
-Before adding code to the engine, the code needs a design first.
-
-Design problems caught in a design review is a huge time saver, and it also improves everyones understanding of the code and problem area.
-
 #### Fixes
 
 For the simple bug fixes, it's usually enough to add a pull request, with little to no design phase beforehand.
 
-Comment the pull request well, and the use case(s) it fixes.
+Comment the pull request well, and the issues it fixes.
 
-#### Design format
+#### Features
+
+Before adding code to the engine, we must have a design first.
+
+Catching problems in a design review is a huge time saver, and it also improves everyones understanding of the code and problem area.
+
+##### Design format
 
 For bigger changes, we need to see a design that outlines the problem, and some possible solutions.
 Each solution should have its pros and cons listed, so that reviewers can reason about them.
 
-
 * Keep it short
 	* The document doesn't need to be fancy, or long. Aim for 1-2 pages, as long as it is easy to read and understand for the reviewers.
 
-
 * Keep it on point
 	* The design should only deal with the actual problem. It is easy to think in too generic terms.
-The design review will also help highlight such issue.
+The design review will also help highlight such issues.
 
 Although we recommend starting with a design review, to get a first go-ahead, it is sometimes required to do some test
 code to see if the idea pans out or not. Be aware that the community might have already touched this idea beforehand
 and discarded it for one reason or another. So try to ask first, before spending too much time implementating the feature.
 
 *Note: we still don't have a good shared place to store the design documents, where users can comment on it.
-Our current best recommendation is to share a google drive document. If yoiu have a good alternative, let us know!*
+Our current best recommendation is to share a google drive document. If you have a good alternative, let us know!*
 
 #### Backwards compatibility
 
 Even for the least complex fixes, there might be nuances that aren't obvious at first glance.
-Be aware that there are many projects out there, and we expect them to be able to build with new versions of Defold.
+Be aware that there are many projects out there, and we expect them to build with new versions of Defold.
 
-Sometimes we can argue it's a bug fix, and we go ahead with the implementation.
+Sometimes we can argue a breaking change is a bug fix, and we go ahead with the implementation.
 In other cases, we need to respect the backwards compatibility.
 
 If uncertain, ask the community for design input.
@@ -145,10 +143,10 @@ We don’t make use of any exceptions in the engine. It isn’t generally used i
 While it might be tempting to use `std` functions/types/classes, we don't do it for several reasons.
 Performance is one (code size, compilation time, debugging time), and ABI issues is another important issue.
 
-You can read abit more about the advice we give to extension developers here:
+You can read a bit more about the advice we give to extension developers here:
 https://defold.com/manuals/extensions-best-practices/#standard-template-libraries---stl
 
-We do make a (very) few exceptions, most notable for `std::sort()` and `std::upper_bound()`.
+We do make a (very) few exceptions, most notably for `std::sort()` and `std::upper_bound()`.
 Although eventually, these may be replaced too.
 
 #### Memory allocations
@@ -200,6 +198,11 @@ You can also use the `./scripts/submodule.sh` to rebuild a single library with `
 
 We do not use any release/debug defines, but rather compiler specific defines to control certain behavior when required.
 Most often, this occurs in the lower layers of the engine, such as `dlib`.
+
+#### Platform differences
+
+For small differences, we use compiler defines directly in a function.
+For larger differences, we put them into separate files. E.g. `file_win32.cpp` vs `file_posix.cpp`.
 
 ## Content pipeline
 
