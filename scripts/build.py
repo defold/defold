@@ -79,6 +79,7 @@ SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
 
+EXTERNAL_LIBS = "bullet3d".split()
 
 def is_64bit_machine():
     return platform.machine().endswith('64')
@@ -830,7 +831,7 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache}
+        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'prefix':None}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -847,8 +848,9 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache):
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache)
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
+        prefix = prefix and prefix or self.dynamo_home
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -915,6 +917,14 @@ class Configuration(object):
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print "Removing", os.environ['DM_BOB_ROOTFOLDER']
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
+
+    def build_external(self):
+        flags = self._get_build_flags()
+        flags['prefix'] = join(self.defold_root, 'packages')
+        cmd = self._build_engine_cmd(**flags)
+        args = cmd.split() + ['package']
+        for lib in EXTERNAL_LIBS:
+            self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''

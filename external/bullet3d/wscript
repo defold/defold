@@ -59,6 +59,8 @@ def build(bld):
     linear_math.find_sources_in_dirs(path)
     linear_math.install_path = None
 
+    # for android
+    linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
 
     bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletCollision')
     bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletDynamics')
@@ -70,6 +72,8 @@ def build(bld):
                         cwd=bld.path.find_dir(packagedir), relative_trick=True)
 
 def package(conf):
+    # TODO: Check how much of this can be moved to waf_package.py
+
     env = waf_package.load_build_context(blddir)
 
     cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION))
