@@ -6,7 +6,7 @@
 
 ### Java JDK 11
 
-You need Java JDK 11 installed to build the tools. [Download and install from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
+You need Java JDK 11 installed to build the tools. [Download and install release 11.0.1 from OpenJDK](https://jdk.java.net/archive/). When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
 
 Set PATH and JAVA_HOME:
 
