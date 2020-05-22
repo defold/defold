@@ -50,8 +50,9 @@
 ; Implementation based on:
 ; http://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection
 ; In case the line is parallel with the plane, nil is returned.
-(defn line-plane-intersection [^Point3d line-pos ^Vector3d line-dir ^Point3d plane-pos ^Vector3d plane-normal]
+(defn line-plane-intersection
   "Returns the position at which the line intersects the plane. If the line and plane are parallel, nil is returned."
+  [^Point3d line-pos ^Vector3d line-dir ^Point3d plane-pos ^Vector3d plane-normal]
   (let [norm-dir-dot (.dot line-dir plane-normal)]
     (when (> (Math/abs norm-dir-dot) epsilon-sq)
       (let [diff (doto (Vector3d.) (.sub line-pos plane-pos))

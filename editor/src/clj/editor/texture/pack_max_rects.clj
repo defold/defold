@@ -41,9 +41,9 @@
 
 ; find the best free-rect into which to place rect
 (s/defn score-rects :- [[(s/one s/Int "score") (s/one Rect "free-rect")]]
-  [free-rects :- [Rect] {:keys [width height] :as rect} :- Rect]
   "Sort the free-rects according to how well rect fits into them.
    A 'good fit' means the least amount of leftover area."
+  [free-rects :- [Rect] {:keys [width height] :as rect} :- Rect]
   (reverse (sort-by first (map score-rect free-rects (repeat rect)))))
 
 (s/defn place-in :- Rect

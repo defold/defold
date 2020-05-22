@@ -15,13 +15,13 @@
 ;; See http://mattryall.net/blog/2009/02/the-infamous-turkish-locale-bug
 
 (defn lower-case*
-  [^CharSequence s]
   "Like clojure.string/lower-case but using root locale."
+  [^CharSequence s]
   (.. s toString (toLowerCase Locale/ROOT)))
 
 (defn upper-case*
-  [^CharSequence s]
   "Like clojure.string/upper-case but using root locale."
+  [^CharSequence s]
   (.. s toString (toUpperCase Locale/ROOT)))
 
 (defn capitalize*

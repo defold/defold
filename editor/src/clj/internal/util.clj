@@ -112,8 +112,9 @@
                (groups-container-prepare groups-container)
                coll)))))
 
-(defn filterm [pred m]
-  "like filter but applys the predicate to each key value pair of the map"
+(defn filterm
+  "like filter but applies the predicate to each key value pair of the map"
+  [pred m]
   (into {} (filter pred m)))
 
 (defn key-set
