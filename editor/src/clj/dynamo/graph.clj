@@ -164,12 +164,14 @@
   ([transaction node-id output]
     (boolean (get-in transaction [:outputs-modified node-id output]))))
 
-(defn is-added? [transaction node-id]
+(defn is-added?
   "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
+  [transaction node-id]
   (contains? (:nodes-added transaction) node-id))
 
-(defn is-deleted? [transaction node-id]
+(defn is-deleted?
   "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
+  [transaction node-id]
   (contains? (:nodes-deleted transaction) node-id))
 
 (defn outputs-modified
@@ -183,7 +185,7 @@
   (:basis transaction))
 
 (defn pre-transaction-basis
-  "Returns the original, statrting basis from the result of a transaction given a tx-result"
+  "Returns the original, starting basis from the result of a transaction given a tx-result"
   [transaction]
   (:original-basis transaction))
 

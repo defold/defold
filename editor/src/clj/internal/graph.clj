@@ -1101,12 +1101,13 @@
           (gt/node-type basis)
           in/input-dependencies))
 
-(defn- update-graph-successors [old-successors basis graph-id graph changes]
+(defn- update-graph-successors
   "The purpose of this fn is to build a data structure that reflects which set of node-id + outputs that can be reached from the incoming changes (map of node-id + outputs)
    For a specific node-id-a + output-x, add:
      the internal input-dependencies, i.e. outputs consuming the given output
      the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
      all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
+  [old-successors basis graph-id graph changes]
   (let [node-id->overrides (or (:node->overrides graph) (constantly nil))
         ;; Transducer to collect override-id's
         override-id-xf (keep #(some->> %

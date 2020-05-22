@@ -181,9 +181,9 @@
      :body           payload}))
 
 (defn- query-cached-files
-  [server-url resource-nodes-by-upload-path evaluation-context]
   "Asks the server what files it already has.
   This is to avoid uploading big files that rarely change"
+  [server-url resource-nodes-by-upload-path evaluation-context]
   (let [items (mapv (fn [[upload-path resource-node]]
                       (let [key (g/node-value resource-node :sha256 evaluation-context)]
                         {:path upload-path :key key}))
@@ -200,8 +200,8 @@
         items))))
 
 (defn- make-cached-info-map
-  [ne-cache-info]
   "Parse the json doc into a mapping 'path' -> 'cached'"
+  [ne-cache-info]
   (into {}
         (map (fn [info]
                [(get info "path")
