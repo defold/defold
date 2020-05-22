@@ -21,7 +21,7 @@ To see the actual, ordered, list of engine libraries, look for `ENGINE_LIBS` in 
 * **facebook** - Facebook stub implementation. Actual implementation moved to [extension-facebook](https://github.com/defold/extension-facebook)
 * **gameobject** - Game object and component lifecycle
 * **gamesys** - Component and resource types are registered here
-* **glfw** - Somewhat modified version of GLWF, used to set up a window/graphics context and read from input devices. Defold uses an old GLFW 2.7 version with some features backported from GLFW 3.0. We have also added support for iOS and Android.
+* **glfw** - Somewhat modified version of GLFW, used to set up a window/graphics context and read from input devices. Defold uses an old GLFW 2.7 version with some features backported from GLFW 3.0. We have also added support for iOS and Android.
 * **graphics** - OpenGL, Vulkan (and null) implementations of graphics backend
 * **gui** - The GUI component
 * **hid** - Human interface device systems (GLFW and null)
