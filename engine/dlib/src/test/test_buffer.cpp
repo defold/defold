@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <stddef.h> // offsetof
@@ -94,19 +106,11 @@ TEST_F(BufferTest, InvalidAllocation)
         {dmHashString64("dummy3"), dmBuffer::VALUE_TYPE_UINT8, 0}
     };
 
-    // Empty declaration, zero elements
-    dmBuffer::Result r = dmBuffer::Create(0, streams_decl, 0, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
-    ASSERT_EQ(0U, buffer);
+    dmBuffer::Result r;
 
     // Empty declaration, 1 element
     r = dmBuffer::Create(1, streams_decl, 0, &buffer);
     ASSERT_EQ(dmBuffer::RESULT_STREAM_SIZE_ERROR, r);
-    ASSERT_EQ(0U, buffer);
-
-    // Valid declaration, zero elements
-    r = dmBuffer::Create(0, streams_decl, 2, &buffer);
-    ASSERT_EQ(dmBuffer::RESULT_BUFFER_SIZE_ERROR, r);
     ASSERT_EQ(0U, buffer);
 
     // Valid sizes, but invalid valuetype count (see "dummy3" above)

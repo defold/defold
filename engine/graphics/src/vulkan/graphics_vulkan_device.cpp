@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <math.h>
 #include <dlib/math.h>
 #include <dlib/array.h>
@@ -33,6 +45,11 @@ namespace dmGraphics
     {
         m_Extent.width  = 0;
         m_Extent.height = 0;
+    }
+
+    Program::Program()
+    {
+        memset(this, 0, sizeof(*this));
     }
 
     static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs)
@@ -105,6 +122,11 @@ namespace dmGraphics
     const VulkanResourceType Texture::GetType()
     {
         return RESOURCE_TYPE_TEXTURE;
+    }
+
+    const VulkanResourceType Program::GetType()
+    {
+        return RESOURCE_TYPE_PROGRAM;
     }
 
     uint32_t GetPhysicalDeviceCount(VkInstance vkInstance)
@@ -794,7 +816,8 @@ bail:
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
     };
 
     static const VkCullModeFlagBits g_vk_cull_modes[] = {
@@ -976,14 +999,14 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
 
-        const VkDynamicState vk_dynamic_state = VK_DYNAMIC_STATE_VIEWPORT;
+        const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         vk_dynamic_state_create_info.pNext             = NULL;
         vk_dynamic_state_create_info.flags             = 0;
-        vk_dynamic_state_create_info.dynamicStateCount = 1;
-        vk_dynamic_state_create_info.pDynamicStates    = &vk_dynamic_state;
+        vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_state) / sizeof(VkDynamicState);
+        vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_state;
 
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
@@ -999,7 +1022,7 @@ bail:
         vk_pipeline_info.pDepthStencilState  = &vk_depth_stencil_create_info;
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
-        vk_pipeline_info.layout              = program->m_PipelineLayout;
+        vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
         vk_pipeline_info.renderPass          = vk_render_pass;
         vk_pipeline_info.subpass             = 0;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
@@ -1013,6 +1036,25 @@ bail:
         assert(scratchBuffer);
         scratchBuffer->m_DescriptorAllocator->Release(vk_device);
         scratchBuffer->m_MappedDataCursor = 0;
+    }
+
+    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    {
+        assert(handle);
+        if (handle->m_PipelineLayout != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(vk_device, handle->m_PipelineLayout, 0);
+            handle->m_PipelineLayout = VK_NULL_HANDLE;
+        }
+
+        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        {
+            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            {
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
+                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+            }
+        }
     }
 
     void DestroyPhysicalDevice(PhysicalDevice* device)

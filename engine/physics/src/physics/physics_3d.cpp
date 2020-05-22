@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <stdint.h>
 
 #include <dlib/array.h>
@@ -555,17 +567,19 @@ namespace dmPhysics
             break;
         }
 
-        float object_scale = 1.0f;
-        if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER )
+        bool has_world_transform = world->m_GetWorldTransform != 0x0 && data.m_UserData;
+        dmTransform::Transform world_transform;
+        if (has_world_transform)
         {
-            if (world->m_GetWorldTransform != 0x0)
+            world->m_GetWorldTransform(data.m_UserData, world_transform);
+        }
+
+        float object_scale = 1.0f;
+        if (has_world_transform)
+        {
+            if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
             {
-                if (data.m_UserData != 0x0)
-                {
-                    dmTransform::Transform world_transform;
-                    world->m_GetWorldTransform(data.m_UserData, world_transform);
-                    object_scale = world_transform.GetUniformScale();
-                }
+                object_scale = world_transform.GetUniformScale();
             }
         }
 
@@ -639,10 +653,8 @@ namespace dmPhysics
         {
             collision_object = new btGhostObject();
             btTransform world_t;
-            if (world->m_GetWorldTransform != 0x0)
+            if (has_world_transform)
             {
-                dmTransform::Transform world_transform;
-                world->m_GetWorldTransform(data.m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 btVector3 bt_pos;

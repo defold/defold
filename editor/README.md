@@ -75,7 +75,7 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
     
 * Build Bob:
 
-    `scripts/build.py build_bob`
+    `scripts/build.py build_bob --skip-tests`
 
 * Change directory to the editor directory
 

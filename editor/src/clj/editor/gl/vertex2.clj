@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.gl.vertex2
   (:require
    [clojure.string :as str]
@@ -38,6 +50,28 @@
   {:static GL2/GL_STATIC_DRAW
    :dynamic GL2/GL_DYNAMIC_DRAW})
 
+(defn type->stream-type [type]
+  (case type
+    :float :value-type-float32
+    :ubyte :value-type-uint8
+    :ushort :value-type-uint16
+    :uint :value-type-uint32
+    :byte :value-type-int8
+    :short :value-type-int16
+    :int :value-type-int32))
+
+;; TODO: Might need to add support for uint64/int64 in the future.
+;;       (OpenGL ES 2 doesn't support this currently, but Vulkan might.)
+(defn stream-type->type [stream-type]
+  (case stream-type
+    :value-type-float32 :float
+    :value-type-uint8 :ubyte
+    :value-type-uint16 :ushort
+    :value-type-uint32 :uint
+    :value-type-int8 :byte
+    :value-type-int16 :short
+    :value-type-int32 :int))
+
 ;; VertexBuffer object
 
 (defprotocol IVertexBuffer
@@ -77,7 +111,7 @@
   [attributes]
   (reduce + (attribute-sizes attributes)))
 
-(defn- make-vertex-description
+(defn make-vertex-description
   [name attributes]
   {:name name
    :attributes attributes

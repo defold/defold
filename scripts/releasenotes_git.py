@@ -1,4 +1,17 @@
 #!/usr/bin/env python
+# Copyright 2020 The Defold Foundation
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+# 
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+# 
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+
 
 import os, sys, subprocess, re
 
@@ -32,6 +45,7 @@ def run(cmd):
     return out
 
 def get_version():
+    return ('3b188e533c08bdf4a615d25b49f7aae83b0ce71d', '1.2.169')
     # get the latest commit to the VERSION file
     sha1 = run('git log -n 1 --pretty=format:%H -- VERSION')
     with open('VERSION', 'rb') as f:
@@ -51,7 +65,9 @@ def get_engine_issues(lines):
     issues = []
     for line in lines:
         # 974d82a24 Issue-4684 - Load vulkan functions dynamically on android (#4692)
-        issue_match = re.search("^([a-fA-F0-9]+) Issue\-#?(\d+):? (.*)", line)
+        if '4725' in line:
+            print "MAWE:", line
+        issue_match = re.search("^(?i)([a-fA-F0-9]+) issue[\-\s]?#?(\d+):? (.*)", line)
         if issue_match:
             sha1 = issue_match.group(1)
             issue = issue_match.group(2)
@@ -60,9 +76,12 @@ def get_engine_issues(lines):
             m = re.search("^(.*) \(\#\d+\)$", desc)
             if m:
                 desc = m.group(1)
-            issues.append("[`Issue-%s`](https://github.com/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
+            issues.append("[`Issue-%s`](https://github.com/defold/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
             print(git_log(sha1))
             continue
+        else:
+            if '4725' in line:
+                print "not a match",
 
         # bca92cc0f Check that there's a world before creating a collision object (#4747)
         pull_match = re.search("([a-fA-F0-9]+) (.*) \(\#(\d+)\)$", line)
@@ -70,7 +89,7 @@ def get_engine_issues(lines):
             sha1 = pull_match.group(1)
             desc = pull_match.group(2)
             pr = pull_match.group(3)
-            issues.append("[`PR #%s`](https://github.com/defold/pull/%s) - **Fixed**: %s" % (pr, pr, desc))
+            issues.append("[`PR #%s`](https://github.com/defold/defold/pull/%s) - **Fixed**: %s" % (pr, pr, desc))
             print(git_log(sha1))
     return issues
 

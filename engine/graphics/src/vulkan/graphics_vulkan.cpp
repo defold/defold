@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
@@ -114,6 +126,7 @@ namespace dmGraphics
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
+        Texture*                        m_DefaultTexture;
         uint32_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -127,6 +140,8 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                                               : 26;
     } *g_Context = 0;
+
+    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
     static const char* VkResultToStr(VkResult res)
@@ -676,6 +691,29 @@ namespace dmGraphics
         // Create default texture sampler
         CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
 
+        // Create default dummy texture
+        TextureCreationParams default_texture_creation_params;
+        default_texture_creation_params.m_Width          = 1;
+        default_texture_creation_params.m_Height         = 1;
+        default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
+        default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
+
+        const uint8_t default_texture_data[] = { 255, 0, 255, 255 };
+
+        TextureParams default_texture_params;
+        default_texture_params.m_Width  = 1;
+        default_texture_params.m_Height = 1;
+        default_texture_params.m_Data   = default_texture_data;
+        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+
+        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
+        SetTexture(context->m_DefaultTexture, default_texture_params);
+
+        for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
+        {
+            context->m_TextureUnits[i] = context->m_DefaultTexture;
+        }
+
         return res;
     }
 
@@ -745,6 +783,9 @@ namespace dmGraphics
                         break;
                     case RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR:
                         DestroyDescriptorAllocator(vk_device, &resource.m_DescriptorAllocator);
+                    case RESOURCE_TYPE_PROGRAM:
+                        DestroyProgram(vk_device, &resource.m_Program);
+                        break;
                     default:
                         assert(0);
                         break;
@@ -1141,6 +1182,7 @@ bail:
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -1521,6 +1563,9 @@ bail:
             case RESOURCE_TYPE_DEVICE_BUFFER:
                 resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
                 break;
+            case RESOURCE_TYPE_PROGRAM:
+                resource_to_destroy.m_Program = ((Program*) resource)->m_Handle;
+                break;
             default:
                 assert(0);
                 break;
@@ -1655,7 +1700,11 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        assert(size > 0);
+        if (size == 0)
+        {
+            return;
+        }
+
         assert(buffer);
 
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
@@ -1813,6 +1862,15 @@ bail:
         vd->m_Stride          = stride;
         vd->m_Hash            = dmHashFinal64(&decl_hash_state);
         return vd;
+    }
+
+    bool VulkanSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index >= vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
     }
 
     static void VulkanDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
@@ -1980,7 +2038,7 @@ bail:
         uint32_t* dynamic_offsets, const uint32_t alignment)
     {
         VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayout, DM_MAX_SET_COUNT, &vk_descriptor_set_list);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -1998,7 +2056,7 @@ bail:
             alignment, dynamic_offsets);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_PipelineLayout,
+            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
             0, Program::MODULE_TYPE_COUNT, vk_descriptor_set_list,
             num_uniform_buffers, dynamic_offsets);
 
@@ -2110,6 +2168,13 @@ bail:
                     vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
             }
 
+            VkRect2D vk_scissor;
+            vk_scissor.extent   = context->m_CurrentRenderTarget->m_Extent;
+            vk_scissor.offset.x = 0;
+            vk_scissor.offset.y = 0;
+
+            vkCmdSetScissor(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], 0, 1, &vk_scissor);
+
             context->m_ViewportChanged = 0;
         }
 
@@ -2145,6 +2210,19 @@ bail:
         VkBuffer vk_vertex_buffer             = vertex_buffer->m_Handle.m_Buffer;
         VkDeviceSize vk_vertex_buffer_offsets = 0;
         vkCmdBindVertexBuffers(vk_command_buffer, 0, 1, &vk_vertex_buffer, &vk_vertex_buffer_offsets);
+    }
+
+    void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
+    {
+        uint16_t stream_count = vertex_declaration->m_StreamCount;
+        for (int i = 0; i < stream_count; ++i)
+        {
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
+            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(stream.m_NameHash));
+            dmHashUpdateBuffer32(state, &stream.m_Location, sizeof(stream.m_Location));
+            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Format, sizeof(stream.m_Format));
+        }
     }
 
     static void VulkanDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -2372,18 +2450,18 @@ bail:
 
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_VERTEX],
-                0, &program->m_DescriptorSetLayout[Program::MODULE_TYPE_VERTEX]);
+                0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_VERTEX]);
             vkCreateDescriptorSetLayout(context->m_LogicalDevice.m_Device,
                 &vk_set_create_info[Program::MODULE_TYPE_FRAGMENT],
-                0, &program->m_DescriptorSetLayout[Program::MODULE_TYPE_FRAGMENT]);
+                0, &program->m_Handle.m_DescriptorSetLayout[Program::MODULE_TYPE_FRAGMENT]);
 
             VkPipelineLayoutCreateInfo vk_layout_create_info;
             memset(&vk_layout_create_info, 0, sizeof(vk_layout_create_info));
             vk_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             vk_layout_create_info.setLayoutCount = Program::MODULE_TYPE_COUNT;
-            vk_layout_create_info.pSetLayouts    = program->m_DescriptorSetLayout;
+            vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayout;
 
-            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_PipelineLayout);
+            vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
             delete[] vk_descriptor_set_bindings;
         }
     }
@@ -2403,18 +2481,7 @@ bail:
             delete[] program->m_UniformDataOffsets;
         }
 
-        if (program->m_PipelineLayout != VK_NULL_HANDLE)
-        {
-            vkDestroyPipelineLayout(context->m_LogicalDevice.m_Device, program->m_PipelineLayout, 0);
-        }
-
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
-        {
-            if (program->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
-            {
-                vkDestroyDescriptorSetLayout(context->m_LogicalDevice.m_Device, program->m_DescriptorSetLayout[i], 0);
-            }
-        }
+        DestroyResourceDeferred(g_Context->m_MainResourcesToDestroy[g_Context->m_SwapChain->m_ImageIndex], program);
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)
@@ -3472,7 +3539,7 @@ bail:
     static void VulkanDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
-        context->m_TextureUnits[unit] = 0;
+        context->m_TextureUnits[unit] = context->m_DefaultTexture;
     }
 
     static uint32_t VulkanGetMaxTextureSize(HContext context)
@@ -3542,10 +3609,12 @@ bail:
         fn_table.m_IsIndexBufferFormatSupported = VulkanIsIndexBufferFormatSupported;
         fn_table.m_NewVertexDeclaration = VulkanNewVertexDeclaration;
         fn_table.m_NewVertexDeclarationStride = VulkanNewVertexDeclarationStride;
+        fn_table.m_SetStreamOffset = VulkanSetStreamOffset;
         fn_table.m_DeleteVertexDeclaration = VulkanDeleteVertexDeclaration;
         fn_table.m_EnableVertexDeclaration = VulkanEnableVertexDeclaration;
         fn_table.m_EnableVertexDeclarationProgram = VulkanEnableVertexDeclarationProgram;
         fn_table.m_DisableVertexDeclaration = VulkanDisableVertexDeclaration;
+        fn_table.m_HashVertexDeclaration = VulkanHashVertexDeclaration;
         fn_table.m_DrawElements = VulkanDrawElements;
         fn_table.m_Draw = VulkanDraw;
         fn_table.m_NewVertexProgram = VulkanNewVertexProgram;

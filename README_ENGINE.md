@@ -38,6 +38,14 @@ The engine source code can be found in the `/engine` folder. The source code is 
 * **webview** - WebView stub implementation. Actual implementation moved to [extension-webview](https://github.com/defold/extension-webview)
 
 
+## C++ version
+We use no C++ version higher than C++98.
+
+
+## No C++ Exceptions
+We don’t make use of any exceptions in the engine. It isn’t generally used in game engines, since the data is (mostly) known beforehand, during development. Removing the support for C++ exceptions decreases executable size and improves the runtime performance.
+
+
 ## Content pipeline
 
 The primary build tool is bob. Bob is used for the editor but also for engine-tests. In the first build-step a standalone version of bob is built. A legacy pipeline, waf/python and some classes from bob.jar, is still used for gamesys and for built-in content. This might be changed in the future but integrating bob with waf 1.5.x is pretty hard as waf 1.5.x is very restrictive where source and built content is located. Built-in content is compiled, via .arc-files, to header-files, installed to $DYNAMO_HOME, etc In other words tightly integrated with waf.

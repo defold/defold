@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
@@ -47,6 +59,8 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
+import com.dynamo.mesh.proto.MeshProto.MeshDesc;
+import com.dynamo.buffer.proto.BufferProto.BufferDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -119,6 +133,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".animationsetc", MeshSet.class);
         extToMessageClass.put(".cubemapc", Cubemap.class);
         extToMessageClass.put(".camerac", CameraDesc.class);
+        extToMessageClass.put(".meshc", MeshDesc.class);
         extToMessageClass.put(".lightc", LightDesc.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
@@ -126,6 +141,7 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".texturec");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
+        leafResourceTypes.add(".bufferc");
     }
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {

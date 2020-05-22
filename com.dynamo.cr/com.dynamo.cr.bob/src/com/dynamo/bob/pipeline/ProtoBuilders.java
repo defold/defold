@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
@@ -31,6 +43,7 @@ import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Type;
 import com.dynamo.physics.proto.Physics.ConvexShape;
+import com.dynamo.buffer.proto.BufferProto.BufferDesc;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.render.proto.Material.MaterialDesc;
@@ -67,7 +80,7 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
-            
+
             if (messageBuilder.getExclude()) {
             	if (project.getBuildDirectory() != null && resource.output() != null && resource.output().getPath() != null) {
             		if (resource.output().getPath().startsWith(project.getBuildDirectory())) {
@@ -77,7 +90,7 @@ public class ProtoBuilders {
             		}
             	}
             }
-            
+
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -85,7 +98,6 @@ public class ProtoBuilders {
     @ProtoParams(messageClass = ConvexShape.class)
     @BuilderParams(name="ConvexShape", inExts=".convexshape", outExt=".convexshapec")
     public static class ConvexShapeBuilder extends ProtoBuilder<ConvexShape.Builder> {}
-
 
     @ProtoParams(messageClass = CollisionObjectDesc.class)
     @BuilderParams(name="CollisionObjectDesc", inExts=".collisionobject", outExt=".collisionobjectc")

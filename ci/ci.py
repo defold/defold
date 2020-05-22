@@ -1,4 +1,17 @@
 #!/usr/bin/env python
+# Copyright 2020 The Defold Foundation
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+# 
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+# 
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+
 
 import sys
 import subprocess
@@ -171,7 +184,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor2(channel = None, engine_artifacts = None):
+def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
     opts = []
 
     if engine_artifacts:
@@ -179,6 +192,9 @@ def build_editor2(channel = None, engine_artifacts = None):
 
     if channel:
         opts.append('--channel=%s' % channel)
+
+    if skip_tests:
+        opts.append('--skip-tests')
 
     opts_string = ' '.join(opts)
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform_from_host(), opts_string))
@@ -283,6 +299,7 @@ def main(argv):
 
     # configure build flags based on the branch
     release_channel = None
+    skip_editor_tests = False
     if branch == "master":
         engine_channel = "stable"
         editor_channel = "editor-alpha"
@@ -316,6 +333,7 @@ def main(argv):
         engine_channel = None
         editor_channel = None
         make_release = False
+        skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
@@ -335,7 +353,7 @@ def main(argv):
                 skip_builtins = args.skip_builtins,
                 skip_docs = args.skip_docs)
         elif command == "build-editor":
-            build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts)
+            build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
         elif command == "notarize-editor":
             notarize_editor2(
                 notarization_username = args.notarization_username,

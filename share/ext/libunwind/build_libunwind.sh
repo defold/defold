@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# Copyright 2020 The Defold Foundation
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+# 
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+# 
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+
 
 export CONF_TARGET=$1
 
@@ -77,35 +90,6 @@ case $CONF_TARGET in
 
             cp -v libunwind_android/obj/local/arm64-v8a/libunwind_defold.a  $PREFIX/lib/$CONF_TARGET/libunwind.a
             cp -vr libunwind_android/include/* $PREFIX/include/$CONF_TARGET/
-        }
-        ;;
-    *x86_64-darwin)
-        # SHA1 of master as of 2018-12-07
-        readonly VERSION=395b27b68c5453222378bc5fe4dab4c6db89816a
-
-        function cmi_make() {
-            echo -e "Checking out libunwind into libunwind_osx"
-            git clone https://github.com/llvm-mirror/libunwind.git libunwind_osx
-            pushd libunwind_osx
-            git checkout $VERSION
-            mkdir build
-            cd build
-
-            echo -e "Running CMAKE"
-            cmake ..
-
-            echo -e "Building with make"
-            make
-            popd
-
-            echo -e "Copying library to build folder"
-            mkdir -p $PREFIX/lib/$CONF_TARGET
-            mkdir -p $PREFIX/bin/
-            mkdir -p $PREFIX/share/
-            mkdir -p $PREFIX/include/$CONF_TARGET/
-
-            cp -v libunwind_osx/build/lib/libunwind.a $PREFIX/lib/$CONF_TARGET/
-            cp -vr libunwind_osx/include/* $PREFIX/include/$CONF_TARGET/
         }
         ;;
     *)

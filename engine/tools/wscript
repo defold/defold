@@ -48,6 +48,9 @@ def configure(conf):
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
+    conf.env['STATICLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
+    if platform == "x86_64-darwin":
+        conf.env['STATICLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')

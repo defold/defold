@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
@@ -179,6 +191,7 @@
                                 :source-paths ["sidecar"]}
                       :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
+                      :vscode {:plugins [[nrepl "0.6.0"]]}
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
                                         ;;[refactor-nrepl "2.4.0"] ;; -- this does not seem to work well together with cider-nrepl 0.24.0 so it might be better to just skip.
                                         [com.billpiel/sayid "0.0.18"]]}

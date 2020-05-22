@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.math
   (:import [java.lang Math]
            [java.math RoundingMode]
@@ -200,6 +212,18 @@
      (* (.y v) (.y p))
      (* (.z v) (.z p))
      (.w v)))
+
+(defn min-point
+  ^Point3d [^Point3d a ^Point3d b]
+  (Point3d. (Double/min (.x a) (.x b))
+            (Double/min (.y a) (.y b))
+            (Double/min (.z a) (.z b))))
+
+(defn max-point
+  ^Point3d [^Point3d a ^Point3d b]
+  (Point3d. (Double/max (.x a) (.x b))
+            (Double/max (.y a) (.y b))
+            (Double/max (.z a) (.z b))))
 
 (defn plane-from-points
   "Construct an infinite plane from three points in space. The plane normal will
