@@ -20,6 +20,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace])
   (:import (com.dynamo.graphics.proto Graphics$ShaderDesc)
+           (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilder$SPIRVCompileResult ShaderUtil$ES2ToES3Converter ShaderUtil$ES2ToES3Converter$ShaderType)
            (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
@@ -86,11 +87,23 @@
                       (shader/insert-directives lines compat-directive-lines)
                       lines)))
 
+(defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
+  (let [^ShaderUtil$ES2ToES3Converter/ShaderType shader-type (case resource-ext
+                                                               "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
+                                                               "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER
+                                                               ShaderUtil$ES2ToES3Converter$ShaderType/UNSUPPORTED_SHADER)
+        ^ShaderProgramBuilder$SPIRVCompileResult compile-res (ShaderProgramBuilder/compileGLSLToSPIRV glsl-source shader-type resource-path "" false true)]
+    {:language :language-spirv
+     :source (ByteString/copyFrom (. compile-res source))
+     :uniforms (. compile-res resource-list)
+     :attributes (. compile-res attributes)}))
+
 (defn- build-shader [resource _dep-resources user-data]
   (let [{:keys [resource-ext lines]} user-data
         full-source (make-full-source resource-ext lines)
         shader-desc {:shaders [{:language :language-glsl
-                                :source (ByteString/copyFrom (.getBytes full-source "UTF-8"))}]}
+                                :source (ByteString/copyFrom (.getBytes full-source "UTF-8"))},
+                               (make-spirv-shader full-source resource-ext (resource/path resource))]}
         content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
     {:resource resource
      :content content}))
