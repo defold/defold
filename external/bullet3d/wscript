@@ -25,12 +25,13 @@ def configure(conf):
 
 def build(bld):
 
-    packagedir = 'package/%s-%s/src' % (APPNAME, VERSION)
+    name = '%s-%s' % (APPNAME, VERSION)
+    packagedir = 'package/%s/src' % name
 
     path = './%s/BulletCollision' % packagedir
     bullet_collision = bld.new_task_gen(features = 'cxx cstaticlib',
                                         defines = ['NDEBUG'],
-                                        includes = '. ..',
+                                        includes = '. .. ./package/%s/src' % name,
                                         target = 'BulletCollision')
 
     bullet_collision.find_sources_in_dirs(['%s/BroadphaseCollision' % path,
@@ -43,8 +44,9 @@ def build(bld):
     path = './%s/BulletDynamics' % packagedir
     bullet_dynamics = bld.new_task_gen(features = 'cxx cstaticlib',
                                         defines = ['NDEBUG'],
-                                       includes = '. ..',
+                                       includes = '. .. ./package/%s/src' % name,
                                        target = 'BulletDynamics')
+
     bullet_dynamics.find_sources_in_dirs([  '%s/Character' % path,
                                             '%s/ConstraintSolver' % path,
                                             '%s/Dynamics' % path,
@@ -54,7 +56,7 @@ def build(bld):
     path = './%s/LinearMath' % packagedir
     linear_math = bld.new_task_gen(features = 'cxx cstaticlib',
                                    defines = ['NDEBUG'],
-                                   includes = '. ..',
+                                   includes = '. .. ./package/%s/src' % name,
                                    target = 'LinearMath')
     linear_math.find_sources_in_dirs(path)
     linear_math.install_path = None
