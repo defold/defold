@@ -19,8 +19,8 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import (com.dynamo.graphics.proto Graphics$ShaderDesc)
-           (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilder$SPIRVCompileResult ShaderUtil$ES2ToES3Converter ShaderUtil$ES2ToES3Converter$ShaderType)
+  (:import (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$ShaderDataType)
+           (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilder$SPIRVCompileResult ShaderUtil$ES2ToES3Converter ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
            (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
@@ -87,6 +87,22 @@
                       (shader/insert-directives lines compat-directive-lines)
                       lines)))
 
+(defn- shader-type-from-str [^String shader-type-in]
+  (case shader-type-in
+    "int" :shader-type-int
+    "uint" :shader-type-uint
+    "float" :shader-type-float
+    "vec2" :shader-type-vec2
+    "vec3" :shader-type-vec3
+    "vec4" :shader-type-vec4
+    "mat2" :shader-type-mat2
+    "mat3" :shader-type-mat3
+    "mat4" :shader-type-mat4
+    "sampler2D" :shader-type-sampler2d
+    "sampler3D" :shader-type-sampler3d
+    "samplerCube" :shader-type-sampler-cube
+    :shader-type-unknown))
+
 (defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
   (let [^ShaderUtil$ES2ToES3Converter/ShaderType shader-type (case resource-ext
                                                                "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
@@ -95,8 +111,8 @@
         ^ShaderProgramBuilder$SPIRVCompileResult compile-res (ShaderProgramBuilder/compileGLSLToSPIRV glsl-source shader-type resource-path "" false true)]
     {:language :language-spirv
      :source (ByteString/copyFrom (. compile-res source))
-     :uniforms (. compile-res resource-list)
-     :attributes (. compile-res attributes)}))
+     :uniforms (into [] (for [^ShaderUtil$SPIRVReflector$Resource x (seq (. compile-res resource-list))] {:name (.name x) :type (shader-type-from-str (.type x)) :set (.set x) :binding (.binding x)}))
+     :attributes (into [] (for [^ShaderUtil$SPIRVReflector$Resource x (seq (. compile-res attributes))] {:name (.name x) :type (shader-type-from-str (.type x)) :set (.set x) :binding (.binding x)}))}))
 
 (defn- build-shader [resource _dep-resources user-data]
   (let [{:keys [resource-ext lines]} user-data
