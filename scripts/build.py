@@ -65,9 +65,11 @@ PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.1.xctoolchain"
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
+WINDOWS_SDK_10_VERSION="10.0.18362.0"
+WINDOWS_MSVC_2019_VERSION="14.25.28610"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
 PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
-PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
+PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
@@ -503,7 +505,7 @@ class Configuration(object):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') )
+            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
