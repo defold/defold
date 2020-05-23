@@ -1,6 +1,6 @@
 # Packaging the SDK's
 
-Most of the SDKs used by Defold have licenses that prevent third party redistribution. To efficiently work with the build servers and our build pipeline it is recommended to package the SDKs and serve them from a private URL, accessible by `build.py`. The URL is defined as `CDN_PACKAGES_URL` in `build.py`.
+Most of the SDKs used by Defold have licenses that prevent third party redistribution. To efficiently work with the build servers and our build pipeline it is recommended to package the SDKs and serve them from a private URL, accessible by `build.py`. The URL is defined as `CDN_PACKAGES_URL` in `build.py` (or `DM_PACKAGES_URL` environment variable).
 
 We provide a number of scripts to package the SDKs into a format expected by `build.py`. The basic principle when packaging an SDK is to "zip it up" and put it in a cloud storage that the build scripts can access later on. Some of the package scripts can be run on a single host, and yet package the SDK for another host. However, some scripts need to be run on a certain host (for instance various installers).
 
@@ -9,12 +9,12 @@ Usually, the folders can be packaged as-is, but it's generally preferable to rem
 
 ## Installation
 
-This step is automated given the proper archives are available on the download link.
-You can configure the download link via a command line option:
+This step is automated given the proper archives (sdk's) are available either locally or on a file server.
+You can configure the path via a command line option:
 
-	 ./scripts/build.py --package-path=<url> install_ext --platform=<platform>
+	 ./scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>
 
-or by changing the `CDN_PACKAGES_URL` in the `build.py`.
+or by specifying the `DM_PACKAGES_URL` environment variable.
 
 As a result, all packages should be unpacked under the path `$DYNAMO_HOME/ext/SDKs`:
 
