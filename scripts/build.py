@@ -478,6 +478,30 @@ class Configuration(object):
 
         self.install_sdk()
 
+    def check_sdk(self):
+        sdkfolder = join(self.ext, 'SDKs')
+        folders = [sdkfolder]
+
+        if self.target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+            folders.append(join(sdkfolder, PACKAGES_MACOS_SDK))
+            folders.append(join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+        if self.target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+            folders.append(join(sdkfolder, PACKAGES_IOS_SDK))
+            folders.append(join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+        if self.target_platform in ('x86_64-win32', 'win32'):
+            folders.append(join(sdkfolder, 'Win32','WindowsKits','8.1'))
+            folders.append(join(sdkfolder, 'Win32','WindowsKits','10'))
+            folders.append(join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
+        if self.target_platform in ('armv7-android', 'arm64-android'):
+            folders.append(join(sdkfolder, PACKAGES_ANDROID_NDK))
+            folders.append(join(sdkfolder, PACKAGES_ANDROID_SDK))
+
+        for f in folders:
+            if not os.path.exists(f):
+                print "Missing SDK in", f
+                print "Run './scripts/build.py install_ext --platform=%s'" % self.target_platform
+                sys.exit(1)
+
     def install_sdk(self):
         def download_sdk(url, targetfolder, strip_components=1):
             if not os.path.exists(targetfolder):
@@ -489,7 +513,7 @@ class Configuration(object):
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
-        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
             download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
@@ -873,6 +897,8 @@ class Configuration(object):
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
 
     def build_engine(self):
+        self.check_sdk()
+
         # We want random folder to thoroughly test bob-light
         # We dont' want it to unpack for _every_ single invocation during the build
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
