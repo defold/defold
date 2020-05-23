@@ -81,6 +81,7 @@ def package(conf):
     cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION))
 
     files = waf_package.glob_files("include/**/*", cwd=cwd)
+    files.extend(waf_package.glob_files("include/*", cwd=cwd))
     target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
     waf_package.create_tar(files, cwd, target=target)
 
