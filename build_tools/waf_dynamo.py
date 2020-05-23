@@ -1292,10 +1292,9 @@ def get_msvc_version(conf, platform):
     msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
     windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
 
-    target_map = {'win32': 'x86',
-                   'x86_64-win32': 'x64'}
-    platform_map = {'win32': '',
-                    'x86_64-win32': 'amd64'}
+    arch = 'x64'
+    if platform == 'win32':
+        arch = 'x86'
 
     # Since the programs(Windows!) can update, we do this dynamically to find the correct version
     ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
@@ -1312,8 +1311,8 @@ def get_msvc_version(conf, platform):
     if not msvc_version.startswith('14.'):
         conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
 
-    msvc_path = (os.path.join(msvcdir,'VC','Tools','MSVC',MSVC_VERSION,'bin','Hostx64','x64'),
-                os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
+    msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
+                os.path.join(windowskitsdir, '8.1', 'bin', arch))
 
     includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
                 os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
@@ -1322,15 +1321,10 @@ def get_msvc_version(conf, platform):
                 os.path.join(windowskitsdir,'8.1','Include','um'),
                 os.path.join(windowskitsdir,'8.1','Include','shared')]
 
-    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib','x64'),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib','x64'),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x64'),
-                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
-    if platform == 'win32':
-        libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib','x86'),
-                    os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib','x86'),
-                    os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x86'),
-                    os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
+    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
+                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
+                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um',arch)]
 
     return msvc_path, includes, libdirs
 

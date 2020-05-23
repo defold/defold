@@ -60,12 +60,14 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	TMP=MicrosoftVisualStudio2019
 
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/include
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x64
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x86
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/atlmfc
 
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64"
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86"
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/include" "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
