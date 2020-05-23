@@ -108,7 +108,9 @@
                                                                "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
                                                                "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER
                                                                ShaderUtil$ES2ToES3Converter$ShaderType/UNSUPPORTED_SHADER)
-        ^ShaderProgramBuilder$SPIRVCompileResult compile-res (ShaderProgramBuilder/compileGLSLToSPIRV glsl-source shader-type resource-path "" false true)]
+        ^ShaderProgramBuilder$SPIRVCompileResult compile-res (ShaderProgramBuilder/compileGLSLToSPIRV glsl-source shader-type resource-path "" false true)
+        compile-warnings (. compile-res compile-warnings)]
+    ;; We should probably take care of warnings here, and not return anything when that happens.
     {:language :language-spirv
      :source (ByteString/copyFrom (. compile-res source))
      :uniforms (into [] (for [^ShaderUtil$SPIRVReflector$Resource x (seq (. compile-res resource-list))] {:name (.name x) :type (shader-type-from-str (.type x)) :set (.set x) :binding (.binding x)}))

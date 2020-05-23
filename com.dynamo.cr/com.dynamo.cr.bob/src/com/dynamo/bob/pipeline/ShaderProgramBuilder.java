@@ -191,12 +191,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     static public class SPIRVCompileResult
     {
         public byte[] source;
-        public ArrayList<String> compile_issues = new ArrayList<String>();
+        public ArrayList<String> compile_warnings = new ArrayList<String>();
         public ArrayList<SPIRVReflector.Resource> attributes = new ArrayList<SPIRVReflector.Resource>();
         public ArrayList<SPIRVReflector.Resource> resource_list = new ArrayList<SPIRVReflector.Resource>();
     };
 
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+        SPIRVCompileResult res = new SPIRVCompileResult();
+
         // Convert to ES3 (or GL 140+)
         ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile);
 
@@ -230,11 +232,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         String result_string = getResultString(result);
         if (soft_fail && result_string != null) {
-            System.err.println("\nWarning! Compatability issue: " + result_string);
-            return null;
+            res.compile_warnings.add("\nCompatability issue: " + result_string);
+            return res;
         } else {
-            // What to do here?
-            // checkResult(result_string, resource, resourceOutput);
+            checkResult(result_string, null, resourceOutput);
         }
 
         // Generate reflection data
@@ -248,11 +249,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         result_string = getResultString(result);
         if (soft_fail && result_string != null) {
-            System.err.println("\nWarning! Unable to get reflection data: " + result_string);
-            return null;
+            res.compile_warnings.add("\nUnable to get reflection data: " + result_string);
+            return res;
         } else {
-            // What to do here?
-            // checkResult(result_string, resource, resourceOutput);
+            checkResult(result_string, null, resourceOutput);
         }
 
         String result_json             = FileUtils.readFileToString(file_out_refl, StandardCharsets.UTF_8);
@@ -363,12 +363,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
         }
 
-        SPIRVCompileResult res = new SPIRVCompileResult();
-
         // This is a soft-fail mechanism just to notify that the shaders won't work in runtime.
         // At some point we should probably throw a compilation error here so that the build fails.
         if (shaderIssues.size() > 0) {
-            res.compile_issues = shaderIssues;
+            res.compile_warnings = shaderIssues;
             return res;
         }
 
@@ -396,12 +394,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         SPIRVCompileResult compile_res = compileGLSLToSPIRV(source.toString(), shaderType, resourceOutput, targetProfile, isDebug, soft_fail);
 
-        if (compile_res == null)
-        {
-            return null;
-        }
-
-        if (compile_res.compile_issues.size() > 0)
+        if (compile_res.compile_warnings.size() > 0)
         {
             String resourcePath = resourceOutput;
 
@@ -410,8 +403,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 resourcePath = resource.getPath();
             }
 
-            System.err.println("\nWarning! Found " + compile_res.compile_issues.size() + " issues when compiling '" + resourcePath + "' to SPIR-V:");
-            for (String issueStr : compile_res.compile_issues) {
+            System.err.println("\nWarning! Found " + compile_res.compile_warnings.size() + " issues when compiling '" + resourcePath + "' to SPIR-V:");
+            for (String issueStr : compile_res.compile_warnings) {
                 System.err.println("  " + issueStr);
             }
 
