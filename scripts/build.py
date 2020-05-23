@@ -480,7 +480,7 @@ class Configuration(object):
 
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-        folders = [sdkfolder]
+        folders = []
 
         if self.target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             folders.append(join(sdkfolder, PACKAGES_MACOS_SDK))
