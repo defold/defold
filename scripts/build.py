@@ -68,7 +68,6 @@ PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.1.xctoolchain"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
-PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
 PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
@@ -503,7 +502,6 @@ class Configuration(object):
             folders.append(join(sdkfolder, PACKAGES_IOS_SDK))
             folders.append(join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
         if self.target_platform in ('x86_64-win32', 'win32'):
-            folders.append(join(sdkfolder, 'Win32','WindowsKits','8.1'))
             folders.append(join(sdkfolder, 'Win32','WindowsKits','10'))
             folders.append(join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
         if self.target_platform in ('armv7-android', 'arm64-android'):
@@ -539,7 +537,6 @@ class Configuration(object):
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 

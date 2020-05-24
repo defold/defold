@@ -1312,19 +1312,19 @@ def get_msvc_version(conf, platform):
         conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
 
     msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
-                os.path.join(windowskitsdir, '8.1', 'bin', arch))
+                os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
 
     includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
                 os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
                 os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'8.1','Include','winrt'),
-                os.path.join(windowskitsdir,'8.1','Include','um'),
-                os.path.join(windowskitsdir,'8.1','Include','shared')]
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
 
     libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
                 os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
                 os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
-                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um',arch)]
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
 
     return msvc_path, includes, libdirs
 
@@ -1385,16 +1385,15 @@ def detect(conf):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
+        msvc_path, includes, libdirs = get_msvc_version(conf, platform)
+        
         if platform == 'x86_64-win32':
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
         else:
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', get_msvc_version(conf, 'win32')))])]
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (msvc_path, includes, libdirs)))])]
 
-        target_map = {'win32': 'x86', 'x86_64-win32': 'x64'}
-        windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
-        if not os.path.exists(windowskitsdir):
-            windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = [os.path.join(windowskitsdir, '8.1','bin', target_map[platform] )])
+        if not Options.options.skip_codesign:
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
