@@ -478,6 +478,18 @@ class Configuration(object):
 
         self.install_sdk()
 
+    def get_local_or_remote_file(self, path):
+        if os.path.isdir(self.package_path): # is is a local path?
+            if os.path.exists(path):
+                return os.path.normpath(os.path.abspath(path))
+            print "Could not find local file:", path
+            sys.exit(1)
+        path = self._download(path) # it should be an url
+        if path is None:
+            print("Error. Could not download %s" % url)
+            sys.exit(1)
+        return path
+
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
         folders = []
@@ -507,8 +519,8 @@ class Configuration(object):
             if not os.path.exists(targetfolder):
                 if not os.path.exists(os.path.dirname(targetfolder)):
                     os.makedirs(os.path.dirname(targetfolder))
-                dlpath = self._download(url)
-                self._extract_tgz_rename_folder(dlpath, targetfolder, strip_components)
+                path = self.get_local_or_remote_file(url)
+                self._extract_tgz_rename_folder(path, targetfolder, strip_components)
 
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -1861,7 +1873,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     default_package_path = CDN_PACKAGES_URL
     parser.add_option('--package-path', dest='package_path',
                       default = default_package_path,
-                      help = 'The CDN where the SDK packages are located. Default is %s' % default_package_path)
+                      help = 'Either an url to a file server where the sdk packages are located, or a path to a local folder. Reads $DM_PACKAGES_URL. Default is %s.' % default_package_path)
 
     parser.add_option('--set-version', dest='set_version',
                       default = None,
