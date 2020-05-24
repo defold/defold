@@ -41,4 +41,5 @@ ci/env.sh
 com.dynamo.cr/com.dynamo.cr.bob.test/test/build
 com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.java
 
+/local_sdks
 external/**/build/
