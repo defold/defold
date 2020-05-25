@@ -5,7 +5,7 @@
             :key        "9e25fea9bc334227b588829dd60265c1"
             :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}
    :google-analytics {:tid "UA-83690-7"}
-   :git-issues {:url "https://github.com/defold/editor2-issues"}
+   :git-issues {:url "https://github.com/defold/defold"}
    :native-extensions {:build-server-url "https://build.defold.com"}
    :updater {:download-url-template "https://d.defold.com/archive/%s/%s/editor2/Defold-%s.zip"
              :update-url-template "https://d.defold.com/editor2/channels/%s/update-v3.json"}})
