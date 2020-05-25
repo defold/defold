@@ -48,6 +48,7 @@ protected:
 
     virtual void SetUp()
     {
+        dmGraphics::Initialize();
         m_Context = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmGraphics::WindowParams params;
         params.m_ResizeCallback = OnWindowResize;

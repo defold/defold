@@ -314,7 +314,13 @@
     (error-values/error-aggregate es)))
 
 (defn- gen-scratch-arrays [meshes]
-  (into {} (map (fn [component] [component (float-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
+  (into {}
+        (map (fn [component]
+               [component (float-array (reduce max
+                                               0
+                                               (map (comp count component)
+                                                    meshes)))]))
+        [:positions :normals :texcoord0]))
 
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)

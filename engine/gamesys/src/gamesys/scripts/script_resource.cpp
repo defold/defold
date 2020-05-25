@@ -4,10 +4,12 @@
 #include <dlib/dstrings.h>
 #include <resource/resource.h>
 #include <graphics/graphics_ddf.h>
+#include "mesh_ddf.h"
 #include <script/script.h>
 #include <liveupdate/liveupdate.h>
 #include "../gamesys.h"
 #include "script_resource_liveupdate.h"
+#include "../resources/res_buffer.h"
 
 
 namespace dmGameSystem
@@ -249,7 +251,7 @@ static int Load(lua_State* L)
 
     memcpy(data, resource, resourcesize);
 
-    dmScript::LuaHBuffer luabuf = {buffer, true};
+    dmScript::LuaHBuffer luabuf = {buffer, dmScript::OWNER_LUA};
     dmScript::PushBuffer(L, luabuf);
     assert(top + 1 == lua_gettop(L));
     return 1;
@@ -431,12 +433,201 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
+/*# get resource buffer
+ * gets the buffer from a resource
+ *
+ * @name resource.get_buffer
+ *
+ * @param path [type:hash|string] The path to the resource
+ * @return buffer [type:buffer] The resource buffer
+ *
+ * @examples
+ * How to get the data from a buffer
+ *
+ * ```lua
+ * function init(self)
+ *
+ *     local res_path = go.get("#mesh", "vertices")
+ *     local buf = resource.get_buffer(res_path)
+ *     local stream_positions = buffer.get_stream(self.buffer, "position")
+ *
+ *     for i=1,#stream_positions do
+ *         print(i, stream_positions[i])
+ *     end
+ * end
+ * ```
+ */
+static int GetBuffer(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(g_ResourceModule.m_Factory, rd->m_Resource, &resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    dmResource::ResourceType buffer_resource_type;
+    r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "bufferc", &buffer_resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    if (resource_type != buffer_resource_type) {
+        return luaL_error(L, "Resource %s is not of bufferc type.", dmHashReverseSafe64(path_hash));
+    }
+
+    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+    dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
+    dmScript::LuaHBuffer luabuf;
+    luabuf.m_BufferRes = (void*)buffer_resource;
+    luabuf.m_Owner = dmScript::OWNER_RES;
+    PushBuffer(L, luabuf);
+
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
+/*# set resource buffer
+ * sets the buffer of a resource
+ *
+ * @name resource.set_buffer
+ *
+ * @param path [type:hash|string] The path to the resource
+ * @param buffer [type:buffer] The resource buffer
+ *
+ * @examples
+ * How to set the data from a buffer
+ *
+ * ```lua
+ * local function fill_stream(stream, verts)
+ *     for key, value in ipairs(verts) do
+ *         stream[key] = verts[key]
+ *     end
+ * end
+ *
+ * function init(self)
+ *
+ *     local res_path = go.get("#mesh", "vertices")
+ *
+ *     local positions = {
+ *          1, -1, 0,
+ *          1,  1, 0,
+ *          -1, -1, 0
+ *     }
+ *
+ *     local num_verts = #positions / 3
+ *
+ *     -- create a new buffer
+ *     local buf = buffer.create(num_verts, {
+ *         { name = hash("position"), type=buffer.VALUE_TYPE_FLOAT32, count = 3 }
+ *     })
+ *
+ *     local buf = resource.get_buffer(res_path)
+ *     local stream_positions = buffer.get_stream(buf, "position")
+ *
+ *     fill_stream(stream_positions, positions)
+ *
+ *     resource.set_buffer(res_path, buf)
+ * end
+ * ```
+ */
+static int SetBuffer(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
+    dmBuffer::HBuffer src_buffer = luabuf->m_Buffer;
+    if (luabuf->m_Owner == dmScript::OWNER_RES) {
+        src_buffer = ((BufferResource*)luabuf->m_BufferRes)->m_Buffer;
+    }
+
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not get buffer resource: %s", dmHashReverseSafe64(path_hash));
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(g_ResourceModule.m_Factory, rd->m_Resource, &resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    dmResource::ResourceType buffer_resource_type;
+    r = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "bufferc", &buffer_resource_type);
+    assert(r == dmResource::RESULT_OK);
+
+    if (resource_type != buffer_resource_type) {
+        return luaL_error(L, "Resource %s is not of bufferc type.", dmHashReverseSafe64(path_hash));
+    }
+
+    dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)rd->m_Resource;
+    dmBuffer::HBuffer dst_buffer = buffer_resource->m_Buffer;
+
+    // Make sure the destination buffer has enough size (otherwise, resize it).
+    // TODO: Check if incoming buffer size is smaller than current size -> don't allocate new dmbuffer,
+    //       but copy smaller data and change "size".
+    uint32_t dst_count = 0;
+    dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
+    if (br != dmBuffer::RESULT_OK) {
+        return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
+    }
+    uint32_t src_count = 0;
+    br = dmBuffer::GetCount(src_buffer, &src_count);
+    if (br != dmBuffer::RESULT_OK) {
+        return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+    }
+
+    bool new_buffer_needed = dst_count != src_count;
+    if (new_buffer_needed) {
+        // Need to create a new buffer to copy data to.
+
+        // Copy stream declaration
+        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
+            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
+            streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
+            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+        }
+
+        br = dmBuffer::Create(src_count, streams_decl, stream_count, &dst_buffer);
+        free(streams_decl);
+
+        if (br != dmBuffer::RESULT_OK) {
+            return luaL_error(L, "Unable to create copy buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        }
+    }
+
+    // Copy supplied data to buffer
+    br = dmBuffer::Copy(dst_buffer, src_buffer);
+    if (br != dmBuffer::RESULT_OK) {
+        if (new_buffer_needed) {
+            dmBuffer::Destroy(dst_buffer);
+        }
+        return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+    }
+
+    // If we created a new buffer, make sure to destroy the old one.
+    if (new_buffer_needed) {
+        dmBuffer::Destroy(buffer_resource->m_Buffer);
+        buffer_resource->m_Buffer = dst_buffer;
+        buffer_resource->m_ElementCount = src_count;
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
 
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+    {"get_buffer", GetBuffer},
+    {"set_buffer", SetBuffer},
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},

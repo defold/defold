@@ -529,7 +529,7 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = GetMaterial(first, resource);
-        ro.m_WorldTransform = first->m_World;
+        ro.m_WorldTransform = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
