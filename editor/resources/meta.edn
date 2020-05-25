@@ -245,6 +245,11 @@
    "verify the return value after each graphics call",
    :default true,
    :path ["graphics" "verify_graphics_calls"]}
+  {:type :boolean,
+   :help "compile and output SPIR-V shaders for use with Metal or Vulkan",
+   :default false,
+   :label "Output SPIR-V"
+   :path ["shader" "output_spirv"]}
   {:type :number,
    :help
    "seconds to wait before treating a held down keyboard-key to start repeating itself",
@@ -879,6 +884,7 @@
          :title "OSX"},
   "network" {:help "Network related settings"},
   "script" {:help "Script system settings"},
+  "shader" {:help "Shader related settings"}
   "gui" {:help "GUI related settings"
          :title "GUI"},
   "sprite" {:help "Sprite related settings"},
