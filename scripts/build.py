@@ -45,7 +45,7 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
-PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
 PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
@@ -79,6 +79,7 @@ SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
 
+EXTERNAL_LIBS = "bullet3d".split()
 
 def is_64bit_machine():
     return platform.machine().endswith('64')
@@ -401,7 +402,7 @@ class Configuration(object):
             'win32':          PACKAGES_WIN32,
             'x86_64-win32':   PACKAGES_WIN32_64,
             'x86_64-linux':   PACKAGES_LINUX_64,
-            'darwin':         PACKAGES_DARWIN,
+            'darwin':         PACKAGES_DARWIN, # ?? Still used by bob-light?
             'x86_64-darwin':  PACKAGES_DARWIN_64,
             'armv7-darwin':   PACKAGES_IOS,
             'arm64-darwin':   PACKAGES_IOS_64,
@@ -866,7 +867,7 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache}
+        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'prefix':None}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -883,8 +884,9 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache):
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache)
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
+        prefix = prefix and prefix or self.dynamo_home
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -953,6 +955,14 @@ class Configuration(object):
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print "Removing", os.environ['DM_BOB_ROOTFOLDER']
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
+
+    def build_external(self):
+        flags = self._get_build_flags()
+        flags['prefix'] = join(self.defold_root, 'packages')
+        cmd = self._build_engine_cmd(**flags)
+        args = cmd.split() + ['package']
+        for lib in EXTERNAL_LIBS:
+            self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
