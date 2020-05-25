@@ -87,12 +87,12 @@
             <Insets top="20.0"/>
           </VBox.margin>
         </GridPane>
-        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2019">
+        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2020">
           <VBox.margin>
             <Insets top="20.0"/>
           </VBox.margin>
         </Label>
-        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Midasplayer Technology AB"/>
+        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Defold Foundation"/>
       </children>
       <padding>
         <Insets top="10.0"/>
