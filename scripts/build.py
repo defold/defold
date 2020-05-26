@@ -476,6 +476,8 @@ class Configuration(object):
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
+        # Note: This is a step we want to separate from install_ext
+        # since it should actually be before install_ext (e.g. to build the extensions)
         self.install_sdk()
 
     def get_local_or_remote_file(self, path):
@@ -557,26 +559,20 @@ class Configuration(object):
     def _form_ems_path(self):
         return join(self.get_ems_dir(), 'upstream', 'emscripten')
 
-    def get_local_or_remote_path(self, path):
-        if os.path.exists(path): # is is a local path?
-            return path
-        path = self._download(path)
-        if path is None:
-            print("Error. Could not download %s" % url)
-            sys.exit(1)
-        return path
-
-
     def install_ems(self):
-        # TODO: should probably be moved to install_sdk
+        # TODO: should eventually be moved to install_sdk
         emsDir = self.get_ems_dir()
+
+        os.environ['EMSCRIPTEN'] = self._form_ems_path()
+        os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
+        os.environ['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
+
         if os.path.isdir(emsDir):
             print "Emscripten is already installed:", emsDir
         else:
             path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
-            path = self.get_local_or_remote_path(path)
+            path = self.get_local_or_remote_file(path)
             self._extract(path, join(self.ext, 'SDKs'))
-            os.environ['EMSCRIPTEN'] = self._form_ems_path()
             self.activate_ems()
 
         home = os.path.expanduser('~')
@@ -1806,6 +1802,8 @@ class Configuration(object):
             env['NOCOLOR'] = '1'
 
         env['EMSCRIPTEN'] = self._form_ems_path()
+        env['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
+        env['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
 
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:

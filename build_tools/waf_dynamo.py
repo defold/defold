@@ -339,8 +339,7 @@ def default_flags(self):
                                       '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
-        # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
 
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
