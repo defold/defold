@@ -39,7 +39,7 @@ waf_dynamo contains changes relating to emscripten. The simplest way to collect 
 
     > scripts/build.py install_ext
 
-Building for js-web requires installation of the emscripten tools. This is a slow process, so not included int install_ext, instead run install_ems:
+Building for js-web requires installation of the emscripten tools. This is a slow process, so not included in install_ext, instead run install_ems:
 
     > scripts/build.py install_ems
 

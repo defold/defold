@@ -21,7 +21,7 @@
 *.apidoc_
 engine/.clang_complete
 /.vscode
-/.npm
+.npm
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -366,6 +366,7 @@ namespace dmGameSystem
         Vector3 scale;
         if (top >= 5 && !lua_isnil(L, 5))
         {
+            // We check for zero in the ToTransform/ResetScale in transform.h
             Vector3* v = dmScript::ToVector3(L, 5);
             if (v != 0)
             {
@@ -374,10 +375,6 @@ namespace dmGameSystem
             else
             {
                 float val = luaL_checknumber(L, 5);
-                if (val <= 0.0f)
-                {
-                    return luaL_error(L, "The scale supplied to factory.create must be greater than 0.");
-                }
                 scale = Vector3(val, val, val);
             }
         }
