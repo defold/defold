@@ -135,7 +135,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function if you no longer wish to receive callbacks.
+ * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function or nil if you no longer wish to receive callbacks.
  *
  * `self`
  * : [type:object] The calling script
@@ -180,6 +180,13 @@ static void RunCallback(CallbackInfo* cbinfo)
 static int SetListener(lua_State* L)
 {
     WindowInfo* window_info = &g_Window;
+
+    luaL_checkany(L, 1);
+    if (lua_isnoneornil(L, 1)) {
+        ClearListener(&window_info->m_Listener);
+        return 0;
+    }
+
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
     int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
