@@ -488,7 +488,7 @@ class Configuration(object):
             sys.exit(1)
         path = self._download(path) # it should be an url
         if path is None:
-            print("Error. Could not download %s" % url)
+            print("Error. Could not download %s" % path)
             sys.exit(1)
         return path
 
@@ -564,19 +564,18 @@ class Configuration(object):
         emsDir = self.get_ems_dir()
 
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
-        os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
         os.environ['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
+        os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
 
         if os.path.isdir(emsDir):
             print "Emscripten is already installed:", emsDir
         else:
-            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
+            platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
+            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
             path = self.get_local_or_remote_file(path)
             self._extract(path, join(self.ext, 'SDKs'))
-            self.activate_ems()
 
-        home = os.path.expanduser('~')
-        config = join(home, '.emscripten')
+        config = os.environ['EM_CONFIG']
         if not os.path.isfile(config):
             self.activate_ems()
 
@@ -596,7 +595,7 @@ class Configuration(object):
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
 
-        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', EMSCRIPTEN_VERSION_STR])
+        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', EMSCRIPTEN_VERSION_STR, '--embedded'])
         # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
         # Does not seem to help to pre-create it or explicitly setting the --cache flag
         run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
