@@ -336,7 +336,7 @@ def default_flags(self):
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]',
+                                      '-Wall', '-fPIC', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
@@ -387,6 +387,10 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+    if 'web' == build_util.get_target_os():
+        if not 'cxxprogram' in self.features and not 'cprogram' in self.features:
+            self.link_task.env.append_value('LINKFLAGS', ['-s', 'SIDE_MODULE=1', '-s', 'EXPORT_ALL=1'])
+            print "MAWE SIDE_MODULE", self.name
 
 @feature('cprogram', 'cxxprogram')
 @before('apply_core')
@@ -395,6 +399,13 @@ def osx_64_luajit(self):
     # however it is still needed for 64bit iOS Simulator.
     if self.env['PLATFORM'] == 'x86_64-ios':
         self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
+
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+def web_main_module(self):
+    if self.env['PLATFORM'] in ('js-web', 'wasm-web'):
+        self.env.append_value('LINKFLAGS', ['-s', 'MAIN_MODULE=1'])
+        print "MAWE MAIN_MODULE", self.name
 
 @feature('skip_asan')
 @before('apply_core')
@@ -1545,7 +1556,7 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and ('js' == build_util.get_target_architecture() or 'wasm' == build_util.get_target_architecture()):
+    if platform in ('js-web', 'wasm-web'):
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
@@ -1558,6 +1569,14 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
+        if platform == 'js-web':
+            conf.env['shlib_PATTERN']='%s.js'
+        else:
+            conf.env['shlib_PATTERN']='%s.wasm'
+
+        # Unknown argument: -Bstatic, -Bdynamic
+        conf.env['STATICLIB_MARKER']=''
+        conf.env['SHLIB_MARKER']=''
 
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
