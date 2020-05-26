@@ -21,11 +21,12 @@ PLATFORM="$(tr [A-Z] [a-z] <<< "$PLATFORM")"
 
 PWD=`pwd`
 
-TMP=${PWD}/tmp
-TARGET=$TMP/emsdk-${VERSION}-${PLATFORM}.tar.gz
+TARGET_PATH=${PWD}/local_sdks
+TMP=${TARGET_PATH}/_tmpdir
+TARGET=$TARGET_PATH/emsdk-${VERSION}-${PLATFORM}.tar.gz
 
 if [ ! -d $TMP ]; then
-	mkdir $TMP
+	mkdir -p $TMP
 fi
 
 pushd $TMP
@@ -54,5 +55,7 @@ else
 fi
 
 popd
+
+rm -rf ${TMP}
 
 echo Wrote $TARGET
