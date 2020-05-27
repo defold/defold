@@ -16,23 +16,23 @@ var LibraryScript = {
               var ab = new Uint8Array(xhr.response);
               var b = allocate(ab, 'i8', ALLOC_NORMAL);
               var resp_headers_buffer = allocate(intArrayFromString(resp_headers), 'i8', ALLOC_NORMAL);
-              Runtime.dynCall('viiiii', onload, [arg, xhr.status, b, ab.length, resp_headers_buffer]);
+              dynCall('viiiii', onload, [arg, xhr.status, b, ab.length, resp_headers_buffer]);
               _free(b);
           } else {
-              Runtime.dynCall('vii', onerror, [arg, xhr.status]);
+              dynCall('vii', onerror, [arg, xhr.status]);
           }
       }
       xhr.onload = listener;
       xhr.onerror = listener;
       xhr.ontimeout = listener;
-      xhr.open(Pointer_stringify(method), Pointer_stringify(url), true);
+      xhr.open(UTF8ToString(method), UTF8ToString(url), true);
       // TODO: Doesn't work in node.js. Why? xhr2?
       xhr.responseType = 'arraybuffer';
       if (timeout > 0) {
           xhr.timeout = timeout / 1000.0;
       }
 
-      var headersArray = Pointer_stringify(headers).split("\n");
+      var headersArray = UTF8ToString(headers).split("\n");
       for (var i = 0; i < headersArray.length; i++) {
           if (headersArray[i].trim() != "") {
               var a = headersArray[i].split(":");
