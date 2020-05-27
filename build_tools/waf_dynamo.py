@@ -389,10 +389,6 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
-    if 'web' == build_util.get_target_os():
-        if not 'cxxprogram' in self.features and not 'cprogram' in self.features:
-            self.link_task.env.append_value('LINKFLAGS', ['-s', 'SIDE_MODULE=1', '-s', 'EXPORT_ALL=1'])
-            print "MAWE SIDE_MODULE", self.name
 
 @feature('cprogram', 'cxxprogram')
 @before('apply_core')
@@ -401,13 +397,6 @@ def osx_64_luajit(self):
     # however it is still needed for 64bit iOS Simulator.
     if self.env['PLATFORM'] == 'x86_64-ios':
         self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
-
-@feature('cprogram', 'cxxprogram')
-@before('apply_core')
-def web_main_module(self):
-    if self.env['PLATFORM'] in ('js-web', 'wasm-web'):
-        self.env.append_value('LINKFLAGS', ['-s', 'MAIN_MODULE=1'])
-        print "MAWE MAIN_MODULE", self.name
 
 @feature('skip_asan')
 @before('apply_core')
@@ -1493,10 +1482,6 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
-        if platform == 'js-web':
-            conf.env['shlib_PATTERN']='%s.js'
-        else:
-            conf.env['shlib_PATTERN']='%s.wasm'
 
         # Unknown argument: -Bstatic, -Bdynamic
         conf.env['STATICLIB_MARKER']=''
