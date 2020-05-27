@@ -555,6 +555,10 @@ class Configuration(object):
             # Android SDK
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
+
+    def get_ems_dir(self):
+        return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
+
     def _form_ems_path(self):
         return join(self.get_ems_dir(), 'upstream', 'emscripten')
 
@@ -578,26 +582,10 @@ class Configuration(object):
         if not os.path.isfile(config):
             self.activate_ems()
 
-    def get_ems_dir(self):
-        return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
-
-    def get_ems_sdk_name(self):
-        return EMSCRIPTEN_VERSION_STR
-
-    def get_ems_exe_path(self):
-        return join(self.get_ems_dir(), 'emsdk')
-
     def activate_ems(self):
-        # Compile a file warm up the emscripten caches (libc etc)
-        c_file = tempfile.mktemp(suffix='.c')
-        exe_file = tempfile.mktemp(suffix='.js')
-        with open(c_file, 'w') as f:
-            f.write('int main() { return 0; }')
-
-        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', EMSCRIPTEN_VERSION_STR, '--embedded'])
-        # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
-        # Does not seem to help to pre-create it or explicitly setting the --cache flag
-        run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
+        run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', EMSCRIPTEN_VERSION_STR, '--embedded'])
+        # prewarm the cache
+        run.env_command(self._form_env(), ['%s/embuilder.py' % self._form_ems_path(), 'build', 'SYSTEM', 'MINIMAL'])
 
     def check_ems(self):
         home = os.path.expanduser('~')

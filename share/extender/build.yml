@@ -300,20 +300,20 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_38_12}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_38_12}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "BINARYEN_METHOD=\"asmjs\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--memory-init-file", "0"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -327,27 +327,27 @@ platforms:
     zipContentPattern: 'dmengine.js'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+"]
-    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
+    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -Oz -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -Oz {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_38_12}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_38_12}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "BINARYEN_METHOD=\"native-wasm\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "BINARYEN_TRAP_MODE='clamp'", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--memory-init-file", "0"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -361,8 +361,8 @@ platforms:
     zipContentPattern: 'dmengine.(wasm|js)'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+"]
-    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
+    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -Oz -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -Oz {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 

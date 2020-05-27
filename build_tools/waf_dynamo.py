@@ -336,12 +336,22 @@ def default_flags(self):
             wasm_enabled = 1
             legacy_vm_support = 0
 
-        for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-Wall', '-fPIC', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]',
-                                      '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
+        # -Oz gave the smallest code size
+        if opt_level == '3':
+           opt_level = 'z'
 
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'ASSERTIONS=1', '-s', 'DEMANGLE_SUPPORT=1', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', '-s', 'EXPORTED_FUNCTIONS=["_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
+        emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
+                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace"]', 'EXPORTED_FUNCTIONS=["_main"]',
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456']
+        emflags = zip(['-s'] * len(emflags), emflags)
+        emflags =[j for i in emflags for j in i]
+
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-O%s' % opt_level, '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fPIC'])
+            self.env.append_value(f, emflags)
+
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0'])
+        self.env.append_value('LINKFLAGS', emflags)
 
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -1383,7 +1393,7 @@ def detect(conf):
 
     if 'win32' in platform:
         msvc_path, includes, libdirs = get_msvc_version(conf, platform)
-        
+
         if platform == 'x86_64-win32':
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
         else:
