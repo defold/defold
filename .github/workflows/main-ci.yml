@@ -267,7 +267,7 @@ jobs:
       {
         name: 'Publish updated API ref',
         uses: defold/repository-dispatch@1.2.1,
-        if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev')
+        if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
         with: {
             repo: 'defold/defold.github.io',
             token: '${{ secrets.GITHUB_TOKEN_READONLY }}',
