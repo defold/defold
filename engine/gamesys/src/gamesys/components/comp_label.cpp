@@ -257,6 +257,22 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    Matrix4 CompLabelLocalTransform(
+        const Point3& position,
+        const Quat& rotation,
+        const Vector3& scale,
+        const Vector3& size,
+        uint32_t pivot)
+    {
+        // Move pivot to (0,0). Rotate around (0,0). Move pivot to position.
+        return dmTransform::ToMatrix4(
+            dmTransform::Mul(
+                dmTransform::Transform(Vector3(position), rotation, 1.0f),
+                dmTransform::Transform(CalcPivotDelta(pivot, mulPerElem(scale, size)), Quat::identity(), 1.0f)
+            )
+        );
+    }
+
     static void UpdateTransforms(LabelWorld* world, bool sub_pixels)
     {
         DM_PROFILE(Label, "UpdateTransforms");
@@ -270,7 +286,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
-            Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(Vector3(c->m_Position + CalcPivotDelta(c->m_Pivot, mulPerElem(c->m_Scale, c->m_Size))), c->m_Rotation, 1.0));
+            Matrix4 local = CompLabelLocalTransform(c->m_Position, c->m_Rotation, c->m_Scale, c->m_Size, c->m_Pivot);
             Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
             Matrix4 w;
 

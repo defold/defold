@@ -27,6 +27,7 @@
 #include <gameobject/gameobject_ddf.h>
 #include "../proto/gamesys_ddf.h"
 #include "../proto/sprite_ddf.h"
+#include "../components/comp_label.h"
 
 namespace dmGameSystem
 {
@@ -1583,6 +1584,174 @@ const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
 INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, jc_test_values_in(valid_spine_gos));
 
 /* Label */
+
+const float TEST_EPS = 0.00001;
+
+TEST(Label, LabelMovesWhenSwitchingPivot) {
+    Point3 position(0.0, 0.0, 0.0);
+    Vector3 size(2.0, 2.0, 0.0);
+    Vector3 scale(1.0, 1.0, 0.0);
+
+    Point3 bottom_left(0.0, 0.0, 0.0);
+    Point3 top_left(0.0, size.getY(), 0.0);
+    Point3 top_right(size.getX(), size.getY(), 0.0);
+    Point3 bottom_right(size.getX(), 0.0, 0.0);
+
+    Vector4 bottom_left_result;
+    Vector4 top_left_result;
+    Vector4 top_right_result;
+    Vector4 bottom_right_result;
+    Matrix4 mat;
+
+    // pivot = center
+    mat = dmGameSystem::CompLabelLocalTransform(position, Quat::identity(), scale, size, 0);
+
+    bottom_left_result = mat * bottom_left;
+    EXPECT_NEAR(bottom_left_result.getX(), -1.0, TEST_EPS);
+    EXPECT_NEAR(bottom_left_result.getY(), -1.0, TEST_EPS);
+
+    top_left_result = mat * top_left;
+    EXPECT_NEAR(top_left_result.getX(), -1.0, TEST_EPS);
+    EXPECT_NEAR(top_left_result.getY(), 1.0, TEST_EPS);
+
+    top_right_result = mat * top_right;
+    EXPECT_NEAR(top_right_result.getX(), 1.0, TEST_EPS);
+    EXPECT_NEAR(top_right_result.getY(), 1.0, TEST_EPS);
+
+    bottom_right_result = mat * bottom_right;
+    EXPECT_NEAR(bottom_right_result.getX(), 1.0, TEST_EPS);
+    EXPECT_NEAR(bottom_right_result.getY(), -1.0, TEST_EPS);
+
+    // pivot = north east
+    mat = dmGameSystem::CompLabelLocalTransform(position, Quat::identity(), scale, size, 2);
+
+    bottom_left_result = mat * bottom_left;
+    EXPECT_NEAR(bottom_left_result.getX(), -2.0, TEST_EPS);
+    EXPECT_NEAR(bottom_left_result.getY(), -2.0, TEST_EPS);
+
+    top_left_result = mat * top_left;
+    EXPECT_NEAR(top_left_result.getX(), -2.0, TEST_EPS);
+    EXPECT_NEAR(top_left_result.getY(), 0.0, TEST_EPS);
+
+    top_right_result = mat * top_right;
+    EXPECT_NEAR(top_right_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(top_right_result.getY(), 0.0, TEST_EPS);
+
+    bottom_right_result = mat * bottom_right;
+    EXPECT_NEAR(bottom_right_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(bottom_right_result.getY(), -2.0, TEST_EPS);
+
+    // pivot = west
+    mat = dmGameSystem::CompLabelLocalTransform(position, Quat::identity(), scale, size, 7);
+
+    bottom_left_result = mat * bottom_left;
+    EXPECT_NEAR(bottom_left_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(bottom_left_result.getY(), -1.0, TEST_EPS);
+
+    top_left_result = mat * top_left;
+    EXPECT_NEAR(top_left_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(top_left_result.getY(), 1.0, TEST_EPS);
+
+    top_right_result = mat * top_right;
+    EXPECT_NEAR(top_right_result.getX(), 2.0, TEST_EPS);
+    EXPECT_NEAR(top_right_result.getY(), 1.0, TEST_EPS);
+
+    bottom_right_result = mat * bottom_right;
+    EXPECT_NEAR(bottom_right_result.getX(), 2.0, TEST_EPS);
+    EXPECT_NEAR(bottom_right_result.getY(), -1.0, TEST_EPS);
+}
+
+TEST(Label, LabelMovesWhenChangingPosition) {
+    Vector3 size(2.0, 2.0, 0.0);
+    Vector3 scale(1.0, 1.0, 0.0);
+
+    Point3 bottom_left(0.0, 0.0, 0.0);
+    Point3 top_left(0.0, size.getY(), 0.0);
+    Point3 top_right(size.getX(), size.getY(), 0.0);
+    Point3 bottom_right(size.getX(), 0.0, 0.0);
+
+    Vector4 bottom_left_result;
+    Vector4 top_left_result;
+    Vector4 top_right_result;
+    Vector4 bottom_right_result;
+    Matrix4 mat;
+
+    // pivot = center
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), Quat::identity(), scale, size, 0);
+
+    bottom_left_result = mat * bottom_left;
+    EXPECT_NEAR(bottom_left_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(bottom_left_result.getY(), 0.0, TEST_EPS);
+
+    top_left_result = mat * top_left;
+    EXPECT_NEAR(top_left_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(top_left_result.getY(), 2.0, TEST_EPS);
+
+    top_right_result = mat * top_right;
+    EXPECT_NEAR(top_right_result.getX(), 2.0, TEST_EPS);
+    EXPECT_NEAR(top_right_result.getY(), 2.0, TEST_EPS);
+
+    bottom_right_result = mat * bottom_right;
+    EXPECT_NEAR(bottom_right_result.getX(), 2.0, TEST_EPS);
+    EXPECT_NEAR(bottom_right_result.getY(), 0.0, TEST_EPS);
+}
+
+TEST(Label, LabelRotatesAroundPivot) {
+    Vector3 size(2.0, 2.0, 0.0);
+    Vector3 scale(1.0, 1.0, 0.0);
+
+    Point3 bottom_left(0.0, 0.0, 0.0);
+    Point3 top_left(0.0, size.getY(), 0.0);
+    Point3 top_right(size.getX(), size.getY(), 0.0);
+    Point3 bottom_right(size.getX(), 0.0, 0.0);
+
+    Vector4 bottom_left_result;
+    Vector4 top_left_result;
+    Vector4 top_right_result;
+    Vector4 bottom_right_result;
+    Matrix4 mat;
+
+    Quat rotation = dmVMath::EulerToQuat(Vector3(0, 0, -180));
+    rotation = normalize(rotation);
+
+    // pivot = center
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), rotation, scale, size, 0);
+
+    bottom_left_result = mat * bottom_left;
+    EXPECT_NEAR(bottom_left_result.getX(), 2.0, TEST_EPS);
+    EXPECT_NEAR(bottom_left_result.getY(), 2.0, TEST_EPS);
+
+    top_left_result = mat * top_left;
+    EXPECT_NEAR(top_left_result.getX(), 2.0, TEST_EPS);
+    EXPECT_NEAR(top_left_result.getY(), 0.0, TEST_EPS);
+
+    top_right_result = mat * top_right;
+    EXPECT_NEAR(top_right_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(top_right_result.getY(), 0.0, TEST_EPS);
+
+    bottom_right_result = mat * bottom_right;
+    EXPECT_NEAR(bottom_right_result.getX(), 0.0, TEST_EPS);
+    EXPECT_NEAR(bottom_right_result.getY(), 2.0, TEST_EPS);
+
+    // pivot = north west
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(-2.0, -1.0, 0.0), rotation, scale, size, 0);
+
+    bottom_left_result = mat * bottom_left;
+    EXPECT_NEAR(bottom_left_result.getX(), -1.0, TEST_EPS);
+    EXPECT_NEAR(bottom_left_result.getY(), 0.0, TEST_EPS);
+
+    top_left_result = mat * top_left;
+    EXPECT_NEAR(top_left_result.getX(), -1.0, TEST_EPS);
+    EXPECT_NEAR(top_left_result.getY(), -2.0, TEST_EPS);
+
+    top_right_result = mat * top_right;
+    EXPECT_NEAR(top_right_result.getX(), -3.0, TEST_EPS);
+    EXPECT_NEAR(top_right_result.getY(), -2.0, TEST_EPS);
+
+    bottom_right_result = mat * bottom_right;
+    EXPECT_NEAR(bottom_right_result.getX(), -3.0, TEST_EPS);
+    EXPECT_NEAR(bottom_right_result.getY(), 0.0, TEST_EPS);
+}
 
 const char* valid_label_resources[] = {"/label/valid.labelc"};
 INSTANTIATE_TEST_CASE_P(Label, ResourceTest, jc_test_values_in(valid_label_resources));
