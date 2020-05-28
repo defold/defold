@@ -179,10 +179,12 @@ static void RunCallback(CallbackInfo* cbinfo)
  */
 static int SetListener(lua_State* L)
 {
+    luaL_checkany(L, 1);
+
     WindowInfo* window_info = &g_Window;
 
-    luaL_checkany(L, 1);
-    if (lua_isnoneornil(L, 1)) {
+    if (lua_isnil(L, 1))
+    {
         ClearListener(&window_info->m_Listener);
         return 0;
     }
