@@ -126,28 +126,30 @@ public class LuaScannerTest {
     public void testProps() throws Exception {
         List<Property> properties = scanProperties("test_props.lua");
 
-        assertEquals(7, properties.size());
+        assertEquals(8, properties.size());
         assertProperty(properties, "prop1", new Double(0), 10);
         assertProperty(properties, "prop2", new Double(0), 13);
         assertProperty(properties, "prop3", new Double(0), 14);
         assertProperty(properties, "prop4", new Double(0), 15);
-        assertEquals(Status.INVALID_ARGS, properties.get(4).status);
-        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 18);
-        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 19);
+        assertProperty(properties, "prop5", new Double(0), 16);
+        assertEquals(Status.INVALID_ARGS, properties.get(5).status);
+        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
+        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
     }
 
     @Test
     public void testPropsStripped() throws Exception {
         String source = getFile("test_props.lua");
         List<Property> properties = LuaScanner.scanProperties(source);
-        assertEquals(7, properties.size());
+        assertEquals(8, properties.size());
         assertProperty(properties, "prop1", new Double(0), 10);
         assertProperty(properties, "prop2", new Double(0), 13);
         assertProperty(properties, "prop3", new Double(0), 14);
         assertProperty(properties, "prop4", new Double(0), 15);
-        assertEquals(Status.INVALID_ARGS, properties.get(4).status);
-        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 18);
-        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 19);
+        assertProperty(properties, "prop5", new Double(0), 16);
+        assertEquals(Status.INVALID_ARGS, properties.get(5).status);
+        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
+        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
         source = LuaScanner.stripProperties(source);
         properties = LuaScanner.scanProperties(source);
         assertEquals(0, properties.size());
