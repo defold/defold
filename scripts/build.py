@@ -560,7 +560,10 @@ class Configuration(object):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
 
     def _form_ems_path(self):
-        return join(self.get_ems_dir(), 'upstream', 'emscripten')
+        upstream = join(self.get_ems_dir(), 'upstream', 'emscripten')
+        if os.path.exists(upstream):
+            return upstream
+        return join(self.get_ems_dir(), 'fastcomp', 'emscripten')
 
     def install_ems(self):
         # TODO: should eventually be moved to install_sdk
@@ -583,7 +586,10 @@ class Configuration(object):
             self.activate_ems()
 
     def activate_ems(self):
-        run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', EMSCRIPTEN_VERSION_STR, '--embedded'])
+        version = EMSCRIPTEN_VERSION_STR
+        if 'fastcomp' in self._form_ems_path():
+            version += "-fastcomp"
+        run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
         # prewarm the cache
         run.env_command(self._form_env(), ['%s/embuilder.py' % self._form_ems_path(), 'build', 'SYSTEM', 'MINIMAL'])
 
