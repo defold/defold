@@ -590,8 +590,18 @@ class Configuration(object):
         if 'fastcomp' in self._form_ems_path():
             version += "-fastcomp"
         run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
+
         # prewarm the cache
-        run.env_command(self._form_env(), ['%s/embuilder.py' % self._form_ems_path(), 'build', 'SYSTEM', 'MINIMAL'])
+        # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
+        #run.env_command(self._form_env(), ['%s/embuilder.py' % self._form_ems_path(), 'build', 'SYSTEM', 'MINIMAL'])
+        # .. so we stick with the old version of prewarming
+
+        # Compile a file warm up the emscripten caches (libc etc)
+        c_file = tempfile.mktemp(suffix='.c')
+        exe_file = tempfile.mktemp(suffix='.js')
+        with open(c_file, 'w') as f:
+            f.write('int main() { return 0; }')
+        run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
 
     def check_ems(self):
         home = os.path.expanduser('~')
