@@ -385,7 +385,7 @@ platforms:
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32", "Psapi"]
+        libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
         symbols:    []
 
     exePrefix:      ''
@@ -420,7 +420,7 @@ platforms:
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32", "Psapi"]
+        libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
         symbols:    []
 
     exePrefix:      ''
