@@ -1734,7 +1734,7 @@ TEST(Label, LabelRotatesAroundPivot) {
     EXPECT_NEAR(bottom_right_result.getY(), 2.0, TEST_EPS);
 
     // pivot = north west
-    mat = dmGameSystem::CompLabelLocalTransform(Point3(-2.0, -1.0, 0.0), rotation, scale, size, 0);
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(-1.0, -2.0, 0.0), rotation, scale, size, 8);
 
     bottom_left_result = mat * bottom_left;
     EXPECT_NEAR(bottom_left_result.getX(), -1.0, TEST_EPS);
