@@ -1595,56 +1595,56 @@ void AssertPointEquals(const Vector4& p, float x, float y)
 TEST_F(LabelTest, LabelMovesWhenSwitchingPivot) 
 {
     // pivot = center
-    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(m_position, Quat::identity(), m_scale, m_size, 0);
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(m_Position, Quat::identity(), m_Scale, m_Size, 0);
 
-    AssertPointEquals(mat * m_bottom_left, -1.0, -1.0);
-    AssertPointEquals(mat * m_top_left, -1.0, 1.0);
-    AssertPointEquals(mat * m_top_right, 1.0, 1.0);
-    AssertPointEquals(mat * m_bottom_right, 1.0, -1.0);
+    AssertPointEquals(mat * m_BottomLeft, -1.0, -1.0);
+    AssertPointEquals(mat * m_TopLeft, -1.0, 1.0);
+    AssertPointEquals(mat * m_TopRight, 1.0, 1.0);
+    AssertPointEquals(mat * m_BottomRight, 1.0, -1.0);
 
     // pivot = north east
-    mat = dmGameSystem::CompLabelLocalTransform(m_position, Quat::identity(), m_scale, m_size, 2);
+    mat = dmGameSystem::CompLabelLocalTransform(m_Position, Quat::identity(), m_Scale, m_Size, 2);
 
-    AssertPointEquals(mat * m_bottom_left, -2.0, -2.0);
-    AssertPointEquals(mat * m_top_left, -2.0, 0.0);
-    AssertPointEquals(mat * m_top_right, 0.0, 0.0);
-    AssertPointEquals(mat * m_bottom_right, 0.0, -2.0);
+    AssertPointEquals(mat * m_BottomLeft, -2.0, -2.0);
+    AssertPointEquals(mat * m_TopLeft, -2.0, 0.0);
+    AssertPointEquals(mat * m_TopRight, 0.0, 0.0);
+    AssertPointEquals(mat * m_BottomRight, 0.0, -2.0);
 
     // pivot = west
-    mat = dmGameSystem::CompLabelLocalTransform(m_position, Quat::identity(), m_scale, m_size, 7);
+    mat = dmGameSystem::CompLabelLocalTransform(m_Position, Quat::identity(), m_Scale, m_Size, 7);
 
-    AssertPointEquals(mat * m_bottom_left, 0.0, -1.0);
-    AssertPointEquals(mat * m_top_left, 0.0, 1.0);
-    AssertPointEquals(mat * m_top_right, 2.0, 1.0);
-    AssertPointEquals(mat * m_bottom_right, 2.0, -1.0);
+    AssertPointEquals(mat * m_BottomLeft, 0.0, -1.0);
+    AssertPointEquals(mat * m_TopLeft, 0.0, 1.0);
+    AssertPointEquals(mat * m_TopRight, 2.0, 1.0);
+    AssertPointEquals(mat * m_BottomRight, 2.0, -1.0);
 }
 
 TEST_F(LabelTest, LabelMovesWhenChangingPosition) {
     // pivot = center
-    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), Quat::identity(), m_scale, m_size, 0);
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), Quat::identity(), m_Scale, m_Size, 0);
 
-    AssertPointEquals(mat * m_bottom_left, 0.0, 0.0);
-    AssertPointEquals(mat * m_top_left, 0.0, 2.0);
-    AssertPointEquals(mat * m_top_right, 2.0, 2.0);
-    AssertPointEquals(mat * m_bottom_right, 2.0, 0.0);
+    AssertPointEquals(mat * m_BottomLeft, 0.0, 0.0);
+    AssertPointEquals(mat * m_TopLeft, 0.0, 2.0);
+    AssertPointEquals(mat * m_TopRight, 2.0, 2.0);
+    AssertPointEquals(mat * m_BottomRight, 2.0, 0.0);
 }
 
 TEST_F(LabelTest, LabelRotatesAroundPivot) {
     // pivot = center, rotation = -180
-    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), m_rotation, m_scale, m_size, 0);
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), m_Rotation, m_Scale, m_Size, 0);
 
-    AssertPointEquals(mat * m_bottom_left, 2.0, 2.0);
-    AssertPointEquals(mat * m_top_left, 2.0, 0.0);
-    AssertPointEquals(mat * m_top_right, 0.0, 0.0);
-    AssertPointEquals(mat * m_bottom_right, 0.0, 2.0);
+    AssertPointEquals(mat * m_BottomLeft, 2.0, 2.0);
+    AssertPointEquals(mat * m_TopLeft, 2.0, 0.0);
+    AssertPointEquals(mat * m_TopRight, 0.0, 0.0);
+    AssertPointEquals(mat * m_BottomRight, 0.0, 2.0);
 
     // pivot = north west, rotation = -180
-    mat = dmGameSystem::CompLabelLocalTransform(Point3(-1.0, -2.0, 0.0), m_rotation, m_scale, m_size, 8);
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(-1.0, -2.0, 0.0), m_Rotation, m_Scale, m_Size, 8);
 
-    AssertPointEquals(mat * m_bottom_left, -1.0, 0.0);
-    AssertPointEquals(mat * m_top_left, -1.0, -2.0);
-    AssertPointEquals(mat * m_top_right, -3.0, -2.0);
-    AssertPointEquals(mat * m_bottom_right, -3.0, 0.0);
+    AssertPointEquals(mat * m_BottomLeft, -1.0, 0.0);
+    AssertPointEquals(mat * m_TopLeft, -1.0, -2.0);
+    AssertPointEquals(mat * m_TopRight, -3.0, -2.0);
+    AssertPointEquals(mat * m_BottomRight, -3.0, 0.0);
 }
 
 const char* valid_label_resources[] = {"/label/valid.labelc"};

@@ -437,29 +437,30 @@ protected:
     dmBuffer::HBuffer m_Buffer;
 };
 
-class LabelTest : public jc_test_base_class {
+class LabelTest : public jc_test_base_class 
+{
 protected:
-    void SetUp() 
+    virtual void SetUp()
     {
-        m_position = Point3(0.0);
-        m_size = Vector3(2.0, 2.0, 0.0);
-        m_scale = Vector3(1.0, 1.0, 0.0);
+        m_Position = Vectormath::Aos::Point3(0.0);
+        m_Size = Vectormath::Aos::Vector3(2.0, 2.0, 0.0);
+        m_Scale = Vectormath::Aos::Vector3(1.0, 1.0, 0.0);
 
-        m_bottom_left = Point3(0.0, 0.0, 0.0);
-        m_top_left = Point3(0.0, m_size.getY(), 0.0);
-        m_top_right = Point3(m_size.getX(), m_size.getY(), 0.0);
-        m_bottom_right = Point3(m_size.getX(), 0.0, 0.0);
+        m_BottomLeft = Vectormath::Aos::Point3(0.0, 0.0, 0.0);
+        m_TopLeft = Vectormath::Aos::Point3(0.0, m_Size.getY(), 0.0);
+        m_TopRight = Vectormath::Aos::Point3(m_Size.getX(), m_Size.getY(), 0.0);
+        m_BottomRight = Vectormath::Aos::Point3(m_Size.getX(), 0.0, 0.0);
 
-        m_rotation = dmVMath::EulerToQuat(Vector3(0, 0, -180));
-        m_rotation = normalize(m_rotation);
+        m_Rotation = dmVMath::EulerToQuat(Vectormath::Aos::Vector3(0, 0, -180));
+        m_Rotation = normalize(m_Rotation);
     }
 
-    Vectormath::Aos::Quat m_rotation;
-    Vectormath::Aos::Point3 m_position;
-    Vectormath::Aos::Point3 m_bottom_left;
-    Vectormath::Aos::Point3 m_top_left;
-    Vectormath::Aos::Point3 m_top_right;
-    Vectormath::Aos::Point3 m_bottom_right;
-    Vectormath::Aos::Vector3 m_size;
-    Vectormath::Aos::Vector3 m_scale;
+    Vectormath::Aos::Quat m_Rotation;
+    Vectormath::Aos::Point3 m_Position;
+    Vectormath::Aos::Point3 m_BottomLeft;
+    Vectormath::Aos::Point3 m_TopLeft;
+    Vectormath::Aos::Point3 m_TopRight;
+    Vectormath::Aos::Point3 m_BottomRight;
+    Vectormath::Aos::Vector3 m_Size;
+    Vectormath::Aos::Vector3 m_Scale;
 };
