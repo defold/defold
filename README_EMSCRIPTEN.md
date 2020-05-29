@@ -81,14 +81,14 @@ corsproxy 172.16.11.23
 Then, the engine needs a patch to change all XHR:s:
 - remove the line engine/script/src/script_http_js.cpp:
 ```
-xhr.open(Pointer_stringify(method), Pointer_stringify(url), true);
+xhr.open(UTF8ToString(method), UTF8ToString(url), true);
 ```
 - and add
 ```
-var str_url = Pointer_stringify(url);
+var str_url = UTF8ToString(url);
 str_url = str_url.replace("http://", "http://172.16.11.23:9292/");
 str_url = str_url.replace("https://", "http://172.16.11.23:9292/");
-xhr.open(Pointer_stringify(method), str_url, true);
+xhr.open(UTF8ToString(method), str_url, true);
 ```
 
 For faster builds, change in scripts/build.py -O3 to -O1 in CCFLAGS, CXXFLAGS and LINKFLAGS

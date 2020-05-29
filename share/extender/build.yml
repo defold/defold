@@ -300,20 +300,20 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_38_12}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_38_12}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "BINARYEN_METHOD=\"asmjs\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -334,20 +334,20 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_38_12}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_38_12}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "BINARYEN_METHOD=\"native-wasm\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "BINARYEN_TRAP_MODE='clamp'", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''

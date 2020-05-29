@@ -69,6 +69,8 @@ RUN \
 
 RUN apt-get autoremove
 
+ENV LC_ALL C.UTF-8
+
 # Add builder user
 RUN  useradd -r -u 2222 builder && \
   mkdir -p /var/builder && \

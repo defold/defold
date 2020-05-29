@@ -60,7 +60,6 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
-PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
 PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
@@ -73,9 +72,9 @@ PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.38.12"
+EMSCRIPTEN_VERSION_STR = "1.39.16"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
+PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
 ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
@@ -478,6 +477,8 @@ class Configuration(object):
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
+        # Note: This is a step we want to separate from install_ext
+        # since it should actually be before install_ext (e.g. to build the extensions)
         self.install_sdk()
 
     def get_local_or_remote_file(self, path):
@@ -488,7 +489,7 @@ class Configuration(object):
             sys.exit(1)
         path = self._download(path) # it should be an url
         if path is None:
-            print("Error. Could not download %s" % url)
+            print("Error. Could not download %s" % path)
             sys.exit(1)
         return path
 
@@ -554,37 +555,52 @@ class Configuration(object):
             # Android SDK
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
+
+    def get_ems_dir(self):
+        return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
+
     def _form_ems_path(self):
-        path = join(self.ext, EMSCRIPTEN_DIR)
-        return path
+        upstream = join(self.get_ems_dir(), 'upstream', 'emscripten')
+        if os.path.exists(upstream):
+            return upstream
+        return join(self.get_ems_dir(), 'fastcomp', 'emscripten')
 
     def install_ems(self):
-        url = '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_EMSCRIPTEN_SDK, self.host)
-        dlpath = self._download(url)
-        if dlpath is None:
-            print("Error. Could not download %s" % url)
-            sys.exit(1)
-        self._extract(dlpath, self.ext)
-        self.activate_ems()
+        # TODO: should eventually be moved to install_sdk
+        emsDir = self.get_ems_dir()
+
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
+        os.environ['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
+        os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
 
-    def get_ems_sdk_name(self):
-        sdk = EMSCRIPTEN_SDK
-        return sdk;
+        if os.path.isdir(emsDir):
+            print "Emscripten is already installed:", emsDir
+        else:
+            platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
+            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
+            path = self.get_local_or_remote_file(path)
+            self._extract(path, join(self.ext, 'SDKs'))
 
-    def get_ems_exe_path(self):
-        return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
+        config = os.environ['EM_CONFIG']
+        if not os.path.isfile(config):
+            self.activate_ems()
 
     def activate_ems(self):
+        version = EMSCRIPTEN_VERSION_STR
+        if 'fastcomp' in self._form_ems_path():
+            version += "-fastcomp"
+        run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
+
+        # prewarm the cache
+        # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
+        #run.env_command(self._form_env(), ['%s/embuilder.py' % self._form_ems_path(), 'build', 'SYSTEM', 'MINIMAL'])
+        # .. so we stick with the old version of prewarming
+
         # Compile a file warm up the emscripten caches (libc etc)
         c_file = tempfile.mktemp(suffix='.c')
         exe_file = tempfile.mktemp(suffix='.js')
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
-
-        run.env_command(self._form_env(), [self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
-        # This sporadically fails on OS X by inability to create the ~/.emscripten_cache dir.
-        # Does not seem to help to pre-create it or explicitly setting the --cache flag
         run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
 
     def check_ems(self):
@@ -594,7 +610,7 @@ class Configuration(object):
         if not os.path.isfile(config):
             print 'No .emscripten file.'
             err = True
-        emsDir = join(self.ext, EMSCRIPTEN_DIR)
+        emsDir = self.get_ems_dir()
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
             err = True
@@ -846,13 +862,12 @@ class Configuration(object):
             resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
             self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
-        libs = ['particle']
         if self.is_desktop_target():
-            libs.append('texc')
-        for lib in libs:
-            lib_name = format_lib('%s_shared' % (lib), self.target_platform)
-            lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
-            self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
+            libs = ['texc', 'particle']
+            for lib in libs:
+                lib_name = format_lib('%s_shared' % (lib), self.target_platform)
+                lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
+                self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
@@ -1788,6 +1803,8 @@ class Configuration(object):
             env['NOCOLOR'] = '1'
 
         env['EMSCRIPTEN'] = self._form_ems_path()
+        env['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
+        env['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
 
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:

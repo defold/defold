@@ -332,19 +332,23 @@ def default_flags(self):
         # Default to asmjs output
         wasm_enabled = 0
         legacy_vm_support = 1
-        binaryen_method = "asmjs"
         if 'wasm' == build_util.get_target_architecture():
             wasm_enabled = 1
             legacy_vm_support = 0
-            binaryen_method = "native-wasm"
+
+        emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
+                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_main"]',
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456']
+        emflags = zip(['-s'] * len(emflags), emflags)
+        emflags =[j for i in emflags for j in i]
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
-                                      '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
+            self.env.append_value(f, ['-O%s' % opt_level, '-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+                                        '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
+            self.env.append_value(f, emflags)
 
-        # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', emflags)
 
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -1206,7 +1210,7 @@ def linux_link_flags(self):
 @after('apply_obj_vars')
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if 'web' in platform:
+    if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
@@ -1386,7 +1390,7 @@ def detect(conf):
 
     if 'win32' in platform:
         msvc_path, includes, libdirs = get_msvc_version(conf, platform)
-        
+
         if platform == 'x86_64-win32':
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
         else:
@@ -1472,7 +1476,7 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and ('js' == build_util.get_target_architecture() or 'wasm' == build_util.get_target_architecture()):
+    if platform in ('js-web', 'wasm-web'):
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
@@ -1485,6 +1489,10 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
+
+        # Unknown argument: -Bstatic, -Bdynamic
+        conf.env['STATICLIB_MARKER']=''
+        conf.env['SHLIB_MARKER']=''
 
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
@@ -1540,7 +1548,7 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
     conf.env['STATICLIB_CARES'] = []
-    if platform != 'web':
+    if platform not in ['js-web', 'wasm-web']:
         conf.env['STATICLIB_CARES'].append('cares')
     if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_CARES'].append('resolv')
