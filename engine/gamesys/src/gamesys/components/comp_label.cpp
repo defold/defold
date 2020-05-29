@@ -257,12 +257,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    Matrix4 CompLabelLocalTransform(
-        const Point3& position,
-        const Quat& rotation,
-        const Vector3& scale,
-        const Vector3& size,
-        uint32_t pivot)
+    Matrix4 CompLabelLocalTransform(const Point3& position, const Quat& rotation, const Vector3& scale, const Vector3& size, uint32_t pivot)
     {
         // Move pivot to (0,0). Rotate around (0,0). Move pivot to position.
         return dmTransform::ToMatrix4(

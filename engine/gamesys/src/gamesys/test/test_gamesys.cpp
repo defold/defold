@@ -1585,172 +1585,66 @@ INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, jc_test_values_in(valid_spine
 
 /* Label */
 
-const float TEST_EPS = 0.00001;
+void AssertPointEquals(const Vector4& p, float x, float y)
+{
+    static const float test_epsilon = 0.000001f;
+    EXPECT_NEAR(p.getX(), x, test_epsilon);
+    EXPECT_NEAR(p.getY(), y, test_epsilon);
+}
 
-TEST(Label, LabelMovesWhenSwitchingPivot) {
-    Point3 position(0.0, 0.0, 0.0);
-    Vector3 size(2.0, 2.0, 0.0);
-    Vector3 scale(1.0, 1.0, 0.0);
-
-    Point3 bottom_left(0.0, 0.0, 0.0);
-    Point3 top_left(0.0, size.getY(), 0.0);
-    Point3 top_right(size.getX(), size.getY(), 0.0);
-    Point3 bottom_right(size.getX(), 0.0, 0.0);
-
-    Vector4 bottom_left_result;
-    Vector4 top_left_result;
-    Vector4 top_right_result;
-    Vector4 bottom_right_result;
-    Matrix4 mat;
-
+TEST_F(LabelTest, LabelMovesWhenSwitchingPivot) 
+{
     // pivot = center
-    mat = dmGameSystem::CompLabelLocalTransform(position, Quat::identity(), scale, size, 0);
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(m_position, Quat::identity(), m_scale, m_size, 0);
 
-    bottom_left_result = mat * bottom_left;
-    EXPECT_NEAR(bottom_left_result.getX(), -1.0, TEST_EPS);
-    EXPECT_NEAR(bottom_left_result.getY(), -1.0, TEST_EPS);
-
-    top_left_result = mat * top_left;
-    EXPECT_NEAR(top_left_result.getX(), -1.0, TEST_EPS);
-    EXPECT_NEAR(top_left_result.getY(), 1.0, TEST_EPS);
-
-    top_right_result = mat * top_right;
-    EXPECT_NEAR(top_right_result.getX(), 1.0, TEST_EPS);
-    EXPECT_NEAR(top_right_result.getY(), 1.0, TEST_EPS);
-
-    bottom_right_result = mat * bottom_right;
-    EXPECT_NEAR(bottom_right_result.getX(), 1.0, TEST_EPS);
-    EXPECT_NEAR(bottom_right_result.getY(), -1.0, TEST_EPS);
+    AssertPointEquals(mat * m_bottom_left, -1.0, -1.0);
+    AssertPointEquals(mat * m_top_left, -1.0, 1.0);
+    AssertPointEquals(mat * m_top_right, 1.0, 1.0);
+    AssertPointEquals(mat * m_bottom_right, 1.0, -1.0);
 
     // pivot = north east
-    mat = dmGameSystem::CompLabelLocalTransform(position, Quat::identity(), scale, size, 2);
+    mat = dmGameSystem::CompLabelLocalTransform(m_position, Quat::identity(), m_scale, m_size, 2);
 
-    bottom_left_result = mat * bottom_left;
-    EXPECT_NEAR(bottom_left_result.getX(), -2.0, TEST_EPS);
-    EXPECT_NEAR(bottom_left_result.getY(), -2.0, TEST_EPS);
-
-    top_left_result = mat * top_left;
-    EXPECT_NEAR(top_left_result.getX(), -2.0, TEST_EPS);
-    EXPECT_NEAR(top_left_result.getY(), 0.0, TEST_EPS);
-
-    top_right_result = mat * top_right;
-    EXPECT_NEAR(top_right_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(top_right_result.getY(), 0.0, TEST_EPS);
-
-    bottom_right_result = mat * bottom_right;
-    EXPECT_NEAR(bottom_right_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(bottom_right_result.getY(), -2.0, TEST_EPS);
+    AssertPointEquals(mat * m_bottom_left, -2.0, -2.0);
+    AssertPointEquals(mat * m_top_left, -2.0, 0.0);
+    AssertPointEquals(mat * m_top_right, 0.0, 0.0);
+    AssertPointEquals(mat * m_bottom_right, 0.0, -2.0);
 
     // pivot = west
-    mat = dmGameSystem::CompLabelLocalTransform(position, Quat::identity(), scale, size, 7);
+    mat = dmGameSystem::CompLabelLocalTransform(m_position, Quat::identity(), m_scale, m_size, 7);
 
-    bottom_left_result = mat * bottom_left;
-    EXPECT_NEAR(bottom_left_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(bottom_left_result.getY(), -1.0, TEST_EPS);
-
-    top_left_result = mat * top_left;
-    EXPECT_NEAR(top_left_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(top_left_result.getY(), 1.0, TEST_EPS);
-
-    top_right_result = mat * top_right;
-    EXPECT_NEAR(top_right_result.getX(), 2.0, TEST_EPS);
-    EXPECT_NEAR(top_right_result.getY(), 1.0, TEST_EPS);
-
-    bottom_right_result = mat * bottom_right;
-    EXPECT_NEAR(bottom_right_result.getX(), 2.0, TEST_EPS);
-    EXPECT_NEAR(bottom_right_result.getY(), -1.0, TEST_EPS);
+    AssertPointEquals(mat * m_bottom_left, 0.0, -1.0);
+    AssertPointEquals(mat * m_top_left, 0.0, 1.0);
+    AssertPointEquals(mat * m_top_right, 2.0, 1.0);
+    AssertPointEquals(mat * m_bottom_right, 2.0, -1.0);
 }
 
-TEST(Label, LabelMovesWhenChangingPosition) {
-    Vector3 size(2.0, 2.0, 0.0);
-    Vector3 scale(1.0, 1.0, 0.0);
-
-    Point3 bottom_left(0.0, 0.0, 0.0);
-    Point3 top_left(0.0, size.getY(), 0.0);
-    Point3 top_right(size.getX(), size.getY(), 0.0);
-    Point3 bottom_right(size.getX(), 0.0, 0.0);
-
-    Vector4 bottom_left_result;
-    Vector4 top_left_result;
-    Vector4 top_right_result;
-    Vector4 bottom_right_result;
-    Matrix4 mat;
-
+TEST_F(LabelTest, LabelMovesWhenChangingPosition) {
     // pivot = center
-    mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), Quat::identity(), scale, size, 0);
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), Quat::identity(), m_scale, m_size, 0);
 
-    bottom_left_result = mat * bottom_left;
-    EXPECT_NEAR(bottom_left_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(bottom_left_result.getY(), 0.0, TEST_EPS);
-
-    top_left_result = mat * top_left;
-    EXPECT_NEAR(top_left_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(top_left_result.getY(), 2.0, TEST_EPS);
-
-    top_right_result = mat * top_right;
-    EXPECT_NEAR(top_right_result.getX(), 2.0, TEST_EPS);
-    EXPECT_NEAR(top_right_result.getY(), 2.0, TEST_EPS);
-
-    bottom_right_result = mat * bottom_right;
-    EXPECT_NEAR(bottom_right_result.getX(), 2.0, TEST_EPS);
-    EXPECT_NEAR(bottom_right_result.getY(), 0.0, TEST_EPS);
+    AssertPointEquals(mat * m_bottom_left, 0.0, 0.0);
+    AssertPointEquals(mat * m_top_left, 0.0, 2.0);
+    AssertPointEquals(mat * m_top_right, 2.0, 2.0);
+    AssertPointEquals(mat * m_bottom_right, 2.0, 0.0);
 }
 
-TEST(Label, LabelRotatesAroundPivot) {
-    Vector3 size(2.0, 2.0, 0.0);
-    Vector3 scale(1.0, 1.0, 0.0);
+TEST_F(LabelTest, LabelRotatesAroundPivot) {
+    // pivot = center, rotation = -180
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), m_rotation, m_scale, m_size, 0);
 
-    Point3 bottom_left(0.0, 0.0, 0.0);
-    Point3 top_left(0.0, size.getY(), 0.0);
-    Point3 top_right(size.getX(), size.getY(), 0.0);
-    Point3 bottom_right(size.getX(), 0.0, 0.0);
+    AssertPointEquals(mat * m_bottom_left, 2.0, 2.0);
+    AssertPointEquals(mat * m_top_left, 2.0, 0.0);
+    AssertPointEquals(mat * m_top_right, 0.0, 0.0);
+    AssertPointEquals(mat * m_bottom_right, 0.0, 2.0);
 
-    Vector4 bottom_left_result;
-    Vector4 top_left_result;
-    Vector4 top_right_result;
-    Vector4 bottom_right_result;
-    Matrix4 mat;
+    // pivot = north west, rotation = -180
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(-1.0, -2.0, 0.0), m_rotation, m_scale, m_size, 8);
 
-    Quat rotation = dmVMath::EulerToQuat(Vector3(0, 0, -180));
-    rotation = normalize(rotation);
-
-    // pivot = center
-    mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), rotation, scale, size, 0);
-
-    bottom_left_result = mat * bottom_left;
-    EXPECT_NEAR(bottom_left_result.getX(), 2.0, TEST_EPS);
-    EXPECT_NEAR(bottom_left_result.getY(), 2.0, TEST_EPS);
-
-    top_left_result = mat * top_left;
-    EXPECT_NEAR(top_left_result.getX(), 2.0, TEST_EPS);
-    EXPECT_NEAR(top_left_result.getY(), 0.0, TEST_EPS);
-
-    top_right_result = mat * top_right;
-    EXPECT_NEAR(top_right_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(top_right_result.getY(), 0.0, TEST_EPS);
-
-    bottom_right_result = mat * bottom_right;
-    EXPECT_NEAR(bottom_right_result.getX(), 0.0, TEST_EPS);
-    EXPECT_NEAR(bottom_right_result.getY(), 2.0, TEST_EPS);
-
-    // pivot = north west
-    mat = dmGameSystem::CompLabelLocalTransform(Point3(-1.0, -2.0, 0.0), rotation, scale, size, 8);
-
-    bottom_left_result = mat * bottom_left;
-    EXPECT_NEAR(bottom_left_result.getX(), -1.0, TEST_EPS);
-    EXPECT_NEAR(bottom_left_result.getY(), 0.0, TEST_EPS);
-
-    top_left_result = mat * top_left;
-    EXPECT_NEAR(top_left_result.getX(), -1.0, TEST_EPS);
-    EXPECT_NEAR(top_left_result.getY(), -2.0, TEST_EPS);
-
-    top_right_result = mat * top_right;
-    EXPECT_NEAR(top_right_result.getX(), -3.0, TEST_EPS);
-    EXPECT_NEAR(top_right_result.getY(), -2.0, TEST_EPS);
-
-    bottom_right_result = mat * bottom_right;
-    EXPECT_NEAR(bottom_right_result.getX(), -3.0, TEST_EPS);
-    EXPECT_NEAR(bottom_right_result.getY(), 0.0, TEST_EPS);
+    AssertPointEquals(mat * m_bottom_left, -1.0, 0.0);
+    AssertPointEquals(mat * m_top_left, -1.0, -2.0);
+    AssertPointEquals(mat * m_top_right, -3.0, -2.0);
+    AssertPointEquals(mat * m_bottom_right, -3.0, 0.0);
 }
 
 const char* valid_label_resources[] = {"/label/valid.labelc"};

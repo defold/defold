@@ -436,3 +436,30 @@ protected:
     lua_State* L;
     dmBuffer::HBuffer m_Buffer;
 };
+
+class LabelTest : public jc_test_base_class {
+protected:
+    void SetUp() 
+    {
+        m_position = Point3(0.0);
+        m_size = Vector3(2.0, 2.0, 0.0);
+        m_scale = Vector3(1.0, 1.0, 0.0);
+
+        m_bottom_left = Point3(0.0, 0.0, 0.0);
+        m_top_left = Point3(0.0, m_size.getY(), 0.0);
+        m_top_right = Point3(m_size.getX(), m_size.getY(), 0.0);
+        m_bottom_right = Point3(m_size.getX(), 0.0, 0.0);
+
+        m_rotation = dmVMath::EulerToQuat(Vector3(0, 0, -180));
+        m_rotation = normalize(m_rotation);
+    }
+
+    Vectormath::Aos::Quat m_rotation;
+    Vectormath::Aos::Point3 m_position;
+    Vectormath::Aos::Point3 m_bottom_left;
+    Vectormath::Aos::Point3 m_top_left;
+    Vectormath::Aos::Point3 m_top_right;
+    Vectormath::Aos::Point3 m_bottom_right;
+    Vectormath::Aos::Vector3 m_size;
+    Vectormath::Aos::Vector3 m_scale;
+};
