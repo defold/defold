@@ -6,6 +6,10 @@
 
 Repository for the Defold engine, editor and command line tools.
 
+## Supported by
+![](https://defold.com/images/logo/others/king.png)
+![](https://defold.com/images/logo/others/heroiclabs.png)
+
 ## Folder Structure
 
 * **build_tools** - Build configuration and build tools used by build scripts
