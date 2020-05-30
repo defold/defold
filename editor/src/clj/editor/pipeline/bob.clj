@@ -11,6 +11,7 @@
     [editor.resource :as resource]
     [editor.system :as system]
     [editor.ui :as ui]
+    [editor.prefs :as prefs]
     [editor.workspace :as workspace])
   (:import
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
@@ -142,6 +143,7 @@
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs)
+        compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
@@ -152,8 +154,7 @@
              ;; From AbstractBundleHandler
              "archive" "true"
              "bundle-output" bundle-output-path
-             "texture-compression" "true"
-
+             "texture-compression" (if compress-textures? "true" "false")
              ;; From BundleGenericHandler
              "build-server" build-server-url
              "defoldsdk" defold-sdk-sha1
