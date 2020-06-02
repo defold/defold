@@ -352,21 +352,29 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @return result [type:table] It returns a table. If missed it returns nil. See `ray_cast_response` for details on the returned values.
+     * @param options [type:table] a lua table containing options for the raycast.
+     *
+     * `all`
+     * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
+     *
+     * @return result [type:table] It returns a list. If missed it returns nil. See `ray_cast_response` for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
      *
      * ```lua
      * function init(self)
-     *     self.my_groups = {hash("my_group1"), hash("my_group2")}
+     *     self.groups = {hash("world"), hash("enemy")}
      * end
      *
      * function update(self, dt)
      *     -- request ray cast
-     *     local result = physics.raycast(my_start, my_end, self.my_groups)
+     *     local result = physics.raycast(from, to, self.groups, {all=true})
      *     if result ~= nil then
      *         -- act on the hit (see 'ray_cast_response')
+     *         for _,result in ipairs(results) do
+     *             handle_result(result)
+     *         end
      *     end
      * end
      * ```
@@ -436,29 +444,28 @@ namespace dmGameSystem
         if (hits.Empty())
         {
             lua_pushnil(L);
+            return 1;
         }
-        else
+
+        uint32_t count = hits.Size();
+
+        if (!return_all_results)
+            count = 1;
+
+        lua_newtable(L);
+
+        for (uint32_t i = 0; i < count; ++i)
         {
-            uint32_t count = hits.Size();
-
-            if (!return_all_results)
-                count = 1;
-
-            lua_newtable(L);
-
-            for (uint32_t i = 0; i < count; ++i)
+            if(list_format)
             {
-                if(list_format)
-                {
-                    lua_newtable(L);
-                }
+                lua_newtable(L);
+            }
 
-                PushRayCastResponse(L, world, hits[i]);
+            PushRayCastResponse(L, world, hits[i]);
 
-                if (list_format)
-                {
-                    lua_rawseti(L, -2, i+1);
-                }
+            if (list_format)
+            {
+                lua_rawseti(L, -2, i+1);
             }
         }
 
