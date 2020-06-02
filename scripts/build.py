@@ -235,6 +235,13 @@ class Future(object):
         else:
             return self.result
 
+def download_sdk(self, url, targetfolder, strip_components=1):
+    if not os.path.exists(targetfolder):
+        if not os.path.exists(os.path.dirname(targetfolder)):
+            os.makedirs(os.path.dirname(targetfolder))
+        path = self.get_local_or_remote_file(url)
+        self._extract_tgz_rename_folder(path, targetfolder, strip_components)
+
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
@@ -557,30 +564,23 @@ class Configuration(object):
                 sys.exit(1)
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder, strip_components=1):
-            if not os.path.exists(targetfolder):
-                if not os.path.exists(os.path.dirname(targetfolder)):
-                    os.makedirs(os.path.dirname(targetfolder))
-                path = self.get_local_or_remote_file(url)
-                self._extract_tgz_rename_folder(path, targetfolder, strip_components)
-
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
