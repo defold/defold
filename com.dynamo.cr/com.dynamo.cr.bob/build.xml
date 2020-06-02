@@ -260,20 +260,20 @@
             </fileset>
         </copy>
         <jar destfile="${bob.dir}/lib/switch-tools.zip">
-            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.3/Tools/CommandLineTools">
+            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.4.1/Tools/CommandLineTools">
                 <include name="AuthoringTool/**"/>
                 <include name="MakeMeta/**"/>
             </fileset>
         </jar>
         <copy todir="${bob.dir}/libexec/arm64-nx64" overwrite="true">
-            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.3/Libraries/NX-NXFP2-a64">
+            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.4.1/Libraries/NX-NXFP2-a64">
                 <include name="Release/nnrtld.nso"/>
                 <include name="Release/nnSdkEn.nso"/>
                 <include name="Release/vulkan.nso"/>
                 <include name="Release/opengl.nso"/>
                 <include name="Release/vulkanOpenGlDebug.nso"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.3">
+            <fileset dir="${env.DYNAMO_HOME}/ext/SDKs/nx64/nx64-sdk-10.4.1">
                 <include name="Resources/SpecFiles/Application.desc"/>
             </fileset>
         </copy>
