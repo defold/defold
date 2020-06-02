@@ -7,8 +7,9 @@
 Repository for the Defold engine, editor and command line tools.
 
 ## Supported by
-![](https://defold.com/images/logo/others/king.png)
-![](https://defold.com/images/logo/others/heroiclabs.png)
+![](https://defold.com/images/logo/others/king-color.png)
+![](https://defold.com/images/spacer32.png)
+![](https://defold.com/images/logo/others/heroiclabs-blue.png)
 
 ## Folder Structure
 

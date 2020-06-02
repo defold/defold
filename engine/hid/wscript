@@ -34,7 +34,7 @@ def configure(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    else:
+    elif 'win32' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
 
     if platform == "darwin" or platform == "ios":
