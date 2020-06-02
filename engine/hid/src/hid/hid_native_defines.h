@@ -10,8 +10,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef HID_GLFW_DEFINES_H
-#define HID_GLFW_DEFINES_H
+#ifndef HID_NATIVE_DEFINES_H
+#define HID_NATIVE_DEFINES_H
 
 #include <graphics/glfw/glfw.h>
 

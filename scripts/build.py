@@ -241,6 +241,8 @@ def download_sdk(self, url, targetfolder, strip_components=1):
             os.makedirs(os.path.dirname(targetfolder))
         path = self.get_local_or_remote_file(url)
         self._extract_tgz_rename_folder(path, targetfolder, strip_components)
+    else:
+        print "SDK already installed:", targetfolder
 
 class Configuration(object):
     def __init__(self, dynamo_home = None,
@@ -596,7 +598,6 @@ class Configuration(object):
             download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         build_private.install_sdk(self, target_platform)
-
 
     def get_ems_dir(self):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)

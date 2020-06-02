@@ -35,6 +35,7 @@ except:
             if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android', 'x86_64-linux'):
                 return False
             return True
+        @classmethod
         def transform_runnable_path(cls, platform, path):
             return path
     globals()['waf_dynamo_private'] = waf_dynamo_private
@@ -54,7 +55,6 @@ def platform_setup_vars(ctx, build_util):
 
 def transform_runnable_path(platform, path):
     return waf_dynamo_private.transform_runnable_path(platform, path)
-
 
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
@@ -1659,7 +1659,7 @@ def detect(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_CARES'] = []
-    if platform not in ['js-web', 'wasm-web']:
+    if platform not in ('js-web', 'wasm-web'):
         conf.env['STATICLIB_CARES'].append('cares')
     if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_CARES'].append('resolv')
