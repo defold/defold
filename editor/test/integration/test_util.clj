@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
@@ -56,10 +68,11 @@
      (mapv file-tree-helper (sort-by #(.getName %) (filter #(not (.isHidden %)) (.listFiles entry))))}
     (.getName entry)))
 
-(defn file-tree [^File dir]
+(defn file-tree
   "Returns a vector of file tree entries below dir. A file entry is represented
   as a String file name. A directory entry is represented as a single-entry map
   where the key is the directory name and the value is a vector of tree entries."
+  [^File dir]
   (second (first (file-tree-helper dir))))
 
 (defn make-file-tree!
@@ -580,8 +593,8 @@
                0x45 0x4E 0x44 0xAE  0x42 0x60 0x82]))
 
 (defn make-png-resource!
-  [workspace proj-path]
   "Adds a PNG image file to the workspace. Returns the created FileResource."
+  [workspace proj-path]
   (assert (integer? workspace))
   (assert (.startsWith proj-path "/"))
   (let [resource (resource workspace proj-path)]

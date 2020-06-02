@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns dynamo.graph
   "Main api for graph and node"
   (:refer-clojure :exclude [deftype constantly])
@@ -164,12 +176,14 @@
   ([transaction node-id output]
     (boolean (get-in transaction [:outputs-modified node-id output]))))
 
-(defn is-added? [transaction node-id]
+(defn is-added?
   "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
+  [transaction node-id]
   (contains? (:nodes-added transaction) node-id))
 
-(defn is-deleted? [transaction node-id]
+(defn is-deleted?
   "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
+  [transaction node-id]
   (contains? (:nodes-deleted transaction) node-id))
 
 (defn outputs-modified
@@ -183,7 +197,7 @@
   (:basis transaction))
 
 (defn pre-transaction-basis
-  "Returns the original, statrting basis from the result of a transaction given a tx-result"
+  "Returns the original, starting basis from the result of a transaction given a tx-result"
   [transaction]
   (:original-basis transaction))
 

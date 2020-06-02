@@ -290,6 +290,17 @@ jobs:
         run: 'ci/ci.sh release'
       },
       {
+        name: 'Publish updated API ref',
+        uses: defold/repository-dispatch@1.2.1,
+        if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
+        with: {
+            repo: 'defold/defold.github.io',
+            token: '${{ secrets.GITHUB_TOKEN_READONLY }}',
+            user: 'services@defold.se',
+            action: 'refdoc'
+        }
+      },
+      {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
        if: always(),

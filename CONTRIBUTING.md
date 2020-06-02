@@ -60,6 +60,8 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
 * All pull requests must be made towards the defold:dev branch for changes to the engine and defold:editor-dev for changes to the editor.
+* Pull requests should be given descriptive names: Issue-1234-Changed-the-flux-capacitor-to-use-uranium
+  * Make sure to [link the issue to the pull request](https://help.github.com/en/github/managing-your-work-on-github/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
 
 
 ### New features

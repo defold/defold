@@ -56,6 +56,7 @@ def transform_runnable_path(platform, path):
     return waf_dynamo_private.transform_runnable_path(platform, path)
 
 
+# Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 ANDROID_ROOT=SDK_ROOT
 ANDROID_BUILD_TOOLS_VERSION = '29.0.3'
@@ -385,19 +386,23 @@ def default_flags(self):
         # Default to asmjs output
         wasm_enabled = 0
         legacy_vm_support = 1
-        binaryen_method = "asmjs"
         if 'wasm' == build_util.get_target_architecture():
             wasm_enabled = 1
             legacy_vm_support = 0
-            binaryen_method = "native-wasm"
+
+        emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
+                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_main"]',
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456']
+        emflags = zip(['-s'] * len(emflags), emflags)
+        emflags =[j for i in emflags for j in i]
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
-                                      '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
+            self.env.append_value(f, ['-O%s' % opt_level, '-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+                                        '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
+            self.env.append_value(f, emflags)
 
-        # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', emflags)
 
     elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -1287,7 +1292,7 @@ def linux_link_flags(self):
 @after('apply_obj_vars')
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if 'web' in platform:
+    if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
@@ -1368,100 +1373,17 @@ def create_clang_wrapper(conf, exe):
     os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     return clang_wrapper_path
 
-# Capture vcvarsall.bat environment variables for MSVC binaries, INCLUDE and LIB dir
-# Adapted from msvc.py in waf 1.5.9
-def _capture_vcvars_env(conf,target,vcvars):
-    batfile=os.path.join(conf.blddir,'waf-print-msvc.bat')
-    f=open(batfile,'w')
-    f.write("""@echo off
-set INCLUDE=
-set LIB=
-call "%s" %s
-echo PATH=%%PATH%%
-echo INCLUDE=%%INCLUDE%%
-echo LIB=%%LIB%%
-"""%(vcvars,target))
-    f.close()
-    sout=Utils.cmd_output(['cmd','/E:on','/V:on','/C',batfile])
-    lines=sout.splitlines()
-    for line in lines[0:]:
-        if line.startswith('PATH='):
-            path=line[5:]
-            paths=[p for p in path.split(';') if "MinGW" not in p]
-            MSVC_PATH=paths
-        elif line.startswith('INCLUDE='):
-            MSVC_INCDIR=[i for i in line[8:].split(';')if i]
-        elif line.startswith('LIB='):
-            MSVC_LIBDIR=[i for i in line[4:].split(';')if i]
-    return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
-
-# Given path to msvc installation, capture target platform settings
-def _get_msvc_target_support(conf, product_dir, version):
-    targets=[]
-    vcvarsall_path = os.path.join(product_dir, 'VC', 'vcvarsall.bat')
-
-    if os.path.isfile(vcvarsall_path):
-        if os.path.isfile(os.path.join(product_dir, 'Common7', 'Tools', 'vsvars32.bat')):
-            try:
-                targets.append(('x86', ('x86', _capture_vcvars_env(conf, 'x86', vcvarsall_path))))
-            except Configure.ConfigurationError:
-                pass
-        if os.path.isfile(os.path.join(product_dir, 'VC', 'bin', 'amd64', 'vcvars64.bat')):
-            try:
-                targets.append(('x64', ('amd64', _capture_vcvars_env(conf, 'x64', vcvarsall_path))))
-            except:
-                pass
-
-    return targets
-
-def _find_msvc_installs():
-    import _winreg
-    version_pattern = re.compile('^..?\...?')
-    installs = []
-    for vcver in ['VCExpress', 'VisualStudio']:
-        try:
-            all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Wow6432node\\Microsoft\\' + vcver)
-        except WindowsError:
-            try:
-                all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\' + vcver)
-            except WindowsError:
-                continue
-        index = 0
-        while 1:
-            try:
-                version = _winreg.EnumKey(all_versions, index)
-            except WindowsError:
-                break
-            index = index + 1
-            if not version_pattern.match(version):
-                continue
-            try:
-                msvc_version = _winreg.OpenKey(all_versions, version + "\\Setup\\VS")
-                path, type = _winreg.QueryValueEx(msvc_version, 'ProductDir')
-                path = str(path)
-                installs.append((version, path))
-            except WindowsError:
-                continue
-    return list(set(installs))
-
 def get_msvc_version(conf, platform):
+    # We return these mappings in a format that the waf tools would have returned (if they worked, and weren't very very slow)
     dynamo_home = conf.env['DYNAMO_HOME']
     msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
     windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
 
-    if not os.path.exists(msvcdir):
-        msvcdir = os.path.normpath(os.path.join(os.environ['VS140COMNTOOLS'], '..', '..'))
-        windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+    arch = 'x64'
+    if platform == 'win32':
+        arch = 'x86'
 
-    target_map = {'win32': 'x86',
-                   'x86_64-win32': 'x64'}
-    platform_map = {'win32': '',
-                    'x86_64-win32': 'amd64'}
-
-    msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
-                os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
-
-    # Since the programs(Windows!) can update, we do this dynamically
+    # Since the programs(Windows!) can update, we do this dynamically to find the correct version
     ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
     ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
     ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
@@ -1469,21 +1391,27 @@ def get_msvc_version(conf, platform):
     if not ucrt_version.startswith('10.0'):
         conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
 
-    includes = [os.path.join(msvcdir,'VC','include'),
-                os.path.join(msvcdir,'VC','atlmfc','include'),
+    msvc_version = [x for x in os.listdir(os.path.join(msvcdir,'VC','Tools','MSVC'))]
+    msvc_version = [x for x in msvc_version if x.startswith('14.')]
+    msvc_version.sort(key=lambda x: map(int, x.split('.')))
+    msvc_version = msvc_version[-1]
+    if not msvc_version.startswith('14.'):
+        conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
+
+    msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
+                os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
+
+    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
+                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
                 os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'8.1','Include','winrt'),
-                os.path.join(windowskitsdir,'8.1','Include','um'),
-                os.path.join(windowskitsdir,'8.1','Include','shared')]
-    libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
-                os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x64'),
-                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
-    if platform == 'win32':
-        libdirs = [os.path.join(msvcdir,'VC','lib'),
-                    os.path.join(msvcdir,'VC','atlmfc','lib'),
-                    os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x86'),
-                    os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
+
+    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
+                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
 
     return msvc_path, includes, libdirs
 
@@ -1545,16 +1473,15 @@ def detect(conf):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
-        if platform == 'x86_64-win32':
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
-        else:
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', get_msvc_version(conf, 'win32')))])]
+        msvc_path, includes, libdirs = get_msvc_version(conf, platform)
 
-        target_map = {'win32': 'x86', 'x86_64-win32': 'x64'}
-        windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
-        if not os.path.exists(windowskitsdir):
-            windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = [os.path.join(windowskitsdir, '8.1','bin', target_map[platform] )])
+        if platform == 'x86_64-win32':
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
+        else:
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (msvc_path, includes, libdirs)))])]
+
+        if not Options.options.skip_codesign:
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
     if  build_util.get_target_os() in ('osx', 'ios'):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
@@ -1635,7 +1562,7 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and build_util.get_target_architecture() in ['js', 'wasm']:
+    if platform in ('js-web', 'wasm-web'):
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
@@ -1648,6 +1575,10 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
+
+        # Unknown argument: -Bstatic, -Bdynamic
+        conf.env['STATICLIB_MARKER']=''
+        conf.env['SHLIB_MARKER']=''
 
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
@@ -1728,7 +1659,7 @@ def detect(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_CARES'] = []
-    if platform not in ('js-web', 'wasm-web'):
+    if platform not in ['js-web', 'wasm-web']:
         conf.env['STATICLIB_CARES'].append('cares')
     if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_CARES'].append('resolv')

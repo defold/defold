@@ -1,5 +1,5 @@
 local test_state = 0
-local numtests = 3
+local numtests = 4
 local error = 0
 
 local function test_eq( a, b )
@@ -18,8 +18,17 @@ local function test_neq( a, b )
     assert( a ~= b )
 end
 
+local function test_unsubscribed()
+    if test_state == 4 then
+        error = 1
+        print("unsubscribe failed")
+    end
+    assert( test_state ~= 4 )
+end
+
 function window_callback(self, event, data)
     test_neq( test_state, 0 )
+    test_unsubscribed()
 
     if test_state == 1 then
         test_eq( event, window.WINDOW_EVENT_FOCUS_LOST )
@@ -53,5 +62,8 @@ function on_input(self, action_id, action)
     if test_state == 0 then
         -- final call, check all tests passed
         test_eq( numtests, 0 )
+    elseif test_state == 4 then
+        window.set_listener(nil)
+        numtests = numtests - 1;
     end
 end

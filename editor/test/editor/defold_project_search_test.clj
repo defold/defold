@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.defold-project-search-test
   (:require [clojure.set :as set]
             [clojure.string :as string]
@@ -11,7 +23,7 @@
   (:import [java.util.concurrent LinkedBlockingQueue]))
 
 (def ^:const search-project-path "test/resources/search_project")
-(def ^:const timeout-ms 10000)
+(def ^:const timeout-ms 15000)
 
 (defn- make-consumer [report-error!]
   (atom {:consumed [] :future nil :report-error! report-error!}))
@@ -149,7 +161,7 @@
         (is (= [] (perform-search! nil nil)))
         (is (= [] (perform-search! "" nil)))
         (is (= [] (perform-search! nil "")))
-        (is (set/subset? #{["/modules/colors.lua" ["red = {255, 0, 0},"]]
+        (is (set/subset? #{["/modules/colors.lua" ["-- Unless required by applicable law or agreed to in writing, software distributed" "red = {255, 0, 0},"]]
                            ["/scripts/apples.script" ["\"Red Delicious\","]]}
                          (set (perform-search! "red" nil))))
         (is (set/subset? #{["/modules/colors.lua" ["red = {255, 0, 0},"
