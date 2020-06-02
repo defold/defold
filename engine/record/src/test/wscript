@@ -1,10 +1,8 @@
 #! /usr/bin/env python
-import re
 
 def build(bld):
-    if 'web' in bld.env.PLATFORM:
-        return
-    if bld.env.PLATFORM.find('arm') == -1 and bld.env.PLATFORM != "x86_64-ios":
+
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-darwin'):
         vpx = 'VPX'
         record = 'record'
     else:
@@ -18,7 +16,7 @@ def build(bld):
     test_record = bld.new_task_gen(features='cxx cprogram test',
                                    includes='../../../src .',
                                    defines=extra_defines,
-                                   uselib='DLIB %s' % vpx,
+                                   uselib='APP DLIB %s' % vpx,
                                    uselib_local=record,
                                    proto_gen_py=True,
                                    target='test_record',

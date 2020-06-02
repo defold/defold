@@ -416,6 +416,7 @@ namespace dmGraphics
 
         TextureFilter m_DefaultTextureMinFilter;
         TextureFilter m_DefaultTextureMagFilter;
+        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
         uint8_t       m_VerifyGraphicsCalls : 1;
         uint8_t       m_RenderDocSupport : 1;
         uint8_t       : 6;
@@ -732,14 +733,6 @@ namespace dmGraphics
         else
             return ~0u;
     }
-
-    /**
-     * Iterates the application loop until it should be terminated.
-     * @param user_data user data supplied to both the step and is running methods.
-     * @param stepMethod the method to be used when executing a single iteration of the application loop.
-     * @param isRunning the method used when determining whether iteration of the application loop should continue.
-     */
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
 }
 
 #endif // DM_GRAPHICS_H

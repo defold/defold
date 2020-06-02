@@ -19,9 +19,6 @@
 #include <stdlib.h>
 #include <dlib/align.h>
 
-#define C_TO_JAVA ntohl
-#define JAVA_TO_C htonl
-
 // Maximum hash length convention. This size should large enough.
 // If this length changes the VERSION needs to be bumped.
 #define DMRESOURCE_MAX_HASH (64) // Equivalent to 512 bits

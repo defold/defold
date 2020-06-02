@@ -19,27 +19,28 @@ namespace dmHID
 {
     struct Gamepad
     {
-        GamepadPacket m_Packet;
-        uint32_t m_Index;
-        uint32_t m_AxisCount;
-        uint32_t m_ButtonCount;
-        uint8_t m_HatCount;
-        uint32_t m_Connected : 1;
+        GamepadPacket   m_Packet;
+        uint32_t        m_Index;
+        uint32_t        m_AxisCount;
+        uint32_t        m_ButtonCount;
+        uint8_t         m_HatCount;
+        uint32_t        m_Connected : 1;
     };
 
     struct Context
     {
         Context();
 
-        KeyboardPacket m_KeyboardPacket;
-        TextPacket     m_TextPacket;
-        MarkedTextPacket m_MarkedTextPacket;
-        MousePacket m_MousePacket;
-        Gamepad m_Gamepads[MAX_GAMEPAD_COUNT];
-        TouchDevicePacket m_TouchDevicePacket;
-        AccelerationPacket m_AccelerationPacket;
-        DMHIDGamepadFunc m_GamepadConnectivityCallback;
-        void* m_GamepadConnectivityUserdata;
+        KeyboardPacket      m_KeyboardPacket;
+        TextPacket          m_TextPacket;
+        MarkedTextPacket    m_MarkedTextPacket;
+        MousePacket         m_MousePacket;
+        Gamepad             m_Gamepads[MAX_GAMEPAD_COUNT];
+        TouchDevicePacket   m_TouchDevicePacket;
+        AccelerationPacket  m_AccelerationPacket;
+        DMHIDGamepadFunc    m_GamepadConnectivityCallback;
+        void*               m_GamepadConnectivityUserdata;
+        void*               m_NativeContext;
 
         uint32_t m_KeyboardConnected : 1;
         uint32_t m_MouseConnected : 1;

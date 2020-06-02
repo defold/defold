@@ -1,42 +1,36 @@
 #! /usr/bin/env python
+from waf_dynamo import platform_supports_feature
 
 def build(bld):
-    test_physics = bld.new_task_gen(features = 'cxx cprogram test',
-                                    source = 'test_physics.cpp',
-                                    uselib = 'DLIB PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics Box2D',
-                                    includes = ['../../../src', '../../../src/box2d'],
-                                    target = 'test_physics')
+    if platform_supports_feature(bld.env.PLATFORM, 'bullet3d', {}):
+        bld.new_task_gen(features = 'cxx cprogram test',
+                        source = 'test_physics.cpp',
+                        uselib = 'APP DLIB PLATFORM_THREAD BULLET',
+                        uselib_local = 'physics Box2D',
+                        includes = ['../../../src', '../../../src/box2d'],
+                        target = 'test_physics')
 
-    test_physics.install_path = None
-
-    test_physics_2d = bld.new_task_gen(features = 'cxx cprogram test',
-                                    source = 'test_physics_2d.cpp',
-                                    uselib = 'DLIB PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics_2d Box2D',
-                                    includes = ['../../../src', '../../../src/box2d'],
-                                    target = 'test_physics_2d')
-
-    test_physics_2d.install_path = None
+        bld.new_task_gen(features = 'cxx cprogram test',
+                        source = 'test_physics_2d.cpp',
+                        uselib = 'APP DLIB PLATFORM_THREAD BULLET',
+                        uselib_local = 'physics_2d Box2D',
+                        includes = ['../../../src', '../../../src/box2d'],
+                        target = 'test_physics_2d')
 
     # Note that these null tests won't actually work since the tests aren't written that way.
     # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
     # We do this by removing the 'test' feature which excludes it from the test run
-    null_test = bld.new_task_gen(features = 'cxx cprogram',
-                                    source = 'test_physics.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics_null',
-                                    includes = ['../../../src', '../../../src/box2d'],
-                                    target = 'test_physics_null')
+    if platform_supports_feature(bld.env.PLATFORM, 'bullet3d', {}):
+        bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                        source = 'test_physics.cpp',
+                        uselib = 'APP DLIB GTEST PLATFORM_THREAD BULLET',
+                        uselib_local = 'physics_null',
+                        includes = ['../../../src', '../../../src/box2d'],
+                        target = 'test_physics_null')
 
-    null_test.install_path = None
-
-    null_test = bld.new_task_gen(features = 'cxx cprogram',
-                                    source = 'test_physics_2d.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
-                                    uselib_local = 'physics_null',
-                                    includes = ['../../../src', '../../../src/box2d'],
-                                    target = 'test_physics_2d_null')
-
-    null_test.install_path = None
-
+        bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                        source = 'test_physics_2d.cpp',
+                        uselib = 'APP DLIB GTEST PLATFORM_THREAD BULLET',
+                        uselib_local = 'physics_null',
+                        includes = ['../../../src', '../../../src/box2d'],
+                        target = 'test_physics_2d_null')

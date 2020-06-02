@@ -19,7 +19,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "math.h"
-#include "./socket.h"
 #include "http_client.h"
 #include "http_client_private.h"
 #include "log.h"
@@ -29,10 +28,11 @@
 #include "path.h"
 #include "time.h"
 #include "connection_pool.h"
-#include "mutex.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/net_sockets.h"
-#include "dns.h"
+#include <dlib/dns.h>
+#include <dlib/mutex.h>
+#include <dlib/socket.h>
 
 namespace dmHttpClient
 {

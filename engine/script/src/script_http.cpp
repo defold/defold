@@ -243,11 +243,16 @@ namespace dmScript
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
-            g_Service = dmHttpService::New();
+
+            dmHttpService::Params params;
+            if (config_file) {
+                params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", params.m_ThreadCount);
+                params.m_UseHttpCache = dmConfigFile::GetInt(config_file, "network.http_cache_enabled", params.m_UseHttpCache);
+            }
+            g_Service = dmHttpService::New(&params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
         }
         g_ServiceRefCount++;
-
         if (config_file) {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
             g_Timeout = (uint64_t) (timeout * 1000000.0f);

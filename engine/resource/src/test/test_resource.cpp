@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,18 +12,33 @@
 
 #include <dlib/log.h>
 
-#include <dlib/socket.h>
-#include <dlib/http_client.h>
-#include <dlib/hash.h>
 #include <dlib/dstrings.h>
-#include <dlib/time.h>
+#include <dlib/hash.h>
+#include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/socket.h>
+#include <dlib/sys.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 #include <ddf/ddf.h>
+
+#define TEST_HTTP_SUPPORTED
+#if defined(__NX__)
+    #undef TEST_HTTP_SUPPORTED
+#endif
+
 #include "resource_ddf.h"
 #include "../resource.h"
 #include "../resource_private.h"
 #include "test/test_resource_ddf.h"
+
+#if defined(TEST_HTTP_SUPPORTED)
+#include <dlib/http_client.h>
+#include <dlib/hashtable.h>
+#include <dlib/message.h>
+#include <dlib/uri.h>
+#endif
+
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -44,6 +59,18 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
     EXT_CONSTANTS(FOO, "foo")
 
 #undef EXT_CONSTANTS
+
+static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
+{
+#if defined(__NX__)
+    dmStrlCpy(dst, "host:/", dst_len);
+    dmStrlCat(dst, path, dst_len);
+    return dst;
+#else
+    dmStrlCpy(dst, path, dst_len);
+    return dst;
+#endif
+}
 
 class ResourceTest : public jc_test_base_class
 {
@@ -366,6 +393,7 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& p
     return dmResource::RESULT_OK;
 }
 
+#if defined(TEST_HTTP_SUPPORTED)
 TEST_P(GetResourceTest, GetTestResource)
 {
     dmResource::Result e;
@@ -511,6 +539,8 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
 
 const char* params_resource_paths[] = {"build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"};
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI, GetResourceTest, jc_test_values_in(params_resource_paths));
+
+#endif // TEST_HTTP_SUPPORTED
 
 TEST_P(GetResourceTest, GetReference1)
 {
@@ -863,6 +893,7 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
     }
 }
 
+#if defined(TEST_HTTP_SUPPORTED)
 TEST(dmResource, InvalidHost)
 {
     dmResource::NewFactoryParams params;
@@ -880,6 +911,7 @@ TEST(dmResource, InvalidUri)
     dmResource::HFactory factory = dmResource::NewFactory(&params, "gopher://foo_host");
     ASSERT_EQ((void*) 0, factory);
 }
+#endif
 
 dmResource::Result AdResourceCreate(const dmResource::ResourceCreateParams& params)
 {
@@ -953,6 +985,8 @@ TEST(RecreateTest, RecreateTest)
     const char* tmp_dir = 0;
 #if defined(_MSC_VER)
     tmp_dir = ".";
+#elif defined(__NX__)
+    tmp_dir = "";
 #else
     tmp_dir = ".";
 #endif
@@ -978,9 +1012,12 @@ TEST(RecreateTest, RecreateTest)
     char file_name[512];
     dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
+    char host_name[512];
+    const char* path = MakeHostPath(host_name, sizeof(host_name), file_name);
+
     FILE* f;
 
-    f = fopen(file_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "123");
     fclose(f);
@@ -990,7 +1027,7 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    f = fopen(file_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
@@ -1002,7 +1039,7 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(123, reload_data.m_Old);
     ASSERT_EQ(456, reload_data.m_New);
 
-    unlink(file_name);
+    dmSys::Unlink(path);
     rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
@@ -1039,6 +1076,8 @@ TEST(RecreateTest, RecreateTestHttp)
     const char* tmp_dir = 0;
 #if defined(_MSC_VER)
     tmp_dir = ".";
+#elif defined(__NX__)
+    tmp_dir = "";
 #else
     tmp_dir = ".";
 #endif
@@ -1061,9 +1100,12 @@ TEST(RecreateTest, RecreateTestHttp)
     char file_name[512];
     dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
+    char host_name[512];
+    const char* path = MakeHostPath(host_name, sizeof(host_name), file_name);
+
     FILE* f;
 
-    f = fopen(file_name, "wb");
+    f = fopen(host_name, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "123");
     fclose(f);
@@ -1073,7 +1115,7 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_EQ(dmResource::RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    f = fopen(file_name, "wb");
+    f = fopen(host_name, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
@@ -1091,7 +1133,7 @@ TEST(RecreateTest, RecreateTestHttp)
 
     ASSERT_EQ(456, *resource);
 
-    unlink(file_name);
+    dmSys::Unlink(host_name);
 
     SendReloadDone = false;
     send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
@@ -1110,7 +1152,7 @@ TEST(RecreateTest, RecreateTestHttp)
     dmResource::DeleteFactory(factory);
 }
 
-// Test the "filename" callback argument (overkill, but chmu is a TDD-nazi!)
+// Test the "filename" callback argument
 
 char filename_resource_filename[ 128 ];
 
@@ -1140,6 +1182,8 @@ TEST(FilenameTest, FilenameTest)
     const char* tmp_dir = 0;
 #if defined(_MSC_VER)
     tmp_dir = ".";
+#elif defined(__NX__)
+    tmp_dir = "";
 #else
     tmp_dir = ".";
 #endif
@@ -1161,9 +1205,12 @@ TEST(FilenameTest, FilenameTest)
     const char* resource_name = "/__testfilename__.foo";
     dmSnPrintf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
 
+    char host_name[512];
+    const char* path = MakeHostPath(host_name, sizeof(host_name), filename_resource_filename);
+
     FILE* f;
 
-    f = fopen(filename_resource_filename, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "123");
     fclose(f);
@@ -1173,7 +1220,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::RESULT_OK, fr);
     ASSERT_EQ(123, *resource);
 
-    f = fopen(filename_resource_filename, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "456");
     fclose(f);
@@ -1182,7 +1229,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     ASSERT_EQ(456, *resource);
 
-    unlink(filename_resource_filename);
+    dmSys::Unlink(path);
     rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
@@ -1209,6 +1256,8 @@ TEST(RecreateTest, ReloadCallbackTest)
     const char* tmp_dir = 0;
 #if defined(_MSC_VER)
     tmp_dir = ".";
+#elif defined(__NX__)
+    tmp_dir = "";
 #else
     tmp_dir = ".";
 #endif
@@ -1227,9 +1276,12 @@ TEST(RecreateTest, ReloadCallbackTest)
     char file_name[512];
     dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
+    char host_name[512];
+    const char* path = MakeHostPath(host_name, sizeof(host_name), file_name);
+
     FILE* f;
 
-    f = fopen(file_name, "wb");
+    f = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fprintf(f, "123");
     fclose(f);
@@ -1256,7 +1308,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_EQ((void*)0, user_data.m_Descriptor);
     ASSERT_EQ((void*)0, user_data.m_Name);
 
-    unlink(file_name);
+    dmSys::Unlink(path);
 
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
@@ -1264,7 +1316,7 @@ TEST(RecreateTest, ReloadCallbackTest)
 
 TEST(OverflowTest, OverflowTest)
 {
-    const char* test_dir = "build/default/src/test";
+    const char* test_dir = "./build/default/src/test";
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 1;
@@ -1400,12 +1452,18 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
 
 int main(int argc, char **argv)
 {
+    #if defined(TEST_HTTP_SUPPORTED)
     dmSocket::Initialize();
     dmDNS::Initialize();
+    #endif
+
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
+
+    #if defined(TEST_HTTP_SUPPORTED)
     dmDNS::Finalize();
     dmSocket::Finalize();
+    #endif
     return ret;
 }
 

@@ -27,6 +27,12 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
+
 #define PATH_FORMAT "build/default/src/test/%s"
 
 class ScriptCrashTest : public jc_test_base_class
@@ -73,7 +79,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -82,6 +88,7 @@ bool RunFile(lua_State* L, const char* filename)
     return true;
 }
 
+#if !defined(__NX__)
 TEST_F(ScriptCrashTest, TestCrash)
 {
     int top = lua_gettop(L);
@@ -105,6 +112,7 @@ TEST_F(ScriptCrashTest, TestCrash)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
+#endif
 
 int main(int argc, char **argv)
 {

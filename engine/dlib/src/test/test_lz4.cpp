@@ -114,7 +114,7 @@ TEST(dmLZ4, Stress)
 
         r = dmLZ4::DecompressBufferFast(compressed, compressed_size, decompressed, ref_len);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
-        ASSERT_EQ(0, memcmp(ref, decompressed, ref_len));
+        ASSERT_ARRAY_EQ_LEN(ref, decompressed, ref_len);
 
         // NOTE: If an assert fails above, we will get a mem leak report as well as
         //       the assert error. But it doesn't really matter for testing.

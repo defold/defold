@@ -180,10 +180,18 @@ namespace dmSys
      * @param src_filename the source filename. The contents will be written to the destination filename and the file unlinked if successful.
      * @return RESULT_OK on success
     */
-    Result MoveFile(const char* dst_filename, const char* src_filename);
+    Result RenameFile(const char* dst_filename, const char* src_filename);
+
+    /**
+     * Given a path, resolves the path to the path that is first found, given the current file mounts
+     * @return RESULT_NOENT if no such file
+     */
+    Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path);
 
     /**
      * Get the path where the application (exe) is located
+     * Example paths:
+     * Switch: data://
      * @param path path buffer
      * @path path_len path buffer length
      * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. Other error results are also possible.
@@ -196,6 +204,7 @@ namespace dmSys
      * OSX: ~/Library/Application Support/APPLICATION_NAME
      * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
      * Linux: ~/.APPLICATION_NAME
+     * Switch: cache://
      * @param application_name application name to get path for. This is the name of "your" application.
      * @param path path buffer
      * @param path_len path buffer length
@@ -203,6 +212,22 @@ namespace dmSys
      * codes, e.g. RESULT_ACCES if permission is denied.
      */
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len);
+
+    /**
+     * Get and create platform specific application save directory.
+     * For Switch, it returns the path, prefixed with "save://"
+     * Example paths:
+     * OSX: ~/Library/Application Support/APPLICATION_NAME
+     * Windows: C:\Documents and Settings\USERNAME\Application Data\APPLICATION_NAME
+     * Linux: ~/.APPLICATION_NAME
+     * Switch: save:/
+     * @param application_name application name to get path for. This is the name of "your" application.
+     * @param path path buffer
+     * @param path_len path buffer length
+     * @return RESULT_OK success. RESULT_INVAL if the supplied path is too short. General IO-errors could result in other
+     * codes, e.g. RESULT_ACCES if permission is denied.
+     */
+    Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len);
 
     /**
      * Get resource directory path. On iOS the bundle directory is returned whereas on MacOSX
@@ -230,6 +255,7 @@ namespace dmSys
      * @return
      */
     Result GetLogPath(char* path, uint32_t path_len);
+
 
     /**
      * Get system information
@@ -311,6 +337,15 @@ namespace dmSys
      * Causes message events to be dispatched, on platforms that require it (currently only node/headless)
      */
     void PumpMessageQueue();
+
+    // private functions
+    void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
+    Result NativeToResult(int r);
+
+    /**
+     *
+     */
+    char* GetEnv(const char* name);
 }
 
 #endif

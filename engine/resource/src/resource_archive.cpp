@@ -26,19 +26,25 @@
 #include "resource.h"
 #include "resource_archive_private.h"
 #include <dlib/dstrings.h>
+#include <dlib/endian.h>
 #include <dlib/lz4.h>
 #include <dlib/log.h>
 #include <dlib/crypt.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-#include <netinet/in.h>
-#elif defined(_WIN32)
+// TODO: replace with dmEndian
+#if defined(_WIN32)
 #include <winsock2.h>
+#elif defined(__NX__)
+#include <arpa/inet.h>
 #else
-#error "Unsupported platform"
+#include <netinet/in.h>
 #endif
+#define C_TO_JAVA ntohl
+#define JAVA_TO_C htonl
+//#include <dlib/endian.h>
+
 
 namespace dmResourceArchive
 {
@@ -611,7 +617,7 @@ namespace dmResourceArchive
             entry.m_ResourceDataOffset = C_TO_JAVA(offs);
             entry.m_ResourceSize = is_compressed ? resource->m_Header->m_Size : C_TO_JAVA(resource->m_Count);
             entry.m_ResourceCompressedSize = is_compressed ? C_TO_JAVA(resource->m_Count) : (C_TO_JAVA(0xffffffff));
-            entry.m_Flags = C_TO_JAVA(resource->m_Header->m_Flags | ENTRY_FLAG_LIVEUPDATE_DATA);
+            entry.m_Flags = C_TO_JAVA((uint32_t)(resource->m_Header->m_Flags | ENTRY_FLAG_LIVEUPDATE_DATA));
             /// --- WRITE RESOURCE END
         }
 

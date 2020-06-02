@@ -1,21 +1,29 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef HID_GLFW_DEFINES_H
-#define HID_GLFW_DEFINES_H
+#ifndef HID_NATIVE_DEFINES_H
+#define HID_NATIVE_DEFINES_H
 
 #include <graphics/glfw/glfw.h>
 
-#define HID_MAX_GAMEPAD_COUNT GLFW_JOYSTICK_LAST + 1
+#define HID_NATIVE_MAX_GAMEPAD_COUNT GLFW_JOYSTICK_LAST + 1
+
+#define HID_NATIVE_MAX_GAMEPAD_AXIS_COUNT 32
+#define HID_NATIVE_MAX_GAMEPAD_BUTTON_COUNT 32
+#define HID_NATIVE_MAX_GAMEPAD_HAT_COUNT 4
+/// Maximum number of simultaneous touches supported
+// An iPad supports a maximum of 11 simultaneous touches
+#define HID_NATIVE_MAX_TOUCH_COUNT 11
+
 
 #define HID_KEY_SPACE ' '
 #define HID_KEY_EXCLAIM '!'
@@ -149,6 +157,8 @@
 #define HID_KEY_RSUPER GLFW_KEY_RSUPER
 #define HID_KEY_MENU GLFW_KEY_MENU
 #define HID_KEY_BACK GLFW_KEY_BACK
+
+#define HID_KEY_MAX HID_KEY_BACK
 
 #define HID_MOUSE_BUTTON_LEFT GLFW_MOUSE_BUTTON_LEFT
 #define HID_MOUSE_BUTTON_MIDDLE GLFW_MOUSE_BUTTON_MIDDLE

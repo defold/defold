@@ -13,6 +13,15 @@
 
 
 
+function invoke_function() {
+    # used to invoke something only if the function exists
+    FUNCTION=$1
+    shift
+    [ "$(LC_ALL=C type -t $FUNCTION)" = function ] && $FUNCTION $@
+}
+
+[ -f common_private.sh ] && source ./common_private.sh
+
 function usage() {
     echo "build.sh PRODUCT PLATFORM"
     echo "Supported platforms"
@@ -30,6 +39,7 @@ function usage() {
     echo " * wasm-web"
     echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
+    invoke_function usage_private hello world 1 2 3
     exit $1
 }
 

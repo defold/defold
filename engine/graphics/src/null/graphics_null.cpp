@@ -168,10 +168,6 @@ namespace dmGraphics
         assert(context);
     }
 
-    static void NullAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-    }
-
     static void NullRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
@@ -1214,7 +1210,6 @@ namespace dmGraphics
         fn_table.m_DeleteContext = NullDeleteContext;
         fn_table.m_Initialize = NullInitialize;
         fn_table.m_Finalize = NullFinalize;
-        fn_table.m_AppBootstrap = NullAppBootstrap;
         fn_table.m_GetWindowRefreshRate = NullGetWindowRefreshRate;
         fn_table.m_OpenWindow = NullOpenWindow;
         fn_table.m_CloseWindow = NullCloseWindow;

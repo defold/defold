@@ -1,0 +1,38 @@
+#! /usr/bin/env python
+
+import os, sys
+import Options
+from waf_dynamo import is_platform_private
+from BuildUtility import BuildUtilityException, create_build_utility
+
+def set_options(opt):
+    pass
+
+def configure(conf):
+    pass
+
+def build(bld):
+    bld.add_subdirs('test')
+    build_util = create_build_utility(bld.env)
+
+    defines = []
+    source_dirs = []
+
+    for platform in [build_util.get_target_os(), 'common']:
+        d = os.path.join(platform)
+        if os.path.exists(os.path.join('src',d)):
+            source_dirs.extend([d])
+
+    applib = bld.new_task_gen(features  = 'cc cxx cstaticlib',
+                              includes  = '. ..',
+                              target    = 'app',
+                              defines   = defines)
+    applib.find_sources_in_dirs(source_dirs)
+
+    applibtest = bld.new_task_gen(features   = 'cc cxx cstaticlib',
+                      includes  = '. ..',
+                      target    = 'app_test',
+                      defines   = defines + ['DM_APP_TEST_MODE'])
+    applibtest.find_sources_in_dirs(source_dirs)
+
+    bld.install_files('${PREFIX}/include/app', 'app/app.h')

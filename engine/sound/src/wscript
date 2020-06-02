@@ -6,32 +6,35 @@ def configure(conf):
     pass
 
 def build(bld):
-    bld.add_subdirs('openal')
-
-    source        = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
+    source        = 'sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
     source_null   = 'devices/device_null.cpp sound_null.cpp'.split()
-    decoders      = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
+    decoders      = 'decoders/decoder_wav.cpp decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
 
-
-    if bld.env['PLATFORM'] not in ['js-web', 'wasm-web', 'win32', 'x86_64-win32']:
+    if bld.env['PLATFORM'] not in ['arm64-nx64']:
         decoders += 'decoders/decoder_tremolo.cpp'.split()
 
-    source       += decoders
+    source += decoders
 
-    defines, include = ('', '')
-    if re.match('arm.*?android', bld.env['PLATFORM']):
-        defines = 'TREMOLO_SCORE=10'
-        include = 'openal/include'
-        source += ['sound_android.cpp', 'devices/device_opensl.cpp']
-    elif bld.env['PLATFORM'] in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
-        defines = 'TREMOLO_SCORE=10'
-        source += ['sound_ios.mm', 'devices/device_openal.cpp']
-    elif 'web' in bld.env['PLATFORM']:
-        defines = 'TREMOLO_SCORE=8'
-        source += ['sound_generic.cpp', 'devices/device_js.cpp']
+    defines = ''
+    include = ''
+
+    if 'android' in bld.env.PLATFORM:
+        source += ['sound_android.cpp']
+    elif bld.env.PLATFORM in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        source += ['sound_ios.mm']
     else:
-        defines = 'TREMOLO_SCORE=8'
-        source += ['sound_generic.cpp', 'devices/device_openal.cpp']
+        source += ['sound_generic.cpp']
+
+    if 'android' in bld.env.PLATFORM:
+        #include = 'openal/include'
+        source += ['devices/device_opensl.cpp']
+    elif 'web' in bld.env.PLATFORM:
+        source += ['devices/device_js.cpp']
+    elif 'nx64' in bld.env.PLATFORM:
+        source += ['devices/device_nx64.cpp']
+    else:
+        source += ['devices/device_openal.cpp']
+        bld.add_subdirs('openal')
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)

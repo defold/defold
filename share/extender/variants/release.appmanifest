@@ -51,3 +51,8 @@ platforms:
         context:
             excludeLibs: ["engine", "engine_service", "profilerext"]
             libs: ["engine_release", "engine_service_null", "profilerext_null"]
+
+    arm64-nx64:
+        context:
+            excludeLibs: ["engine", "engine_service", "profilerext"]
+            libs: ["engine_release", "engine_service_null", "profilerext_null"]

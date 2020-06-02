@@ -1,12 +1,9 @@
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+#! /usr/bin/env python
 
 def build(bld):
-    test_rig = bld.new_task_gen(features = 'cxx cprogram test',
-                                includes = '../../../src . ../../proto',
-                                uselib = 'DLIB PLATFORM_SOCKET LUA SCRIPT',
-                                uselib_local = 'rig',
-                                target = 'test_rig',
-                                source = 'test_rig.cpp')
-
-    test_rig.install_path = None
+    bld.new_task_gen(features = 'cxx cprogram test',
+                    includes = '../../../src . ../../proto',
+                    uselib = 'APP DLIB PLATFORM_SOCKET LUA SCRIPT',
+                    uselib_local = 'rig',
+                    target = 'test_rig',
+                    source = 'test_rig.cpp')
