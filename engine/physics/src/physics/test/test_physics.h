@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,8 @@
 #include "../physics_2d.h"
 #include "../physics_3d.h"
 #include <jc_test/jc_test.h>
+
+template <typename T> class dmArray;
 
 struct VisualObject
 {
@@ -115,7 +117,7 @@ struct Funcs
     typedef void (*SetAngularDampingFunc)(typename T::CollisionObjectType collision_object, float angular_damping);
     typedef float (*GetMassFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
-    typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
+    typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
     typedef void (*SetGravityFunc)(typename T::WorldType world, const Vectormath::Aos::Vector3& gravity);

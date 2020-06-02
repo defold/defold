@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -65,32 +65,6 @@ namespace dmPhysics
         float                       m_TriggerEnterLimit;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
-    };
-
-    class ProcessRayCastResultCallback2D : public b2RayCastCallback
-    {
-    public:
-        ProcessRayCastResultCallback2D();
-        virtual ~ProcessRayCastResultCallback2D();
-
-        /// Called for each fixture found in the query. You control how the ray cast
-        /// proceeds by returning a float:
-        /// return -1: ignore this fixture and continue
-        /// return 0: terminate the ray cast
-        /// return fraction: clip the ray to this point
-        /// return 1: don't clip the ray and continue
-        /// @param fixture the fixture hit by the ray
-        /// @param point the point of initial intersection
-        /// @param normal the normal vector at the point of intersection
-        /// @return -1 to filter, 0 to terminate, fraction to clip the ray for
-        /// closest hit, 1 to continue
-        virtual float32 ReportFixture(b2Fixture* fixture, int32 index, const b2Vec2& point, const b2Vec2& normal, float32 fraction);
-
-        HContext2D m_Context;
-        RayCastResponse m_Response;
-        void* m_IgnoredUserData;
-        uint16_t m_CollisionGroup;
-        uint16_t m_CollisionMask;
     };
 
     inline void ToB2(const Vectormath::Aos::Point3& p0, b2Vec2& p1, float scale)

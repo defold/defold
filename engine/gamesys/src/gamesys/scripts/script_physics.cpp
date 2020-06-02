@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -322,6 +322,24 @@ namespace dmGameSystem
         return 0;
     }
 
+    static void PushRayCastResponse(lua_State* L, void* world, const dmPhysics::RayCastResponse& response)
+    {
+        lua_pushnumber(L, response.m_Fraction);
+        lua_setfield(L, -2, "fraction");
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
+        lua_setfield(L, -2, "position");
+        dmScript::PushVector3(L, response.m_Normal);
+        lua_setfield(L, -2, "normal");
+
+        dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+        dmScript::PushHash(L, group);
+        lua_setfield(L, -2, "group");
+
+        dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);
+        dmScript::PushHash(L, id);
+        lua_setfield(L, -2, "id");
+    }
+
     /*# requests a ray cast to be performed
      *
      * Ray casts are used to test for intersections against collision objects in the physics world.
@@ -373,6 +391,13 @@ namespace dmGameSystem
         Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
         Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
 
+        if (Vectormath::Aos::lengthSqr(to - from) <= 0.0f)
+        {
+            dmLogOnceWarning("Ray had 0 length when ray casting, ignoring request.");
+            lua_pushnil(L);
+            return 1;
+        }
+
         uint32_t mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushnil(L);
@@ -382,32 +407,61 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
+        bool list_format = false;
+        bool return_all_results = false;
+        if (lua_istable(L, 4))
+        {
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "all");
+            return_all_results = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+
+            list_format = true;
+        }
+
+        dmArray<dmPhysics::RayCastResponse> hits;
+        hits.SetCapacity(32);
+
         dmPhysics::RayCastRequest request;
-        dmPhysics::RayCastResponse response;
         request.m_From = from;
         request.m_To = to;
         request.m_Mask = mask;
-        dmGameSystem::RayCast(world, request, response);
+        request.m_ReturnAllResults = return_all_results ? 1 : 0;
 
-        if (response.m_Hit) {
-            lua_newtable(L);
-            lua_pushnumber(L, response.m_Fraction);
-            lua_setfield(L, -2, "fraction");
-            dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
-            lua_setfield(L, -2, "position");
-            dmScript::PushVector3(L, response.m_Normal);
-            lua_setfield(L, -2, "normal");
+        dmGameSystem::RayCast(world, request, hits);
 
-            dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            dmScript::PushHash(L, group);
-            lua_setfield(L, -2, "group");
-
-            dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);
-            dmScript::PushHash(L, id);
-            lua_setfield(L, -2, "id");
-        } else {
+        if (hits.Empty())
+        {
             lua_pushnil(L);
         }
+        else
+        {
+            uint32_t count = hits.Size();
+
+            if (!return_all_results)
+                count = 1;
+
+            lua_newtable(L);
+
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                if(list_format)
+                {
+                    lua_newtable(L);
+                }
+
+                PushRayCastResponse(L, world, hits[i]);
+
+                if (list_format)
+                {
+                    lua_rawseti(L, -2, i+1);
+                }
+            }
+        }
+
         return 1;
     }
 

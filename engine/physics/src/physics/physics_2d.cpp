@@ -1,14 +1,17 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+
+#include <stdlib.h> // qsort
 
 #include "physics.h"
 
@@ -53,19 +56,44 @@ namespace dmPhysics
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
-    ProcessRayCastResultCallback2D::ProcessRayCastResultCallback2D()
-    : m_Context(0x0)
-    , m_IgnoredUserData(0x0)
-    , m_CollisionGroup((uint16_t)~0u)
-    , m_CollisionMask((uint16_t)~0u)
+    class ProcessRayCastResultCallback2D : public b2RayCastCallback
     {
+    public:
+        ProcessRayCastResultCallback2D()
+            : m_Context(0x0)
+            , m_Request(0x0)
+            , m_Callback(0x0)
+            , m_IgnoredUserData(0x0)
+            , m_CollisionGroup((uint16_t)~0u)
+            , m_CollisionMask((uint16_t)~0u)
+            , m_ReturnAllResults(0) {}
 
-    }
+        virtual ~ProcessRayCastResultCallback2D() {}
 
-    ProcessRayCastResultCallback2D::~ProcessRayCastResultCallback2D()
-    {
+        /// Called for each fixture found in the query. You control how the ray cast
+        /// proceeds by returning a float:
+        /// return -1: ignore this fixture and continue
+        /// return 0: terminate the ray cast
+        /// return fraction: clip the ray to this point
+        /// return 1: don't clip the ray and continue
+        /// @param fixture the fixture hit by the ray
+        /// @param point the point of initial intersection
+        /// @param normal the normal vector at the point of intersection
+        /// @return -1 to filter, 0 to terminate, fraction to clip the ray for
+        /// closest hit, 1 to continue
+        virtual float32 ReportFixture(b2Fixture* fixture, int32 index, const b2Vec2& point, const b2Vec2& normal, float32 fraction);
 
-    }
+        HContext2D                  m_Context;
+        RayCastResponse             m_Response;
+        const RayCastRequest*       m_Request;
+        RayCastCallback             m_Callback;
+        dmArray<RayCastResponse>*   m_Results;      // For when returning all hits
+        void*                   m_IgnoredUserData;
+        uint16_t                m_CollisionGroup;
+        uint16_t                m_CollisionMask;
+        uint16_t                m_ReturnAllResults:1;
+        uint16_t                :15;
+    };
 
     float32 ProcessRayCastResultCallback2D::ReportFixture(b2Fixture* fixture, int32_t index, const b2Vec2& point, const b2Vec2& normal, float32 fraction)
     {
@@ -82,6 +110,16 @@ namespace dmPhysics
             m_Response.m_CollisionObjectUserData = fixture->GetBody()->GetUserData();
             FromB2(normal, m_Response.m_Normal, 1.0f); // Don't scale normal
             FromB2(point, m_Response.m_Position, m_Context->m_InvScale);
+
+            // Returning fraction means we're splitting the search area, effectively returning the closest ray
+            // By returning 1, we're make sure each hit is reported.
+            if (m_ReturnAllResults)
+            {
+                if (m_Results->Full())
+                    m_Results->OffsetCapacity(32);
+                m_Results->Push(m_Response);
+                return 1.0f;
+            }
             return fraction;
         }
         else
@@ -1024,30 +1062,45 @@ namespace dmPhysics
         }
     }
 
-    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
+    static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
+    {
+        float diff = a->m_Fraction - b->m_Fraction;
+        if (diff == 0)
+            return 0;
+        return diff < 0 ? -1 : 1;
+    }
+
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE(Physics, "RayCasts");
 
-        const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
-        const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-        if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
-
         float scale = world->m_Context->m_Scale;
-        ProcessRayCastResultCallback2D callback;
-        callback.m_Context = world->m_Context;
+        ProcessRayCastResultCallback2D query;
+        query.m_Request = &request;
+        query.m_ReturnAllResults = request.m_ReturnAllResults;
+        query.m_Context = world->m_Context;
+        query.m_Results = &results;
         b2Vec2 from;
         ToB2(request.m_From, from, scale);
         b2Vec2 to;
         ToB2(request.m_To, to, scale);
-        callback.m_IgnoredUserData = request.m_IgnoredUserData;
-        callback.m_CollisionMask = request.m_Mask;
-        callback.m_Response.m_Hit = 0;
-        world->m_World.RayCast(&callback, from, to);
-        response = callback.m_Response;
+        query.m_IgnoredUserData = request.m_IgnoredUserData;
+        query.m_CollisionMask = request.m_Mask;
+        query.m_Response.m_Hit = 0;
+        world->m_World.RayCast(&query, from, to);
+
+        if (!request.m_ReturnAllResults) {
+            if (query.m_Response.m_Hit)
+            {
+                if (results.Full())
+                    results.OffsetCapacity(1);
+                results.SetSize(1);
+                results[0] = query.m_Response;
+            }
+        } else
+        {
+            qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
+        }
     }
 
     void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)

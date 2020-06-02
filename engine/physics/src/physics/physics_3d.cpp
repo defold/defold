@@ -1,16 +1,17 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdlib.h> // qsort
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -160,9 +161,24 @@ namespace dmPhysics
         delete m_CollisionConfiguration;
     }
 
-    struct ProcessRayCastResultCallback3D : public btCollisionWorld::ClosestRayResultCallback
+    static void ResponseFromRayCastResult(RayCastResponse& response, btScalar inv_scale, btScalar fraction,
+                        const btVector3& point, const btVector3& normal, const btCollisionObject* co)
     {
-        ProcessRayCastResultCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
+        response.m_Hit = 1;
+        response.m_Fraction = fraction;
+        FromBt(point, response.m_Position, inv_scale);
+        FromBt(normal, response.m_Normal, 1.0f); // don't scale normal
+
+        if (co != 0x0)
+        {
+            response.m_CollisionObjectUserData = co->getUserPointer();
+            response.m_CollisionObjectGroup = co->getBroadphaseHandle()->m_collisionFilterGroup;
+        }
+    }
+
+    struct RayCastResultClosestCallback3D : public btCollisionWorld::ClosestRayResultCallback
+    {
+        RayCastResultClosestCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
         : btCollisionWorld::ClosestRayResultCallback(from, to)
         , m_IgnoredUserData(ignored_user_data)
         {
@@ -171,7 +187,7 @@ namespace dmPhysics
             m_collisionFilterMask = mask;
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult,bool normalInWorldSpace)
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
         {
             if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
                 return 1.0f;
@@ -179,6 +195,69 @@ namespace dmPhysics
                 return 1.0f;
             else
                 return btCollisionWorld::ClosestRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
+        }
+
+        void*           m_IgnoredUserData;
+        RayCastResponse m_Response;
+    };
+
+    // Grabbed from a more recent Bullet version for now
+    /// BULLET (do not modify) ->
+    struct AllHitsRayResultCallback : public btCollisionWorld::RayResultCallback
+    {
+        AllHitsRayResultCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld)
+            : m_rayFromWorld(rayFromWorld)
+            , m_rayToWorld(rayToWorld)
+        {
+        }
+        btAlignedObjectArray<const btCollisionObject*> m_collisionObjects;
+        btAlignedObjectArray<btVector3> m_hitNormalWorld;
+        btAlignedObjectArray<btVector3> m_hitPointWorld;
+        btAlignedObjectArray<btScalar> m_hitFractions;
+        btVector3 m_rayFromWorld;//used to calculate hitPointWorld from hitFraction
+        btVector3 m_rayToWorld;
+
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
+        {
+                m_collisionObject = rayResult.m_collisionObject;
+                m_collisionObjects.push_back(rayResult.m_collisionObject);
+                btVector3 hitNormalWorld;
+                if (normalInWorldSpace)
+                {
+                    hitNormalWorld = rayResult.m_hitNormalLocal;
+                } else
+                {
+                    hitNormalWorld = m_collisionObject->getWorldTransform().getBasis()*rayResult.m_hitNormalLocal;
+                }
+                m_hitNormalWorld.push_back(hitNormalWorld);
+                btVector3 hitPointWorld;
+                hitPointWorld.setInterpolate3(m_rayFromWorld,m_rayToWorld,rayResult.m_hitFraction);
+                m_hitPointWorld.push_back(hitPointWorld);
+                m_hitFractions.push_back(rayResult.m_hitFraction);
+                return m_closestHitFraction;
+        }
+    };
+    /// <- END BULLET
+
+    struct RayCastResultAllCallback3D : public AllHitsRayResultCallback
+    {
+        RayCastResultAllCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
+            : AllHitsRayResultCallback(from, to)
+            , m_IgnoredUserData(ignored_user_data)
+        {
+            // *all* groups for now, bullet will test this against the colliding object's mask
+            m_collisionFilterGroup = ~0;
+            m_collisionFilterMask = mask;
+        }
+
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
+        {
+            if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
+                return 1.0f;
+            else if (!rayResult.m_collisionObject->hasContactResponse())
+                return 1.0f;
+            else
+                return AllHitsRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
         }
 
         void* m_IgnoredUserData;
@@ -336,7 +415,7 @@ namespace dmPhysics
                 ToBt(request.m_From, from, scale);
                 btVector3 to;
                 ToBt(request.m_To, to, scale);
-                ProcessRayCastResultCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+                RayCastResultClosestCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
                 world->m_DynamicsWorld->rayTest(from, to, result_callback);
                 RayCastResponse response;
                 response.m_Hit = result_callback.hasHit() ? 1 : 0;
@@ -957,35 +1036,63 @@ namespace dmPhysics
         }
     }
 
-    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& out_response)
+    static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
+    {
+        float diff = a->m_Fraction - b->m_Fraction;
+        if (diff == 0)
+            return 0;
+        return diff < 0 ? -1 : 1;
+    }
+
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE(Physics, "RayCasts");
-
-        if (Vectormath::Aos::lengthSqr(request.m_To - request.m_From) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
 
         float scale = world->m_Context->m_Scale;
         btVector3 from;
         ToBt(request.m_From, from, scale);
         btVector3 to;
         ToBt(request.m_To, to, scale);
-        ProcessRayCastResultCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
-        world->m_DynamicsWorld->rayTest(from, to, result_callback);
-        RayCastResponse response;
-        response.m_Hit = result_callback.hasHit() ? 1 : 0;
-        response.m_Fraction = result_callback.m_closestHitFraction;
+
         float inv_scale = world->m_Context->m_InvScale;
-        FromBt(result_callback.m_hitPointWorld, response.m_Position, inv_scale);
-        FromBt(result_callback.m_hitNormalWorld, response.m_Normal, 1.0f); // don't scale normal
-        if (result_callback.m_collisionObject != 0x0)
+
+        if (request.m_ReturnAllResults)
         {
-            response.m_CollisionObjectUserData = result_callback.m_collisionObject->getUserPointer();
-            response.m_CollisionObjectGroup = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+            RayCastResultAllCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+            world->m_DynamicsWorld->rayTest(from, to, result_callback);
+
+            int size = result_callback.m_collisionObjects.size();
+
+            if (results.Capacity() < size)
+                results.SetCapacity(size);
+            results.SetSize(size);
+
+            for (int i = 0; i < size; ++i)
+            {
+                const btCollisionObject* co = result_callback.m_collisionObjects[i];
+                const btVector3& point = result_callback.m_hitPointWorld[i];
+                const btVector3& normal = result_callback.m_hitNormalWorld[i];
+                const btScalar fraction = result_callback.m_hitFractions[i];
+
+                ResponseFromRayCastResult(results[i], inv_scale, fraction, point, normal, co);
+            }
+
+            qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
         }
-        out_response = response;
+        else
+        {
+            RayCastResultClosestCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+            world->m_DynamicsWorld->rayTest(from, to, result_callback);
+
+            if (result_callback.hasHit())
+            {
+                if (results.Full())
+                    results.OffsetCapacity(1);
+                results.SetSize(1);
+
+                ResponseFromRayCastResult(results[0], inv_scale, result_callback.m_closestHitFraction, result_callback.m_hitPointWorld, result_callback.m_hitNormalWorld, result_callback.m_collisionObject);
+            }
+        }
     }
 
     void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
