@@ -355,6 +355,7 @@ public class Bob {
 
         options.addOption("p", "platform", true, "Platform (when bundling)");
         options.addOption("bo", "bundle-output", true, "Bundle output directory");
+        options.addOption("bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')");
 
         options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
         options.addOption(null, "identity", true, "Sign identity (iOS)");
@@ -387,8 +388,6 @@ public class Bob {
         options.addOption(null, "settings", true, "a path to a game project settings file. more than one occurrance are allowed. the settings files are applied left to right.");
 
         options.addOption(null, "version", false, "Prints the version number to the output");
-
-        options.addOption("aab", "create-aab", false, "Create Android Application Bundle when bundling for Android");
 
         // debug options
         options.addOption(null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip");
@@ -572,8 +571,11 @@ public class Bob {
             project.setOption("use-vanilla-lua", "true");
         }
 
-        if (cmd.hasOption("create-aab")) {
-            project.setOption("create-aab", "true");
+        if (cmd.hasOption("bundle-format")) {
+            project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
+        }
+        else {
+            project.setOption("bundle-format", "apk");
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

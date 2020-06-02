@@ -11,11 +11,15 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        if (project.hasOption("create-aab")) {
+        String bundleFormat = project.option("bundle-format", "");
+        if (bundleFormat.equals("aab")) {
             AndroidAAB.create(project, bundleDir, canceled);
         }
-        else {
+        else if (bundleFormat.equals("apk")) {
             AndroidAPK.create(project, bundleDir, canceled);
+        }
+        else {
+            throw new CompileExceptionError(null, -1, "Unknown bundle format: " + bundleFormat);
         }
     }
 }
