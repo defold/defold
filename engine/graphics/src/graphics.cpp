@@ -75,6 +75,7 @@ namespace dmGraphics
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
     , m_VerifyGraphicsCalls(false)
+    , m_GraphicsMemorySize(0)
     {
 
     }
@@ -167,11 +168,6 @@ namespace dmGraphics
     void Finalize()
     {
         g_functions.m_Finalize();
-    }
-    void AppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-        SelectGraphicsAdapter();
-        g_functions.m_AppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
     }
     uint32_t GetWindowRefreshRate(HContext context)
     {

@@ -8,6 +8,7 @@ blddir = 'build'
 
 import sys, os, re
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
+from waf_dynamo import platform_supports_feature
 
 def init():
     pass
@@ -54,9 +55,13 @@ def configure(conf):
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
-    conf.env['STATICLIB_GRAPHICS'] = 'graphics'
-    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
+
+    conf.env['STATICLIB_GRAPHICS'] = []
+    if platform_supports_feature(platform, 'opengl', {}):
+        conf.env['STATICLIB_GRAPHICS'].append('graphics')
+    if platform_supports_feature(platform, 'vulkan', {}):
+        conf.env['STATICLIB_GRAPHICS'].append('graphics_vulkan')
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')

@@ -16,8 +16,8 @@
 #include <assert.h>
 #include "shared_library.h"
 #include "crypt.h"
-#include "endian.h"
 
+#include <dlib/endian.h>
 #include <mbedtls/md5.h>
 #include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>
@@ -170,12 +170,7 @@ namespace dmCrypt
 
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        mbedtls_sha256_context ctx;
-        mbedtls_sha256_init(&ctx);
-        mbedtls_sha256_starts_ret(&ctx, 0);
-        mbedtls_sha256_update_ret(&ctx, (const unsigned char*)buf, (size_t)buflen);
-        int ret = mbedtls_sha256_finish_ret(&ctx, (unsigned char*)digest);
-        mbedtls_sha256_free(&ctx);
+        int ret = mbedtls_sha256_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
         if (ret != 0) {
             memset(digest, 0, 20);
         }
@@ -183,12 +178,7 @@ namespace dmCrypt
 
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        mbedtls_sha512_context ctx;
-        mbedtls_sha512_init(&ctx);
-        mbedtls_sha512_starts_ret(&ctx, 0);
-        mbedtls_sha512_update_ret(&ctx, (const unsigned char*)buf, (size_t)buflen);
-        int ret = mbedtls_sha512_finish_ret(&ctx, (unsigned char*)digest);
-        mbedtls_sha512_free(&ctx);
+        int ret = mbedtls_sha512_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest, 0);
         if (ret != 0) {
             memset(digest, 0, 20);
         }
@@ -196,12 +186,7 @@ namespace dmCrypt
 
     void HashMd5(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
-        mbedtls_md5_context ctx;
-        mbedtls_md5_init(&ctx);
-        mbedtls_md5_starts_ret(&ctx);
-        mbedtls_md5_update_ret(&ctx, (const unsigned char*)buf, (size_t)buflen);
-        int ret = mbedtls_md5_finish_ret(&ctx, (unsigned char*)digest);
-        mbedtls_md5_free(&ctx);
+        int ret = mbedtls_md5_ret((const unsigned char*)buf, (size_t)buflen, (unsigned char*)digest);
         if (ret != 0) {
             memset(digest, 0, 20);
         }

@@ -51,7 +51,7 @@
 
 #if !defined(unix) && !defined(__unix__) && !defined(__unix) && \
     !defined(__APPLE__) && !defined(_WIN32) && !defined(__QNXNTO__) && \
-    !defined(__HAIKU__)
+    !defined(__HAIKU__) && !defined(__NX__)
 #error "Platform entropy sources only work on Unix and Windows, see MBEDTLS_NO_PLATFORM_ENTROPY in config.h"
 #endif
 
@@ -116,6 +116,11 @@ static int getrandom_wrapper( void *buf, size_t buflen, unsigned int flags )
 
 #include <stdio.h>
 
+// DEFOLD
+#if defined(__NX__)
+extern void dlib_get_random(void* output, size_t len);
+#endif
+
 int mbedtls_platform_entropy_poll( void *data,
                            unsigned char *output, size_t len, size_t *olen )
 {
@@ -123,6 +128,13 @@ int mbedtls_platform_entropy_poll( void *data,
     size_t read_len;
     int ret;
     ((void) data);
+
+// DEFOLD
+#if defined(__NX__)
+    dlib_get_random((void*)output, len);
+    *olen = len;
+    return len >= 0 ? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+#endif
 
 #if defined(HAVE_GETRANDOM)
     ret = getrandom_wrapper( output, len, 0 );

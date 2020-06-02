@@ -57,22 +57,6 @@ import com.dynamo.bob.util.Exec.Result;
 
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
-    private boolean copyIcon(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName)
-            throws IOException {
-        String resource = projectProperties.getStringValue("android", name);
-        if (resource != null && resource.length() > 0) {
-            File inFile = new File(projectRoot, resource);
-            File outFile = new File(resDir, outName);
-            FileUtils.copyFile(inFile, outFile);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean copyIconDPI(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName, String dpi)
-            throws IOException {
-            return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
-    }
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {

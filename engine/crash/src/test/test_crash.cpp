@@ -28,6 +28,12 @@ extern "C"
 #include "../crash.h"
 #include "../crash_private.h"
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
+
 class dmCrashTest : public jc_test_base_class
 {
     public:
@@ -56,6 +62,7 @@ TEST_F(dmCrashTest, Initialize)
 
 }
 
+#if !defined(__NX__)
 TEST_F(dmCrashTest, TestLoad)
 {
     dmCrash::WriteDump();
@@ -111,7 +118,7 @@ TEST_F(dmCrashTest, TestLoad)
 
 TEST_F(dmCrashTest, TestPurgeCustomPath)
 {
-    dmCrash::SetFilePath("remove-me");
+    dmCrash::SetFilePath(MOUNTFS "remove-me");
     dmCrash::Purge();
     dmCrash::WriteDump();
     ASSERT_NE(0, dmCrash::LoadPrevious());
@@ -127,6 +134,7 @@ TEST_F(dmCrashTest, TestPurgeDefaultPath)
     dmCrash::Purge();
     ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
+#endif
 
 
 int main(int argc, char **argv)

@@ -28,12 +28,18 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
+
 class ScriptImageTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
     {
-        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
         m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
@@ -56,7 +62,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -75,7 +81,8 @@ TEST_F(ScriptImageTest, TestImage)
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "test_images");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    lua_pushstring(L, MOUNTFS);
+    int result = dmScript::PCall(L, 1, LUA_MULTRET);
     if (result == LUA_ERRRUN)
     {
         ASSERT_TRUE(false);

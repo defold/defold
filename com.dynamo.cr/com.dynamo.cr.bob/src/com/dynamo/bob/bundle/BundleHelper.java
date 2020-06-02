@@ -87,6 +87,7 @@ public class BundleHelper {
     public static final String MANIFEST_NAME_IOS        = "Info.plist";
     public static final String MANIFEST_NAME_OSX        = "Info.plist";
     public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
+    public static final String MANIFEST_NAME_SWITCH     = "Application.nmeta";
 
     private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
@@ -196,6 +197,12 @@ public class BundleHelper {
         throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
+    public void writeResourceToFile(IResource resource, File out) throws IOException {
+        java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+        fo.write(resource.getContent());
+        fo.close();
+    }
+
     public String formatResource(Map<String, Object> properties, IResource resource) throws IOException {
         byte[] data = resource.getContent();
         if (data == null) {
@@ -240,6 +247,8 @@ public class BundleHelper {
             return BundleHelper.MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             return BundleHelper.MANIFEST_NAME_HTML5;
+        } else if (platform == Platform.Arm64NX64) {
+            return BundleHelper.MANIFEST_NAME_SWITCH;
         }
         return null;
     }
@@ -274,6 +283,9 @@ public class BundleHelper {
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             mainManifest = getResource("html5", "htmlfile");
             properties = createHtml5ManifestProperties(exeName);
+        } else if (platform == Platform.Arm64NX64) {
+            mainManifest = getResource("switch", "manifest");
+            properties = createSwitchManifestProperties(exeName);
         } else {
             return resolvedManifests;
         }
@@ -314,6 +326,8 @@ public class BundleHelper {
             return new File(appDir, "AndroidManifest.xml");
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             return new File(appDir, "index.html");
+        } else if (platform == Platform.Arm64NX64) {
+            return new File(appDir, BundleHelper.MANIFEST_NAME_SWITCH);
         }
         return null;
     }
@@ -327,6 +341,8 @@ public class BundleHelper {
             return MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
             return MANIFEST_NAME_HTML5;
+        } else if (platform == Platform.Arm64NX64) {
+            return BundleHelper.MANIFEST_NAME_SWITCH;
         }
         return null;
     }
@@ -817,6 +833,18 @@ public class BundleHelper {
         IResource customCSS = getResource("html5", "cssfile");
         properties.put("DEFOLD_CUSTOM_CSS_INLINE", formatResource(properties, customCSS));
 
+        return properties;
+    }
+
+    public Map<String, Object> createSwitchManifestProperties(String exeName) throws IOException {
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("exe-name", exeName);
+
+        // Convert from integer to long hex
+        propertiesMap.get("switch").put("user_account_save_data_size",           String.format("0x%016x", projectProperties.getIntValue("switch", "user_account_save_data_size")));
+        propertiesMap.get("switch").put("user_account_save_data_journal_size",   String.format("0x%016x", projectProperties.getIntValue("switch", "user_account_save_data_journal_size")));
+        propertiesMap.get("switch").put("cache_storage_size",                    String.format("0x%016x", projectProperties.getIntValue("switch", "cache_storage_size")));
+        propertiesMap.get("switch").put("cache_storage_journal_size",            String.format("0x%016x", projectProperties.getIntValue("switch", "cache_storage_journal_size")));
         return properties;
     }
 

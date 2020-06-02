@@ -12,17 +12,24 @@
 
 #include <stdint.h>
 #include "../resource.h"
-#include "../resource_private.h"
-#include "../resource_archive.h"
 #include "../resource_archive_private.h"
+#include <dlib/dstrings.h>
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-#include <netinet/in.h>
-#elif defined(_WIN32)
+// TODO: replace with dmEndian
+#if defined(_WIN32)
 #include <winsock2.h>
+#elif defined(__NX__)
+#include <arpa/inet.h>
 #else
-#error "Unsupported platform"
+#include <netinet/in.h>
 #endif
+#define C_TO_JAVA ntohl
+#define JAVA_TO_C htonl
+//#include <dlib/endian.h>
+
+#include "../resource_archive.h"
+#include "../resource_private.h"
+
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -93,6 +100,23 @@ static const uint8_t compressed_content_hash[][20] = {
 
 static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + DMRESOURCE_MAX_HASH;
 
+
+static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
+{
+#if defined(__NX__)
+    dmStrlCpy(dst, "host:/", dst_len);
+    dmStrlCat(dst, path, dst_len);
+    return dst;
+#else
+    return path;
+#endif
+}
+#if defined(__NX__)
+    #define MOUNTFS  "host:/"
+#else
+    #define MOUNTFS
+#endif
+
 void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource)
 {
     uint32_t count = strlen(content[0]);
@@ -128,7 +152,7 @@ void GetMutableBundledIndexData(void*& arci_data, uint32_t& arci_size, uint32_t 
     dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    uint32_t entry_count = htonl(archive->m_ArchiveIndex->m_EntryDataCount);
+    uint32_t entry_count = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataCount);
     uint32_t hash_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
     uint32_t entries_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_EntryDataOffset);
     dmResourceArchive::EntryData* entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entries_offset);
@@ -203,8 +227,11 @@ void FreeBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_archi
 
 TEST(dmResourceArchive, ShiftInsertResource)
 {
-    const char* resource_filename = "test_resource_liveupdate.arcd";
-    FILE* resource_file = fopen(resource_filename, "wb");
+    const char* resource_name = "test_resource_liveupdate.arcd";
+    char host_name[512];
+    const char* path = MakeHostPath(host_name, sizeof(host_name), resource_name);
+
+    FILE* resource_file = fopen(path, "wb");
     bool success = resource_file != 0x0;
     ASSERT_EQ(success, true);
 
@@ -219,7 +246,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
     // Init archive container
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCD, resource_filename, 0x0, resource_file, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCD, resource_name, 0x0, resource_file, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
     ASSERT_EQ(7U, entry_count_before);
@@ -237,11 +264,11 @@ TEST(dmResourceArchive, ShiftInsertResource)
     dmResourceArchive::EntryData entry;
     result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(entry.m_ResourceSize, resource->m_Count);
+    ASSERT_EQ(resource->m_Count, entry.m_ResourceSize);
 
     free(resource->m_Header);
     free(resource);
-    dmResourceArchive::Delete(archive);
+    dmResourceArchive::Delete(archive); // fclose on the FILE*
     FreeMutableIndexData((void*&)arci_copy);
 }
 
@@ -646,8 +673,8 @@ TEST(dmResourceArchive, Wrap_Compressed)
 TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = "build/default/src/test/resources.arci";
-    const char* resource_path = "build/default/src/test/resources.arcd";
+    const char* archive_path = MOUNTFS "build/default/src/test/resources.arci";
+    const char* resource_path = MOUNTFS "build/default/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, resource_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
@@ -678,8 +705,8 @@ TEST(dmResourceArchive, LoadFromDisk)
 TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = "build/default/src/test/missing-archive.arci";
-    const char* resource_path = "build/default/src/test/resources.arcd";
+    const char* archive_path = MOUNTFS "build/default/src/test/missing-archive.arci";
+    const char* resource_path = MOUNTFS "build/default/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, resource_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
@@ -687,8 +714,8 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = "build/default/src/test/resources_compressed.arci";
-    const char* resource_path = "build/default/src/test/resources_compressed.arcd";
+    const char* archive_path = MOUNTFS "build/default/src/test/resources_compressed.arci";
+    const char* resource_path = MOUNTFS "build/default/src/test/resources_compressed.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchive(archive_path, resource_path, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));

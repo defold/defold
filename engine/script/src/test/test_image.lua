@@ -71,12 +71,12 @@ local function test_image(path, bpp, image_type, premultiply, expected_bytes)
 
 end
 
-function test_images()
-    test_image("src/test/data/color_check_2x2.png", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba)
-    test_image("src/test/data/color_check_2x2.png", 4, image.TYPE_RGBA, true, img_expected_bytes_png_premultiplied)
-    test_image("src/test/data/color_check_2x2.jpg", 3, image.TYPE_RGB, false, img_expected_bytes_jpg)
-    test_image("src/test/data/color_check_2x2_16.png", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba) -- 16 bit
-    test_image("src/test/data/color_check_2x2_indexed.png", 3, image.TYPE_RGB, false, img_expected_bytes_rgb) -- 3 color palette
+function test_images(mountfs)
+    test_image(mountfs.."src/test/data/color_check_2x2.png", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba)
+    test_image(mountfs.."src/test/data/color_check_2x2.png", 4, image.TYPE_RGBA, true, img_expected_bytes_png_premultiplied)
+    test_image(mountfs.."src/test/data/color_check_2x2.jpg", 3, image.TYPE_RGB, false, img_expected_bytes_jpg)
+    test_image(mountfs.."src/test/data/color_check_2x2_16.png", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba) -- 16 bit
+    test_image(mountfs.."src/test/data/color_check_2x2_indexed.png", 3, image.TYPE_RGB, false, img_expected_bytes_rgb) -- 3 color palette
 end
 
 

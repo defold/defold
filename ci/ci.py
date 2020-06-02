@@ -238,7 +238,13 @@ def archive_editor2(channel = None, engine_artifacts = None):
 
 
 def build_bob(channel = None):
-    args = "python scripts/build.py distclean install_ext sync_archive build_bob archive_bob".split()
+    call("python scripts/build.py distclean")
+
+    # Prerequisites for other platforms
+    call("python scripts/build.py install_ext --platform=arm64-nx64")
+
+    #
+    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
 
     if channel:

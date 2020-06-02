@@ -48,6 +48,7 @@ protected:
         params.m_MaxInstances = 2;
         params.m_ScriptContext = m_ScriptContext;
         params.m_MaxDebugVertexCount = 256;
+        params.m_MaxCharacters = 256;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         dmRender::FontMapParams font_map_params;

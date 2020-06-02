@@ -14,10 +14,12 @@
 #include "../dstrings.h"
 #include "../log.h"
 
+#include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <netinet/in.h>
 #include <net/if.h>
 
 namespace dmSocket

@@ -13,10 +13,10 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../dlib/array.h"
-#include "../dlib/thread.h"
-#include "../dlib/mutex.h"
-#include "../dlib/condition_variable.h"
+#include <dlib/array.h>
+#include <dlib/thread.h>
+#include <dlib/mutex.h>
+#include <dlib/condition_variable.h>
 
 struct ThreadArg
 {

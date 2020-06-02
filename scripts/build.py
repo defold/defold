@@ -13,6 +13,11 @@
 
 
 
+"""
+    Build utility for installing external packages, building engine, editor and cr
+    Run build.py --help for help
+"""
+
 # add build_tools folder to the import search path
 import sys, os
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -33,11 +38,42 @@ from threading import Thread, Event
 from Queue import Queue
 from ConfigParser import ConfigParser
 
+BASE_PLATFORMS = [  'x86_64-linux',
+                    'x86_64-darwin',
+                    'win32', 'x86_64-win32',
+                    'x86_64-ios', 'armv7-darwin', 'arm64-darwin',
+                    'armv7-android', 'arm64-android',
+                    'js-web', 'wasm-web']
 
-"""
-    Build utility for installing external packages, building engine, editor and cr
-    Run build.py --help for help
-"""
+try:
+    sys.path.insert(0, os.path.dirname(__file__))
+    sys.dont_write_bytecode = True
+    import build_private
+except Exception, e:
+    class build_private(object):
+        @classmethod
+        def get_target_platforms(cls):
+            return []
+        @classmethod
+        def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
+            return []
+        @classmethod
+        def get_install_target_packages(cls, platform): # Returns the packages that should be installed for the host
+            return []
+        @classmethod
+        def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
+            pass
+        @classmethod
+        def is_library_supported(cls, platform, library):
+            if library in ["switch"]:
+                return False;
+            return True
+finally:
+    sys.dont_write_bytecode = False
+
+def get_target_platforms():
+    return BASE_PLATFORMS + build_private.get_target_platforms()
+
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
@@ -77,7 +113,7 @@ EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
-ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
+ENGINE_LIBS = "app ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -134,6 +170,9 @@ def format_exes(name, platform):
     elif 'wasm-web' in platform:
         prefix = ''
         suffix = ['.js', '.wasm']
+    elif platform in ['arm64-nx64']:
+        prefix = ''
+        suffix = ['.nss', '.nso']
     else:
         suffix = ['']
 
@@ -195,6 +234,15 @@ class Future(object):
             raise self.result
         else:
             return self.result
+
+def download_sdk(conf, url, targetfolder, strip_components=1):
+    if not os.path.exists(targetfolder):
+        if not os.path.exists(os.path.dirname(targetfolder)):
+            os.makedirs(os.path.dirname(targetfolder))
+        path = conf.get_local_or_remote_file(url)
+        conf._extract_tgz_rename_folder(path, targetfolder, strip_components)
+    else:
+        print "SDK already installed:", targetfolder
 
 class Configuration(object):
     def __init__(self, dynamo_home = None,
@@ -330,6 +378,7 @@ class Configuration(object):
             cmd.extend(['--strip-components', '%d' % strip_components])
         if force_local:
             cmd.append(force_local)
+
         run.env_command(self._form_env(), cmd)
         os.chdir(old_dir)
 
@@ -435,7 +484,7 @@ class Configuration(object):
             installed_packages.update(package_paths)
 
         for base_platform in self.get_base_platforms():
-            packages = list(PACKAGES_HOST)
+            packages = list(PACKAGES_HOST) + build_private.get_install_host_packages(base_platform)
             packages.extend(platform_packages.get(base_platform, []))
             package_paths = make_package_paths(self.defold_root, base_platform, packages)
             package_paths = [path for path in package_paths if path not in installed_packages]
@@ -445,7 +494,7 @@ class Configuration(object):
                     self._extract_tgz(path, self.ext)
                 installed_packages.update(package_paths)
 
-        target_packages = platform_packages.get(self.target_platform, [])
+        target_packages = platform_packages.get(self.target_platform, []) + build_private.get_install_target_packages(self.target_platform)
         target_package_paths = make_package_paths(self.defold_root, self.target_platform, target_packages)
         target_package_paths = [path for path in target_package_paths if path not in installed_packages]
 
@@ -517,30 +566,23 @@ class Configuration(object):
                 sys.exit(1)
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder, strip_components=1):
-            if not os.path.exists(targetfolder):
-                if not os.path.exists(os.path.dirname(targetfolder)):
-                    os.makedirs(os.path.dirname(targetfolder))
-                path = self.get_local_or_remote_file(url)
-                self._extract_tgz_rename_folder(path, targetfolder, strip_components)
-
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk( '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
@@ -551,10 +593,11 @@ class Configuration(object):
             elif 'linux' in host:
                 host = 'linux'
             # Android NDK
-            download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
+        build_private.install_sdk(self, target_platform)
 
     def get_ems_dir(self):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
@@ -793,10 +836,11 @@ class Configuration(object):
 
     def archive_engine(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
+        self.full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         java_archive_path = join(self.archive_path, sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
+        full_archive_path = self.full_archive_path
 
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
@@ -875,7 +919,7 @@ class Configuration(object):
     def _get_build_flags(self):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64']
 
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
@@ -947,12 +991,15 @@ class Configuration(object):
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
         # Target libs to build
+
         engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
                 engine_libs.insert(1, 'texc')
         for lib in engine_libs:
+            if not build_private.is_library_supported(target_platform, lib):
+                continue
             self._build_engine_lib(args, lib, target_platform)
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:
@@ -1109,7 +1156,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
+        platforms = get_target_platforms()
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -1765,9 +1812,10 @@ class Configuration(object):
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
-        env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
-                                                  '%s/build_tools' % self.defold,
-                                                  '%s/ext/lib/python' % self.dynamo_home])
+        pythonpaths = ['%s/lib/python' % self.dynamo_home,
+                      '%s/build_tools' % self.defold,
+                      '%s/ext/lib/python' % self.dynamo_home]
+        env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
@@ -1853,7 +1901,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'x86_64-ios', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web'],
+                      choices = get_target_platforms(),
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

@@ -55,4 +55,8 @@ namespace dmDNS
     {
         return SocketToDNSResult(dmSocket::GetHostByName(name, address, ipv4, ipv6));
     }
+
+    const char* ResultToString(Result result){
+        return "";
+    }
 } // namespace dmDNS

@@ -48,6 +48,11 @@ def build(bld):
         sig_handler = 'backtrace_win32.cpp'
         file_handler = 'file_win32.cpp'
 
+    if bld.env['PLATFORM'] in ('arm64-nx64',):
+        load_addrs = 'load_addrs_null.cpp'
+        sig_handler = 'backtrace_null.cpp'
+        file_handler = 'file_null.cpp'
+
     crash = bld.new_task_gen(features = 'cxx cstaticlib',
                                 includes = ['.', '../proto'],
                                 proto_gen_py = True,

@@ -22,6 +22,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <dlib/path.h>
+#include <dlib/sys.h>
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -37,7 +38,13 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-const char* ROOT = "build/default/src/gamesys/test";
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
+
+const char* ROOT = MOUNTFS "build/default/src/gamesys/test";
 
 bool CopyResource(const char* src, const char* dst)
 {
@@ -72,7 +79,7 @@ bool UnlinkResource(const char* name)
 {
     char path[128];
     dmSnPrintf(path, sizeof(path), "%s/%s", ROOT, name);
-    return unlink(path) == 0;
+    return dmSys::Unlink(path) == 0;
 }
 
 static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
@@ -462,9 +469,9 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 
         // Spawn is expected to inc the ref count
         uint32_t orig_rc = dmResource::GetRefCount(m_Factory, orig_res_hash);
-        ASSERT_LT(0, orig_rc);
+        ASSERT_LT(0u, orig_rc);
         uint32_t new_rc = dmResource::GetRefCount(m_Factory, new_res_hash);
-        ASSERT_LT(0, new_rc);
+        ASSERT_LT(0u, new_rc);
 
         // Spawn/delete are balanced w.r.t ref count
         DeleteInstance(m_Collection, go);

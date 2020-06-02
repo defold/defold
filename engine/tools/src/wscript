@@ -1,9 +1,12 @@
 #! /usr/bin/env python
-import os
+import os, Options
 
 def configure(conf):
     pass
 
 def build(bld):
-    bld.add_subdirs('gdc')
-    bld.add_subdirs('launcher')
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-darwin'):
+        if not Options.options.with_vulkan:
+            bld.add_subdirs('gdc')
+
+        bld.add_subdirs('launcher')
