@@ -75,7 +75,7 @@ def setup_tools_nx(conf, build_util):
     conf.env['TEST_LAUNCH_PATTERN'] = run_on_target + ' --pattern-failure-exit "tests FAILED" --failure-timeout 120 --working-directory . %s %s' # program + args
 
 def get_sdk_root():
-    return os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'nx64', 'nx64-sdk-10.3')
+    return os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', 'nx64', 'nx64-sdk-10.4.1')
 
 def get_lib_paths(buildtype, buildtarget):
     sdk_root = get_sdk_root()
