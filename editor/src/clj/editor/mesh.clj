@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.mesh
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
@@ -156,9 +168,17 @@
                  (assoc :world-transform world-transform-clj))] ; todo: do we need to convert it to a clj transform?
     (scene-cache/request-object! ::vb request-id gl data)))
 
+(defn- gl-primitive-type
+  ^long [primitive-type]
+  (case primitive-type
+    :primitive-triangles GL2/GL_TRIANGLES
+    :primitive-triangle-strip GL2/GL_TRIANGLE_STRIP
+    :primitive-lines GL2/GL_LINES))
+
 (defn- render-scene-opaque [^GL2 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
+        gl-primitive-type (gl-primitive-type (:primitive-type user-data))
         shader (:shader user-data)
         textures (:textures user-data)
         vertex-space (:vertex-space user-data)
@@ -183,7 +203,7 @@
                     vb (request-vb! gl node-id user-data (:world-transform renderable))
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
         (gl/with-gl-bindings gl render-args [vertex-binding]
-          (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vb))))
+          (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
       (gl/gl-disable gl GL2/GL_CULL_FACE)
       (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)
       (doseq [[_name texture] textures]
@@ -194,6 +214,7 @@
   (let [renderable (first renderables)
         node-id (:node-id renderable)
         user-data (assoc (:user-data renderable) :vertex-space :vertex-space-local)
+        gl-primitive-type (gl-primitive-type (:primitive-type user-data))
         textures (:textures user-data)
         world-transform (:world-transform renderable)
         render-args (merge render-args
@@ -211,7 +232,7 @@
       (let [vb (request-vb! gl node-id user-data world-transform)
             vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]
         (gl/with-gl-bindings gl render-args [vertex-binding]
-          (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vb))))
+          (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
       (gl/gl-disable gl GL2/GL_CULL_FACE)
       (doseq [[_name texture] textures]
         (gl/unbind gl texture render-args)))))
@@ -280,7 +301,7 @@
              0
              streams))
 
-(g/defnk produce-scene [_node-id aabb streams position-stream normal-stream shader gpu-textures vertex-space]
+(g/defnk produce-scene [_node-id aabb streams primitive-type position-stream normal-stream shader gpu-textures vertex-space]
   (if (nil? streams)
     {:aabb aabb
      :renderable {:passes [pass/selection]}}
@@ -306,7 +327,8 @@
                                 :shader shader
                                 :textures gpu-textures
                                 :scratch-arrays (gen-scratch-arrays array-streams)
-                                :vertex-space vertex-space}
+                                :vertex-space vertex-space
+                                :primitive-type primitive-type}
                     :passes [pass/opaque pass/opaque-selection]}
        :children [{:node-id _node-id
                    :aabb aabb

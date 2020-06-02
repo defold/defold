@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns camel-snake-kebab
   "Original code (C) and thanks to  Christoffer Sawicki & ToBeReplaced.
 
@@ -24,9 +36,10 @@
        (join "|")
        re-pattern))
 
-(defn convert-case [first-fn rest-fn sep s]
+(defn convert-case
   "Converts the case of a string according to the rule for the first
   word, remaining words, and the separator."
+  [first-fn rest-fn sep s]
   (let [[first & rest] (split s word-separator-pattern)]
     (join sep (cons (first-fn first) (map rest-fn rest)))))
 

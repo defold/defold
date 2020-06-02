@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 
 #include <dmsdk/dlib/buffer.h>
 
@@ -408,6 +420,9 @@ namespace dmBuffer
                 src_stream.m_ValueType != dst_stream.m_ValueType ||
                 src_stream.m_ValueCount != dst_stream.m_ValueCount)
             {
+                dmLogError("Stream mismatch: src(name: %s, offset: %u, type: %s, count: %u) != dst(name: %s, offset: %u, type: %s, count: %u)",
+                    dmHashReverseSafe64(src_stream.m_Name), src_stream.m_Offset, GetValueTypeString((dmBuffer::ValueType)src_stream.m_ValueType), src_stream.m_ValueCount,
+                    dmHashReverseSafe64(dst_stream.m_Name), dst_stream.m_Offset, GetValueTypeString((dmBuffer::ValueType)dst_stream.m_ValueType), dst_stream.m_ValueCount);
                 return RESULT_STREAM_MISMATCH;
             }
         }

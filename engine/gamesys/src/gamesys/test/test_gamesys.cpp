@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include "test_gamesys.h"
 
 #include "../../../../graphics/src/graphics_private.h"
@@ -16,6 +28,7 @@
 #include <gameobject/gameobject_ddf.h>
 #include "../proto/gamesys_ddf.h"
 #include "../proto/sprite_ddf.h"
+#include "../components/comp_label.h"
 
 namespace dmGameSystem
 {
@@ -689,6 +702,15 @@ TEST_F(WindowEventTest, Test)
     dmGameObject::DispatchInput(m_Collection, &input_action, 1);
 
     dmGameSystem::OnWindowResized(123, 456);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Set test state 4
+    input_action.m_Value = 4.0f;
+    dmGameObject::DispatchInput(m_Collection, &input_action, 1);
+
+    dmGameSystem::OnWindowFocus(false);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1569,6 +1591,68 @@ const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
 INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, jc_test_values_in(valid_spine_gos));
 
 /* Label */
+
+void AssertPointEquals(const Vector4& p, float x, float y)
+{
+    static const float test_epsilon = 0.000001f;
+    EXPECT_NEAR(p.getX(), x, test_epsilon);
+    EXPECT_NEAR(p.getY(), y, test_epsilon);
+}
+
+TEST_F(LabelTest, LabelMovesWhenSwitchingPivot) 
+{
+    // pivot = center
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(m_Position, Quat::identity(), m_Scale, m_Size, 0);
+
+    AssertPointEquals(mat * m_BottomLeft, -1.0, -1.0);
+    AssertPointEquals(mat * m_TopLeft, -1.0, 1.0);
+    AssertPointEquals(mat * m_TopRight, 1.0, 1.0);
+    AssertPointEquals(mat * m_BottomRight, 1.0, -1.0);
+
+    // pivot = north east
+    mat = dmGameSystem::CompLabelLocalTransform(m_Position, Quat::identity(), m_Scale, m_Size, 2);
+
+    AssertPointEquals(mat * m_BottomLeft, -2.0, -2.0);
+    AssertPointEquals(mat * m_TopLeft, -2.0, 0.0);
+    AssertPointEquals(mat * m_TopRight, 0.0, 0.0);
+    AssertPointEquals(mat * m_BottomRight, 0.0, -2.0);
+
+    // pivot = west
+    mat = dmGameSystem::CompLabelLocalTransform(m_Position, Quat::identity(), m_Scale, m_Size, 7);
+
+    AssertPointEquals(mat * m_BottomLeft, 0.0, -1.0);
+    AssertPointEquals(mat * m_TopLeft, 0.0, 1.0);
+    AssertPointEquals(mat * m_TopRight, 2.0, 1.0);
+    AssertPointEquals(mat * m_BottomRight, 2.0, -1.0);
+}
+
+TEST_F(LabelTest, LabelMovesWhenChangingPosition) {
+    // pivot = center
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), Quat::identity(), m_Scale, m_Size, 0);
+
+    AssertPointEquals(mat * m_BottomLeft, 0.0, 0.0);
+    AssertPointEquals(mat * m_TopLeft, 0.0, 2.0);
+    AssertPointEquals(mat * m_TopRight, 2.0, 2.0);
+    AssertPointEquals(mat * m_BottomRight, 2.0, 0.0);
+}
+
+TEST_F(LabelTest, LabelRotatesAroundPivot) {
+    // pivot = center, rotation = -180
+    Matrix4 mat = dmGameSystem::CompLabelLocalTransform(Point3(1.0, 1.0, 1.0), m_Rotation, m_Scale, m_Size, 0);
+
+    AssertPointEquals(mat * m_BottomLeft, 2.0, 2.0);
+    AssertPointEquals(mat * m_TopLeft, 2.0, 0.0);
+    AssertPointEquals(mat * m_TopRight, 0.0, 0.0);
+    AssertPointEquals(mat * m_BottomRight, 0.0, 2.0);
+
+    // pivot = north west, rotation = -180
+    mat = dmGameSystem::CompLabelLocalTransform(Point3(-1.0, -2.0, 0.0), m_Rotation, m_Scale, m_Size, 8);
+
+    AssertPointEquals(mat * m_BottomLeft, -1.0, 0.0);
+    AssertPointEquals(mat * m_TopLeft, -1.0, -2.0);
+    AssertPointEquals(mat * m_TopRight, -3.0, -2.0);
+    AssertPointEquals(mat * m_BottomRight, -3.0, 0.0);
+}
 
 const char* valid_label_resources[] = {"/label/valid.labelc"};
 INSTANTIATE_TEST_CASE_P(Label, ResourceTest, jc_test_values_in(valid_label_resources));
