@@ -2,10 +2,6 @@ package com.dynamo.bob.bundle;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
-// import com.android.tools.build.bundletool.commands.BuildBundleCommand;
-// import com.android.tools.build.bundletool.flags.ParsedFlags;
-// import com.android.tools.build.bundletool.flags.FlagParser;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
