@@ -574,9 +574,6 @@ public class Bob {
         if (cmd.hasOption("bundle-format")) {
             project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
         }
-        else {
-            project.setOption("bundle-format", "apk");
-        }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;

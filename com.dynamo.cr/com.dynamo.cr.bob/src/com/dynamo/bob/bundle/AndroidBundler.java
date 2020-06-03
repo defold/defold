@@ -11,7 +11,7 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        String bundleFormat = project.option("bundle-format", "");
+        String bundleFormat = project.option("bundle-format", "apk");
         if (bundleFormat.equals("aab")) {
             AndroidAAB.create(project, bundleDir, canceled);
         }
