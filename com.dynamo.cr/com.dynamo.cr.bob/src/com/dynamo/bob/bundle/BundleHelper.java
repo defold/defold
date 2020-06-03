@@ -462,29 +462,6 @@ public class BundleHelper {
         aaptMakePackageInternal(platform, manifestFile, apk);
     }
 
-
-    public void aapt2CompileResources(File resDir, File outDir) throws CompileExceptionError {
-        try {
-            Map<String, String> aaptEnv = new HashMap<String, String>();
-            List<String> args = new ArrayList<String>();
-            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt2"));
-            args.add("compile");
-            args.add("--o"); args.add(outDir.getAbsolutePath());
-            args.add("--dir"); args.add(resDir.getAbsolutePath());
-
-            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
-
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new IOException(msg);
-            }
-
-        } catch (Exception e) {
-            throw new CompileExceptionError(null, -1, "Failed building Android resources to apk: " + e.getMessage());
-        }
-
-    }
-
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
         List<ExtenderResource> resources = new ArrayList<>();
 
