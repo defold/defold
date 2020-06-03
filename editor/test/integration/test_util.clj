@@ -68,10 +68,11 @@
      (mapv file-tree-helper (sort-by #(.getName %) (filter #(not (.isHidden %)) (.listFiles entry))))}
     (.getName entry)))
 
-(defn file-tree [^File dir]
+(defn file-tree
   "Returns a vector of file tree entries below dir. A file entry is represented
   as a String file name. A directory entry is represented as a single-entry map
   where the key is the directory name and the value is a vector of tree entries."
+  [^File dir]
   (second (first (file-tree-helper dir))))
 
 (defn make-file-tree!
@@ -592,8 +593,8 @@
                0x45 0x4E 0x44 0xAE  0x42 0x60 0x82]))
 
 (defn make-png-resource!
-  [workspace proj-path]
   "Adds a PNG image file to the workspace. Returns the created FileResource."
+  [workspace proj-path]
   (assert (integer? workspace))
   (assert (.startsWith proj-path "/"))
   (let [resource (resource workspace proj-path)]

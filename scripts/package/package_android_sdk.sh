@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -47,12 +47,13 @@ ANDROID_TOOLS_FILENAME=commandlinetools-${TOOLHOSTNAME}-6200805_latest.zip
 ANDROID_TOOLS_URL=https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
 
 PWD=`pwd`
-TMP=${PWD}/_tmpdir/${HOST}
+TARGET_PATH=${PWD}/local_sdks
+TMP=${TARGET_PATH}/_tmpdir/${HOST}
 
 ANDROID_SDK_NAME=android-sdk-${HOST}-android-${ANDROID_TARGET_API_LEVEL}-${ANDROID_BUILD_TOOLS_VERSION}
 ANDROID_SDK_INSTALLDIR=${TMP}/${ANDROID_SDK_NAME}
 
-TMP_ANDROID_HOME=${PWD}/_tmpdir/${HOST}/android_home/${ANDROID_SDK_NAME}
+TMP_ANDROID_HOME=${TMP}/android_home/${ANDROID_SDK_NAME}
 
 
 if [ ! -e "${TMP}" ]; then
@@ -98,9 +99,9 @@ else
 	echo "Skipping reinstallation"
 fi
 
-OUT_ARCHIVE=${TMP}/${ANDROID_SDK_NAME}.tar.gz
+OUT_ARCHIVE=${TARGET_PATH}/${ANDROID_SDK_NAME}.tar.gz
 if [ ! -e ${OUT_ARCHIVE} ]; then
-	echo "Packing ${ANDROID_SDK_NAME}..."
+	echo "Packing ${OUT_ARCHIVE}..."
 
 	(cd ${TMP_ANDROID_HOME}/.. && GZIP=-9 tar -czf ${OUT_ARCHIVE} ${ANDROID_SDK_NAME})
 

@@ -35,10 +35,10 @@ PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
 PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_10_VERSION}.tar.gz"
 
 
-TARGET_PATH=$(pwd)
-TMP_PATH=${TARGET_PATH}/packages
+TARGET_PATH=$(pwd)/local_sdks
+TMP_PATH=${TARGET_PATH}/tmp
 if [ ! -d "${TMP_PATH}" ]; then
-	mkdir ${TMP_PATH}
+	mkdir -p ${TMP_PATH}
 fi
 
 # if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
@@ -50,22 +50,24 @@ fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64 10/Licenses
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_10_VERSION}/x64 10/bin/${SDK_10_VERSION}/x86
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
 fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_TOOLCHAIN}"
-	TMP=MicrosoftVisualStudio2019
+	TMP=${TMP_PATH}/MicrosoftVisualStudio2019
 
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64
+	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/include
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x64
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x86
 	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/atlmfc
 
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64"
+	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86"
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/include" "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
 	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
