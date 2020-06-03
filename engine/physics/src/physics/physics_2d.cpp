@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -242,6 +242,7 @@ namespace dmPhysics
         for (int i = 0; i < count; ++i)
         {
             shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
+            shape->m_verticesOriginal[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
         }
 
         // Switch the winding of the polygon
@@ -251,6 +252,10 @@ namespace dmPhysics
             tmp = shape->m_vertices[i];
             shape->m_vertices[i] = shape->m_vertices[count-i-1];
             shape->m_vertices[count-i-1] = tmp;
+
+            tmp = shape->m_verticesOriginal[i];
+            shape->m_verticesOriginal[i] = shape->m_verticesOriginal[count-i-1];
+            shape->m_verticesOriginal[count-i-1] = tmp;
         }
 
         // Recalculate the normals
@@ -279,7 +284,7 @@ namespace dmPhysics
             }
             fixture = fixture->GetNext();
         }
-        body->SetSleepingAllowed(false);
+        body->SetAwake(true);
     }
 
     void FlipH2D(HCollisionObject2D collision_object)
@@ -313,11 +318,6 @@ namespace dmPhysics
                     dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
-                    // float s = scale;
-                    // if (body->m_allowScale) {
-                    //     float object_scale = world_transform.GetScale();
-                    //     s = scale * object_scale; todo...
-                    // }
                     // Ignore z-component
                     position.setZ(0.0f);
                     Vectormath::Aos::Quat rotation = world_transform.GetRotation();
@@ -354,76 +354,31 @@ namespace dmPhysics
                         b2Shape* shape = fix->GetShape();
                         if (shape->m_lastScale == object_scale.getX() )
                         {
-                            printf("SKIPPING\n");
                             break;
                         }
                         shape->m_lastScale = object_scale.getX();
                         allow_sleep = false;
-                        //float rbefore = shape->m_radius;
-                        //shape->setRadius(shape_scales[i].getX() * object_scale.getX());
 
                         if (fix->GetShape()->GetType() == b2Shape::e_circle) {
                             shape->m_radius = shape_scales[i].getX() * object_scale.getX();
                         }
                         else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
-                            //shape->m_radius *= 10;
-                            //shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
-
-                            //shape->m_radius = shape_scales[i].getX() * (object_scale.getX() * 2 / scale) ;
-
-
                             b2PolygonShape* pshape = (b2PolygonShape*)shape;
-                            // float width = 512.0f * 0.5f * scale * object_scale.getX();//fabsf(pshape->m_vertices[0].x) * (object_scale.getX() / scale);
-                            // //width /= shape_scales[i].getX();
-                            // float height = width;//(fabsf(pshape->m_vertices[0].y) * object_scale.getX() ) / scale ;
-
-                            // static int first = true;
-                            // if (first) {
-                            //     printf("0: %f, %f\n", pshape->m_vertices[0].x, pshape->m_vertices[0].y);
-                            //     printf("1: %f, %f\n", pshape->m_vertices[1].x, pshape->m_vertices[1].y);
-                            //     printf("2: %f, %f\n", pshape->m_vertices[2].x, pshape->m_vertices[2].y);
-                            //     printf("3: %f, %f\n", pshape->m_vertices[3].x, pshape->m_vertices[3].y);
-                            //     first = false;
-                            // }
-
-                            //float s = 0.5f * scale * object_scale.getX();
-                            //float s = (object_scale.getX() * shape_scales[i].getX()) / scale;
                             float s = object_scale.getX() / shape->m_creationScale;
                             for( int i = 0; i < 4; ++i)
                             {
                                 b2Vec2 p = pshape->m_verticesOriginal[i];
                                 pshape->m_vertices[i].Set(p.x * s, p.y * s);
                             }
-
-                            /*pshape->m_vertices[0].Set(-width, -height);
-                            pshape->m_vertices[1].Set( width, -height);
-                            pshape->m_vertices[2].Set( width,  height);
-                            pshape->m_vertices[3].Set(-width,  height);
-                            */
-
-                            /*
-                            for ( int i = 0; i < 4; ++i)
-                            {
-                                printf("%d: %f, %f -> %f, %f\n", i, pshape->m_verticesOriginal[i].x, pshape->m_verticesOriginal[i].y, pshape->m_vertices[i].x, pshape->m_vertices[i].y);
-                            }
-
-
-                            printf("fix type: %d  contextscale:  %f before, after: %f, %f   shapescale: %f, %f, %f  objectscale: %f, %f, %f\n", fix->GetShape()->GetType(), scale, rbefore, shape->m_radius,
-                                shape_scales[i].getX(), shape_scales[i].getY(), shape_scales[i].getZ(),
-                                object_scale.getX(), object_scale.getY(), object_scale.getZ());
-                            */
-                        
                         }
-
-                        // if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
-
-                        // }
 
                         fix = fix->GetNext();
                     }
 
-                    // TODO: Only set this if we actually changed the scaling
-                    //body->SetSleepingAllowed(allow_sleep);
+                    if (!allow_sleep)
+                    {
+                        body->SetAwake(true);
+                    }
                 }
             }
         }
@@ -656,7 +611,6 @@ namespace dmPhysics
 
     void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
-
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = GetFixture(body, shape_index);
         b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
