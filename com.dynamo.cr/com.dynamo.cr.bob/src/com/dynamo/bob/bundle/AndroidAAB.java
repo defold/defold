@@ -532,7 +532,6 @@ public class AndroidAAB {
 		File baseZip = createAppBundleBaseZip(project, appDir, apk, canceled);
 
 		// STEP 5. Use bundletool to create AAB from base.zip
-		// TODO: INVESTIGATE: Some files need to be STORED instead of DEFLATED to get "correct" memory mapping at runtime
 		File baseAab = createBundle(project, appDir, baseZip, canceled);
 	}
 }
