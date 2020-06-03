@@ -1048,6 +1048,12 @@ namespace dmPhysics
     {
         DM_PROFILE(Physics, "RayCasts");
 
+        if (Vectormath::Aos::lengthSqr(request.m_To - request.m_From) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            return;
+        }
+
         float scale = world->m_Context->m_Scale;
         btVector3 from;
         ToBt(request.m_From, from, scale);

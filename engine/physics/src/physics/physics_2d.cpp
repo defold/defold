@@ -1074,6 +1074,14 @@ namespace dmPhysics
     {
         DM_PROFILE(Physics, "RayCasts");
 
+        const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+        const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+        if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            return;
+        }
+
         float scale = world->m_Context->m_Scale;
         ProcessRayCastResultCallback2D query;
         query.m_Request = &request;
@@ -1081,9 +1089,9 @@ namespace dmPhysics
         query.m_Context = world->m_Context;
         query.m_Results = &results;
         b2Vec2 from;
-        ToB2(request.m_From, from, scale);
+        ToB2(from2d, from, scale);
         b2Vec2 to;
-        ToB2(request.m_To, to, scale);
+        ToB2(to2d, to, scale);
         query.m_IgnoredUserData = request.m_IgnoredUserData;
         query.m_CollisionMask = request.m_Mask;
         query.m_Response.m_Hit = 0;

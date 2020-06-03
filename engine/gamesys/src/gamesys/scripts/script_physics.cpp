@@ -399,13 +399,6 @@ namespace dmGameSystem
         Vectormath::Aos::Point3 from( *dmScript::CheckVector3(L, 1) );
         Vectormath::Aos::Point3 to( *dmScript::CheckVector3(L, 2) );
 
-        if (Vectormath::Aos::lengthSqr(to - from) <= 0.0f)
-        {
-            dmLogOnceWarning("Ray had 0 length when ray casting, ignoring request.");
-            lua_pushnil(L);
-            return 1;
-        }
-
         uint32_t mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushnil(L);
