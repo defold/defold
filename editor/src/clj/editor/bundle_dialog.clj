@@ -368,31 +368,36 @@
       (ui/add-style! "android")
       (ui/children! [(labeled! "Certificate" certificate-file-field)
                      (labeled! "Private key" private-key-file-field)
-                     (labeled! "Architectures" architecture-controls)]))))
+                     (labeled! "Architectures" architecture-controls)
+                     (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"]])
+                                                (.setId "bundle-format-choice-box")))]))))
 
 (defn- load-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box]
+  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
     (ui/value! certificate-text-field (get-string-pref prefs "bundle-android-certificate"))
     (ui/value! private-key-text-field (get-string-pref prefs "bundle-android-private-key"))
     (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
-    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))))
+    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))
+    (ui/value! bundle-format-choice-box (prefs/get-prefs prefs "bundle-android-bundle-format" "apk"))))
 
 (defn- save-android-prefs! [prefs view]
-  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box]
+  (ui/with-controls view [certificate-text-field private-key-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
     (set-string-pref! prefs "bundle-android-certificate" (ui/value certificate-text-field))
     (set-string-pref! prefs "bundle-android-private-key" (ui/value private-key-text-field))
     (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
-    (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))))
+    (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))
+    (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))))
 
 (defn- get-android-options [view]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field bundle-format-choice-box]
     {:architecture-32bit? (ui/value architecture-32bit-check-box)
      :architecture-64bit? (ui/value architecture-64bit-check-box)
      :certificate (get-file certificate-text-field)
-     :private-key (get-file private-key-text-field)}))
+     :private-key (get-file private-key-text-field)
+     :bundle-format (ui/value bundle-format-choice-box)}))
 
-(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? certificate private-key] :as _options} issues]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field ok-button]
+(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? certificate private-key bundle-format] :as _options} issues]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box certificate-text-field private-key-text-field bundle-format-choice-box ok-button]
     (doto certificate-text-field
       (set-file! certificate)
       (set-field-status! (:certificate issues)))
@@ -405,13 +410,16 @@
     (doto architecture-64bit-check-box
       (ui/value! architecture-64bit?)
       (set-field-status! (:architecture issues)))
+    (doto bundle-format-choice-box
+      (ui/value! bundle-format)
+      (set-field-status! (:bundle-format issues)))
     (ui/enable! ok-button (and (nil? (:architecture issues))
                                (or (and (nil? certificate)
                                         (nil? private-key))
                                    (and (existing-file-of-type? "pem" certificate)
                                         (existing-file-of-type? "pk8" private-key)))))))
 
-(defn- get-android-issues [{:keys [certificate private-key architecture-32bit? architecture-64bit?] :as _options}]
+(defn- get-android-issues [{:keys [certificate private-key architecture-32bit? architecture-64bit? bundle-format] :as _options}]
   {:general (when (and (nil? certificate) (nil? private-key))
               [:info "Set certificate and private key, or leave blank to sign APK with an auto-generated debug certificate."])
    :certificate (cond
@@ -433,7 +441,9 @@
                   (and (some? certificate) (nil? private-key))
                   [:fatal "Private key must be set if certificate is specified."])
    :architecture (when-not (or architecture-32bit? architecture-64bit?)
-                   [:fatal "At least one architecture must be selected."])})
+                   [:fatal "At least one architecture must be selected."])
+   :bundle-format (when-not bundle-format
+                   [:fatal "No bundle format selected."])})
 
 (deftype AndroidBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
@@ -456,7 +466,7 @@
     (let [issues (get-android-issues options)]
       (set-generic-options! view options workspace)
       (set-android-options! view options issues)
-      (set-generic-headers! view issues [:architecture :certificate :private-key]))))
+      (set-generic-headers! view issues [:architecture :certificate :private-key :bundle-format]))))
 
 ;; -----------------------------------------------------------------------------
 ;; iOS
