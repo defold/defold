@@ -1232,9 +1232,9 @@ namespace dmGameSystem
             // 2 *-*-----*-*
             //   | |  w  | |
             // 3 *-*-----*-*
+            float us[4], vs[4], xs[4], ys[4];
 
             // v are '1-v'
-            float us[4], vs[4], xs[4], ys[4];
             xs[0] = ys[0] = 0;
             xs[3] = ys[3] = 1;
 
@@ -1298,7 +1298,6 @@ namespace dmGameSystem
             v10.SetColor(pm_color);
             v01.SetColor(pm_color);
             v11.SetColor(pm_color);
-
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
