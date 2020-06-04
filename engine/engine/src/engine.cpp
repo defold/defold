@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1353,47 +1353,51 @@ bail:
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
-                    // Call pre render functions for extensions, if available.
-                    // We do it here before we render rest of the frame
-                    // if any extension wants to render on under of the game.
-                    dmExtension::Params ext_params;
-                    ext_params.m_ConfigFile = engine->m_Config;
-                    if (engine->m_SharedScriptContext) {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                    } else {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                    }
-                    dmExtension::PreRender(&ext_params);
-
-                    // Make the render list that will be used later.
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(engine->m_MainCollection);
-
-                    // Make sure we dispatch messages to the render script
-                    // since it could have some "draw_text" messages waiting.
-                    if (engine->m_RenderScriptPrototype)
+                    // Don't render while iconified
+                    if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                     {
-                        dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
-                    }
+                        // Call pre render functions for extensions, if available.
+                        // We do it here before we render rest of the frame
+                        // if any extension wants to render on under of the game.
+                        dmExtension::Params ext_params;
+                        ext_params.m_ConfigFile = engine->m_Config;
+                        if (engine->m_SharedScriptContext) {
+                            ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                        } else {
+                            ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                        }
+                        dmExtension::PreRender(&ext_params);
 
-                    dmRender::RenderListEnd(engine->m_RenderContext);
+                        // Make the render list that will be used later.
+                        dmRender::RenderListBegin(engine->m_RenderContext);
+                        dmGameObject::Render(engine->m_MainCollection);
 
-                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+                        // Make sure we dispatch messages to the render script
+                        // since it could have some "draw_text" messages waiting.
+                        if (engine->m_RenderScriptPrototype)
+                        {
+                            dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                        }
 
-                    if (engine->m_RenderScriptPrototype)
-                    {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::RenderListEnd(engine->m_RenderContext);
+
+                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+                        if (engine->m_RenderScriptPrototype)
+                        {
+                            dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
+                        }
+                        else
+                        {
+                            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                                (float)((engine->m_ClearColor>> 0)&0xFF),
+                                                (float)((engine->m_ClearColor>> 8)&0xFF),
+                                                (float)((engine->m_ClearColor>>16)&0xFF),
+                                                (float)((engine->m_ClearColor>>24)&0xFF),
+                                                1.0f, 0);
+                            dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        }
                     }
 
                     dmGameObject::PostUpdate(engine->m_MainCollection);
@@ -1426,14 +1430,18 @@ bail:
                 // Call post render functions for extensions, if available.
                 // We do it here at the end of the frame (before swap buffers/flip)
                 // if any extension wants to render on top of the game.
-                dmExtension::Params ext_params;
-                ext_params.m_ConfigFile = engine->m_Config;
-                if (engine->m_SharedScriptContext) {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                } else {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                // Don't do this while iconified
+                if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                {
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                    }
+                    dmExtension::PostRender(&ext_params);
                 }
-                dmExtension::PostRender(&ext_params);
 
                 if (engine->m_UseSwVsync)
                 {
