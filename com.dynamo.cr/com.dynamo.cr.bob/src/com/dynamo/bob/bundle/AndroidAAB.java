@@ -2,12 +2,9 @@ package com.dynamo.bob.bundle;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.nio.file.Files;
@@ -27,11 +24,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.CRC32;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -82,12 +74,7 @@ public class AndroidAAB {
 		return dir;
 	}
 	private static File createDir(String parent, String child) throws IOException {
-		File dir = new File(parent, child);
-		if (dir.exists()) {
-			FileUtils.deleteDirectory(dir);
-		}
-		dir.mkdirs();
-		return dir;
+		return createDir(new File(parent), child);
 	}
 
 	private static Result exec(List<String> args) throws IOException {
@@ -117,103 +104,6 @@ public class AndroidAAB {
 	private static List<Platform> getArchitectures(Project project) {
 		final Platform platform = Platform.Armv7Android;
 		return Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
-	}
-
-
-	// baseDir:		/absolute/path/to/base/dir
-	// file:		/absolute/path/to/base/dir/some/dir/in/zip/foo.bar
-	// result:		some/dir/in/zip/foo.bar
-	private static String stripBaseDir(File baseDir, File file) {
-		String absoluteBase = baseDir.getAbsolutePath();
-		if (!absoluteBase.endsWith(File.separator)) {
-			absoluteBase = absoluteBase + File.separator;
-		}
-		String absoluteFile = file.getAbsolutePath();
-		String strippedPath = absoluteFile.replace(absoluteBase, "");
-		return strippedPath;
-	}
-
-	private static void zipFile(ZipOutputStream zipOut, File baseDir, File file) throws IOException {
-		final String filePath = stripBaseDir(baseDir, file);
-		final long fileSize = file.length();
-		log("Zip " + filePath);
-
-		ZipEntry ze = new ZipEntry(filePath);
-		ze.setSize(fileSize);
-		byte[] entryData = null;
-		CRC32 crc = null;
-
-		// Some files need to be STORED instead of DEFLATED to
-		// get "correct" memory mapping at runtime.
-		int zipMethod = ZipEntry.DEFLATED;
-		boolean isAsset = filePath.startsWith("assets");
-		if (isAsset) {
-			// Set up an uncompressed file, unfortunately need to calculate crc32 and other data for this to work.
-			// https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
-			crc = new CRC32();
-			zipMethod = ZipEntry.STORED;
-			ze.setCompressedSize(fileSize);
-		}
-
-		ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-		try {
-			if (fileSize > 0) {
-				int count;
-				entryData = new byte[(int) fileSize];
-				InputStream stream = new FileInputStream(file);
-				while((count = stream.read(entryData, 0, (int)fileSize)) != -1) {
-					byteOut.write(entryData, 0, count);
-					if (zipMethod == ZipEntry.STORED) {
-						crc.update(entryData, 0, count);
-					}
-				}
-			}
-		} finally {
-			if(null != byteOut) {
-				byteOut.close();
-				entryData = byteOut.toByteArray();
-			}
-		}
-
-		if (zipMethod == ZipEntry.STORED) {
-			ze.setCrc(crc.getValue());
-			ze.setMethod(zipMethod);
-		}
-
-		zipOut.putNextEntry(ze);
-		zipOut.write(entryData);
-		zipOut.closeEntry();
-	}
-
-	private static void zipDir(ZipOutputStream zipOut, File baseDir, File dir, ICanceled canceled) throws IOException {
-		for (File f : dir.listFiles()) {
-			if (f.isDirectory()) {
-				zipDir(zipOut, baseDir, f, canceled);
-				BundleHelper.throwIfCanceled(canceled);
-			}
-			else {
-				zipFile(zipOut, baseDir, f);
-				BundleHelper.throwIfCanceled(canceled);
-			}
-		}
-	}
-
-	/**
-	* Create module zip (for use when creating an .aab)
-	*/
-	private static void zipModule(File inDir, File outFile, ICanceled canceled) throws IOException {
-		if (outFile.exists()) {
-			outFile.delete();
-		}
-		outFile.createNewFile();
-		ZipOutputStream zipOut = null;
-		try {
-			zipOut = new ZipOutputStream(new FileOutputStream(outFile));
-			zipDir(zipOut, inDir, inDir, canceled);
-		}
-		finally {
-			IOUtils.closeQuietly(zipOut);
-		}
 	}
 
 	/**
@@ -277,13 +167,6 @@ public class AndroidAAB {
 			}
 		}
 		return classesDex;
-	}
-
-
-	private static File copyAppManifestFile(Project project, File bundleDir, File appDir) throws IOException, CompileExceptionError {
-		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-		BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
-		return helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
 	}
 
 	/**
@@ -473,7 +356,11 @@ public class AndroidAAB {
 			// create base.zip
 			File baseZip = new File(aabDir, "base.zip");
 			log("Zipping " + baseDir + " to " + baseZip);
-			zipModule(baseDir, baseZip, canceled);
+			if (baseZip.exists()) {
+				baseZip.delete();
+			}
+			baseZip.createNewFile();
+			ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
 			return baseZip;
 		} catch (Exception e) {
 			throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
@@ -519,7 +406,9 @@ public class AndroidAAB {
 		BundleHelper.throwIfCanceled(canceled);
 
 		// STEP 1. copy android resources (icons, extension resources and manifest)
-		File manifestFile = copyAppManifestFile(project, bundleDir, appDir);
+		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+		BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
+		File manifestFile = helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
 		File androidResDir = copyResources(project, appDir, canceled);
 
 		// STEP 2. Use aapt2 to compile resources (to *.flat files)
