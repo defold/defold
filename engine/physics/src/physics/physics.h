@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -242,6 +242,9 @@ namespace dmPhysics
         uint32_t m_RayCastLimit3D;
         /// Maximum number of overlapping triggers
         uint32_t m_TriggerOverlapCapacity;
+        /// If true, the collision objects will retrieve the position of its game object
+        uint8_t m_AllowDynamicTransforms:1;
+        uint8_t :7;
     };
 
     /**
@@ -301,7 +304,7 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
-        /// 
+        /// Gets the scale of the game object, as well as each shape
         GetScaleCallback			m_GetScaleCallback;
     };
 
@@ -574,7 +577,7 @@ namespace dmPhysics
         uint16_t m_LockedRotation : 1;
         /// Whether the object is enabled from the start or not, default is 1
         uint16_t m_Enabled : 1;
-        uint16_t m_AllowScale : 1;
+        uint16_t :14;
     };
 
     /**
@@ -824,7 +827,7 @@ namespace dmPhysics
 
 
     /**
-     * 
+     *
      */
     Vectormath::Aos::Vector3 GetScale3D(HCollisionShape3D shape);
     Vectormath::Aos::Vector3 GetScale2D(HCollisionShape2D shape);

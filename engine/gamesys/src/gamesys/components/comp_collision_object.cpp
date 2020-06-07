@@ -334,7 +334,6 @@ namespace dmGameSystem
         out_data.m_AngularDamping = ddf->m_AngularDamping;
         out_data.m_LockedRotation = ddf->m_LockedRotation;
         out_data.m_Enabled = enabled;
-        out_data.m_AllowScale = ddf->m_AllowScale;
 
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {

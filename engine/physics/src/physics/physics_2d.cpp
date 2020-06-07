@@ -35,6 +35,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
@@ -49,6 +50,7 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_GetScaleCallback(params.m_GetScaleCallback)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
@@ -176,6 +178,7 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit2D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -312,7 +315,10 @@ namespace dmPhysics
             DM_PROFILE(Physics, "UpdateKinematic");
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
-                if (body->GetType() == b2_kinematicBody)
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
+
+                // translate & rotation
+                if (retrieve_gameworld_transform || body->GetType() == b2_kinematicBody)
                 {
                     Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
                     dmTransform::Transform world_transform;
@@ -339,11 +345,13 @@ namespace dmPhysics
                     }
                 }
 
-                if( body->IsAllowedToScale() && body->GetType() != b2_staticBody )
+                // Scaling
+                if(retrieve_gameworld_transform)
                 {
                     Vectormath::Aos::Vector3* shape_scales = 0;
                     uint32_t shape_count = 0;
                     Vectormath::Aos::Vector3 object_scale;
+
                     (*world->m_GetScaleCallback)(body->GetUserData(), &shape_scales, &shape_count, &object_scale);
 
                     b2Fixture* fix = body->GetFixtureList();
@@ -866,7 +874,6 @@ namespace dmPhysics
         def.angularDamping = data.m_AngularDamping;
         def.fixedRotation = data.m_LockedRotation;
         def.active = data.m_Enabled;
-        def.allowScale = data.m_AllowScale;
         b2Body* body = world->m_World.CreateBody(&def);
         Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i) {

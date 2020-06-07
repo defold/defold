@@ -177,6 +177,11 @@
    "how to scale the physics worlds in relation to the game world for numerical precision, 0.01 - 1 (default)",
    :default 1.0,
    :path ["physics" "scale"]}
+  {:type :boolean,
+   :help
+   "If set, allows for setting scale, position and rotation of dynamic bodies (default is false)",
+   :default false,
+   :path ["physics" "allow_dynamic_transforms"]}
   {:type :integer,
    :help
    "how many collisions that will be reported back to the scripts, 64 by default",
