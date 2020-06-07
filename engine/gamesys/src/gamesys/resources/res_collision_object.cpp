@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -176,10 +176,9 @@ range_error:
                         // Add the tile grid as the first and only shape
                         dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
                         uint32_t shape_count = shapes.Size();
-                        if (shape_count > COLLISION_OBJECT_MAX_SHAPES)
+                        if (shape_count > resource->m_Shapes2D.Capacity())
                         {
-                            dmLogWarning("The collision object '%s' has a tile map containing more than %d layers, the rest will be ignored.", filename, COLLISION_OBJECT_MAX_SHAPES);
-                            shape_count = COLLISION_OBJECT_MAX_SHAPES;
+                            resource->m_Shapes2D.SetCapacity(shape_count);
                         }
                         for (uint32_t i = 0; i < shape_count; ++i)
                         {
@@ -201,10 +200,23 @@ range_error:
         {
             // Create embedded convex shapes
             uint32_t count = embedded_shape->m_Shapes.m_Count;
-            if (count > COLLISION_OBJECT_MAX_SHAPES)
+            if (physics_context->m_3D)
             {
-                dmLogWarning("Too many shapes in collision object. Up to %d is supported (%d). Discarding overflowing shapes.", COLLISION_OBJECT_MAX_SHAPES, count);
-                count = COLLISION_OBJECT_MAX_SHAPES;
+                if (count > resource->m_Shapes3D.Remaining())
+                {
+                    resource->m_Shapes3D.OffsetCapacity(count);
+                    resource->m_ShapeTranslation.OffsetCapacity(count);
+                    resource->m_ShapeRotation.OffsetCapacity(count);
+                }
+            }
+            else
+            {
+                if (count > resource->m_Shapes2D.Remaining())
+                {
+                    resource->m_Shapes2D.OffsetCapacity(count);
+                    resource->m_ShapeTranslation.OffsetCapacity(count);
+                    resource->m_ShapeRotation.OffsetCapacity(count);
+                }
             }
 
             uint32_t current_shape_count = resource->m_ShapeCount;
@@ -244,7 +256,6 @@ range_error:
                 }
             }
             resource->m_ShapeCount = current_shape_count;
-            assert(resource->m_ShapeCount <= COLLISION_OBJECT_MAX_SHAPES);
             return true;
         }
         else

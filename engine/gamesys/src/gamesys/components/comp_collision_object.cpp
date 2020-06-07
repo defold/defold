@@ -347,9 +347,9 @@ namespace dmGameSystem
             dmPhysics::HWorld3D physics_world = world->m_World3D;
             dmPhysics::HCollisionObject3D collision_object =
                     dmPhysics::NewCollisionObject3D(physics_world, data,
-                                                    resource->m_Shapes3D,
-                                                    resource->m_ShapeTranslation,
-                                                    resource->m_ShapeRotation,
+                                                    &resource->m_Shapes3D.Front(),
+                                                    &resource->m_ShapeTranslation.Front(),
+                                                    &resource->m_ShapeRotation.Front(),
                                                     resource->m_ShapeCount);
 
             if (collision_object != 0x0)
@@ -375,9 +375,9 @@ namespace dmGameSystem
             else
             {
                 collision_object = dmPhysics::NewCollisionObject2D(physics_world, data,
-                                                                   resource->m_Shapes2D,
-                                                                   resource->m_ShapeTranslation,
-                                                                   resource->m_ShapeRotation,
+                                                                   &resource->m_Shapes2D.Front(),
+                                                                   &resource->m_ShapeTranslation.Front(),
+                                                                   &resource->m_ShapeRotation.Front(),
                                                                    resource->m_ShapeCount);
             }
 
