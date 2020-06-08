@@ -37,7 +37,6 @@ namespace dmPhysics
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
-        GetScaleCallback						m_GetScale;
         uint8_t                                 m_AllowDynamicTransforms:1;
         uint8_t                                 :7;
     };

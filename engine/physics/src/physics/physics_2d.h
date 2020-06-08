@@ -49,7 +49,6 @@ namespace dmPhysics
         ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
-        GetScaleCallback            m_GetScaleCallback;
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
     };

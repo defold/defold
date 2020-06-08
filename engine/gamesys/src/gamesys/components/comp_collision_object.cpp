@@ -156,26 +156,12 @@ namespace dmGameSystem
         ++g_NumPhysicsTransformsUpdated;
     }
 
-    static void GetScale(void* user_data, Vector3** shape_scale, uint32_t* shape_count, Vector3* object_scale)
-    {
-        if (!user_data)
-            return;
-        CollisionComponent* component = (CollisionComponent*)user_data;
-        dmGameObject::HInstance instance = component->m_Instance;
-        const dmTransform::Transform& world_transform = dmGameObject::GetWorldTransform(instance);
-
-        *shape_scale = component->m_Resource->m_ShapeScale;
-        *shape_count = component->m_Resource->m_ShapeCount;
-        *object_scale = world_transform.GetScale();
-    }
-
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
-        world_params.m_GetScaleCallback = GetScale;
 
         dmPhysics::HWorld2D world2D;
         dmPhysics::HWorld3D world3D;
@@ -334,7 +320,6 @@ namespace dmGameSystem
         out_data.m_AngularDamping = ddf->m_AngularDamping;
         out_data.m_LockedRotation = ddf->m_LockedRotation;
         out_data.m_Enabled = enabled;
-
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {
             out_data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);

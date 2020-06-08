@@ -334,7 +334,7 @@ namespace dmPhysics
                         if (!collision_object->isActive())
                             collision_object->activate(true);
                     }
-	        	}
+                }
             }
         }
 
@@ -845,14 +845,6 @@ namespace dmPhysics
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
         return co->isInWorld();
-    }
-
-    Vector3 GetScale3D(HCollisionShape3D _shape)
-    {
-        btCollisionShape* shape = (btCollisionShape*)_shape;
-        Vector3 scaling;
-        FromBt(shape->getLocalScaling(), scaling, 1.0f);
-        return scaling;
     }
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)

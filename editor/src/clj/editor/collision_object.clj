@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -367,8 +367,7 @@
       :mask (some->> (:mask co) (string/join ", "))
       :linear-damping (:linear-damping co)
       :angular-damping (:angular-damping co)
-      :locked-rotation (:locked-rotation co)
-      :allow-scale (:allow-scale co))
+      :locked-rotation (:locked-rotation co))
     (g/connect self :collision-group-node project :collision-group-nodes)
     (g/connect project :collision-groups-data self :collision-groups-data)
     (g/connect project :settings self :project-settings)
@@ -408,7 +407,7 @@
 
 (g/defnk produce-pb-msg
   [collision-shape-resource type mass friction restitution
-   group mask angular-damping linear-damping locked-rotation allow-scale
+   group mask angular-damping linear-damping locked-rotation
    shapes]
   {:collision-shape (resource/resource->proj-path collision-shape-resource)
    :type type
@@ -420,7 +419,6 @@
    :linear-damping linear-damping
    :angular-damping angular-damping
    :locked-rotation locked-rotation
-   :allow-scale allow-scale
    :embedded-collision-shape (produce-embedded-collision-shape shapes)})
 
 (defn build-collision-object
@@ -525,8 +523,6 @@
   (property angular-damping g/Num
             (default 0))
   (property locked-rotation g/Bool
-            (default false))
-  (property allow-scale g/Bool
             (default false))
 
   (property group g/Str)

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,7 +32,6 @@ struct VisualObject
 
 void GetWorldTransform(void* visual_object, dmTransform::Transform& world_transform);
 void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
-void GetScale(void* visual_object, Vectormath::Aos::Vector3** shape_scale, uint32_t* shape_count, Vectormath::Aos::Vector3* object_scale);
 bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);
 
@@ -54,7 +53,6 @@ protected:
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
-        world_params.m_GetScaleCallback = GetScale;
         m_World = (*m_Test.m_NewWorldFunc)(m_Context, world_params);
         m_CollisionCount = 0;
         m_ContactPointCount = 0;

@@ -123,12 +123,6 @@ namespace dmPhysics
      * @param rotation Rotation that the external object will obtain
      */
     typedef void (*SetWorldTransformCallback)(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
-    /**
-     * Callback used to get the scale of the shapesfrom an external object.
-     *
-     * @param user_data User data pointing to the external object
-     */
-    typedef void (*GetScaleCallback)(void* user_data, Vectormath::Aos::Vector3** shape_scale, uint32_t* num_shapes, Vectormath::Aos::Vector3* object_scale);
 
     /**
      * Callback used to signal collisions.
@@ -304,8 +298,6 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
-        /// Gets the scale of the game object, as well as each shape
-        GetScaleCallback			m_GetScaleCallback;
     };
 
     /**
@@ -824,13 +816,6 @@ namespace dmPhysics
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
     Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object);
-
-
-    /**
-     *
-     */
-    Vectormath::Aos::Vector3 GetScale3D(HCollisionShape3D shape);
-    Vectormath::Aos::Vector3 GetScale2D(HCollisionShape2D shape);
 
     /**
      * Return whether the 3D collision object is enabled or not.

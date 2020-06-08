@@ -49,7 +49,6 @@ namespace dmPhysics
     , m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
-    , m_GetScaleCallback(params.m_GetScaleCallback)
     , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
@@ -300,6 +299,48 @@ namespace dmPhysics
         FlipBody(collision_object, 1, -1);
     }
 
+    static void UpdateScale(HWorld2D world, b2Body* body)
+    {
+        dmTransform::Transform world_transform;
+        (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+
+        float object_scale = world_transform.GetUniformScale();
+
+        b2Fixture* fix = body->GetFixtureList();
+        bool allow_sleep = true;
+        while( fix )
+        {
+            b2Shape* shape = fix->GetShape();
+            if (shape->m_lastScale == object_scale )
+            {
+                break;
+            }
+            shape->m_lastScale = object_scale;
+            allow_sleep = false;
+
+            if (fix->GetShape()->GetType() == b2Shape::e_circle) {
+                // creation scale for circles, is the initial radius
+                shape->m_radius = shape->m_creationScale * object_scale;
+            }
+            else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
+                b2PolygonShape* pshape = (b2PolygonShape*)shape;
+                float s = object_scale / shape->m_creationScale;
+                for( int i = 0; i < 4; ++i)
+                {
+                    b2Vec2 p = pshape->m_verticesOriginal[i];
+                    pshape->m_vertices[i].Set(p.x * s, p.y * s);
+                }
+            }
+
+            fix = fix->GetNext();
+        }
+
+        if (!allow_sleep)
+        {
+            body->SetAwake(true);
+        }
+    }
+
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -348,45 +389,7 @@ namespace dmPhysics
                 // Scaling
                 if(retrieve_gameworld_transform)
                 {
-                    Vectormath::Aos::Vector3* shape_scales = 0;
-                    uint32_t shape_count = 0;
-                    Vectormath::Aos::Vector3 object_scale;
-
-                    (*world->m_GetScaleCallback)(body->GetUserData(), &shape_scales, &shape_count, &object_scale);
-
-                    b2Fixture* fix = body->GetFixtureList();
-                    uint32_t i = 0;
-                    bool allow_sleep = true;
-                    while( fix && i < shape_count )
-                    {
-                        b2Shape* shape = fix->GetShape();
-                        if (shape->m_lastScale == object_scale.getX() )
-                        {
-                            break;
-                        }
-                        shape->m_lastScale = object_scale.getX();
-                        allow_sleep = false;
-
-                        if (fix->GetShape()->GetType() == b2Shape::e_circle) {
-                            shape->m_radius = shape_scales[i].getX() * object_scale.getX();
-                        }
-                        else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
-                            b2PolygonShape* pshape = (b2PolygonShape*)shape;
-                            float s = object_scale.getX() / shape->m_creationScale;
-                            for( int i = 0; i < 4; ++i)
-                            {
-                                b2Vec2 p = pshape->m_verticesOriginal[i];
-                                pshape->m_vertices[i].Set(p.x * s, p.y * s);
-                            }
-                        }
-
-                        fix = fix->GetNext();
-                    }
-
-                    if (!allow_sleep)
-                    {
-                        body->SetAwake(true);
-                    }
+                    UpdateScale(world, body);
                 }
             }
         }
@@ -651,15 +654,6 @@ namespace dmPhysics
         return NewCollisionObject2D(world, data, shapes, 0, 0, shape_count);
     }
 
-    Vectormath::Aos::Vector3 GetScale2D(HCollisionShape2D _shape)
-    {
-        b2Shape* shape = (b2Shape*)_shape;
-        if (shape->GetType() == b2Shape::e_circle) {
-            return Vectormath::Aos::Vector3(shape->m_radius);
-        }
-        return Vectormath::Aos::Vector3(1.0f);
-    }
-
     /*
      * Quaternion to complex number transform
      *
@@ -710,6 +704,7 @@ namespace dmPhysics
             b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
             circle_shape_prim->m_p = TransformScaleB2(transform, scale, circle_shape->m_p);
             circle_shape_prim->m_radius *= scale;
+            scale = circle_shape_prim->m_radius;
             ret = circle_shape_prim;
         }
             break;
