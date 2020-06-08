@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -60,14 +60,6 @@ void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& posit
     o->m_Position = position;
     o->m_Rotation = rotation;
 }
-
-void GetScale(void* visual_object, Vectormath::Aos::Vector3** shape_scale, uint32_t* shape_count, Vectormath::Aos::Vector3* object_scale)
-{
-    if (!visual_object) return;
-    *shape_count = 0;
-    *shape_scale = 0;
-}
-
 
 bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
 {

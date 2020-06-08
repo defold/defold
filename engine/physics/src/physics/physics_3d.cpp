@@ -512,7 +512,6 @@ namespace dmPhysics
 
     HCollisionShape3D NewSphereShape3D(HContext3D context, float radius)
     {
-        printf("BT Circle: %f\n", radius);
         return new btSphereShape(context->m_Scale * radius);
     }
 
@@ -520,7 +519,6 @@ namespace dmPhysics
     {
         btVector3 dims;
         ToBt(half_extents, dims, context->m_Scale);
-        printf("BT Box: %f, %f, %f\n", half_extents.getX(), half_extents.getY(), half_extents.getZ());
         return new btBoxShape(dims);
     }
 
