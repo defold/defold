@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,7 @@ The beta period will be 2 weeks and the next planned stable release is two weeks
 
 We hope this new workflow will highlight any issues earlier, and also get valuable feedback from our users. And please comment if you come up with ideas on improving on this new workflow.
 
-Please report any engine issues in this thread or in [editor2-issues](https://github.com/defold/editor2-issues/issues) using Help -> Report Issue
+Please report any engine issues in this thread or in [issues](https://github.com/defold/defold/issues) using Help -> Report Issue
 
 Thx for helping out!
 
@@ -35,8 +35,8 @@ Set your build server to https://build-stage.defold.com
 
 """
 
-def run(cmd):
-    p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE)
+def run(cmd, shell=False):
+    p = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, shell=shell)
     p.wait()
     out, err = p.communicate()
     if p.returncode != 0:
@@ -44,17 +44,16 @@ def run(cmd):
 
     return out
 
-def get_version():
-    return ('3b188e533c08bdf4a615d25b49f7aae83b0ce71d', '1.2.169')
-    # get the latest commit to the VERSION file
-    sha1 = run('git log -n 1 --pretty=format:%H -- VERSION')
+def read_version():
+    # read the version number from the VERSION file
     with open('VERSION', 'rb') as f:
         d = f.read()
         tokens = d.split('.')
-        minor = int(tokens[2])
-        minor = minor
-        return (sha1, "%s.%s.%d" % (tokens[0], tokens[1], minor))
-    return (sha1, "<unknown>")
+        return map(int, tokens)
+    return None
+
+def get_sha1_from_tag(tag):
+    return run('git log -1 --format=format:%%H %s' % tag)
 
 
 def git_log(sha1):
@@ -65,9 +64,7 @@ def get_engine_issues(lines):
     issues = []
     for line in lines:
         # 974d82a24 Issue-4684 - Load vulkan functions dynamically on android (#4692)
-        if '4725' in line:
-            print "MAWE:", line
-        issue_match = re.search("^(?i)([a-fA-F0-9]+) issue[\-\s]?#?(\d+):? (.*)", line)
+        issue_match = re.search("^(?i)([a-fA-F0-9]+) (?:issue[\-\s]?)?#?(\d+)[:.]? (.*)", line)
         if issue_match:
             sha1 = issue_match.group(1)
             issue = issue_match.group(2)
@@ -79,9 +76,6 @@ def get_engine_issues(lines):
             issues.append("[`Issue-%s`](https://github.com/defold/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
             print(git_log(sha1))
             continue
-        else:
-            if '4725' in line:
-                print "not a match",
 
         # bca92cc0f Check that there's a world before creating a collision object (#4747)
         pull_match = re.search("([a-fA-F0-9]+) (.*) \(\#(\d+)\)$", line)
@@ -131,12 +125,34 @@ def get_all_changes(version, sha1):
         print("  * " + issue)
 
 
+def get_contributors(tag):
+    print ""
+    print ""
+    print "# Contributors"
+    print ""
+    print "We'd also like to take the opportunity to thank our community for contributing to the source code."
+    print "This is the number of contributions since the last release."
+    print ""
+
+    r = run("scripts/list_contributors.sh %s" % tag)
+    print r
+
 
 if __name__ == '__main__':
-    sha1, version = get_version()
-    if sha1 is None:
+    current_version = read_version()
+    if current_version is None:
         print >>sys.stderr, "Failed to open VERSION"
         sys.exit(1)
 
-    print "Found version", version, sha1
+    tag = "%d.%d.%d" % (current_version[0], current_version[1], current_version[2]-1)
+    sha1 = get_sha1_from_tag(tag)
+    if sha1 is None:
+        print >>sys.stderr, "Failed to rad tag '%s'" % tag
+        sys.exit(1)
+
+    print "Found previous version", tag, sha1
+
+    version = "%d.%d.%d" % (current_version[0], current_version[1], current_version[2])
     get_all_changes(version, sha1)
+
+    get_contributors(tag)
