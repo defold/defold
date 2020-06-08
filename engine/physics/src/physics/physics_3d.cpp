@@ -23,6 +23,8 @@
 
 #include "physics_3d.h"
 
+#include <stdio.h>
+
 namespace dmPhysics
 {
     using namespace Vectormath::Aos;
@@ -39,8 +41,8 @@ namespace dmPhysics
     struct CollisionObject3D
     {
         btCollisionObject* m_CollisionObject;
-        short m_CollisionGroup;
-        short m_CollisionMask;
+        uint16_t m_CollisionGroup;
+        uint16_t m_CollisionMask;
     };
 
     static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object);
@@ -126,6 +128,7 @@ namespace dmPhysics
     : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -279,6 +282,7 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit3D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -368,7 +372,10 @@ namespace dmPhysics
             for (int i = 0; i < collision_object_count; ++i)
             {
                 btCollisionObject* collision_object = collision_objects[i];
-                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject())
+
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && !collision_object->isStaticObject();
+
+                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject() || retrieve_gameworld_transform)
                 {
                     Point3 old_position = GetWorldPosition(context, collision_object);
                     Quat old_rotation = GetWorldRotation(context, collision_object);
@@ -385,6 +392,26 @@ namespace dmPhysics
                         btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
                         collision_object->setWorldTransform(world_t);
                         collision_object->activate(true);
+                    }
+                }
+
+                // Scaling
+                if (retrieve_gameworld_transform)
+                {
+                    dmTransform::Transform world_transform;
+                    world->m_GetWorldTransform(collision_object->getUserPointer(), world_transform);
+
+                    // The compound shape scale always defaults to 1
+                    btCollisionShape* shape = collision_object->getCollisionShape();
+
+                    float object_scale = world_transform.GetUniformScale();
+                    float shape_scale = shape->getLocalScaling().getX();
+
+                    if (object_scale != shape_scale)
+                    {
+                        shape->setLocalScaling(btVector3(object_scale,object_scale,object_scale));
+                        if (!collision_object->isActive())
+                            collision_object->activate(true);
                     }
                 }
             }
@@ -662,11 +689,12 @@ namespace dmPhysics
             }
         }
 
+        bool clone_shapes = world->m_AllowDynamicTransforms || object_scale != 1.0f;
         float scale = world->m_Context->m_Scale;
         btCompoundShape* compound_shape = new btCompoundShape(false);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            btConvexShape* shape = object_scale == 1.0f ? (btConvexShape*)shapes[i] : CloneShape((btConvexShape*)shapes[i]);
+            btConvexShape* shape = clone_shapes ? CloneShape((btConvexShape*)shapes[i]) : (btConvexShape*)shapes[i];
 
             if (translations && rotations)
             {

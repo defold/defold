@@ -49,6 +49,8 @@ namespace dmPhysics
         ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
+        uint8_t                     m_AllowDynamicTransforms:1;
+        uint8_t                     :7;
     };
 
     struct Context2D
@@ -65,6 +67,8 @@ namespace dmPhysics
         float                       m_TriggerEnterLimit;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
+        uint8_t                     m_AllowDynamicTransforms:1;
+        uint8_t                     :7;
     };
 
     inline void ToB2(const Vectormath::Aos::Point3& p0, b2Vec2& p1, float scale)

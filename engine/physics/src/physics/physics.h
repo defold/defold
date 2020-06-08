@@ -120,7 +120,7 @@ namespace dmPhysics
     /**
      * Callback used to propagate the world transform from the physics simulation to an external object.
      *
-     * @param user_data User data poiting to the external object
+     * @param user_data User data pointing to the external object
      * @param position Position that the external object will obtain
      * @param rotation Rotation that the external object will obtain
      */
@@ -239,6 +239,9 @@ namespace dmPhysics
         uint32_t m_RayCastLimit3D;
         /// Maximum number of overlapping triggers
         uint32_t m_TriggerOverlapCapacity;
+        /// If true, the collision objects will retrieve the position of its game object
+        uint8_t m_AllowDynamicTransforms:1;
+        uint8_t :7;
     };
 
     /**
@@ -569,6 +572,7 @@ namespace dmPhysics
         uint16_t m_LockedRotation : 1;
         /// Whether the object is enabled from the start or not, default is 1
         uint16_t m_Enabled : 1;
+        uint16_t :14;
     };
 
     /**

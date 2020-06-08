@@ -122,7 +122,7 @@ namespace dmGameSystem
     static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry);
 
-    void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
         if (!user_data)
             return;
@@ -134,7 +134,7 @@ namespace dmGameSystem
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
 
-    void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    static void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
             return;
