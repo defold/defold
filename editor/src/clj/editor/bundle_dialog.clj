@@ -231,14 +231,17 @@
                        (fromString [label]
                          (values-by-label label)))))))
 
-(defn- make-generic-controls [refresh! variant-choices]
+(defn- make-generic-controls [refresh! variant-choices compression-choices]
   (assert (fn? refresh!))
   [(doto (VBox.)
      (ui/add-style! "settings")
      (ui/add-style! "generic")
      (ui/children! [(labeled! "Variant"
                               (doto (make-choice-box refresh! variant-choices)
-                                (.setId "variant-choice-box")))]))
+                                (.setId "variant-choice-box")))
+                    (labeled! "Texture Compression"
+                              (doto (make-choice-box refresh! compression-choices)
+                                (.setId "compression-choice-box")))]))
    (doto (VBox.)
      (ui/add-style! "settings")
      (ui/add-style! "toggles")
@@ -247,42 +250,46 @@
                     (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
 
 (defn- load-generic-prefs! [prefs view]
-  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (ui/value! variant-choice-box (prefs/get-prefs prefs "bundle-variant" "debug"))
+    (ui/value! compression-choice-box (prefs/get-prefs prefs "bundle-texture-compression" "enabled"))
     (ui/value! generate-debug-symbols-check-box (prefs/get-prefs prefs "bundle-generate-debug-symbols?" true))
     (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
     (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))))
 
 (defn- save-generic-prefs! [prefs view]
-  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (prefs/set-prefs prefs "bundle-variant" (ui/value variant-choice-box))
+    (prefs/set-prefs prefs "bundle-texture-compression" (ui/value compression-choice-box))
     (prefs/set-prefs prefs "bundle-generate-debug-symbols?" (ui/value generate-debug-symbols-check-box))
     (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
     (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))))
 
 (defn- get-generic-options [view]
-  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     {:variant (ui/value variant-choice-box)
+     :texture-compression (ui/value compression-choice-box)
      :generate-debug-symbols? (ui/value generate-debug-symbols-check-box)
      :generate-build-report? (ui/value generate-build-report-check-box)
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))}))
 
 (defn- set-generic-options! [view options workspace]
-  (ui/with-controls view [variant-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (ui/value! variant-choice-box (:variant options))
+    (ui/value! compression-choice-box (:texture-compression options))
     (ui/value! generate-debug-symbols-check-box (:generate-debug-symbols? options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
       (ui/value! (:publish-live-update-content? options)))))
 
-(deftype GenericBundleOptionsPresenter [workspace view title platform variant-choices]
+(deftype GenericBundleOptionsPresenter [workspace view title platform variant-choices compression-choices]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (assert (string? (not-empty platform)))
     (let [refresh! (make-presenter-refresher this)]
       (into [(make-generic-headers title)]
-            (make-generic-controls refresh! variant-choices))))
+            (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view))
   (save-prefs! [_this prefs]
@@ -343,13 +350,13 @@
   (ui/with-controls view [platform-choice-box]
     (ui/value! platform-choice-box (:platform options))))
 
-(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices bob-platform-default variant-choices]
+(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices bob-platform-default variant-choices compression-choices]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
       (into [(make-generic-headers title)
              (make-platform-controls refresh! bob-platform-choices)]
-            (make-generic-controls refresh! variant-choices))))
+            (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-platform-prefs! prefs view platform bob-platform-default))
@@ -457,13 +464,13 @@
    :bundle-format (when-not bundle-format
                    [:fatal "No bundle format selected."])})
 
-(deftype AndroidBundleOptionsPresenter [workspace view variant-choices]
+(deftype AndroidBundleOptionsPresenter [workspace view variant-choices compression-choices]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
       (into [(make-generic-headers "Bundle Android Application")
              (make-android-controls refresh! owner-window)]
-            (make-generic-controls refresh! variant-choices))))
+            (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-android-prefs! prefs view))
@@ -591,13 +598,13 @@
    :architecture (when-not (or architecture-32bit? architecture-64bit? architecture-simulator?)
                    [:fatal "At least one architecture must be selected."])})
 
-(deftype IOSBundleOptionsPresenter [workspace view variant-choices]
+(deftype IOSBundleOptionsPresenter [workspace view variant-choices compression-choices]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
       (into [(make-generic-headers "Bundle iOS Application")
              (make-ios-controls refresh! owner-window)]
-            (make-generic-controls refresh! variant-choices))))
+            (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-ios-prefs! prefs view (get-code-signing-identity-names)))
@@ -622,14 +629,18 @@
 
 (def ^:private desktop-variants (conj common-variants ["Headless" "headless"]))
 
+(def ^:private common-compressions [["Enabled" "enabled"]
+                                    ["Disabled" "disabled"]
+                                    ["Use Editor Preference" "editor"]])
+
 (defmulti bundle-options-presenter (fn [_workspace _view platform] platform))
 (defmethod bundle-options-presenter :default [_workspace _view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view common-variants))
-(defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants))
-(defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants))
-(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants))
-(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-darwin" desktop-variants))
-(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants))
+(defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view common-variants common-compressions))
+(defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants common-compressions))
+(defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
+(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-darwin" desktop-variants common-compressions))
+(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants common-compressions))
 
 (handler/defhandler ::close :bundle-dialog
   (run [stage]

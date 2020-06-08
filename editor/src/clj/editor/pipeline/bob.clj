@@ -23,6 +23,7 @@
     [editor.resource :as resource]
     [editor.system :as system]
     [editor.ui :as ui]
+    [editor.prefs :as prefs]
     [editor.workspace :as workspace])
   (:import
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
@@ -148,12 +149,13 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs)
+        editor-texture-compression (if (prefs/get-prefs prefs "general-enable-texture-compression" false) "true" "false")
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
@@ -164,7 +166,10 @@
              ;; From AbstractBundleHandler
              "archive" "true"
              "bundle-output" bundle-output-path
-             "texture-compression" "true"
+             "texture-compression" (case texture-compression
+                                    "enabled" "true"
+                                    "disabled" "false"
+                                    "editor" editor-texture-compression)
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
