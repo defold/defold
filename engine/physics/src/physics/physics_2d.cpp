@@ -556,9 +556,11 @@ namespace dmPhysics
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture != 0x0)
         {
-            assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
-            b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
-            grid_shape->ClearCellData();
+            if (fixture->GetShape()->GetType() == b2Shape::e_grid)
+            {
+                b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
+                grid_shape->ClearCellData();
+            }
             fixture = fixture->GetNext();
         }
     }

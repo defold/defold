@@ -367,19 +367,11 @@ namespace dmGameSystem
         {
             dmPhysics::HWorld2D physics_world = world->m_World2D;
             dmPhysics::HCollisionObject2D collision_object = 0;
-            if (resource->m_TileGrid)
-            {
-                dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-                collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &shapes.Front(), shapes.Size());
-            }
-            else
-            {
-                collision_object = dmPhysics::NewCollisionObject2D(physics_world, data,
-                                                                   &resource->m_Shapes2D.Front(),
-                                                                   &resource->m_ShapeTranslation.Front(),
-                                                                   &resource->m_ShapeRotation.Front(),
-                                                                   resource->m_ShapeCount);
-            }
+            collision_object = dmPhysics::NewCollisionObject2D(physics_world, data,
+                                                               &resource->m_Shapes2D.Front(),
+                                                               &resource->m_ShapeTranslation.Front(),
+                                                               &resource->m_ShapeRotation.Front(),
+                                                               resource->m_ShapeCount);
 
             if (collision_object != 0x0)
             {

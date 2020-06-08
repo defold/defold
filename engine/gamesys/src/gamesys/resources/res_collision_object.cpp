@@ -157,6 +157,10 @@ range_error:
             resource->m_Mask[i] = dmHashString64(resource->m_DDF->m_Mask[i]);
         }
 
+        const dmPhysicsDDF::CollisionShape* embedded_shape = &resource->m_DDF->m_EmbeddedCollisionShape;
+        const dmPhysicsDDF::CollisionShape::Shape* embedded_shapes = embedded_shape->m_Shapes.m_Data;
+        const uint32_t embedded_shape_count = embedded_shape->m_Shapes.m_Count;
+
         if (resource->m_DDF->m_CollisionShape && resource->m_DDF->m_CollisionShape[0] != '\0')
         {
             void* res;
@@ -173,54 +177,52 @@ range_error:
                     {
                         resource->m_TileGridResource = (TileGridResource*)res;
                         resource->m_TileGrid = 1;
-                        // Add the tile grid as the first and only shape
+
                         dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
                         uint32_t shape_count = shapes.Size();
-                        if (shape_count > resource->m_Shapes2D.Capacity())
-                        {
-                            resource->m_Shapes2D.SetCapacity(shape_count);
-                        }
+                        uint32_t total_shapes_count = embedded_shape_count + shape_count;
+                        resource->m_Shapes2D.SetCapacity(total_shapes_count);
+                        resource->m_ShapeTranslation.SetCapacity(total_shapes_count);
+                        resource->m_ShapeRotation.SetCapacity(total_shapes_count);
+                        resource->m_Shapes2D.SetSize(total_shapes_count);
+                        resource->m_ShapeTranslation.SetSize(total_shapes_count);
+                        resource->m_ShapeRotation.SetSize(total_shapes_count);
                         for (uint32_t i = 0; i < shape_count; ++i)
                         {
                             resource->m_Shapes2D[i] = resource->m_TileGridResource->m_GridShapes[i];
+                            resource->m_ShapeTranslation[i] = Vectormath::Aos::Vector3(0.0, 0.0, 0.0);
+                            resource->m_ShapeRotation[i] = Vectormath::Aos::Quat(0.0, 0.0, 0.0, 0.0);
                         }
                         resource->m_ShapeCount = shape_count;
-                        return true;
                     }
-                    // NOTE: Fall-trough "by design" here, ie not "else return false"
-                    // The control flow should be improved. Currently very difficult to follow or understand
-                    // the expected logical paths
                 }
             }
         }
 
-        const dmPhysicsDDF::CollisionShape* embedded_shape = &resource->m_DDF->m_EmbeddedCollisionShape;
-        const dmPhysicsDDF::CollisionShape::Shape* shapes = embedded_shape->m_Shapes.m_Data;
-        if (shapes)
+        if (embedded_shapes)
         {
-            // Create embedded convex shapes
-            uint32_t count = embedded_shape->m_Shapes.m_Count;
             if (physics_context->m_3D)
             {
-                if (count > resource->m_Shapes3D.Remaining())
-                {
-                    resource->m_Shapes3D.OffsetCapacity(count);
-                    resource->m_ShapeTranslation.OffsetCapacity(count);
-                    resource->m_ShapeRotation.OffsetCapacity(count);
-                }
+                resource->m_Shapes3D.SetCapacity(embedded_shape_count);
+                resource->m_ShapeTranslation.SetCapacity(embedded_shape_count);
+                resource->m_ShapeRotation.SetCapacity(embedded_shape_count);
+                resource->m_Shapes3D.SetSize(embedded_shape_count);
+                resource->m_ShapeTranslation.SetSize(embedded_shape_count);
+                resource->m_ShapeRotation.SetSize(embedded_shape_count);
             }
-            else
+            else if (!resource->m_TileGrid)
             {
-                if (count > resource->m_Shapes2D.Remaining())
-                {
-                    resource->m_Shapes2D.OffsetCapacity(count);
-                    resource->m_ShapeTranslation.OffsetCapacity(count);
-                    resource->m_ShapeRotation.OffsetCapacity(count);
-                }
+                resource->m_Shapes2D.SetCapacity(embedded_shape_count);
+                resource->m_ShapeTranslation.SetCapacity(embedded_shape_count);
+                resource->m_ShapeRotation.SetCapacity(embedded_shape_count);
+                resource->m_Shapes2D.SetSize(embedded_shape_count);
+                resource->m_ShapeTranslation.SetSize(embedded_shape_count);
+                resource->m_ShapeRotation.SetSize(embedded_shape_count);
             }
 
+            // Create embedded convex shapes
             uint32_t current_shape_count = resource->m_ShapeCount;
-            for (uint32_t i = 0; i < count; ++i)
+            for (uint32_t i = 0; i < embedded_shape_count; ++i)
             {
                 if (physics_context->m_3D)
                 {
@@ -228,8 +230,8 @@ range_error:
                     if (shape)
                     {
                         resource->m_Shapes3D[current_shape_count] = shape;
-                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
-                        resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(embedded_shapes[i].m_Position);
+                        resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
                         current_shape_count++;
                     }
                     else
@@ -244,8 +246,8 @@ range_error:
                     if (shape)
                     {
                         resource->m_Shapes2D[current_shape_count] = shape;
-                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(shapes[i].m_Position);
-                        resource->m_ShapeRotation[current_shape_count] = shapes[i].m_Rotation;
+                        resource->m_ShapeTranslation[current_shape_count] = Vectormath::Aos::Vector3(embedded_shapes[i].m_Position);
+                        resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
                         current_shape_count++;
                     }
                     else
@@ -256,13 +258,14 @@ range_error:
                 }
             }
             resource->m_ShapeCount = current_shape_count;
-            return true;
         }
-        else
+
+        if (resource->m_ShapeCount == 0)
         {
             dmLogError("No shapes found in collision object");
             return false;
         }
+        return true;
     }
 
     void ReleaseResources(PhysicsContext* physics_context, dmResource::HFactory factory, CollisionObjectResource* resource)
@@ -327,7 +330,16 @@ range_error:
         if (AcquireResources(physics_context, params.m_Factory, params.m_Buffer, params.m_BufferSize, &tmp_collision_object, params.m_Filename))
         {
             ReleaseResources(physics_context, params.m_Factory, collision_object);
-            *collision_object = tmp_collision_object;
+            collision_object->m_DDF = tmp_collision_object.m_DDF;
+            collision_object->m_Group = tmp_collision_object.m_Group;
+            memcpy(collision_object->m_Mask, tmp_collision_object.m_Mask, sizeof(collision_object->m_Mask));
+            collision_object->m_ShapeCount = tmp_collision_object.m_ShapeCount;
+            collision_object->m_ShapeRotation.Swap(tmp_collision_object.m_ShapeRotation);
+            collision_object->m_ShapeTranslation.Swap(tmp_collision_object.m_ShapeTranslation);
+            collision_object->m_Shapes2D.Swap(tmp_collision_object.m_Shapes2D);
+            collision_object->m_Shapes3D.Swap(tmp_collision_object.m_Shapes3D);
+            collision_object->m_TileGrid = tmp_collision_object.m_TileGrid;
+            collision_object->m_TileGridResource = tmp_collision_object.m_TileGridResource;
             return dmResource::RESULT_OK;
         }
         else
