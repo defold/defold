@@ -525,14 +525,6 @@ namespace dmPhysics
         b2PolygonShape* shape = new b2PolygonShape();
         float scale = context->m_Scale;
         shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
-
-/*
-        printf("CREATED:");
-        for ( int i = 0; i < 4; ++i)
-        {
-            printf("%d: %f, %f -> %f, %f\n", i, shape->m_verticesOriginal[i].x, shape->m_verticesOriginal[i].y, shape->m_vertices[i].x, shape->m_vertices[i].y);
-        }
-        */
         return shape;
     }
 
