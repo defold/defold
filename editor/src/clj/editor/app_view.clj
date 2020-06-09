@@ -79,7 +79,7 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
-           [javafx.scene.input Clipboard ClipboardContent]
+           [javafx.scene.input Clipboard ClipboardContent KeyCombination]
            [javafx.scene.layout AnchorPane StackPane]
            [javafx.scene.shape Ellipse SVGPath]
            [javafx.stage Screen Stage WindowEvent]))
@@ -435,6 +435,7 @@
       (when maximized
         (.setMaximized stage true))
       (when full-screen
+        (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
         (.setFullScreen stage true)))))
 
 (def ^:private legacy-split-ids ["main-split"
