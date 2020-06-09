@@ -34,6 +34,7 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
+#include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
@@ -1077,6 +1078,8 @@ namespace dmEngine
             engine->m_LastReloadMTime = (uint32_t) file_stat.st_mtime;
         }
 
+        // Tbh, I have never heard of this feature of reordering the component types being utilized.
+        // I vote for removing it. /MAWE
         if (update_order)
         {
             char* tmp = strdup(update_order);

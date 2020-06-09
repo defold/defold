@@ -13,9 +13,10 @@
 #ifndef DM_GAMESYS_COMP_COLLISION_OBJECT_H
 #define DM_GAMESYS_COMP_COLLISION_OBJECT_H
 
-#include <stdint.h>
+#include <gameobject/component.h>
 
-#include <gameobject/gameobject.h>
+// for scripting
+#include <stdint.h>
 #include <physics/physics.h>
 
 template <typename T> class dmArray;

@@ -23,6 +23,7 @@
 #include "gamesys_ddf.h"
 #include "../gamesys_private.h"
 #include "../components/comp_collection_factory.h"
+#include "resources/res_collection_factory.h"
 
 #include "script_collection_factory.h"
 
