@@ -373,11 +373,6 @@ public class TextureSetGenerator {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
-        int usesSpriteTrimming = 0;
-        for (Integer hullSize : imageHullSizes) {
-            usesSpriteTrimming += hullSize;
-        }
-
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
