@@ -1183,7 +1183,7 @@ def run_tests(valgrind = False, configfile = None):
         return
 
     for t in Build.bld.all_task_gen:
-        if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
+        if 'test' in str(t.features) and ('cprogram' in t.features or 'cxxprogram' in t.features):
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
             if 'web' in Build.bld.env.PLATFORM:
