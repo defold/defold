@@ -172,7 +172,7 @@ public class AndroidAAB {
 	/**
 	* Copy Android resources per package
 	*/
-	private static File copyResources(BundleHelper helper, Project project, File bundleDir, ICanceled canceled) throws IOException {
+	private static File copyResources(Project project, File bundleDir, BundleHelper helper, ICanceled canceled) throws IOException {
 		Platform platform = Platform.Armv7Android;
 		File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
@@ -209,7 +209,6 @@ public class AndroidAAB {
 		// packages/com.foo.bar/res/* -> res/com.foo.bar/*
 		for (File src : directories) {
 			Path srcPath = Path.of(src.getAbsolutePath());
-			Path relative = Path.of(packagesDir.getAbsolutePath()).relativize(srcPath);
 			String packageName = srcPath.getName(srcPath.getNameCount() - 2).toString();
 			File dest = createDir(androidResDir, packageName);
 			for(File f : src.listFiles(File::isDirectory)) {
@@ -417,7 +416,7 @@ public class AndroidAAB {
 		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 		BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
 		File manifestFile = helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
-		File androidResDir = copyResources(helper, project, appDir, canceled);
+		File androidResDir = copyResources(project, appDir, helper, canceled);
 
 		// STEP 2. Use aapt2 to compile resources (to *.flat files)
 		File compiledResDir = aapt2CompileResources(project, appDir, androidResDir, canceled);
