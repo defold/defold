@@ -18,6 +18,7 @@ env:
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   BUILD_BRANCH: ${{ github.event.client_payload.branch }}
+  DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
 
 
 jobs:
@@ -262,6 +263,17 @@ jobs:
       {
         name: 'Release',
         run: 'ci/ci.sh release'
+      },
+      {
+        name: 'Publish updated API ref',
+        uses: defold/repository-dispatch@1.2.1,
+        if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
+        with: {
+            repo: 'defold/defold.github.io',
+            token: '${{ secrets.GITHUB_TOKEN_READONLY }}',
+            user: 'services@defold.se',
+            action: 'refdoc'
+        }
       },
       {
        name: 'Notify if build status changed',

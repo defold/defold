@@ -419,7 +419,7 @@ static int convertMacKeyCode( unsigned int macKeyCode )
                 [super keyDown:event];
             }
         }
-        else
+        else if( code != GLFW_KEY_LEFT && code != GLFW_KEY_RIGHT && code != GLFW_KEY_UP && code != GLFW_KEY_DOWN )
         {
             characters = [event characters];
             length = [characters length];
@@ -738,6 +738,15 @@ int  _glfwPlatformOpenWindow( int width, int height,
         contentRect = [[_glfwWin.window contentView] convertRectToBacking:contentRect];
         _glfwWin.width = contentRect.size.width;
         _glfwWin.height = contentRect.size.height;
+
+        CVDisplayLinkRef displayLink;
+        CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);
+        CVDisplayLinkSetOutputCallback(displayLink, &DisplayLinkCallback, 0);
+        CGDirectDisplayID viewDisplayID = (CGDirectDisplayID) [[_glfwWin.window screen].deviceDescription[@"NSScreenNumber"] unsignedIntegerValue];
+        CVDisplayLinkSetCurrentCGDisplay(displayLink, viewDisplayID);
+
+        CVDisplayLinkStart(displayLink);
+        _glfwWin.displayLink = (uintptr_t) displayLink;
     }
 
     return GL_TRUE;

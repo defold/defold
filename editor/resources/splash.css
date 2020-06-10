@@ -27,7 +27,17 @@
 }
 
 #rights-reserved {
+  -fx-padding: 0 0 16px 0;
+}
+
+#sponsors {
+  -fx-padding: 0 0 16px 0;
+}
+
+#sponsor-icons {
+  -fx-opacity: 0.7;
   -fx-padding: 0 0 33px 0;
+  -fx-spacing: 33px;
 }
 
 #startup-tip > .text {

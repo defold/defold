@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# Copyright 2020 The Defold Foundation
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+
 
 readonly PRODUCT=protobuf
 readonly VERSION=2.3.0
@@ -29,10 +42,16 @@ tar xfz ../../download/$FILE_URL --strip-components=1
 # We need to apply patches for this cross_tmp build as well
 [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
+echo "**************************************************************"
+echo "BUILDING PROTOC"
+
 set -e
 ./configure && make -j8
 set +e
 popd >/dev/null
+
+echo "**************************************************************"
+echo "BUILDING PROTOBUF"
 
 cmi $1
 

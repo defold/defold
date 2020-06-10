@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include "engine.h"
 
 #include "engine_private.h"
@@ -17,6 +29,7 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/http_client.h>
+#include <dlib/buffer.h>
 #include <extension/extension.h>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
@@ -228,6 +241,8 @@ namespace dmEngine
         m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
+        m_MeshContext.m_RenderContext = 0x0;
+        m_MeshContext.m_MaxMeshCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -505,6 +520,12 @@ namespace dmEngine
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
+
+        // The default is 1, and the only way to know if the property is manually set, is if it's 0
+        // since the values are always written to the project file
+        if (0 == dmConfigFile::GetInt(engine->m_Config, "graphics.verify_graphics_calls", 1))
+            verify_graphics_calls = false;
+
         bool renderdoc_support = false;
         const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
         const char renderdoc_support_arg[] = "--renderdoc";
@@ -851,6 +872,7 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
+        physics_params.m_AllowDynamicTransforms = dmConfigFile::GetInt(engine->m_Config, "physics.allow_dynamic_transforms", 0) ? 1 : 0;
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
@@ -869,6 +891,7 @@ namespace dmEngine
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
+        // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
 #if !defined(DM_RELEASE)
@@ -894,6 +917,10 @@ namespace dmEngine
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = max_model_count;
 
+        engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_MeshContext.m_Factory       = engine->m_Factory;
+        engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
+
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
@@ -905,6 +932,8 @@ namespace dmEngine
         engine->m_TilemapContext.m_RenderContext    = engine->m_RenderContext;
         engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
         engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
+
+        engine->m_SoundContext.m_MaxComponentCount  = dmConfigFile::GetInt(engine->m_Config, "sound.max_component_count", 32);
 
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
@@ -937,7 +966,8 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
+                                                                                                &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
+                                                                                                &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -1325,47 +1355,51 @@ bail:
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
-                    // Call pre render functions for extensions, if available.
-                    // We do it here before we render rest of the frame
-                    // if any extension wants to render on under of the game.
-                    dmExtension::Params ext_params;
-                    ext_params.m_ConfigFile = engine->m_Config;
-                    if (engine->m_SharedScriptContext) {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                    } else {
-                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                    }
-                    dmExtension::PreRender(&ext_params);
-
-                    // Make the render list that will be used later.
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameObject::Render(engine->m_MainCollection);
-
-                    // Make sure we dispatch messages to the render script
-                    // since it could have some "draw_text" messages waiting.
-                    if (engine->m_RenderScriptPrototype)
+                    // Don't render while iconified
+                    if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                     {
-                        dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
-                    }
+                        // Call pre render functions for extensions, if available.
+                        // We do it here before we render rest of the frame
+                        // if any extension wants to render on under of the game.
+                        dmExtension::Params ext_params;
+                        ext_params.m_ConfigFile = engine->m_Config;
+                        if (engine->m_SharedScriptContext) {
+                            ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                        } else {
+                            ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                        }
+                        dmExtension::PreRender(&ext_params);
 
-                    dmRender::RenderListEnd(engine->m_RenderContext);
+                        // Make the render list that will be used later.
+                        dmRender::RenderListBegin(engine->m_RenderContext);
+                        dmGameObject::Render(engine->m_MainCollection);
 
-                    dmGraphics::BeginFrame(engine->m_GraphicsContext);
+                        // Make sure we dispatch messages to the render script
+                        // since it could have some "draw_text" messages waiting.
+                        if (engine->m_RenderScriptPrototype)
+                        {
+                            dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                        }
 
-                    if (engine->m_RenderScriptPrototype)
-                    {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::RenderListEnd(engine->m_RenderContext);
+
+                        dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+                        if (engine->m_RenderScriptPrototype)
+                        {
+                            dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
+                        }
+                        else
+                        {
+                            dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                                                (float)((engine->m_ClearColor>> 0)&0xFF),
+                                                (float)((engine->m_ClearColor>> 8)&0xFF),
+                                                (float)((engine->m_ClearColor>>16)&0xFF),
+                                                (float)((engine->m_ClearColor>>24)&0xFF),
+                                                1.0f, 0);
+                            dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        }
                     }
 
                     dmGameObject::PostUpdate(engine->m_MainCollection);
@@ -1398,14 +1432,18 @@ bail:
                 // Call post render functions for extensions, if available.
                 // We do it here at the end of the frame (before swap buffers/flip)
                 // if any extension wants to render on top of the game.
-                dmExtension::Params ext_params;
-                ext_params.m_ConfigFile = engine->m_Config;
-                if (engine->m_SharedScriptContext) {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                } else {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                // Don't do this while iconified
+                if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                {
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                    }
+                    dmExtension::PostRender(&ext_params);
                 }
-                dmExtension::PostRender(&ext_params);
 
                 if (engine->m_UseSwVsync)
                 {

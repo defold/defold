@@ -13,6 +13,7 @@
 .java
 .oracle*
 .bash*
+*.pyc
 
 /.ccache
 /.idea
@@ -20,6 +21,7 @@
 *.apidoc_
 engine/.clang_complete
 /.vscode
+.npm
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath
@@ -38,3 +40,6 @@ ci/env.sh
 
 com.dynamo.cr/com.dynamo.cr.bob.test/test/build
 com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.java
+
+/local_sdks
+external/**/build/

@@ -23,9 +23,9 @@ Here we list the licenses of the software we use to build and run the Defold edi
 * **WebP** [http://www.webmproject.org/license/software/](http://www.webmproject.org/license/software/) **BSD**
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
 * **jctest** [https://github.com/JCash/jctest/](https://github.com/JCash/jctest/blob/dev/LICENSE) **MIT**
+* **xhr2** - [https://github.com/pwnall/node-xhr2](https://github.com/pwnall/node-xhr2/blob/master/LICENSE.txt) **MIT**
 
 ## Editor
 
 * **JavaFX** [https://openjfx.io/](https://openjfx.io/) **GPL**
 * **Clojure** [https://clojure.org/](https://clojure.org/community/license) **Eclipse Public License 1.0**
-

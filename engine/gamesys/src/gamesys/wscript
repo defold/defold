@@ -26,7 +26,7 @@ def build(bld):
 
     bld.add_group()
 
-    apidoc_extract_task(bld, ['../../proto/camera_ddf.proto', 'scripts/script_collection_factory.cpp', 'components/comp_collection_proxy.cpp', 'scripts/script_collectionproxy.h', '../../proto/physics_ddf.proto', 'scripts/script_physics.cpp', 'scripts/script_factory.cpp', '../../proto/label_ddf.proto', 'scripts/script_label.cpp', '../../proto/model_ddf.proto', 'scripts/script_model.cpp', 'scripts/script_particlefx.cpp', 'scripts/script_resource.cpp', 'components/comp_sound.cpp', 'scripts/script_sound.cpp', '../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp', '../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp', '../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp', 'scripts/script_window.cpp','../../proto/gui_ddf.proto', 'scripts/script_resource_liveupdate.h'])
+    apidoc_extract_task(bld, ['../../proto/camera_ddf.proto', 'scripts/script_buffer.cpp', 'scripts/script_collection_factory.cpp', 'components/comp_collection_proxy.cpp', 'scripts/script_collectionproxy.h', '../../proto/physics_ddf.proto', 'scripts/script_physics.cpp', 'scripts/script_factory.cpp', '../../proto/label_ddf.proto', 'scripts/script_label.cpp', '../../proto/model_ddf.proto', 'scripts/script_model.cpp', 'scripts/script_particlefx.cpp', 'scripts/script_resource.cpp', 'components/comp_sound.cpp', 'scripts/script_sound.cpp', '../../proto/spine_ddf.proto', 'scripts/script_spine_model.cpp', '../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp', '../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp', 'scripts/script_window.cpp','../../proto/gui_ddf.proto', 'scripts/script_resource_liveupdate.h'])
 
     bld.add_group()
     bld.add_subdirs('test')

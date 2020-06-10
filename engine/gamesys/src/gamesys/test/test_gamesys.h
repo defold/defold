@@ -1,5 +1,18 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <resource/resource.h>
 
+#include <dlib/buffer.h>
 #include <hid/hid.h>
 
 #include <sound/sound.h>
@@ -7,6 +20,7 @@
 #include <rig/rig.h>
 
 #include "gamesys/gamesys.h"
+#include "gamesys/scripts/script_buffer.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -44,9 +58,11 @@ protected:
     dmGameSystem::FactoryContext m_FactoryContext;
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::ModelContext m_ModelContext;
+    dmGameSystem::MeshContext m_MeshContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
+    dmGameSystem::SoundContext m_SoundContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
 };
@@ -280,6 +296,14 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
 
+    m_MeshContext.m_RenderContext = m_RenderContext;
+    m_MeshContext.m_Factory       = m_Factory;
+    m_MeshContext.m_MaxMeshCount  = 128;
+
+    dmBuffer::NewContext();
+
+    m_SoundContext.m_MaxComponentCount = 32;
+
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, &m_GuiContext, m_InputContext, &m_PhysicsContext);
     assert(dmResource::RESULT_OK == r);
 
@@ -289,7 +313,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
-                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
+                                                                                                    &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }
@@ -312,4 +336,131 @@ void GamesysTest<T>::TearDown()
     dmHID::Final(m_HidContext);
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
+    dmBuffer::DeleteContext();
 }
+
+// Specific test class for testing dmBuffers in scripts
+class ScriptBufferTest : public jc_test_base_class
+{
+protected:
+    virtual void SetUp()
+    {
+        dmBuffer::NewContext();
+        m_Context = dmScript::NewContext(0, 0, true);
+        dmScript::Initialize(m_Context);
+
+        m_ScriptLibContext.m_Factory = 0x0;
+        m_ScriptLibContext.m_Register = 0x0;
+        m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
+        L = dmScript::GetLuaState(m_Context);
+
+        const dmBuffer::StreamDeclaration streams_decl[] = {
+            {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
+            {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+        };
+
+        m_Count = 256;
+        dmBuffer::Create(m_Count, streams_decl, 2, &m_Buffer);
+    }
+
+    virtual void TearDown()
+    {
+        if( m_Buffer )
+            dmBuffer::Destroy(m_Buffer);
+
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+        dmScript::Finalize(m_Context);
+        dmScript::DeleteContext(m_Context);
+
+        dmBuffer::DeleteContext();
+    }
+
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+    dmScript::HContext m_Context;
+    lua_State* L;
+    dmBuffer::HBuffer m_Buffer;
+    uint32_t m_Count;
+};
+
+struct CopyBufferTestParams
+{
+    uint32_t m_Count;
+    uint32_t m_DstOffset;
+    uint32_t m_SrcOffset;
+    uint32_t m_CopyCount;
+    bool m_ExpectedOk;
+};
+
+class ScriptBufferCopyTest : public jc_test_params_class<CopyBufferTestParams>
+{
+protected:
+    virtual void SetUp()
+    {
+        dmBuffer::NewContext();
+        m_Context = dmScript::NewContext(0, 0, true);
+
+        m_ScriptLibContext.m_Factory = 0x0;
+        m_ScriptLibContext.m_Register = 0x0;
+        m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
+        dmScript::Initialize(m_Context);
+        L = dmScript::GetLuaState(m_Context);
+
+
+        const dmBuffer::StreamDeclaration streams_decl[] = {
+            {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
+            {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+        };
+
+        const CopyBufferTestParams& p = GetParam();
+        dmBuffer::Create(p.m_Count, streams_decl, 2, &m_Buffer);
+    }
+
+    virtual void TearDown()
+    {
+        dmBuffer::Destroy(m_Buffer);
+
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+
+        dmScript::Finalize(m_Context);
+        dmScript::DeleteContext(m_Context);
+
+        dmBuffer::DeleteContext();
+    }
+
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+    dmScript::HContext m_Context;
+    lua_State* L;
+    dmBuffer::HBuffer m_Buffer;
+};
+
+class LabelTest : public jc_test_base_class 
+{
+protected:
+    virtual void SetUp()
+    {
+        m_Position = Vectormath::Aos::Point3(0.0);
+        m_Size = Vectormath::Aos::Vector3(2.0, 2.0, 0.0);
+        m_Scale = Vectormath::Aos::Vector3(1.0, 1.0, 0.0);
+
+        m_BottomLeft = Vectormath::Aos::Point3(0.0, 0.0, 0.0);
+        m_TopLeft = Vectormath::Aos::Point3(0.0, m_Size.getY(), 0.0);
+        m_TopRight = Vectormath::Aos::Point3(m_Size.getX(), m_Size.getY(), 0.0);
+        m_BottomRight = Vectormath::Aos::Point3(m_Size.getX(), 0.0, 0.0);
+
+        m_Rotation = dmVMath::EulerToQuat(Vectormath::Aos::Vector3(0, 0, -180));
+        m_Rotation = normalize(m_Rotation);
+    }
+
+    Vectormath::Aos::Quat m_Rotation;
+    Vectormath::Aos::Point3 m_Position;
+    Vectormath::Aos::Point3 m_BottomLeft;
+    Vectormath::Aos::Point3 m_TopLeft;
+    Vectormath::Aos::Point3 m_TopRight;
+    Vectormath::Aos::Point3 m_BottomRight;
+    Vectormath::Aos::Vector3 m_Size;
+    Vectormath::Aos::Vector3 m_Scale;
+};

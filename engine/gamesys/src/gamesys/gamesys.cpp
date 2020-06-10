@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include "gamesys.h"
 
 #include "gamesys_private.h"
@@ -17,6 +29,8 @@
 #include "resources/res_fragment_program.h"
 #include "resources/res_font_map.h"
 #include "resources/res_model.h"
+#include "resources/res_buffer.h"
+#include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
@@ -46,6 +60,7 @@
 #include "components/comp_emitter.h"
 #include "components/comp_particlefx.h"
 #include "components/comp_model.h"
+#include "components/comp_mesh.h"
 #include "components/comp_gui.h"
 #include "components/comp_sound.h"
 #include "components/comp_camera.h"
@@ -99,6 +114,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate);
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramPreload, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate);
+        REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate);
+        REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc);
@@ -142,8 +159,10 @@ namespace dmGameSystem
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 SpineModelContext* spine_model_context,
                                                 ModelContext* model_context,
+                                                MeshContext* mesh_context,
                                                 LabelContext* label_context,
-                                                TilemapContext* tilemap_context)
+                                                TilemapContext* tilemap_context,
+                                                SoundContext* sound_context)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -220,7 +239,7 @@ namespace dmGameSystem
                 &CompCameraUpdate, 0, 0, &CompCameraOnMessage, 0, &CompCameraOnReload, 0, 0,
                 1);
 
-        REGISTER_COMPONENT_TYPE("soundc", 600, 0x0,
+        REGISTER_COMPONENT_TYPE("soundc", 600, sound_context,
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate, 0,
                 CompSoundUpdate, 0, 0, CompSoundOnMessage, 0, 0, CompSoundGetProperty, CompSoundSetProperty,
@@ -230,6 +249,12 @@ namespace dmGameSystem
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate, 0,
                 CompModelUpdate, CompModelRender, 0, CompModelOnMessage, 0, 0, CompModelGetProperty, CompModelSetProperty,
+                0);
+
+        REGISTER_COMPONENT_TYPE("meshc", 725, mesh_context,
+                CompMeshNewWorld, CompMeshDeleteWorld,
+                CompMeshCreate, CompMeshDestroy, 0, 0, CompMeshAddToUpdate, 0,
+                CompMeshUpdate, CompMeshRender, 0, CompMeshOnMessage, 0, 0, CompMeshGetProperty, CompMeshSetProperty,
                 0);
 
         REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,

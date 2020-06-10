@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.json
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
@@ -32,12 +44,15 @@
 
 (defonce ^:private json-loaders (atom {}))
 
-(defn- read-then-close [reader]
+(defn- read-then-close [reader options]
   (with-open [pushback-reader (PushbackReader. reader)]
-    (json/read pushback-reader)))
+    (apply json/read pushback-reader options)))
 
-(def ^:private resource->json (comp read-then-close io/reader))
-(def ^:private lines->json (comp read-then-close data/lines-reader))
+(defn- resource->json [resource]
+  (read-then-close (io/reader resource) nil))
+
+(defn lines->json [lines & options]
+  (read-then-close (data/lines-reader lines) options))
 
 (defn invalid-json-error [node-id resource]
   (g/->error node-id nil :fatal nil
@@ -73,7 +88,7 @@
     (if (nil? load-fn)
       (make-code-editable project self resource (util/split-lines (slurp resource)))
       (let [content (try
-                      (read-then-close (InputStreamReader. (io/input-stream resource)))
+                      (read-then-close (InputStreamReader. (io/input-stream resource)) nil)
                       (catch Exception error
                         error))]
         (if (instance? Exception content)

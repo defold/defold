@@ -6,6 +6,11 @@
 
 Repository for the Defold engine, editor and command line tools.
 
+## Supported by
+![](https://defold.com/images/logo/others/king-color.png)
+![](https://defold.com/images/spacer32.png)
+![](https://defold.com/images/logo/others/heroiclabs-blue.png)
+
 ## Folder Structure
 
 * **build_tools** - Build configuration and build tools used by build scripts
@@ -46,6 +51,6 @@ An overview of the engine architecture and additional engine information can be 
 The release process is documented [here](RELEASE.md).
 
 
-## Licenses
+## Third party licenses
 
-See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip`
+See [licenses.md](engine/engine/content/builtins/docs/licenses.md) from `builtins.zip` for licenses of libraries and source code used in this project.

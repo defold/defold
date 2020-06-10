@@ -69,9 +69,6 @@ def build(bld):
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
 
-    if 'x86_64-darwin' == bld.env['PLATFORM']:
-        additional_libs.append('UNWIND')
-
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
         exported_symbols.extend(mobile_service_symbols)
@@ -151,9 +148,6 @@ def build(bld):
     additional_libs = []
     if 'android' in bld.env['PLATFORM']:
         additional_libs += ['DMGLFW','UNWIND']
-
-    if 'x86_64-darwin' == bld.env['PLATFORM']:
-        additional_libs = ['UNWIND']
 
     additional_libs = ' '.join(additional_libs)
 

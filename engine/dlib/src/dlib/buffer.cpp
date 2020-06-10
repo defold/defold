@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 
 #include <dmsdk/dlib/buffer.h>
 
@@ -321,10 +333,8 @@ namespace dmBuffer
             return RESULT_ALLOCATION_ERROR;
         }
 
-        // Verify element count and streams count
-        if (count == 0) {
-            return RESULT_BUFFER_SIZE_ERROR;
-        } else if (streams_decl_count == 0) {
+        // Verify streams count
+        if (streams_decl_count == 0) {
             return RESULT_STREAM_SIZE_ERROR;
         }
 
@@ -381,6 +391,64 @@ namespace dmBuffer
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
 
         *out_buffer = SetBuffer(ctx, index, buffer);
+        return RESULT_OK;
+    }
+
+    Result GetStreamOffset(HBuffer buffer_handle, uint32_t index, uint32_t* offset)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, buffer_handle);
+        *offset = buffer->m_Streams[index].m_Offset;
+        return RESULT_OK;
+    }
+
+    Result Copy(const HBuffer dst_buffer_handle, const HBuffer src_buffer_handle)
+    {
+        const Buffer* dst_buffer = GetBuffer(g_BufferContext, dst_buffer_handle);
+        const Buffer* src_buffer = GetBuffer(g_BufferContext, src_buffer_handle);
+
+        // Verify stream declaration is 1:1
+        if (src_buffer->m_NumStreams != dst_buffer->m_NumStreams) {
+            return RESULT_STREAM_COUNT_MISMATCH;
+        }
+
+        for (uint8_t i = 0; i < dst_buffer->m_NumStreams; ++i)
+        {
+            const Buffer::Stream& dst_stream = dst_buffer->m_Streams[i];
+            const Buffer::Stream& src_stream = src_buffer->m_Streams[i];
+            if (src_stream.m_Name != dst_stream.m_Name ||
+                src_stream.m_Offset != dst_stream.m_Offset ||
+                src_stream.m_ValueType != dst_stream.m_ValueType ||
+                src_stream.m_ValueCount != dst_stream.m_ValueCount)
+            {
+                dmLogError("Stream mismatch: src(name: %s, offset: %u, type: %s, count: %u) != dst(name: %s, offset: %u, type: %s, count: %u)",
+                    dmHashReverseSafe64(src_stream.m_Name), src_stream.m_Offset, GetValueTypeString((dmBuffer::ValueType)src_stream.m_ValueType), src_stream.m_ValueCount,
+                    dmHashReverseSafe64(dst_stream.m_Name), dst_stream.m_Offset, GetValueTypeString((dmBuffer::ValueType)dst_stream.m_ValueType), dst_stream.m_ValueCount);
+                return RESULT_STREAM_MISMATCH;
+            }
+        }
+
+        // Verify destination buffer has enough of element space
+        if (src_buffer->m_Count > dst_buffer->m_Count) {
+            return RESULT_BUFFER_SIZE_ERROR;
+        }
+
+        // Get buffer pointers for dst and src
+        void* dst_bytes = 0x0;
+        uint32_t dst_size = 0;
+        dmBuffer::Result r = dmBuffer::GetBytes(dst_buffer_handle, &dst_bytes, &dst_size);
+        if (r != RESULT_OK) {
+            return r;
+        }
+        void* src_bytes = 0x0;
+        uint32_t src_size = 0;
+        r = dmBuffer::GetBytes(src_buffer_handle, &src_bytes, &src_size);
+        if (r != RESULT_OK) {
+            return r;
+        }
+
+        // Copy memory
+        memcpy(dst_bytes, src_bytes, src_size);
+
         return RESULT_OK;
     }
 
