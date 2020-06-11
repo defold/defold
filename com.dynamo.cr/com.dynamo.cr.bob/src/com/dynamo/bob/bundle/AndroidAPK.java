@@ -141,7 +141,7 @@ public class AndroidAPK {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        helper.copyAndroidResources(architectures.get(0), appDir);
+        helper.copyAndroidResources(architectures.get(0));
         helper.aaptMakePackage(architectures.get(0), appDir, ap1);
 
         BundleHelper.throwIfCanceled(canceled);
