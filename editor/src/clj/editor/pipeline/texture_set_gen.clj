@@ -96,10 +96,9 @@
                                        hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
                                    (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))
                                images)
-        hull-sizes (map (fn [{:keys [path sprite-trim-mode] :as _image}]
-                          (sprite-trim-mode->hull-vertex-count sprite-trim-mode))
-                         images)
-        use-geometries (if (nil? (some (complement zero?) hull-sizes)) 0 1)
+        use-geometries (let [hull-sizes (map (fn [{:keys [path sprite-trim-mode]}] 
+                                          (sprite-trim-mode->hull-vertex-count sprite-trim-mode)) images)]
+                         (if (some #(not= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 1 0))
         result (TextureSetGenerator/calculateLayout
                  rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
                  true false nil)]
@@ -204,7 +203,7 @@
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
                                    (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
                                image-rects)
-        use-geometries (if (zero? hull-vertex-count) 0 1)
+        use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode hull-vertex-count)) 1 0)
         result (TextureSetGenerator/calculateLayout
                  image-rects
                  sprite-geometries
