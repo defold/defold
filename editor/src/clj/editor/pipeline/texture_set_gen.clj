@@ -201,7 +201,7 @@
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
                                    (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
                                image-rects)
-        use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode hull-vertex-count)) 1 0)
+        use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)
         result (TextureSetGenerator/calculateLayout
                  image-rects
                  sprite-geometries
