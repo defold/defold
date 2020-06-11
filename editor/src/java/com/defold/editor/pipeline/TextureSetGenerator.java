@@ -238,6 +238,7 @@ public class TextureSetGenerator {
 
             // the points are in object space, where origin is at the center of the sprite image
             // in units [-0.5,0.5]
+            // The polygon has a CCW orientation
             float localU = geometry.getVertices(i * 2 + 0);
             float localV = geometry.getVertices(i * 2 + 1);
             float localX = localU * originalRectWidth;
