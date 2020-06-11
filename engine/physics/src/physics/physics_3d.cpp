@@ -120,6 +120,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
