@@ -31,21 +31,21 @@
     platform))
 
 (def artifacts
-  {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
-   "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
+  {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"                "x86-win32/bin/OpenAL32.dll"
+   "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"                "x86-win32/bin/wrap_oal.dll"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-32.exe" "x86_64-win32/bin/luajit-32.exe"
-   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe" "x86_64-win32/bin/luajit-64.exe"
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
+   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-32.exe"        "x86_64-win32/bin/luajit-32.exe"
+   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe"        "x86_64-win32/bin/luajit-64.exe"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"         "x86_64-win32/bin/OpenAL32.dll"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"         "x86_64-win32/bin/wrap_oal.dll"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll"        "x86_64-win32/lib/PVRTexLib.dll"
    ;; msvcr120.dll is a dependency of PVRTexLib.dll. Because we unpack all these
    ;; files to a random temporary directory which is not in the Windows search
    ;; path we need to explicitly load all libraries "bottom up" to make sure we
    ;; are using, and Windows can find, our versions. For this reason we have
    ;; calls to System.load in TexcLibrary.java both in the editor and Bob. If
    ;; you add any new dlls, make sure that they are properly loaded!
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
+   "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"         "x86_64-win32/lib/msvcr120.dll"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-32"            "x86_64-linux/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-64"            "x86_64-linux/bin/luajit-64"
@@ -63,12 +63,31 @@
    "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
-   "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
+   "${DYNAMO-HOME}/ext/share/luajit"                          "shared/luajit"
 
-   "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
-   "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"
+   "bundle-resources/x86_64-darwin/lipo"                      "x86_64-darwin/bin/lipo"
+   "bundle-resources/x86_64-darwin/codesign_allocate"         "x86_64-darwin/bin/codesign_allocate"
 
-   "bundle-resources/_defold"                          "_defold"})
+   "bundle-resources/_defold"                                 "_defold"
+
+   ;; TODO(#4201): Change these paths once all bundling is done from the editor.
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/aapt"                     "x86_64-darwin/bin/aapt"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/apkc"                     "x86_64-darwin/bin/apkc"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/strip_android"            "x86_64-darwin/bin/strip_android"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/strip_android_aarch64"    "x86_64-darwin/bin/strip_android_aarch64"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/zipalign"                 "x86_64-darwin/bin/zipalign"
+
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/aapt"                      "x86_64-linux/bin/aapt"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/apkc"                      "x86_64-linux/bin/apkc"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/strip_android"             "x86_64-linux/bin/strip_android"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/strip_android_aarch64"     "x86_64-linux/bin/strip_android_aarch64"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/zipalign"                  "x86_64-linux/bin/zipalign"
+
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-win32/aapt.exe"                  "x86_64-win32/bin/aapt.exe"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-win32/apkc.exe"                  "x86_64-win32/bin/apkc.exe"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-win32/strip_android.exe"         "x86_64-win32/bin/strip_android.exe"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-win32/strip_android_aarch64.exe" "x86_64-win32/bin/strip_android_aarch64.exe"
+   "../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-win32/zipalign.exe"              "x86_64-win32/bin/zipalign.exe"})
 
 (defn engine-artifact-files
   [git-sha]

@@ -2,7 +2,9 @@
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
+  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
+                     "google" {:id "google"
+                               :url "https://maven.google.com/"}}
 
   :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [lein-sass "0.4.0"]
@@ -107,7 +109,10 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
 
-                     [org.snakeyaml/snakeyaml-engine "1.0"]]
+                     [org.snakeyaml/snakeyaml-engine "1.0"]
+
+                     [cljstache "2.0.4"] ;; Mustache templates are used in manifest files.
+                     [com.android.tools.build/manifest-merger "26.4.2"]]
 
   :source-paths      ["src/clj"]
 
@@ -143,7 +148,8 @@
                       :source-maps false}
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]}
+                      "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]
+                      "headless" ["with-profile" "+headless,+dev" "run"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -187,6 +193,7 @@
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
+                      :headless {:main ^:skip-aot editor.boot-headless}
                       :dev     {:dependencies      [[clj-async-profiler-mg "0.4.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
