@@ -14,45 +14,51 @@
 #include "component.h"
 #include "comp_anim.h"
 #include "comp_script.h"
+#include <dlib/log.h>
 
 namespace dmGameObject
 {
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context)
+    static Result CompScriptcInit(const ComponentTypeCreateCtx* ctx, ComponentType* type)
     {
-        ComponentType script_component;
-        dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
-        script_component.m_Name = "scriptc";
-        script_component.m_Context = script_context;
-        script_component.m_NewWorldFunction = &CompScriptNewWorld;
-        script_component.m_DeleteWorldFunction = &CompScriptDeleteWorld;
-        script_component.m_CreateFunction = &CompScriptCreate;
-        script_component.m_DestroyFunction = &CompScriptDestroy;
-        script_component.m_InitFunction = &CompScriptInit;
-        script_component.m_FinalFunction = &CompScriptFinal;
-        script_component.m_AddToUpdateFunction = &CompScriptAddToUpdate;
-        script_component.m_UpdateFunction = &CompScriptUpdate;
-        script_component.m_OnMessageFunction = &CompScriptOnMessage;
-        script_component.m_OnInputFunction = &CompScriptOnInput;
-        script_component.m_OnReloadFunction = &CompScriptOnReload;
-        script_component.m_SetPropertiesFunction = &CompScriptSetProperties;
-        script_component.m_GetPropertyFunction = &CompScriptGetProperty;
-        script_component.m_SetPropertyFunction = &CompScriptSetProperty;
-        script_component.m_InstanceHasUserData = true;
-        script_component.m_UpdateOrderPrio = 200;
-        script_component.m_ReadsTransforms = 1;
-        Result result = RegisterComponentType(regist, script_component);
-        if (result != dmGameObject::RESULT_OK)
-            return result;
-        ComponentType anim_component;
-        dmResource::GetTypeFromExtension(factory, "animc", &anim_component.m_ResourceType);
-        anim_component.m_Name = "animc";
-        anim_component.m_Context = 0x0;
-        anim_component.m_NewWorldFunction = &CompAnimNewWorld;
-        anim_component.m_DeleteWorldFunction = &CompAnimDeleteWorld;
-        anim_component.m_AddToUpdateFunction = &CompAnimAddToUpdate;
-        anim_component.m_ReadsTransforms = 1;
-        anim_component.m_UpdateFunction = &CompAnimUpdate;
-        anim_component.m_UpdateOrderPrio = 250;
-        return RegisterComponentType(regist, anim_component);
+        dmLogWarning("MAWE: component '%s' created", type->m_Name);
+
+        ComponentTypeSetPrio(type, 200);
+        ComponentTypeSetContext(type, ctx->m_Script);
+        ComponentTypeSetHasUserData(type, true);
+        ComponentTypeSetReadsTransforms(type, true);
+
+        ComponentTypeSetNewWorldFn(type, CompScriptNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompScriptDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompScriptCreate);
+        ComponentTypeSetDestroyFn(type, CompScriptDestroy);
+        ComponentTypeSetInitFn(type, CompScriptInit);
+        ComponentTypeSetFinalFn(type, CompScriptFinal);
+        ComponentTypeSetAddToUpdateFn(type, CompScriptAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompScriptUpdate);
+        ComponentTypeSetOnMessageFn(type, CompScriptOnMessage);
+        ComponentTypeSetOnInputFn(type, CompScriptOnInput);
+        ComponentTypeSetOnReloadFn(type, CompScriptOnReload);
+        ComponentTypeSetSetPropertiesFn(type, CompScriptSetProperties);
+        ComponentTypeSetGetPropertyFn(type, CompScriptGetProperty);
+        ComponentTypeSetSetPropertyFn(type, CompScriptSetProperty);
+
+        return dmGameObject::RESULT_OK;
     }
+
+    static Result CompAnimcInit(const ComponentTypeCreateCtx* ctx, ComponentType* type)
+    {
+        dmLogWarning("MAWE: component '%s' created", type->m_Name);
+
+        ComponentTypeSetPrio(type, 250);
+        ComponentTypeSetReadsTransforms(type, true);
+        ComponentTypeSetNewWorldFn(type, CompAnimNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompAnimDeleteWorld);
+        ComponentTypeSetAddToUpdateFn(type, CompAnimAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompAnimUpdate);
+        return dmGameObject::RESULT_OK;
+    }
+
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentScript, "scriptc", dmGameObject::CompScriptcInit);
+DM_DECLARE_COMPONENT_TYPE(ComponentAnim, "animc", dmGameObject::CompAnimcInit);

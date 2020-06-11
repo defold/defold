@@ -357,6 +357,7 @@ def build(bld):
                                          includes = '../../../src . .. ../../../proto',
                                          uselib = 'RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB RIG CARES',
                                          uselib_local = 'gameobject',
+                                         exported_symbols = ['ComponentScript', 'ComponentAnim'],
                                          web_libs = ['library_sys.js', 'library_script.js'],
                                          proto_gen_py = True,
                                          target = '%s/test_gameobject_%s' % (dir, dir))

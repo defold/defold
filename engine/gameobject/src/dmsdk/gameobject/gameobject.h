@@ -31,6 +31,13 @@ namespace dmGameObject
     /// Component register
     typedef struct Register* HRegister;
 
+    /// Instance handle
+    typedef struct Instance* HInstance;
+
+    /// Collection handle
+    typedef struct CollectionHandle* HCollection;
+
+
     /*# Result enumeration
      *
      * Result enumeration.

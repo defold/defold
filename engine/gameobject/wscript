@@ -6,8 +6,9 @@ APPNAME='gameobject'
 srcdir = '.'
 blddir = 'build'
 
-import sys
+import sys, os
 import waf_dynamo, waf_ddf
+import Options
 
 def init():
     pass
@@ -39,9 +40,5 @@ def build(bld):
     sys.path.insert(0, os.path.abspath('build/default/proto/gameobject'))
     bld.add_subdirs('src')
 
-import Build, Options
-import os, subprocess
 def shutdown():
-    if not Options.commands['build']:
-        return
     waf_dynamo.run_tests(valgrind = True)

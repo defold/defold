@@ -45,17 +45,11 @@ namespace dmGameObject
     /// Config key to use for tweaking maximum number of instances in a collection
     extern const char* COLLECTION_MAX_INSTANCES_KEY;
 
-    /// Instance handle
-    typedef struct Instance* HInstance;
-
     /// Script handle
     typedef struct Script* HScript;
 
     /// Instance handle
     typedef struct ScriptInstance* HScriptInstance;
-
-    /// Collection handle
-    typedef struct CollectionHandle* HCollection;
 
     /// Properties handle
     typedef struct Properties* HProperties;
@@ -200,6 +194,19 @@ namespace dmGameObject
         /// Determines whether we are permitted to write to this property.
         bool m_ReadOnly;
     };
+
+    /**
+     * Create a new component type register
+     * @param regist Register
+     * @return Register handle
+     */
+    HRegister NewRegister();
+
+    /**
+     * Delete a component type register
+     * @param regist Register to delete
+     */
+    void DeleteRegister(HRegister regist);
 
     /**
      * Initialize system
