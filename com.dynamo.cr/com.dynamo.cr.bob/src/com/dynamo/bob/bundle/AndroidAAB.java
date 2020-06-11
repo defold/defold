@@ -180,10 +180,12 @@ public class AndroidAAB {
 
 		// create a list of resource directories, per package
 		List<File> directories = new ArrayList<>();
+		// Native extension build
+		// Include all Android resources received from extender server
 		if(packagesDir.exists()) {
 			File packagesList = new File(packagesDir, "packages.txt");
 			if (packagesList.exists()) {
-				List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
+				List<String> allLines = Files.readAllLines(packagesList.toPath());
 				for (String line : allLines) {
 					File resDir = new File(packagesDir, line);
 					if (resDir.isDirectory()) {
@@ -200,6 +202,8 @@ public class AndroidAAB {
 				}
 			}
 		}
+		// Non-native extension build
+		// Include local Android resources (icons)
 		else {
 			File resDir = helper.copyAndroidResources(platform);
 			directories.add(resDir);
