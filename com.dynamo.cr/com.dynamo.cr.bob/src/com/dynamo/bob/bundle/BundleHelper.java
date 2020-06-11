@@ -451,22 +451,20 @@ public class BundleHelper {
         return new File(appDir, "res");
     }
 
-    public void copyAndroidResources(Platform platform, File appDir) throws IOException {
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
-
-        File targetResDir = getAndroidResourceDir(appDir);
-        if (hasExtensions) {
-            // pass
-        } else {
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-            packagesDir.mkdir();
-
-            File resDir = new File(packagesDir, "com.defold.android/res");
-            resDir.mkdirs();
-
-            BundleHelper.createAndroidResourceFolders(resDir);
-            copyAndroidIcons(resDir);
+    public File copyAndroidResources(Platform platform) throws IOException {
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            return null;
         }
+
+        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+        packagesDir.mkdir();
+
+        File resDir = new File(packagesDir, "com.defold.android/res");
+        resDir.mkdirs();
+
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+        return resDir;
     }
 
     public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {

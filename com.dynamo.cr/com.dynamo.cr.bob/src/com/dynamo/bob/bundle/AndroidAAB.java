@@ -151,7 +151,7 @@ public class AndroidAAB {
 				}
 			}
 			else {
-				logger.log(Level.INFO, "Using extender binary for architecture: " + architecture.toString());
+				log("Using extender binary for architecture: " + architecture.toString());
 				if (classesDex.isEmpty()) {
 					int i = 1;
 					while(true) {
@@ -172,37 +172,48 @@ public class AndroidAAB {
 	/**
 	* Copy Android resources per package
 	*/
-	private static File copyResources(Project project, File bundleDir, ICanceled canceled) throws IOException {
-		// create a list of resource directories, per package
+	private static File copyResources(Project project, File bundleDir, BundleHelper helper, ICanceled canceled) throws IOException {
 		Platform platform = Platform.Armv7Android;
 		File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+
+		File androidResDir = createDir(bundleDir, "res");
+
+		// create a list of resource directories, per package
 		List<File> directories = new ArrayList<>();
-		File packagesList = new File(packagesDir, "packages.txt");
-		if (packagesList.exists()) {
-			List<String> allLines = Files.readAllLines(new File(packagesDir, "packages.txt").toPath());
-			for (String line : allLines) {
-				File resDir = new File(packagesDir, line);
-				if (resDir.isDirectory()) {
-					directories.add(resDir);
+		// Native extension build
+		// Include all Android resources received from extender server
+		if(packagesDir.exists()) {
+			File packagesList = new File(packagesDir, "packages.txt");
+			if (packagesList.exists()) {
+				List<String> allLines = Files.readAllLines(packagesList.toPath());
+				for (String line : allLines) {
+					File resDir = new File(packagesDir, line);
+					if (resDir.isDirectory()) {
+						directories.add(resDir);
+					}
+				}
+			}
+			else {
+				for (File dir : packagesDir.listFiles(File::isDirectory)) {
+					File resDir = new File(dir, "res");
+					if (resDir.isDirectory()) {
+						directories.add(resDir);
+					}
 				}
 			}
 		}
+		// Non-native extension build
+		// Include local Android resources (icons)
 		else {
-			for (File dir : packagesDir.listFiles(File::isDirectory)) {
-				File resDir = new File(dir, "res");
-				if (resDir.isDirectory()) {
-					directories.add(resDir);
-				}
-			}
+			File resDir = helper.copyAndroidResources(platform);
+			directories.add(resDir);
 		}
 
 		// copy all resources per package
 		// packages/com.foo.bar/res/* -> res/com.foo.bar/*
-		File androidResDir = createDir(bundleDir, "res");
 		for (File src : directories) {
 			Path srcPath = Path.of(src.getAbsolutePath());
-			Path relative = Path.of(packagesDir.getAbsolutePath()).relativize(srcPath);
-			String packageName = relative.getName(0).toString();
+			String packageName = srcPath.getName(srcPath.getNameCount() - 2).toString();
 			File dest = createDir(androidResDir, packageName);
 			for(File f : src.listFiles(File::isDirectory)) {
 				FileUtils.copyDirectoryToDirectory(f, dest);
@@ -409,7 +420,7 @@ public class AndroidAAB {
 		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 		BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
 		File manifestFile = helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
-		File androidResDir = copyResources(project, appDir, canceled);
+		File androidResDir = copyResources(project, appDir, helper, canceled);
 
 		// STEP 2. Use aapt2 to compile resources (to *.flat files)
 		File compiledResDir = aapt2CompileResources(project, appDir, androidResDir, canceled);
