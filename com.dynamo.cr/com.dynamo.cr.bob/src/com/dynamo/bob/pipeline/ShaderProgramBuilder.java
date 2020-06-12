@@ -439,7 +439,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return builder;
     }
 
-    public ShaderDesc compile(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean soft_fail) throws IOException, CompileExceptionError {
+    public ShaderDesc compile(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
@@ -451,10 +451,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
-                    if (builder != null)
+
+                    if (outputSpirv)
                     {
-                        shaderDescBuilder.addShaders(builder);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        if (builder != null)
+                        {
+                            shaderDescBuilder.addShaders(builder);
+                        }
                     }
                 }
                 break;
@@ -464,10 +468,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
-                    if (builder != null)
+
+                    if (outputSpirv)
                     {
-                        shaderDescBuilder.addShaders(builder);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        if (builder != null)
+                        {
+                            shaderDescBuilder.addShaders(builder);
+                        }
                     }
                 }
                 break;
@@ -477,10 +485,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
-                    if (builder != null)
+                    if (outputSpirv)
                     {
-                        shaderDescBuilder.addShaders(builder);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        if (builder != null)
+                        {
+                            shaderDescBuilder.addShaders(builder);
+                        }
                     }
                 }
                 break;
@@ -491,10 +502,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 {
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "es", isDebug, soft_fail);
-                    if (builder != null)
+                    if (outputSpirv)
                     {
-                        shaderDescBuilder.addShaders(builder);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "es", isDebug, soft_fail);
+                        if (builder != null)
+                        {
+                            shaderDescBuilder.addShaders(builder);
+                        }
                     }
                 }
                 break;
@@ -503,10 +517,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case Arm64Android:
                     shaderDescBuilder.addShaders(tranformGLSL(is, resource, resourceOutput, platform, isDebug));
                     is.reset();
-                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
-                    if (builder != null)
+                    if (outputSpirv)
                     {
-                        shaderDescBuilder.addShaders(builder);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        if (builder != null)
+                        {
+                            shaderDescBuilder.addShaders(builder);
+                        }
                     }
                 break;
 
@@ -547,7 +564,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
            is.read(inBytes);
            ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
 
-           ShaderDesc shaderDesc = compile(bais, shaderType, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false, false);
+           ShaderDesc shaderDesc = compile(bais, shaderType, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false, false, false);
            shaderDesc.writeTo(os);
            os.close();
        }
