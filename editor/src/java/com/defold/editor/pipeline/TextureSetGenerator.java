@@ -238,6 +238,7 @@ public class TextureSetGenerator {
 
             // the points are in object space, where origin is at the center of the sprite image
             // in units [-0.5,0.5]
+            // The polygon has a CCW orientation
             float localU = geometry.getVertices(i * 2 + 0);
             float localV = geometry.getVertices(i * 2 + 1);
             float localX = localU * originalRectWidth;
@@ -282,7 +283,7 @@ public class TextureSetGenerator {
      * 3. Shrink inner rects by previous extrusion
      * 4. Create vertex data for each frame (image) in each animation
      */
-    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls,
+    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int use_geometries,
                                                 AnimIterator iterator,
                                                int margin, int innerPadding, int extrudeBorders,
                                                boolean rotate, boolean useTileGrid, Grid gridSize) {
@@ -311,6 +312,8 @@ public class TextureSetGenerator {
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout.getWidth(), layout.getHeight(), rects, iterator);
+
+        vertexData.left.setUseGeometries(use_geometries);
 
         if (imageHulls != null) {
             for (Rect rect : layout.getRectangles()) {
@@ -370,21 +373,18 @@ public class TextureSetGenerator {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
-        int usesSpriteTrimming = 0;
-        for (Integer hullSize : imageHullSizes) {
-            usesSpriteTrimming += hullSize;
-        }
-
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
+        int use_geometries = 0;
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
+            use_geometries |= imageHullSizes.get(i) > 0 ? 1 : 0;
             imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
         }
 
         // The layout step will expand the rect, and possibly rotate them
-        TextureSetResult result = calculateLayout(imageRects, imageHulls, iterator,
+        TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
                                                         margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
         for (int i = 0; i < images.size(); ++i) {

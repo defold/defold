@@ -237,7 +237,7 @@ public class TextureSetGenerator {
         for (int i = 0; i < numPoints; ++i) {
 
             // the points are in object space, where origin is at the center of the sprite image
-            // in units [-0.5,0.5].
+            // in units [-0.5,0.5]
             // The polygon has a CCW orientation
             float localU = geometry.getVertices(i * 2 + 0);
             float localV = geometry.getVertices(i * 2 + 1);
@@ -372,11 +372,6 @@ public class TextureSetGenerator {
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
-
-        int usesSpriteTrimming = 0;
-        for (Integer hullSize : imageHullSizes) {
-            usesSpriteTrimming += hullSize;
-        }
 
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
