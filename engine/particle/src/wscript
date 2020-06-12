@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os
+import Options
 
 def configure(conf):
     pass
@@ -17,14 +18,15 @@ def build(bld):
     is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
 
     if is_host:
-      bld.new_task_gen(features = 'cxx cshlib ddf',
-                       includes = ['.', '../proto'],
-                       target = 'particle_shared',
-                       protoc_includes = '../proto',
-                       uselib = 'DDF DLIB PLATFORM_SOCKET',
-                       source = 'particle.cpp ../proto/particle/particle_ddf.proto')
+        bld.new_task_gen(features = 'cxx cshlib ddf',
+                         includes = ['.', '../proto'],
+                         target = 'particle_shared',
+                         protoc_includes = '../proto',
+                         uselib = 'DDF DLIB PLATFORM_SOCKET',
+                         source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -122,7 +122,7 @@ namespace dmGameSystem
     static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry);
 
-    void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
         if (!user_data)
             return;
@@ -134,7 +134,7 @@ namespace dmGameSystem
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
 
-    void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    static void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
             return;
@@ -1216,16 +1216,16 @@ namespace dmGameSystem
         return GetGroupBitIndex((CollisionWorld*)world, group_hash);
     }
 
-    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response)
+    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)
         {
-            dmPhysics::RayCast3D(world->m_World3D, request, response);
+            dmPhysics::RayCast3D(world->m_World3D, request, results);
         }
         else
         {
-            dmPhysics::RayCast2D(world->m_World2D, request, response);
+            dmPhysics::RayCast2D(world->m_World2D, request, results);
         }
     }
 

@@ -1186,7 +1186,57 @@ namespace dmGameSystem
                 continue;
             }
 
-            rendered_vert_count += verts_per_node;
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+
+            // we skip sprite trimming on slice 9 nodes
+            if(!tc)
+            {
+                BoxVertex v00;
+                v00.SetColor(pm_color);
+                v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
+                v00.SetUV(0, 0);
+
+                BoxVertex v10;
+                v10.SetColor(pm_color);
+                v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+                v10.SetUV(1, 0);
+
+                BoxVertex v01;
+                v01.SetColor(pm_color);
+                v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+                v01.SetUV(0, 1);
+
+                BoxVertex v11;
+                v11.SetColor(pm_color);
+                v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
+                v11.SetUV(1, 1);
+
+                gui_world->m_ClientVertexBuffer.Push(v00);
+                gui_world->m_ClientVertexBuffer.Push(v10);
+                gui_world->m_ClientVertexBuffer.Push(v11);
+                gui_world->m_ClientVertexBuffer.Push(v00);
+                gui_world->m_ClientVertexBuffer.Push(v11);
+                gui_world->m_ClientVertexBuffer.Push(v01);
+
+                rendered_vert_count += 6;
+                continue;
+            }
+
+            //   0 1     2 3
+            // 0 *-*-----*-*
+            //   | |  y  | |
+            // 1 *-*-----*-*
+            //   | |     | |
+            //   |x|     |z|
+            //   | |     | |
+            // 2 *-*-----*-*
+            //   | |  w  | |
+            // 3 *-*-----*-*
+            float us[4], vs[4], xs[4], ys[4];
+
+            // v are '1-v'
+            xs[0] = ys[0] = 0;
+            xs[3] = ys[3] = 1;
 
             // disable slice9 computation below a certain dimension
             // (avoid div by zero)
@@ -1197,68 +1247,35 @@ namespace dmGameSystem
             const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
             const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
-            float us[4], vs[4], xs[4], ys[4];
-
-            //   0  1      2  3
-            // 0 *-*-----*-*
-            //   | |  y  | |
-            // 1 *--*----*-*
-            //   | |     | |
-            //   |x|     |z|
-            //   | |     | |
-            // 2 *-*-----*-*
-            //   | |  w  | |
-            // 3 *-*-----*-*
-
-            // v are '1-v'
-            xs[0] = ys[0] = 0;
-            xs[3] = ys[3] = 1;
-            bool uv_rotated;
-            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
-            if(tc)
+            static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+            bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+            bool flip_u, flip_v;
+            GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+            if(uv_rotated)
             {
-                static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-                uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-                bool flip_u, flip_v;
-                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
-                if(uv_rotated)
-                {
-                    const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
-                    const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
-                    us[uI[0]] = tc[0];
-                    us[uI[1]] = tc[0] + (su * slice9.getW());
-                    us[uI[2]] = tc[2] - (su * slice9.getY());
-                    us[uI[3]] = tc[2];
-                    vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] - (sv * slice9.getX());
-                    vs[vI[2]] = tc[5] + (sv * slice9.getZ());
-                    vs[vI[3]] = tc[5];
-                }
-                else
-                {
-                    const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
-                    const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
-                    us[uI[0]] = tc[0];
-                    us[uI[1]] = tc[0] + (su * slice9.getX());
-                    us[uI[2]] = tc[4] - (su * slice9.getZ());
-                    us[uI[3]] = tc[4];
-                    vs[vI[0]] = tc[1];
-                    vs[vI[1]] = tc[1] + (sv * slice9.getW());
-                    vs[vI[2]] = tc[3] - (sv * slice9.getY());
-                    vs[vI[3]] = tc[3];
-                }
+                const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+                const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+                us[uI[0]] = tc[0];
+                us[uI[1]] = tc[0] + (su * slice9.getW());
+                us[uI[2]] = tc[2] - (su * slice9.getY());
+                us[uI[3]] = tc[2];
+                vs[vI[0]] = tc[1];
+                vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                vs[vI[2]] = tc[5] + (sv * slice9.getZ());
+                vs[vI[3]] = tc[5];
             }
             else
             {
-                uv_rotated = false;
-                us[0] = 0;
-                us[1] = su * slice9.getX();
-                us[2] = 1 - su * slice9.getZ();
-                us[3] = 1;
-                vs[0] = 0;
-                vs[1] = sv * slice9.getW();
-                vs[2] = 1 - sv * slice9.getY();
-                vs[3] = 1;
+                const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+                const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+                us[uI[0]] = tc[0];
+                us[uI[1]] = tc[0] + (su * slice9.getX());
+                us[uI[2]] = tc[4] - (su * slice9.getZ());
+                us[uI[3]] = tc[4];
+                vs[vI[0]] = tc[1];
+                vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                vs[vI[2]] = tc[3] - (sv * slice9.getY());
+                vs[vI[3]] = tc[3];
             }
 
             xs[1] = sx * slice9.getX();
@@ -1315,6 +1332,8 @@ namespace dmGameSystem
                     gui_world->m_ClientVertexBuffer.Push(v01);
                 }
             }
+
+            rendered_vert_count += verts_per_node;
         }
         ro.m_VertexCount = rendered_vert_count;
     }
@@ -1656,6 +1675,7 @@ namespace dmGameSystem
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        DM_COUNTER("Gui.VertexCount", gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {

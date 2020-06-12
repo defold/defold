@@ -367,6 +367,7 @@ public class Bob {
 
         options.addOption("p", "platform", true, "Platform (when bundling)");
         options.addOption("bo", "bundle-output", true, "Bundle output directory");
+        options.addOption("bf", "bundle-format", true, "Format of the created bundle (Android: 'apk' and 'aab')");
 
         options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
         options.addOption(null, "identity", true, "Sign identity (iOS)");
@@ -580,6 +581,10 @@ public class Bob {
 
         if (cmd.hasOption("use-vanilla-lua")) {
             project.setOption("use-vanilla-lua", "true");
+        }
+
+        if (cmd.hasOption("bundle-format")) {
+            project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

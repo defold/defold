@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.TextFlow?>
 
-<AnchorPane stylesheets="@splash.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<AnchorPane stylesheets="@splash.css" xmlns="http://javafx.com/javafx/8">
    <ImageView fitHeight="600.0" fitWidth="949.0" pickOnBounds="true" preserveRatio="true">
       <Image url="@splash.png" />
    </ImageView>
    <AnchorPane AnchorPane.bottomAnchor="76.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="109.0" AnchorPane.topAnchor="76.0">
-      <VBox prefWidth="210.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0">
+      <VBox prefWidth="210.0" AnchorPane.leftAnchor="33.0" AnchorPane.topAnchor="115.0" spacing="15">
          <TextFlow id="startup-tip" />
          <Label id="launch-error" text="testing" visible="false" wrapText="true" />
          <Button id="error-button" text="Exit" visible="false" />
@@ -25,6 +25,15 @@
          <Label id="version" text="No Version" visible="false" wrapText="true" />
          <Label id="copyright" text="2009–2020 Defold Foundation." />
          <Label id="rights-reserved" text="All rights reserved." />
+         <Label id="sponsors" text="Corporate Partners:" />
+         <HBox id="sponsor-icons">
+            <ImageView fitHeight="30.0" preserveRatio="true">
+               <Image url="@/sponsors/king.png" />
+            </ImageView>
+            <ImageView fitHeight="30.0" preserveRatio="true">
+               <Image url="@/sponsors/heroiclabs.png" />
+            </ImageView>
+         </HBox>
       </VBox>
       <ProgressBar AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" />
    </AnchorPane>

@@ -1,14 +1,17 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
+
+#include <stdlib.h> // qsort
 
 #include "physics.h"
 
@@ -35,6 +38,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
@@ -48,24 +52,50 @@ namespace dmPhysics
     , m_ContactListener(this)
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
-    ProcessRayCastResultCallback2D::ProcessRayCastResultCallback2D()
-    : m_Context(0x0)
-    , m_IgnoredUserData(0x0)
-    , m_CollisionGroup((uint16_t)~0u)
-    , m_CollisionMask((uint16_t)~0u)
+    class ProcessRayCastResultCallback2D : public b2RayCastCallback
     {
+    public:
+        ProcessRayCastResultCallback2D()
+            : m_Context(0x0)
+            , m_Request(0x0)
+            , m_Callback(0x0)
+            , m_IgnoredUserData(0x0)
+            , m_CollisionGroup((uint16_t)~0u)
+            , m_CollisionMask((uint16_t)~0u)
+            , m_ReturnAllResults(0) {}
 
-    }
+        virtual ~ProcessRayCastResultCallback2D() {}
 
-    ProcessRayCastResultCallback2D::~ProcessRayCastResultCallback2D()
-    {
+        /// Called for each fixture found in the query. You control how the ray cast
+        /// proceeds by returning a float:
+        /// return -1: ignore this fixture and continue
+        /// return 0: terminate the ray cast
+        /// return fraction: clip the ray to this point
+        /// return 1: don't clip the ray and continue
+        /// @param fixture the fixture hit by the ray
+        /// @param point the point of initial intersection
+        /// @param normal the normal vector at the point of intersection
+        /// @return -1 to filter, 0 to terminate, fraction to clip the ray for
+        /// closest hit, 1 to continue
+        virtual float32 ReportFixture(b2Fixture* fixture, int32 index, const b2Vec2& point, const b2Vec2& normal, float32 fraction);
 
-    }
+        HContext2D                  m_Context;
+        RayCastResponse             m_Response;
+        const RayCastRequest*       m_Request;
+        RayCastCallback             m_Callback;
+        dmArray<RayCastResponse>*   m_Results;      // For when returning all hits
+        void*                   m_IgnoredUserData;
+        uint16_t                m_CollisionGroup;
+        uint16_t                m_CollisionMask;
+        uint16_t                m_ReturnAllResults:1;
+        uint16_t                :15;
+    };
 
     float32 ProcessRayCastResultCallback2D::ReportFixture(b2Fixture* fixture, int32_t index, const b2Vec2& point, const b2Vec2& normal, float32 fraction)
     {
@@ -82,6 +112,16 @@ namespace dmPhysics
             m_Response.m_CollisionObjectUserData = fixture->GetBody()->GetUserData();
             FromB2(normal, m_Response.m_Normal, 1.0f); // Don't scale normal
             FromB2(point, m_Response.m_Position, m_Context->m_InvScale);
+
+            // Returning fraction means we're splitting the search area, effectively returning the closest ray
+            // By returning 1, we're make sure each hit is reported.
+            if (m_ReturnAllResults)
+            {
+                if (m_Results->Full())
+                    m_Results->OffsetCapacity(32);
+                m_Results->Push(m_Response);
+                return 1.0f;
+            }
             return fraction;
         }
         else
@@ -175,6 +215,7 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit2D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -241,6 +282,7 @@ namespace dmPhysics
         for (int i = 0; i < count; ++i)
         {
             shape->m_vertices[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
+            shape->m_verticesOriginal[i] = FlipPoint(shape->m_vertices[i], horizontal, vertical);
         }
 
         // Switch the winding of the polygon
@@ -250,6 +292,10 @@ namespace dmPhysics
             tmp = shape->m_vertices[i];
             shape->m_vertices[i] = shape->m_vertices[count-i-1];
             shape->m_vertices[count-i-1] = tmp;
+
+            tmp = shape->m_verticesOriginal[i];
+            shape->m_verticesOriginal[i] = shape->m_verticesOriginal[count-i-1];
+            shape->m_verticesOriginal[count-i-1] = tmp;
         }
 
         // Recalculate the normals
@@ -278,7 +324,7 @@ namespace dmPhysics
             }
             fixture = fixture->GetNext();
         }
-        body->SetSleepingAllowed(false);
+        body->SetAwake(true);
     }
 
     void FlipH2D(HCollisionObject2D collision_object)
@@ -289,6 +335,48 @@ namespace dmPhysics
     void FlipV2D(HCollisionObject2D collision_object)
     {
         FlipBody(collision_object, 1, -1);
+    }
+
+    static void UpdateScale(HWorld2D world, b2Body* body)
+    {
+        dmTransform::Transform world_transform;
+        (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+
+        float object_scale = world_transform.GetUniformScale();
+
+        b2Fixture* fix = body->GetFixtureList();
+        bool allow_sleep = true;
+        while( fix )
+        {
+            b2Shape* shape = fix->GetShape();
+            if (shape->m_lastScale == object_scale )
+            {
+                break;
+            }
+            shape->m_lastScale = object_scale;
+            allow_sleep = false;
+
+            if (fix->GetShape()->GetType() == b2Shape::e_circle) {
+                // creation scale for circles, is the initial radius
+                shape->m_radius = shape->m_creationScale * object_scale;
+            }
+            else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
+                b2PolygonShape* pshape = (b2PolygonShape*)shape;
+                float s = object_scale / shape->m_creationScale;
+                for( int i = 0; i < 4; ++i)
+                {
+                    b2Vec2 p = pshape->m_verticesOriginal[i];
+                    pshape->m_vertices[i].Set(p.x * s, p.y * s);
+                }
+            }
+
+            fix = fix->GetNext();
+        }
+
+        if (!allow_sleep)
+        {
+            body->SetAwake(true);
+        }
     }
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
@@ -306,7 +394,10 @@ namespace dmPhysics
             DM_PROFILE(Physics, "UpdateKinematic");
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
-                if (body->GetType() == b2_kinematicBody)
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
+
+                // translate & rotation
+                if (retrieve_gameworld_transform || body->GetType() == b2_kinematicBody)
                 {
                     Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
                     dmTransform::Transform world_transform;
@@ -331,6 +422,12 @@ namespace dmPhysics
                     {
                         body->SetSleepingAllowed(true);
                     }
+                }
+
+                // Scaling
+                if(retrieve_gameworld_transform)
+                {
+                    UpdateScale(world, body);
                 }
             }
         }
@@ -555,7 +652,6 @@ namespace dmPhysics
 
     void SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
-
         b2Body* body = (b2Body*) collision_object;
         b2Fixture* fixture = GetFixture(body, shape_index);
         b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
@@ -638,6 +734,7 @@ namespace dmPhysics
             b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
             circle_shape_prim->m_p = TransformScaleB2(transform, scale, circle_shape->m_p);
             circle_shape_prim->m_radius *= scale;
+            scale = circle_shape_prim->m_radius;
             ret = circle_shape_prim;
         }
             break;
@@ -691,6 +788,7 @@ namespace dmPhysics
             break;
         }
 
+        ret->m_creationScale = scale;
         return ret;
     }
 
@@ -1024,7 +1122,15 @@ namespace dmPhysics
         }
     }
 
-    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response)
+    static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
+    {
+        float diff = a->m_Fraction - b->m_Fraction;
+        if (diff == 0)
+            return 0;
+        return diff < 0 ? -1 : 1;
+    }
+
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE(Physics, "RayCasts");
 
@@ -1037,17 +1143,32 @@ namespace dmPhysics
         }
 
         float scale = world->m_Context->m_Scale;
-        ProcessRayCastResultCallback2D callback;
-        callback.m_Context = world->m_Context;
+        ProcessRayCastResultCallback2D query;
+        query.m_Request = &request;
+        query.m_ReturnAllResults = request.m_ReturnAllResults;
+        query.m_Context = world->m_Context;
+        query.m_Results = &results;
         b2Vec2 from;
-        ToB2(request.m_From, from, scale);
+        ToB2(from2d, from, scale);
         b2Vec2 to;
-        ToB2(request.m_To, to, scale);
-        callback.m_IgnoredUserData = request.m_IgnoredUserData;
-        callback.m_CollisionMask = request.m_Mask;
-        callback.m_Response.m_Hit = 0;
-        world->m_World.RayCast(&callback, from, to);
-        response = callback.m_Response;
+        ToB2(to2d, to, scale);
+        query.m_IgnoredUserData = request.m_IgnoredUserData;
+        query.m_CollisionMask = request.m_Mask;
+        query.m_Response.m_Hit = 0;
+        world->m_World.RayCast(&query, from, to);
+
+        if (!request.m_ReturnAllResults) {
+            if (query.m_Response.m_Hit)
+            {
+                if (results.Full())
+                    results.OffsetCapacity(1);
+                results.SetSize(1);
+                results[0] = query.m_Response;
+            }
+        } else
+        {
+            qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
+        }
     }
 
     void SetGravity2D(HWorld2D world, const Vectormath::Aos::Vector3& gravity)
