@@ -28,6 +28,7 @@
 #include "../proto/gamesys_ddf.h"
 #include "../proto/sprite_ddf.h"
 #include "../components/comp_label.h"
+#include "../components/comp_gui.h"
 
 namespace dmGameSystem
 {
@@ -1091,6 +1092,37 @@ TEST_P(CollectionFactoryTest, Test)
 
 /* Draw Count */
 
+TEST_P(BoxRenderTest, BoxRender)
+{
+    const BoxRenderParams& p = GetParam();
+    const char* go_path = p.m_GOPath;
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Make the render list that will be used later.
+    dmRender::RenderListBegin(m_RenderContext);
+
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+
+    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*)m_GuiContext.m_Worlds[0];
+    ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (u_int32_t)p.m_ExpectedVerticesCount);
+
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGraphics::Flip(m_GraphicsContext);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_P(DrawCountTest, DrawCount)
 {
     const DrawCountParams& p = GetParam();
@@ -1119,6 +1151,8 @@ TEST_P(DrawCountTest, DrawCount)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
+/*  */
 
 /* Physics joints */
 TEST_F(ComponentTest, JointTest)
@@ -1715,6 +1749,13 @@ DrawCountParams draw_count_params[] =
     {"/gui/draw_count_test2.goc", 1},
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
+
+BoxRenderParams box_render_params[] =
+{
+    // texture no-flip geometries 9-slice
+    {"/gui/render_box_test1.goc", {0.0}, 54}
+};
+INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
 
 /* Sprite cursor property */
 #define F1T3 1.0f/3.0f

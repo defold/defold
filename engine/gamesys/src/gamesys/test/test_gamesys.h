@@ -166,6 +166,19 @@ public:
     virtual ~DrawCountTest() {}
 };
 
+struct BoxRenderParams
+{
+    const char* m_GOPath;
+    float m_ExpectedVertices[256];
+    uint8_t m_ExpectedVerticesCount;
+};
+
+class BoxRenderTest : public GamesysTest<BoxRenderParams>
+{
+public:
+    virtual ~BoxRenderTest() {}
+};
+
 struct ResourcePropParams {
     const char* m_PropertyName;
     const char* m_ResourcePath;
