@@ -1139,7 +1139,6 @@ namespace dmGameSystem
             // we skip sprite trimming on slice 9 nodes
             if (!use_slice_nine && use_geometries)
             {
-                dmLogWarning("Not a nine splice path.");
                 int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
                 frame_index = texture_set_ddf->m_FrameIndices[frame_index];
 
@@ -1189,12 +1188,21 @@ namespace dmGameSystem
 
             rendered_vert_count += verts_per_node;
 
+            // disable slice9 computation below a certain dimension
+            // (avoid div by zero)
+            const float s9_min_dim = 0.001f;
+
+            const float su = 1.0f / org_width;
+            const float sv = 1.0f / org_height;
+            const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
+            const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
+
             float us[4], vs[4], xs[4], ys[4];
 
-            //   0 1     2 3
+            //   0  1      2  3
             // 0 *-*-----*-*
             //   | |  y  | |
-            // 1 *-*-----*-*
+            // 1 *--*----*-*
             //   | |     | |
             //   |x|     |z|
             //   | |     | |
@@ -1205,24 +1213,12 @@ namespace dmGameSystem
             // v are '1-v'
             xs[0] = ys[0] = 0;
             xs[3] = ys[3] = 1;
-
+            bool uv_rotated;
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
             if(tc)
             {
-                //has animation
-                dmLogWarning("Texture coordinates path.");
-
-                // disable slice9 computation below a certain dimension
-                // (avoid div by zero)
-                const float s9_min_dim = 0.001f;
-
-                const float su = 1.0f / org_width;
-                const float sv = 1.0f / org_height;
-                const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
-                const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
-
                 static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-                bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+                uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
                 bool flip_u, flip_v;
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
                 if(uv_rotated)
@@ -1251,102 +1247,73 @@ namespace dmGameSystem
                     vs[vI[2]] = tc[3] - (sv * slice9.getY());
                     vs[vI[3]] = tc[3];
                 }
-
-                xs[1] = sx * slice9.getX();
-                xs[2] = 1 - sx * slice9.getZ();
-                ys[1] = sy * slice9.getW();
-                ys[2] = 1 - sy * slice9.getY();
-
-                const Matrix4* transform = &node_transforms[i];
-                Vectormath::Aos::Vector4 pts[4][4];
-                for (int y=0;y<4;y++)
-                {
-                    for (int x=0;x<4;x++)
-                    {
-                        pts[y][x] = (*transform * Vectormath::Aos::Point3(xs[x], ys[y], 0));
-                    }
-                }
-
-                BoxVertex v00, v10, v01, v11;
-                v00.SetColor(pm_color);
-                v10.SetColor(pm_color);
-                v01.SetColor(pm_color);
-                v11.SetColor(pm_color);
-
-                for (int y=0;y<3;y++)
-                {
-                    for (int x=0;x<3;x++)
-                    {
-                        const int x0 = x;
-                        const int x1 = x+1;
-                        const int y0 = y;
-                        const int y1 = y+1;
-                        v00.SetPosition(pts[y0][x0]);
-                        v10.SetPosition(pts[y0][x1]);
-                        v01.SetPosition(pts[y1][x0]);
-                        v11.SetPosition(pts[y1][x1]);
-                        if(uv_rotated)
-                        {
-                            v00.SetUV(us[y0], vs[x0]);
-                            v10.SetUV(us[y0], vs[x1]);
-                            v01.SetUV(us[y1], vs[x0]);
-                            v11.SetUV(us[y1], vs[x1]);
-                        }
-                        else
-                        {
-                            v00.SetUV(us[x0], vs[y0]);
-                            v10.SetUV(us[x1], vs[y0]);
-                            v01.SetUV(us[x0], vs[y1]);
-                            v11.SetUV(us[x1], vs[y1]);
-                        }
-                        gui_world->m_ClientVertexBuffer.Push(v00);
-                        gui_world->m_ClientVertexBuffer.Push(v10);
-                        gui_world->m_ClientVertexBuffer.Push(v11);
-                        gui_world->m_ClientVertexBuffer.Push(v00);
-                        gui_world->m_ClientVertexBuffer.Push(v11);
-                        gui_world->m_ClientVertexBuffer.Push(v01);
-                    }
-                }
             }
             else
             {
-                dmLogWarning("Empty path.");
-
+                uv_rotated = false;
                 us[0] = 0;
+                us[1] = su * slice9.getX();
+                us[2] = 1 - su * slice9.getZ();
                 us[3] = 1;
                 vs[0] = 0;
+                vs[1] = sv * slice9.getW();
+                vs[2] = 1 - sv * slice9.getY();
                 vs[3] = 1;
+            }
 
-                Vectormath::Aos::Vector4 pts[4][4];
-                const Matrix4* transform = &node_transforms[i];
+            xs[1] = sx * slice9.getX();
+            xs[2] = 1 - sx * slice9.getZ();
+            ys[1] = sy * slice9.getW();
+            ys[2] = 1 - sy * slice9.getY();
 
-                pts[0][0] = (*transform * Vectormath::Aos::Point3(xs[0], ys[0], 0));
-                pts[0][3] = (*transform * Vectormath::Aos::Point3(xs[0], ys[3], 0));
-                pts[3][0] = (*transform * Vectormath::Aos::Point3(xs[3], ys[0], 0));
-                pts[3][3] = (*transform * Vectormath::Aos::Point3(xs[3], ys[3], 0));
+            const Matrix4* transform = &node_transforms[i];
+            Vectormath::Aos::Vector4 pts[4][4];
+            for (int y=0;y<4;y++)
+            {
+                for (int x=0;x<4;x++)
+                {
+                    pts[y][x] = (*transform * Vectormath::Aos::Point3(xs[x], ys[y], 0));
+                }
+            }
 
-                BoxVertex v00, v10, v01, v11;
-                v00.SetColor(pm_color);
-                v10.SetColor(pm_color);
-                v01.SetColor(pm_color);
-                v11.SetColor(pm_color);
-
-                v00.SetPosition(pts[0][0]);
-                v10.SetPosition(pts[0][3]);
-                v01.SetPosition(pts[3][0]);
-                v11.SetPosition(pts[3][3]);
-
-                v00.SetUV(us[0], vs[0]);
-                v10.SetUV(us[3], vs[0]);
-                v01.SetUV(us[0], vs[3]);
-                v11.SetUV(us[3], vs[3]);
-
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v10);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v01);
+            BoxVertex v00, v10, v01, v11;
+            v00.SetColor(pm_color);
+            v10.SetColor(pm_color);
+            v01.SetColor(pm_color);
+            v11.SetColor(pm_color);
+            for (int y=0;y<3;y++)
+            {
+                for (int x=0;x<3;x++)
+                {
+                    const int x0 = x;
+                    const int x1 = x+1;
+                    const int y0 = y;
+                    const int y1 = y+1;
+                    v00.SetPosition(pts[y0][x0]);
+                    v10.SetPosition(pts[y0][x1]);
+                    v01.SetPosition(pts[y1][x0]);
+                    v11.SetPosition(pts[y1][x1]);
+                    if(uv_rotated)
+                    {
+                        v00.SetUV(us[y0], vs[x0]);
+                        v10.SetUV(us[y0], vs[x1]);
+                        v01.SetUV(us[y1], vs[x0]);
+                        v11.SetUV(us[y1], vs[x1]);
+                    }
+                    else
+                    {
+                        v00.SetUV(us[x0], vs[y0]);
+                        v10.SetUV(us[x1], vs[y0]);
+                        v01.SetUV(us[x0], vs[y1]);
+                        v11.SetUV(us[x1], vs[y1]);
+                    }
+                    gui_world->m_ClientVertexBuffer.Push(v00);
+                    gui_world->m_ClientVertexBuffer.Push(v10);
+                    gui_world->m_ClientVertexBuffer.Push(v11);
+                    gui_world->m_ClientVertexBuffer.Push(v00);
+                    gui_world->m_ClientVertexBuffer.Push(v11);
+                    gui_world->m_ClientVertexBuffer.Push(v01);
+                }
             }
         }
         ro.m_VertexCount = rendered_vert_count;
@@ -1689,7 +1656,6 @@ namespace dmGameSystem
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        DM_COUNTER("GUI.VertexCount", gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {
