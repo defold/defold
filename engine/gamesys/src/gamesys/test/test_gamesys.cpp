@@ -28,7 +28,6 @@
 #include "../proto/gamesys_ddf.h"
 #include "../proto/sprite_ddf.h"
 #include "../components/comp_label.h"
-#include "../components/comp_gui.h"
 
 namespace dmGameSystem
 {
@@ -1092,6 +1091,15 @@ TEST_P(CollectionFactoryTest, Test)
 
 /* Draw Count */
 
+void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
+{
+    static const float test_epsilon = 0.000001f;
+    EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], test_epsilon);
+    EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], test_epsilon);
+    EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], test_epsilon);
+    EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], test_epsilon);
+}
+
 TEST_P(BoxRenderTest, BoxRender)
 {
     const BoxRenderParams& p = GetParam();
@@ -1108,13 +1116,108 @@ TEST_P(BoxRenderTest, BoxRender)
     // Make the render list that will be used later.
     dmRender::RenderListBegin(m_RenderContext);
 
+    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*)m_GuiContext.m_Worlds[0];
+    dmGui::SetSceneAdjustReference(world->m_Components[0]->m_Scene, dmGui::ADJUST_REFERENCE_DISABLED);
+
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
     dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
 
-    dmGameSystem::GuiWorld* world = (dmGameSystem::GuiWorld*)m_GuiContext.m_Worlds[0];
     ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (u_int32_t)p.m_ExpectedVerticesCount);
+
+    // 9-sliced node
+    if (p.m_ExpectedVerticesCount == 54)
+    {
+        AssertVertexEqual(world->m_ClientVertexBuffer[0], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[1], p.m_ExpectedVertices[1]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[2], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[3], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[4], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[5], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[6], p.m_ExpectedVertices[1]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[7], p.m_ExpectedVertices[4]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[8], p.m_ExpectedVertices[5]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[9], p.m_ExpectedVertices[1]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[10], p.m_ExpectedVertices[5]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[11], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[12], p.m_ExpectedVertices[4]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[13], p.m_ExpectedVertices[6]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[14], p.m_ExpectedVertices[7]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[15], p.m_ExpectedVertices[4]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[16], p.m_ExpectedVertices[7]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[17], p.m_ExpectedVertices[5]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[18], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[19], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[20], p.m_ExpectedVertices[8]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[21], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[22], p.m_ExpectedVertices[8]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[23], p.m_ExpectedVertices[9]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[24], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[25], p.m_ExpectedVertices[5]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[26], p.m_ExpectedVertices[10]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[27], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[28], p.m_ExpectedVertices[10]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[29], p.m_ExpectedVertices[8]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[30], p.m_ExpectedVertices[5]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[31], p.m_ExpectedVertices[7]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[32], p.m_ExpectedVertices[11]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[33], p.m_ExpectedVertices[5]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[34], p.m_ExpectedVertices[11]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[35], p.m_ExpectedVertices[10]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[36], p.m_ExpectedVertices[9]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[37], p.m_ExpectedVertices[8]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[38], p.m_ExpectedVertices[12]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[39], p.m_ExpectedVertices[9]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[40], p.m_ExpectedVertices[12]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[41], p.m_ExpectedVertices[13]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[42], p.m_ExpectedVertices[8]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[43], p.m_ExpectedVertices[10]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[44], p.m_ExpectedVertices[14]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[45], p.m_ExpectedVertices[8]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[46], p.m_ExpectedVertices[14]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[47], p.m_ExpectedVertices[12]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[48], p.m_ExpectedVertices[10]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[49], p.m_ExpectedVertices[11]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[50], p.m_ExpectedVertices[15]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[51], p.m_ExpectedVertices[10]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[52], p.m_ExpectedVertices[15]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[53], p.m_ExpectedVertices[14]);
+    }
+
+    dmArray<dmGameSystem::BoxVertex> unique;
+    unique.SetCapacity(16u);
+    for (uint32_t i = 0; i < world->m_ClientVertexBuffer.Size(); i++)
+    {
+        bool hasVertex = false;
+        for (uint32_t j = 0; j < unique.Size(); j++) 
+        {
+            hasVertex = true;
+            hasVertex &= unique[j].m_Position[0] == world->m_ClientVertexBuffer[i].m_Position[0];
+            hasVertex &= unique[j].m_Position[1] == world->m_ClientVertexBuffer[i].m_Position[1];
+            hasVertex &= unique[j].m_UV[0] == world->m_ClientVertexBuffer[i].m_UV[0];
+            hasVertex &= unique[j].m_UV[1] == world->m_ClientVertexBuffer[i].m_UV[1];
+            if (hasVertex)
+            {
+                dmLogWarning("BOX_RENDER| Vertex %u", j);
+                break;
+            }
+        }
+
+        if (hasVertex) continue;
+
+        unique.Push(world->m_ClientVertexBuffer[i]);
+        dmLogWarning("BOX_RENDER| Vertex %u", unique.Size() - 1);
+    }
+
+    for (uint32_t i = 0; i < unique.Size(); i++) {
+        dmLogWarning("BOX_RENDER| Vertex %u | dmGameSystem::BoxVertex(Vector4(%f, %f, 0.0, 0.0), %f, %f, Vector4(1.0, 1.0, 1.0, 1.0))",
+            i,
+            unique[i].m_Position[0],
+            unique[i].m_Position[1],
+            unique[i].m_UV[0],
+            unique[i].m_UV[1]);
+    }
 
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -1752,8 +1855,25 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_p
 
 BoxRenderParams box_render_params[] =
 {
-    // texture no-flip geometries 9-slice
-    {"/gui/render_box_test1.goc", {0.0}, 54}
+    // texture no-flip with_geometries
+    {"/gui/render_box_test1.goc", {
+        dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+    }, 54}
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
 

@@ -21,6 +21,7 @@
 
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
+#include "../components/comp_gui.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -169,7 +170,7 @@ public:
 struct BoxRenderParams
 {
     const char* m_GOPath;
-    float m_ExpectedVertices[256];
+    dmGameSystem::BoxVertex m_ExpectedVertices[16];
     uint8_t m_ExpectedVerticesCount;
 };
 
