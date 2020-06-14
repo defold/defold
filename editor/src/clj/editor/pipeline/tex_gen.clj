@@ -1,13 +1,14 @@
 (ns editor.pipeline.tex-gen
   (:require [editor.protobuf :as protobuf]
             [internal.util :as util])
-  (:import [com.defold.editor.pipeline TextureGenerator TextureUtil]
-           [com.defold.libs TexcLibrary$FlipAxis]
+  (:import [com.dynamo.bob TexcLibrary$FlipAxis]
+           [com.dynamo.bob.pipeline TextureGenerator]
+           [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureProfile Graphics$TextureProfiles]
            [com.google.protobuf ByteString]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$TextureFormat Graphics$TextureProfiles Graphics$TextureProfile]
-           [java.util EnumSet]
+           [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream]
-           [java.awt.image BufferedImage]))
+           [java.util EnumSet]))
 
 (set! *warn-on-reflection* true)
 

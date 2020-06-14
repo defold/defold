@@ -2,17 +2,9 @@
   (:require [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace])
-  (:import [com.defold.editor.pipeline
-            ConvexHull
-            TextureSetGenerator
-            TextureSetGenerator$AnimDesc
-            TextureSetGenerator$AnimIterator
-            TextureSetGenerator$TextureSetResult
-            TextureSetLayout$Grid
-            TextureSetLayout$Rect
-            TextureUtil
-            TileSetUtil
-            TileSetUtil$Metrics]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect]
+           [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
+           [com.dynamo.bob.util TextureUtil]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.tile.proto Tile$ConvexHull Tile$Playback]
            [java.awt.image BufferedImage]))

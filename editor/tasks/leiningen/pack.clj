@@ -12,13 +12,13 @@
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-darwin" {"bin" ["dmengine" "dmengine_release"]
-                    "lib" ["libparticle_shared.dylib" "libtexc_shared.dylib"]}
+                    "lib" ["libparticle_shared.dylib"]}
    "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll"]}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
-                    "lib" ["particle_shared.dll" "texc_shared.dll"]}
+                    "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
-                    "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
+                    "lib" ["libparticle_shared.so"]}
    "armv7-darwin"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" []}
    "arm64-darwin"  {"bin" ["dmengine" "dmengine_release"]
@@ -38,20 +38,10 @@
    "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe" "x86_64-win32/bin/luajit-64.exe"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
-   ;; msvcr120.dll is a dependency of PVRTexLib.dll. Because we unpack all these
-   ;; files to a random temporary directory which is not in the Windows search
-   ;; path we need to explicitly load all libraries "bottom up" to make sure we
-   ;; are using, and Windows can find, our versions. For this reason we have
-   ;; calls to System.load in TexcLibrary.java both in the editor and Bob. If
-   ;; you add any new dlls, make sure that they are properly loaded!
-   "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-32"            "x86_64-linux/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit-64"            "x86_64-linux/bin/luajit-64"
-   "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
 
-   "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit-32"           "x86_64-darwin/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit-64"           "x86_64-darwin/bin/luajit-64"
 
