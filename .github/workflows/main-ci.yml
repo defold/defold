@@ -257,7 +257,6 @@ jobs:
         platform: [x86_64-darwin]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
@@ -287,7 +286,7 @@ jobs:
 
   release:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
-    needs: [sign-editor]
+    needs: [sign-editor-darwin]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
