@@ -338,7 +338,7 @@ def default_flags(self):
 
         emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
                    'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_main"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456']
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456', 'LLD_REPORT_UNDEFINED']
         emflags = zip(['-s'] * len(emflags), emflags)
         emflags =[j for i in emflags for j in i]
 
@@ -1344,8 +1344,6 @@ def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
     conf.find_program('nodejs', var='NODEJS', mandatory = False)
-    if not conf.env['NODEJS']:
-        conf.find_program('node', var='NODEJS', mandatory = False)
 
     platform = None
     if getattr(Options.options, 'platform', None):
@@ -1375,6 +1373,9 @@ def detect(conf):
     conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
+
+    if build_platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
+        conf.find_program('node', var='NODEJS', mandatory = False)
 
     try:
         build_util = create_build_utility(conf.env)
@@ -1483,6 +1484,7 @@ def detect(conf):
         conf.env['EMSCRIPTEN'] = bin
         conf.env['CC'] = '%s/emcc' % (bin)
         conf.env['CXX'] = '%s/em++' % (bin)
+        conf.env['LINK_CC'] = '%s/emcc' % (bin)
         conf.env['LINK_CXX'] = '%s/em++' % (bin)
         conf.env['CPP'] = '%s/em++' % (bin)
         conf.env['AR'] = '%s/emar' % (bin)
