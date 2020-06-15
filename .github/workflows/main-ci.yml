@@ -178,7 +178,6 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build bob',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
@@ -199,8 +198,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build SDK',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
@@ -292,8 +289,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Release',
         run: 'ci/ci.sh release'
