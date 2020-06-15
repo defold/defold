@@ -1,5 +1,5 @@
 (ns editor.system
-  (:require [clojure.java.io :as io]))
+  (:import [com.defold.libs ResourceUnpacker]))
 
 (set! *warn-on-reflection* true)
 
@@ -75,6 +75,14 @@
 
 (defn defold-unpack-path
   ^String []
+  ;; This call ensures we have unpacked all the required libraries and binaries
+  ;; so that they are ready to use. It contains a check so that it will only do
+  ;; this the first time the method is called. It is safe to call from any
+  ;; thead, but will block until the unpacking thread has completed.
+  ;;
+  ;; Having this call here mainly benefits the tests and repl-interactions, as
+  ;; the editor will also explicitly call unpackResources at startup.
+  (ResourceUnpacker/unpackResources)
   (System/getProperty "defold.unpack.path"))
 
 (defn java-home

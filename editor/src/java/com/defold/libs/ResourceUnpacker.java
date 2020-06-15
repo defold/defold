@@ -29,34 +29,48 @@ public class ResourceUnpacker {
     public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
     public static final String DEFOLD_EDITOR_SHA1_KEY = "defold.editor.sha1";
 
-    private static boolean isInitialized = false;
+    private static volatile boolean isInitialized = false;
+    private static Object lock = new Object();
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
     private static Path unpackedLibDir;
 
     public static void unpackResources() throws IOException, URISyntaxException {
+        // Once the resources have been unpacked, we can avoid acquiring the
+        // lock by checking this early.
         if (isInitialized) {
             return;
         }
-        isInitialized = true;
 
-        Path unpackPath  = getUnpackPath();
-        unpackResourceDir("/_unpack", unpackPath);
+        synchronized (lock) {
+            // Another thread might have already unpacked the resources while we
+            // were waiting for the lock to be released.
+            if (isInitialized) {
+                return;
+            }
 
-        Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
-        if (binDir.toFile().exists()) {
-            Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
+            try {
+                Path unpackPath  = getUnpackPath();
+                unpackResourceDir("/_unpack", unpackPath);
+
+                Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
+                if (binDir.toFile().exists()) {
+                    Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
+                }
+
+                unpackedLibDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath();
+                System.setProperty("java.library.path", unpackedLibDir.toString());
+                System.setProperty("jna.library.path", unpackedLibDir.toString());
+
+                // Disable JOGL automatic library loading as it caused JVM
+                // crashes on Linux. See DEFEDIT-494 for more details.
+                System.setProperty("jogamp.gluegen.UseTempJarCache", "false");
+
+                System.setProperty(DEFOLD_UNPACK_PATH_KEY, unpackPath.toAbsolutePath().toString());
+                logger.info("defold.unpack.path={}", System.getProperty(DEFOLD_UNPACK_PATH_KEY));
+            } finally {
+                isInitialized = true;
+            }
         }
-
-        unpackedLibDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath();
-        System.setProperty("java.library.path", unpackedLibDir.toString());
-        System.setProperty("jna.library.path", unpackedLibDir.toString());
-
-        // Disable JOGL automatic library loading as it caused JVM
-        // crashes on Linux. See DEFEDIT-494 for more details.
-        System.setProperty("jogamp.gluegen.UseTempJarCache", "false");
-
-        System.setProperty(DEFOLD_UNPACK_PATH_KEY, unpackPath.toAbsolutePath().toString());
-        logger.info("defold.unpack.path={}", System.getProperty(DEFOLD_UNPACK_PATH_KEY));
     }
 
     public static Path getUnpackedLibraryPath(String libName) {
