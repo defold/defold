@@ -212,7 +212,7 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
 def download_editor2(platform = None):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
-    else
+    else:
         platforms = [platform]
 
     opts = []
@@ -243,7 +243,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
 def archive_editor2(channel = None, engine_artifacts = None, platform = None):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
-    else
+    else:
         platforms = [platform]
 
     opts = []
