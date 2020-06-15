@@ -172,6 +172,7 @@ struct BoxRenderParams
     const char* m_GOPath;
     dmGameSystem::BoxVertex m_ExpectedVertices[16];
     uint8_t m_ExpectedVerticesCount;
+    int m_ExpectedIndices[54];
 };
 
 class BoxRenderTest : public GamesysTest<BoxRenderParams>

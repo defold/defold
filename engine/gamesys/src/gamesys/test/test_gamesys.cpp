@@ -1126,96 +1126,9 @@ TEST_P(BoxRenderTest, BoxRender)
 
     ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (u_int32_t)p.m_ExpectedVerticesCount);
 
-    // 9-sliced node
-    if (p.m_ExpectedVerticesCount == 54)
+    for (int i = 0; i < p.m_ExpectedVerticesCount; i++)
     {
-        AssertVertexEqual(world->m_ClientVertexBuffer[0], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[1], p.m_ExpectedVertices[1]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[2], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[3], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[4], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[5], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[6], p.m_ExpectedVertices[1]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[7], p.m_ExpectedVertices[4]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[8], p.m_ExpectedVertices[5]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[9], p.m_ExpectedVertices[1]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[10], p.m_ExpectedVertices[5]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[11], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[12], p.m_ExpectedVertices[4]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[13], p.m_ExpectedVertices[6]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[14], p.m_ExpectedVertices[7]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[15], p.m_ExpectedVertices[4]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[16], p.m_ExpectedVertices[7]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[17], p.m_ExpectedVertices[5]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[18], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[19], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[20], p.m_ExpectedVertices[8]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[21], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[22], p.m_ExpectedVertices[8]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[23], p.m_ExpectedVertices[9]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[24], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[25], p.m_ExpectedVertices[5]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[26], p.m_ExpectedVertices[10]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[27], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[28], p.m_ExpectedVertices[10]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[29], p.m_ExpectedVertices[8]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[30], p.m_ExpectedVertices[5]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[31], p.m_ExpectedVertices[7]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[32], p.m_ExpectedVertices[11]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[33], p.m_ExpectedVertices[5]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[34], p.m_ExpectedVertices[11]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[35], p.m_ExpectedVertices[10]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[36], p.m_ExpectedVertices[9]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[37], p.m_ExpectedVertices[8]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[38], p.m_ExpectedVertices[12]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[39], p.m_ExpectedVertices[9]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[40], p.m_ExpectedVertices[12]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[41], p.m_ExpectedVertices[13]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[42], p.m_ExpectedVertices[8]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[43], p.m_ExpectedVertices[10]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[44], p.m_ExpectedVertices[14]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[45], p.m_ExpectedVertices[8]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[46], p.m_ExpectedVertices[14]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[47], p.m_ExpectedVertices[12]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[48], p.m_ExpectedVertices[10]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[49], p.m_ExpectedVertices[11]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[50], p.m_ExpectedVertices[15]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[51], p.m_ExpectedVertices[10]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[52], p.m_ExpectedVertices[15]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[53], p.m_ExpectedVertices[14]);
-    }
-
-    // geometries with 8 vertices
-    if (p.m_ExpectedVerticesCount == 18)
-    {
-        AssertVertexEqual(world->m_ClientVertexBuffer[0], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[1], p.m_ExpectedVertices[1]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[2], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[3], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[4], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[5], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[6], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[7], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[8], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[9], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[10], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[11], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[12], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[13], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[14], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[15], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[16], p.m_ExpectedVertices[3]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[17], p.m_ExpectedVertices[3]);
-    }
-
-    if (p.m_ExpectedVerticesCount == 6)
-    {
-        AssertVertexEqual(world->m_ClientVertexBuffer[0], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[1], p.m_ExpectedVertices[1]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[2], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[3], p.m_ExpectedVertices[0]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[4], p.m_ExpectedVertices[2]);
-        AssertVertexEqual(world->m_ClientVertexBuffer[5], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[i], p.m_ExpectedVertices[p.m_ExpectedIndices[i]]);
     }
 
     dmArray<dmGameSystem::BoxVertex> unique;
@@ -1888,38 +1801,53 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_p
 BoxRenderParams box_render_params[] =
 {
     // 9-slice params: on | Use geometries: 8 | Flip uv: off | Texture: tilesource animation
-    {"/gui/render_box_test1.goc", {
-        dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
-    }, 54},
+    {
+        "/gui/render_box_test1.goc", 
+        {
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+        }, 
+        54,
+        {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
+    },
     // 9-slice params: off | Use geometries: 8 | Flip uv: off | Texture: tilesource animation
-    {"/gui/render_box_test2.goc", {
-        dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
-    }, 18},
+    {
+        "/gui/render_box_test2.goc", 
+        {
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+        },
+        18,
+        {0, 1, 2, 0, 2, 2, 0, 2, 3, 0, 3, 3, 0, 3, 3, 0, 3, 3}
+    },
     // 9-slice params: off | Use geometries: off | Flip uv: off | Texture: tilesource animation
-    {"/gui/render_box_test3.goc", {
-        dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-        dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
-    }, 6}
+    {
+        "/gui/render_box_test3.goc", 
+        {
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
+        },
+        6,
+        {0, 1, 2, 0, 2, 3}
+    }
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
 
