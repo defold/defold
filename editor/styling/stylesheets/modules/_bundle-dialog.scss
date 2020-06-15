@@ -31,7 +31,7 @@
     }
 
     .choice-box, .text-field {
-      -fx-min-width: 165px;
+      -fx-pref-width: 165px;
 
       &.error { -fx-border-color: $error-severity-fatal; }
       &.warning { -fx-border-color: $error-severity-warning; }
