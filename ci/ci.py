@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,9 @@ import platform
 import os
 import base64
 from argparse import ArgumentParser
+
+# The platforms we deploy our editor on
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
 
 def call(args, failonerror = True):
     print(args)
@@ -185,6 +188,10 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
 
 
 def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
+    host_platform = platform_from_host()
+    if not host_platform in PLATFORMS_DESKTOP:
+        return
+
     opts = []
 
     if engine_artifacts:
@@ -197,10 +204,20 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
         opts.append('--skip-tests')
 
     opts_string = ' '.join(opts)
-    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform_from_host(), opts_string))
-    for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
+
+    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (host_platform, opts_string))
+    for platform in PLATFORMS_DESKTOP:
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
+def download_editor2(platform = None):
+    if platform is None:
+        platforms = PLATFORMS_DESKTOP
+    else
+        platforms = [platform]
+
+    opts = []
+    for platform in platforms:
+        call('python scripts/build.py download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
 
 def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     if not notarization_username or not notarization_password:
@@ -223,9 +240,13 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     call(cmd)
 
 
-def archive_editor2(channel = None, engine_artifacts = None):
-    opts = []
+def archive_editor2(channel = None, engine_artifacts = None, platform = None):
+    if platform is None:
+        platforms = PLATFORMS_DESKTOP
+    else
+        platforms = [platform]
 
+    opts = []
     if engine_artifacts:
         opts.append('--engine-artifacts=%s' % engine_artifacts)
 
@@ -233,7 +254,7 @@ def archive_editor2(channel = None, engine_artifacts = None):
         opts.append("--channel=%s" % channel)
 
     opts_string = ' '.join(opts)
-    for platform in ['x86_64-darwin', 'x86_64-linux', 'x86_64-win32']:
+    for platform in platforms:
         call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 
@@ -354,13 +375,15 @@ def main(argv):
                 skip_docs = args.skip_docs)
         elif command == "build-editor":
             build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
+        elif command == "download-editor":
+            download_editor2(platform = platform)
         elif command == "notarize-editor":
             notarize_editor2(
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
                 notarization_itc_provider = args.notarization_itc_provider)
         elif command == "archive-editor":
-            archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts)
+            archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
             build_bob(channel = engine_channel)
         elif command == "sdk":

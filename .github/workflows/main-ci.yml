@@ -23,7 +23,7 @@ env:
 
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
-  build-engine-windows:
+  bld-eng-windows:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     strategy:
       matrix:
@@ -48,7 +48,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
-  build-engine-macos:
+  bld-eng-macos:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     strategy:
       matrix:
@@ -72,7 +72,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
-  build-engine-ios:
+  bld-eng-ios:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     strategy:
       matrix:
@@ -96,7 +96,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
-  build-engine-web:
+  bld-eng-web:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     strategy:
       matrix:
@@ -120,7 +120,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
-  build-engine-android:
+  bld-eng-android:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     strategy:
       matrix:
@@ -144,7 +144,7 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
-  build-engine-linux:
+  bld-eng-linux:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     strategy:
       matrix:
@@ -171,7 +171,8 @@ jobs:
 # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -192,7 +193,8 @@ jobs:
       }]
 
   build-sdk:
-    needs: [build-engine-macos, build-engine-ios, build-engine-windows, build-engine-linux, build-engine-android, build-engine-web]
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -214,9 +216,10 @@ jobs:
 
 # ---- BUILD EDITOR ------------------
 
-  build-and-notarize-editor:
+  build-editor:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
     needs: [build-bob]
-    runs-on: macOS-latest
+    runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
@@ -233,11 +236,6 @@ jobs:
         run: 'ci/ci.sh build-editor'
       },
       {
-        name: 'Notarize editor',
-        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
-        run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
-      },
-      {
         name: 'Archive editor',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh archive-editor'
@@ -250,10 +248,46 @@ jobs:
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
       }]
 
+  sign-editor-darwin:
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [build-editor]
+    runs-on: macOS-latest
+    strategy:
+      matrix:
+        platform: [x86_64-darwin]
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
+      { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
+      {
+        name: 'Download editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
+      },
+      {
+        name: 'Notarize editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+      },
+      {
+        name: 'Archive editor',
+        if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
+        run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
+      },
+      {
+       name: 'Notify if build status changed',
+       uses: homoluctus/slatify@master,
+       if: always(),
+       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+      }]
+
 # ---- RELEASE ------------------
 
   release:
-    needs: [build-and-notarize-editor]
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    needs: [sign-editor]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
