@@ -28,6 +28,7 @@ def main(argv):
     parser.add_argument("--skip-sdk", dest="skip_sdk", action='store_true', default=False, help="Skip building the Defold SDK")
     parser.add_argument("--skip-bob", dest="skip_bob", action='store_true', default=False, help="Skip building bob")
     parser.add_argument("--skip-editor", dest="skip_editor", action='store_true', default=False, help="Skip building the editor")
+    parser.add_argument("--skip-sign", dest="skip_sign", action='store_true', default=False, help="Skip signing the artefacts")
 
     args = parser.parse_args()
 
@@ -44,6 +45,7 @@ def main(argv):
             "skip_sdk": args.skip_sdk,
             "skip_bob": args.skip_bob,
             "skip_editor": args.skip_editor,
+            "skip_sign": args.skip_sign,
             "branch": args.branch
         }
     }
