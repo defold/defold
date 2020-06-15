@@ -1185,6 +1185,29 @@ TEST_P(BoxRenderTest, BoxRender)
         AssertVertexEqual(world->m_ClientVertexBuffer[53], p.m_ExpectedVertices[14]);
     }
 
+    // geometries with 8 vertices
+    if (p.m_ExpectedVerticesCount == 18)
+    {
+        AssertVertexEqual(world->m_ClientVertexBuffer[0], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[1], p.m_ExpectedVertices[1]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[2], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[3], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[4], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[5], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[6], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[7], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[8], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[9], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[10], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[11], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[12], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[13], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[14], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[15], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[16], p.m_ExpectedVertices[3]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[17], p.m_ExpectedVertices[3]);
+    }
+
     dmArray<dmGameSystem::BoxVertex> unique;
     unique.SetCapacity(16u);
     for (uint32_t i = 0; i < world->m_ClientVertexBuffer.Size(); i++)
@@ -1199,7 +1222,7 @@ TEST_P(BoxRenderTest, BoxRender)
             hasVertex &= unique[j].m_UV[1] == world->m_ClientVertexBuffer[i].m_UV[1];
             if (hasVertex)
             {
-                dmLogWarning("BOX_RENDER| Vertex %u", j);
+                dmLogWarning("AssertVertexEqual(world->m_ClientVertexBuffer[%u], p.m_ExpectedVertices[%u]);", i, j);
                 break;
             }
         }
@@ -1207,12 +1230,11 @@ TEST_P(BoxRenderTest, BoxRender)
         if (hasVertex) continue;
 
         unique.Push(world->m_ClientVertexBuffer[i]);
-        dmLogWarning("BOX_RENDER| Vertex %u", unique.Size() - 1);
+        dmLogWarning("AssertVertexEqual(world->m_ClientVertexBuffer[%u], p.m_ExpectedVertices[%u]);", i, unique.Size() - 1);
     }
 
     for (uint32_t i = 0; i < unique.Size(); i++) {
-        dmLogWarning("BOX_RENDER| Vertex %u | dmGameSystem::BoxVertex(Vector4(%f, %f, 0.0, 0.0), %f, %f, Vector4(1.0, 1.0, 1.0, 1.0))",
-            i,
+        dmLogWarning("dmGameSystem::BoxVertex(Vector4(%f, %f, 0.0, 0.0), %f, %f, Vector4(1.0, 1.0, 1.0, 1.0))",
             unique[i].m_Position[0],
             unique[i].m_Position[1],
             unique[i].m_UV[0],
@@ -1855,7 +1877,7 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_p
 
 BoxRenderParams box_render_params[] =
 {
-    // texture no-flip with_geometries
+    // 9-slice params: on | Use geometries: 8 | Flip uv: off | Texture: tilesource animation
     {"/gui/render_box_test1.goc", {
         dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
         dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
@@ -1873,7 +1895,14 @@ BoxRenderParams box_render_params[] =
         dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
         dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
         dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
-    }, 54}
+    }, 54},
+    // 9-slice params: off | Use geometries: 8 | Flip uv: off | Texture: tilesource animation
+    {"/gui/render_box_test2.goc", {
+        dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+    }, 18}
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
 

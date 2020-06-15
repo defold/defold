@@ -1139,6 +1139,7 @@ namespace dmGameSystem
             // we skip sprite trimming on slice 9 nodes
             if (!use_slice_nine && use_geometries)
             {
+                dmLogWarning("Sprite trimming path...");
                 int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
                 frame_index = texture_set_ddf->m_FrameIndices[frame_index];
 
@@ -1160,6 +1161,10 @@ namespace dmGameSystem
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
 
                 int reverse = (int)flip_u ^ (int)flip_v;
+
+                dmLogWarning("Flip u: %d", flip_u);
+                dmLogWarning("Flip v: %d", flip_v);
+                dmLogWarning("Reverse: %d", reverse);
 
                 float scaleX = flip_u ? -1 : 1;
                 float scaleY = flip_v ? -1 : 1;
@@ -1199,10 +1204,10 @@ namespace dmGameSystem
 
             float us[4], vs[4], xs[4], ys[4];
 
-            //   0  1      2  3
+            //   0 1     2 3
             // 0 *-*-----*-*
             //   | |  y  | |
-            // 1 *--*----*-*
+            // 1 *-*-----*-*
             //   | |     | |
             //   |x|     |z|
             //   | |     | |
@@ -1223,6 +1228,10 @@ namespace dmGameSystem
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
                 if(uv_rotated)
                 {
+                    dmLogWarning("9 slice animation uv rotated path...");
+                    dmLogWarning("Flip u: %d", flip_u);
+                    dmLogWarning("Flip v: %d", flip_v);
+
                     const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
                     const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
                     us[uI[0]] = tc[0];
@@ -1236,6 +1245,10 @@ namespace dmGameSystem
                 }
                 else
                 {
+                    dmLogWarning("9 slice animation path...");
+                    dmLogWarning("Flip u: %d", flip_u);
+                    dmLogWarning("Flip v: %d", flip_v);
+
                     const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
                     const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
                     us[uI[0]] = tc[0];
@@ -1250,6 +1263,8 @@ namespace dmGameSystem
             }
             else
             {
+                dmLogWarning("9 slice no animation path...");
+
                 uv_rotated = false;
                 us[0] = 0;
                 us[1] = su * slice9.getX();
