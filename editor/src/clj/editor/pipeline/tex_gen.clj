@@ -16,7 +16,7 @@
   {:texture-format-luminance         :texture-format-luminance
    :texture-format-rgb               :texture-format-rgb
    :texture-format-rgba              :texture-format-rgba
-   :texture-format-rgb-pvrtc-2bppv   :texture-format-rgb
+   :texture-format-rgb-pvrtc-2bppv1  :texture-format-rgb
    :texture-format-rgb-pvrtc-4bppv1  :texture-format-rgb
    :texture-format-rgba-pvrtc-2bppv1 :texture-format-rgba
    :texture-format-rgba-pvrtc-4bppv1 :texture-format-rgba
