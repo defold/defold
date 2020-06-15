@@ -35,6 +35,7 @@
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject.h>
+#include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
@@ -951,7 +952,7 @@ namespace dmEngine
         }
 
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        component_create_ctx.m_ConfigFile = engine->m_Config;
+        component_create_ctx.m_Config = engine->m_Config;
         component_create_ctx.m_Script = engine->m_GOScriptContext;
         component_create_ctx.m_Register = engine->m_Register;
         component_create_ctx.m_Factory = engine->m_Factory;
@@ -964,9 +965,6 @@ namespace dmEngine
             goto bail;
         fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
         if (fact_result != dmResource::RESULT_OK)
-            goto bail;
-
-        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
             goto bail;
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
