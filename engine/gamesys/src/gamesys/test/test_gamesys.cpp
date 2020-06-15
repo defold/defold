@@ -1896,6 +1896,18 @@ BoxRenderParams box_render_params[] =
         54,
         {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
     },
+    // 9-slice params: on | Use geometries: not applicable | Flip uv: not applicable | Texture: none
+    {
+        "/gui/render_box_test7.goc",
+        {
+            dmGameSystem::BoxVertex(Vector4(-1.000000, -1.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(1.000000, -1.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(1.000000, 1.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+            dmGameSystem::BoxVertex(Vector4(-1.000000, 1.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+        },
+        54,
+        {0, 1, 2, 0, 2, 3, 1, 0, 3, 1, 3, 2, 0, 1, 2, 0, 2, 3, 3, 2, 1, 3, 1, 0, 2, 3, 0, 2, 0, 1, 3, 2, 1, 3, 1, 0, 0, 1, 2, 0, 2, 3, 1, 0, 3, 1, 3, 2, 0, 1, 2, 0, 2, 3}
+    },
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
 
