@@ -1208,6 +1208,16 @@ TEST_P(BoxRenderTest, BoxRender)
         AssertVertexEqual(world->m_ClientVertexBuffer[17], p.m_ExpectedVertices[3]);
     }
 
+    if (p.m_ExpectedVerticesCount == 6)
+    {
+        AssertVertexEqual(world->m_ClientVertexBuffer[0], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[1], p.m_ExpectedVertices[1]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[2], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[3], p.m_ExpectedVertices[0]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[4], p.m_ExpectedVertices[2]);
+        AssertVertexEqual(world->m_ClientVertexBuffer[5], p.m_ExpectedVertices[3]);
+    }
+
     dmArray<dmGameSystem::BoxVertex> unique;
     unique.SetCapacity(16u);
     for (uint32_t i = 0; i < world->m_ClientVertexBuffer.Size(); i++)
@@ -1902,7 +1912,14 @@ BoxRenderParams box_render_params[] =
         dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
         dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
         dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
-    }, 18}
+    }, 18},
+    // 9-slice params: off | Use geometries: off | Flip uv: off | Texture: tilesource animation
+    {"/gui/render_box_test3.goc", {
+        dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
+        dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
+    }, 6}
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
 
