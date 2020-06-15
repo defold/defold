@@ -36,10 +36,11 @@ namespace dmGameSystem
         uint64_t m_Group;
         TileGridResource* m_TileGridResource;
 
-        dmArray<dmPhysics::HCollisionShape3D> m_Shapes3D;
-        dmArray<dmPhysics::HCollisionShape2D> m_Shapes2D;
-        dmArray<Vectormath::Aos::Vector3> m_ShapeTranslation;
-        dmArray<Vectormath::Aos::Quat> m_ShapeRotation;
+        dmPhysics::HCollisionShape3D* m_Shapes3D;
+        dmPhysics::HCollisionShape2D* m_Shapes2D;
+        Vectormath::Aos::Vector3* m_ShapeTranslation;
+        Vectormath::Aos::Quat* m_ShapeRotation;
+        uint32_t m_TileGridShapeCount;
         uint32_t m_ShapeCount;
 
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;

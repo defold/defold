@@ -181,18 +181,16 @@ range_error:
                         dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
                         uint32_t shape_count = shapes.Size();
                         uint32_t total_shapes_count = embedded_shape_count + shape_count;
-                        resource->m_Shapes2D.SetCapacity(total_shapes_count);
-                        resource->m_ShapeTranslation.SetCapacity(total_shapes_count);
-                        resource->m_ShapeRotation.SetCapacity(total_shapes_count);
-                        resource->m_Shapes2D.SetSize(total_shapes_count);
-                        resource->m_ShapeTranslation.SetSize(total_shapes_count);
-                        resource->m_ShapeRotation.SetSize(total_shapes_count);
+                        resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * total_shapes_count);
+                        resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * total_shapes_count);
+                        resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * total_shapes_count);
                         for (uint32_t i = 0; i < shape_count; ++i)
                         {
                             resource->m_Shapes2D[i] = resource->m_TileGridResource->m_GridShapes[i];
                             resource->m_ShapeTranslation[i] = Vectormath::Aos::Vector3(0.0, 0.0, 0.0);
                             resource->m_ShapeRotation[i] = Vectormath::Aos::Quat(0.0, 0.0, 0.0, 0.0);
                         }
+                        resource->m_TileGridShapeCount = shape_count;
                         resource->m_ShapeCount = shape_count;
                     }
                 }
@@ -203,21 +201,15 @@ range_error:
         {
             if (physics_context->m_3D)
             {
-                resource->m_Shapes3D.SetCapacity(embedded_shape_count);
-                resource->m_ShapeTranslation.SetCapacity(embedded_shape_count);
-                resource->m_ShapeRotation.SetCapacity(embedded_shape_count);
-                resource->m_Shapes3D.SetSize(embedded_shape_count);
-                resource->m_ShapeTranslation.SetSize(embedded_shape_count);
-                resource->m_ShapeRotation.SetSize(embedded_shape_count);
+                resource->m_Shapes3D = (dmPhysics::HCollisionShape3D*)malloc(sizeof(dmPhysics::HCollisionShape3D) * embedded_shape_count);
+                resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * embedded_shape_count);
+                resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * embedded_shape_count);
             }
             else if (!resource->m_TileGrid)
             {
-                resource->m_Shapes2D.SetCapacity(embedded_shape_count);
-                resource->m_ShapeTranslation.SetCapacity(embedded_shape_count);
-                resource->m_ShapeRotation.SetCapacity(embedded_shape_count);
-                resource->m_Shapes2D.SetSize(embedded_shape_count);
-                resource->m_ShapeTranslation.SetSize(embedded_shape_count);
-                resource->m_ShapeRotation.SetSize(embedded_shape_count);
+                resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * embedded_shape_count);
+                resource->m_ShapeTranslation = (Vectormath::Aos::Vector3*)malloc(sizeof(Vectormath::Aos::Vector3) * embedded_shape_count);
+                resource->m_ShapeRotation = (Vectormath::Aos::Quat*)malloc(sizeof(Vectormath::Aos::Quat) * embedded_shape_count);
             }
 
             // Create embedded convex shapes
@@ -275,10 +267,11 @@ range_error:
             if (resource->m_TileGridResource)
                 dmResource::Release(factory, resource->m_TileGridResource);
         }
-        else
+
+        uint32_t shape_count = resource->m_ShapeCount;
+        if (shape_count > 0)
         {
-            uint32_t shape_count = resource->m_ShapeCount;
-            for (uint32_t i = 0; i < shape_count; ++i)
+            for (uint32_t i = resource->m_TileGridShapeCount; i < shape_count; ++i)
             {
                 if (physics_context->m_3D)
                 {
@@ -289,6 +282,16 @@ range_error:
                     dmPhysics::DeleteCollisionShape2D(resource->m_Shapes2D[i]);
                 }
             }
+            if (physics_context->m_3D)
+            {
+                free(resource->m_Shapes3D);
+            }
+            else
+            {
+                free(resource->m_Shapes2D);
+            }
+            free(resource->m_ShapeTranslation);
+            free(resource->m_ShapeRotation);
         }
         if (resource->m_DDF)
             dmDDF::FreeMessage(resource->m_DDF);
@@ -330,16 +333,7 @@ range_error:
         if (AcquireResources(physics_context, params.m_Factory, params.m_Buffer, params.m_BufferSize, &tmp_collision_object, params.m_Filename))
         {
             ReleaseResources(physics_context, params.m_Factory, collision_object);
-            collision_object->m_DDF = tmp_collision_object.m_DDF;
-            collision_object->m_Group = tmp_collision_object.m_Group;
-            memcpy(collision_object->m_Mask, tmp_collision_object.m_Mask, sizeof(collision_object->m_Mask));
-            collision_object->m_ShapeCount = tmp_collision_object.m_ShapeCount;
-            collision_object->m_ShapeRotation.Swap(tmp_collision_object.m_ShapeRotation);
-            collision_object->m_ShapeTranslation.Swap(tmp_collision_object.m_ShapeTranslation);
-            collision_object->m_Shapes2D.Swap(tmp_collision_object.m_Shapes2D);
-            collision_object->m_Shapes3D.Swap(tmp_collision_object.m_Shapes3D);
-            collision_object->m_TileGrid = tmp_collision_object.m_TileGrid;
-            collision_object->m_TileGridResource = tmp_collision_object.m_TileGridResource;
+            *collision_object = tmp_collision_object;
             return dmResource::RESULT_OK;
         }
         else
