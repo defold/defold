@@ -1896,7 +1896,7 @@ BoxRenderParams box_render_params[] =
         54,
         {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
     },
-    // 9-slice params: on | Use geometries: not applicable | Flip uv: not applicable | Texture: none
+    // 9-slice params: on | Use geometries: na | Flip uv: na | Texture: none
     {
         "/gui/render_box_test7.goc",
         {
@@ -1917,8 +1917,8 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(68.000000, 132.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
             dmGameSystem::BoxVertex(Vector4(132.000000, 132.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
         },
-        54,
-        {0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 2, 0, 2, 2, 0, 1, 3, 0, 3, 2, 1, 1, 3, 1, 3, 3, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 2, 3, 3, 3, 3, 3, 3}
+        6,
+        {0, 1, 3, 0, 3, 2}
     },
     // 9-slice params: on | Use geometries: na | Flip uv: na | Texture: script
     {
@@ -1944,7 +1944,7 @@ BoxRenderParams box_render_params[] =
         54,
         {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
     },
-    // 9-slice params: off | Use geometries: not applicable | Flip uv: not applicable | Texture: none
+    // 9-slice params: off | Use geometries: na | Flip uv: na | Texture: none
     {
         "/gui/render_box_test10.goc",
         {
@@ -1953,8 +1953,8 @@ BoxRenderParams box_render_params[] =
             dmGameSystem::BoxVertex(Vector4(-1.000000, 1.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
             dmGameSystem::BoxVertex(Vector4(1.000000, 1.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
         },
-        54,
-        {0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 2, 0, 2, 2, 0, 1, 3, 0, 3, 2, 1, 1, 3, 1, 3, 3, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 2, 3, 3, 3, 3, 3, 3}
+        6,
+        {0, 1, 3, 0, 3, 2}
     }
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));

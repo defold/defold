@@ -1135,60 +1135,91 @@ namespace dmGameSystem
             dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
             dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
             bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
 
-            // we skip sprite trimming on slice 9 nodes
-            if (!use_slice_nine && use_geometries)
+            if (!use_slice_nine)
             {
-                dmLogWarning("Sprite trimming path...");
-                int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
-                frame_index = texture_set_ddf->m_FrameIndices[frame_index];
-
-                const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
-
-                const Matrix4& w = node_transforms[i];
-
-                // NOTE: The original rendering code is from the comp_sprite.cpp.
-                // Compare with that one if you do any changes to either.
-                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
-
-                const float* points = geometry->m_Vertices.m_Data;
-                const float* uvs = geometry->m_Uvs.m_Data;
-
-                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
-                // to respect face winding (and backface culling)
-
-                bool flip_u, flip_v;
-                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
-
-                int reverse = (int)flip_u ^ (int)flip_v;
-
-                dmLogWarning("Flip u: %d", flip_u);
-                dmLogWarning("Flip v: %d", flip_v);
-                dmLogWarning("Reverse: %d", reverse);
-
-                float scaleX = flip_u ? -1 : 1;
-                float scaleY = flip_v ? -1 : 1;
-
-                // Since we don't use an index buffer, we duplicate the vertices manually
-                uint32_t index_count = geometry->m_Indices.m_Count;
-                for (uint32_t index = 0; index < index_count; ++index)
+                // we skip sprite trimming on slice 9 nodes
+                if (use_geometries)
                 {
-                    uint32_t i = geometry->m_Indices.m_Data[index];
-                    i = reverse ? (num_points - i - 1) : i;
+                    int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
+                    frame_index = texture_set_ddf->m_FrameIndices[frame_index];
 
-                    const float* point = &points[i * 2];
-                    const float* uv = &uvs[i * 2];
-                    // COnvert from range [-0.5,+0.5] to [0.0, 1.0]
-                    float x = point[0] * scaleX + 0.5f;
-                    float y = point[1] * scaleY + 0.5f;
+                    const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
 
-                    Vector4 p = w * Point3(x, y, 0.0f);
-                    BoxVertex v(p, uv[0], uv[1], pm_color);
-                    gui_world->m_ClientVertexBuffer.Push(v);
+                    const Matrix4& w = node_transforms[i];
+
+                    // NOTE: The original rendering code is from the comp_sprite.cpp.
+                    // Compare with that one if you do any changes to either.
+                    uint32_t num_points = geometry->m_Vertices.m_Count / 2;
+
+                    const float* points = geometry->m_Vertices.m_Data;
+                    const float* uvs = geometry->m_Uvs.m_Data;
+
+                    // Depending on the sprite is flipped or not, we loop the vertices forward or backward
+                    // to respect face winding (and backface culling)
+
+                    bool flip_u, flip_v;
+                    GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+
+                    int reverse = (int)flip_u ^ (int)flip_v;
+
+                    float scaleX = flip_u ? -1 : 1;
+                    float scaleY = flip_v ? -1 : 1;
+
+                    // Since we don't use an index buffer, we duplicate the vertices manually
+                    uint32_t index_count = geometry->m_Indices.m_Count;
+                    for (uint32_t index = 0; index < index_count; ++index)
+                    {
+                        uint32_t i = geometry->m_Indices.m_Data[index];
+                        i = reverse ? (num_points - i - 1) : i;
+
+                        const float* point = &points[i * 2];
+                        const float* uv = &uvs[i * 2];
+                        // COnvert from range [-0.5,+0.5] to [0.0, 1.0]
+                        float x = point[0] * scaleX + 0.5f;
+                        float y = point[1] * scaleY + 0.5f;
+
+                        Vector4 p = w * Point3(x, y, 0.0f);
+                        BoxVertex v(p, uv[0], uv[1], pm_color);
+                        gui_world->m_ClientVertexBuffer.Push(v);
+                    }
+
+                    rendered_vert_count += index_count;
+                    continue;
                 }
+                else if(!tc)
+                {
+                    BoxVertex v00;
+                    v00.SetColor(pm_color);
+                    v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
+                    v00.SetUV(0, 0);
 
-                rendered_vert_count += index_count;
-                continue;
+                    BoxVertex v10;
+                    v10.SetColor(pm_color);
+                    v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+                    v10.SetUV(1, 0);
+
+                    BoxVertex v01;
+                    v01.SetColor(pm_color);
+                    v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+                    v01.SetUV(0, 1);
+
+                    BoxVertex v11;
+                    v11.SetColor(pm_color);
+                    v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
+                    v11.SetUV(1, 1);
+
+                    gui_world->m_ClientVertexBuffer.Push(v00);
+                    gui_world->m_ClientVertexBuffer.Push(v10);
+                    gui_world->m_ClientVertexBuffer.Push(v11);
+                    gui_world->m_ClientVertexBuffer.Push(v00);
+                    gui_world->m_ClientVertexBuffer.Push(v11);
+                    gui_world->m_ClientVertexBuffer.Push(v01);
+
+                    rendered_vert_count += 6;
+                    continue;
+                }
             }
 
             rendered_vert_count += verts_per_node;
@@ -1219,7 +1250,6 @@ namespace dmGameSystem
             xs[0] = ys[0] = 0;
             xs[3] = ys[3] = 1;
             bool uv_rotated;
-            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
             if(tc)
             {
                 static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
@@ -1228,10 +1258,6 @@ namespace dmGameSystem
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
                 if(uv_rotated)
                 {
-                    dmLogWarning("9 slice animation uv rotated path...");
-                    dmLogWarning("Flip u: %d", flip_u);
-                    dmLogWarning("Flip v: %d", flip_v);
-
                     const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
                     const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
                     us[uI[0]] = tc[0];
@@ -1245,10 +1271,6 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmLogWarning("9 slice animation path...");
-                    dmLogWarning("Flip u: %d", flip_u);
-                    dmLogWarning("Flip v: %d", flip_v);
-
                     const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
                     const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
                     us[uI[0]] = tc[0];
@@ -1263,8 +1285,6 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogWarning("9 slice no animation path...");
-
                 uv_rotated = false;
                 us[0] = 0;
                 us[1] = su * slice9.getX();
