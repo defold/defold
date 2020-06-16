@@ -1230,6 +1230,22 @@ namespace dmGameSystem
 
             // render 9-sliced node
 
+            //   0 1     2 3
+            // 0 *-*-----*-*
+            //   | |  y  | |
+            // 1 *-*-----*-*
+            //   | |     | |
+            //   |x|     |z|
+            //   | |     | |
+            // 2 *-*-----*-*
+            //   | |  w  | |
+            // 3 *-*-----*-*
+            float us[4], vs[4], xs[4], ys[4];
+
+            // v are '1-v'
+            xs[0] = ys[0] = 0;
+            xs[3] = ys[3] = 1;
+
             // disable slice9 computation below a certain dimension
             // (avoid div by zero)
             const float s9_min_dim = 0.001f;
@@ -1241,22 +1257,6 @@ namespace dmGameSystem
             const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
             const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
-            float us[4], vs[4], xs[4], ys[4];
-
-            //   0 1     2 3
-            // 0 *-*-----*-*
-            //   | |  y  | |
-            // 1 *-*-----*-*
-            //   | |     | |
-            //   |x|     |z|
-            //   | |     | |
-            // 2 *-*-----*-*
-            //   | |  w  | |
-            // 3 *-*-----*-*
-
-            // v are '1-v'
-            xs[0] = ys[0] = 0;
-            xs[3] = ys[3] = 1;
 
             static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
             bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
@@ -1341,9 +1341,9 @@ namespace dmGameSystem
                     gui_world->m_ClientVertexBuffer.Push(v01);
                 }
             }
-        }
 
-        rendered_vert_count += verts_per_node;
+            rendered_vert_count += verts_per_node;
+        }
 
         ro.m_VertexCount = rendered_vert_count;
     }
