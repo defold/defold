@@ -1131,39 +1131,6 @@ TEST_P(BoxRenderTest, BoxRender)
         AssertVertexEqual(world->m_ClientVertexBuffer[i], p.m_ExpectedVertices[p.m_ExpectedIndices[i]]);
     }
 
-    dmArray<dmGameSystem::BoxVertex> unique;
-    unique.SetCapacity(16u);
-    for (uint32_t i = 0; i < world->m_ClientVertexBuffer.Size(); i++)
-    {
-        bool hasVertex = false;
-        for (uint32_t j = 0; j < unique.Size(); j++) 
-        {
-            hasVertex = true;
-            hasVertex &= unique[j].m_Position[0] == world->m_ClientVertexBuffer[i].m_Position[0];
-            hasVertex &= unique[j].m_Position[1] == world->m_ClientVertexBuffer[i].m_Position[1];
-            hasVertex &= unique[j].m_UV[0] == world->m_ClientVertexBuffer[i].m_UV[0];
-            hasVertex &= unique[j].m_UV[1] == world->m_ClientVertexBuffer[i].m_UV[1];
-            if (hasVertex)
-            {
-                dmLogWarning("%u", j);
-                break;
-            }
-        }
-
-        if (hasVertex) continue;
-
-        unique.Push(world->m_ClientVertexBuffer[i]);
-        dmLogWarning("%u", unique.Size() - 1);
-    }
-
-    for (uint32_t i = 0; i < unique.Size(); i++) {
-        dmLogWarning("dmGameSystem::BoxVertex(Vector4(%f, %f, 0.0, 0.0), %f, %f, Vector4(1.0, 1.0, 1.0, 1.0))",
-            unique[i].m_Position[0],
-            unique[i].m_Position[1],
-            unique[i].m_UV[0],
-            unique[i].m_UV[1]);
-    }
-
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     dmGraphics::Flip(m_GraphicsContext);
@@ -1199,8 +1166,6 @@ TEST_P(DrawCountTest, DrawCount)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
-
-/*  */
 
 /* Physics joints */
 TEST_F(ComponentTest, JointTest)

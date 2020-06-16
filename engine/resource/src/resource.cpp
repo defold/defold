@@ -146,7 +146,7 @@ SResourceType* FindResourceType(SResourceFactory* factory, const char* extension
 uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
 {
     dmSnPrintf(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
-    dmLogWarning("BOX_RENDER| Paths: %s/%s", base_dir, relative_dir);
+
     char* source = buf;
     char* dest = buf;
     char last_c = 0;
@@ -1069,7 +1069,6 @@ static Result LoadFromManifest(const Manifest* manifest, const char* path, uint3
 // Assumes m_LoadMutex is already held
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
-    dmLogWarning("BOX_RENDER| DoLoadResourceLocked");
     DM_PROFILE(Resource, "LoadResource");
     if (factory->m_BuiltinsManifest)
     {
@@ -1172,7 +1171,6 @@ Result DoLoadResource(HFactory factory, const char* path, const char* original_n
 // Assumes m_LoadMutex is already held
 Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
 {
-    dmLogWarning("BOX_RENDER| LoadResource");
     if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
@@ -1426,7 +1424,6 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
 
 Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size)
 {
-    dmLogWarning("BOX_RENDER| GetRaw");
     DM_PROFILE(Resource, "GetRaw");
 
     assert(name);
