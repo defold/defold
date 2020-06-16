@@ -1257,7 +1257,6 @@ namespace dmGameSystem
             const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
             const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
-
             static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
             bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
             if(uv_rotated)
@@ -1341,7 +1340,6 @@ namespace dmGameSystem
                     gui_world->m_ClientVertexBuffer.Push(v01);
                 }
             }
-
             rendered_vert_count += verts_per_node;
         }
 
