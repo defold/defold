@@ -1,5 +1,5 @@
 function init(self)
-	local data, error = sys.load_resource("/texture/valid_png.png")
+	local data, error = sys.load_resource("/texture/valid_png.rawc")
 	local img = image.load(data, true)
 	gui.new_texture("valid", img.width, img.height, img.type, img.buffer, false)
 	local node = gui.new_box_node(vmath.vector3(100,100,0), vmath.vector3(img.width,img.height,0))
