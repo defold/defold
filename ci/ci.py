@@ -209,13 +209,16 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
     for platform in PLATFORMS_DESKTOP:
         call('python scripts/build.py bundle_editor2 --platform=%s %s' % (platform, opts_string))
 
-def download_editor2(platform = None):
+def download_editor2(channel = None, platform = None):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
         platforms = [platform]
 
     opts = []
+    if channel:
+        opts.append('--channel=%s' % channel)
+
     for platform in platforms:
         call('python scripts/build.py download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
 
@@ -376,7 +379,7 @@ def main(argv):
         elif command == "build-editor":
             build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
         elif command == "download-editor":
-            download_editor2(platform = platform)
+            download_editor2(channel = editor_channel, platform = platform)
         elif command == "notarize-editor":
             notarize_editor2(
                 notarization_username = args.notarization_username,
