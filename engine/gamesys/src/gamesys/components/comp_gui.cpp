@@ -1131,6 +1131,7 @@ namespace dmGameSystem
             const float default_tc[6] = {0, 0, 0, 1, 1, 1};
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
 
+            // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
             bool manually_set_texture = tc == 0;
             if (manually_set_texture) {
                 tc = default_tc;

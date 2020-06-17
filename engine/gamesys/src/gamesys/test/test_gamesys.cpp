@@ -1124,7 +1124,7 @@ TEST_P(BoxRenderTest, BoxRender)
     dmRender::RenderListEnd(m_RenderContext);
     dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
 
-    ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (u_int32_t)p.m_ExpectedVerticesCount);
+    ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (uint32_t)p.m_ExpectedVerticesCount);
 
     for (int i = 0; i < p.m_ExpectedVerticesCount; i++)
     {

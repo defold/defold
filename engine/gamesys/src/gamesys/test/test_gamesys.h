@@ -169,10 +169,13 @@ public:
 
 struct BoxRenderParams
 {
+    const static uint8_t MAX_VERTICES_IN_9_SLICED_QUAD = 16;
+    const static uint8_t MAX_INDICES_IN_9_SLICED_QUAD = 3 * 2 * 9;
+
     const char* m_GOPath;
-    dmGameSystem::BoxVertex m_ExpectedVertices[16];
+    dmGameSystem::BoxVertex m_ExpectedVertices[MAX_VERTICES_IN_9_SLICED_QUAD];
     uint8_t m_ExpectedVerticesCount;
-    int m_ExpectedIndices[54];
+    int m_ExpectedIndices[MAX_INDICES_IN_9_SLICED_QUAD];
 };
 
 class BoxRenderTest : public GamesysTest<BoxRenderParams>
