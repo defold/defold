@@ -71,6 +71,10 @@ PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
+PACKAGES_LINUX_CLANG="clang-9.0.0"
+PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
+PACKAGES_CCTOOLS_PORT="cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux"
+
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.39.16"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -303,11 +307,14 @@ class Configuration(object):
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
         version = sys.version_info
+        suffix = os.path.splitext(file)[1]
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
         if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            run.env_command(self._form_env(), ['tar', 'xfz', file], cwd = path)
+            fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+            run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
         else:
-            tf = TarFile.open(file, 'r:gz')
+            fmts = {'.gz': 'gz', '.xz': 'xz', '.bzip2': 'bz2'}
+            tf = TarFile.open(file, 'r:%s' % fmts.get(suffix, 'gz'))
             tf.extractall(path)
             tf.close()
 
@@ -325,7 +332,9 @@ class Configuration(object):
         if not os.path.exists(dirname):
             os.makedirs(dirname)
 
-        cmd = ['tar', 'xfz', src, '-C', dirname]
+        suffix = os.path.splitext(src)[1]
+        fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+        cmd = ['tar', 'xf%s' % fmts.get(suffix, 'z'), src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
         if force_local:
@@ -517,8 +526,8 @@ class Configuration(object):
                 sys.exit(1)
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder, strip_components=1):
-            if not os.path.exists(targetfolder):
+        def download_sdk(url, targetfolder, strip_components=1, force_extract=False):
+            if not os.path.exists(targetfolder) or force_extract:
                 if not os.path.exists(os.path.dirname(targetfolder)):
                     os.makedirs(os.path.dirname(targetfolder))
                 path = self.get_local_or_remote_file(url)
@@ -554,6 +563,13 @@ class Configuration(object):
             download_sdk('%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+
+        if target_platform in ('x86_64-linux',) or ('linux' in self.host2):
+            download_sdk('%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG))
+
+        if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and ('linux' in self.host2):
+            if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
+                download_sdk('%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
 
 
     def get_ems_dir(self):
@@ -775,10 +791,12 @@ class Configuration(object):
         if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
             return False
 
+        sdkfolder = join(self.ext, 'SDKs')
+
         strip = "strip"
         if 'android' in self.target_platform:
             ANDROID_NDK_VERSION = '20'
-            ANDROID_NDK_ROOT = os.path.join(self.dynamo_home, 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % ANDROID_NDK_VERSION)
             ANDROID_GCC_VERSION = '4.9'
             if target_platform == 'armv7-android':
                 ANDROID_PLATFORM = 'arm-linux-androideabi'
@@ -787,6 +805,9 @@ class Configuration(object):
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
+
+        if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
+            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin14-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True

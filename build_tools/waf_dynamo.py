@@ -4,7 +4,6 @@ import Configure
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
-import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
@@ -37,7 +36,9 @@ MIN_OSX_SDK_VERSION="10.7"
 
 XCODE_VERSION="11.1"
 
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
+SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
+LINUX_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT, 'linux')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
@@ -233,7 +234,7 @@ def default_flags(self):
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
 
-    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
     if Options.options.with_asan and opt_level != '0':
         opt_level = 1
 
@@ -279,13 +280,30 @@ def default_flags(self):
                 self.env.append_value(f, ['-stdlib=libc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
+                if 'linux' in self.env['BUILD_PLATFORM']:
+                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin14'])
+
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+            if 'linux' in self.env['BUILD_PLATFORM']:
+                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin14'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
+
+        extra_ccflags = []
+        extra_linkflags = []
+        if 'linux' in self.env['BUILD_PLATFORM']:
+            target_triplet='arm-apple-darwin14'
+            extra_ccflags += ['-target', target_triplet, '-fclang-abi-compat=6']
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/11.0.0/lib/darwin'),
+                                '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a'), '-v']
+        else:
+            extra_linkflags += ['-fobjc-link-runtime']
+
+
         if Options.options.with_asan:
             MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
 
@@ -295,15 +313,14 @@ def default_flags(self):
             sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-
-            self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+            self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
-                                            '-isysroot', sys_root])
+                                            '-isysroot', sys_root, '-isysroot', sys_root])
 
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+        self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION] + extra_linkflags)
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
@@ -453,24 +470,6 @@ def default_install_shlib(self):
     # Force installation dir to LIBDIR.
     # Default on windows is BINDIR
     self.default_install_path = self.env.LIBDIR
-
-# objective-c++ support
-if sys.platform == "darwin":
-    EXT_OBJCXX = ['.mm']
-    @extension(EXT_OBJCXX)
-    def objc_hook(self, node):
-        tsk = cxx.cxx_hook(self, node)
-        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCXX'])
-        tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
-
-# objective-c support
-if sys.platform == "darwin":
-    EXT_OBJC = ['.m']
-    @extension(EXT_OBJC)
-    def objc_hook(self, node):
-        tsk = cc.c_hook(self, node)
-        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCC'])
-        tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
 
 # iPhone bundle and signing support
 RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
@@ -775,7 +774,7 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    if not Options.options.skip_codesign:
+    if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
         signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign', self.env)
@@ -1385,6 +1384,13 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        conf.env['TESTS_UNSUPPORTED'] = True
+        print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
+
+        conf.env['CODESIGN_UNSUPPORTED'] = True
+        print "Codesign disabled", Options.options.skip_codesign
+
     # Vulkan support
     if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
@@ -1401,7 +1407,10 @@ def detect(conf):
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
     if  build_util.get_target_os() in ('osx', 'ios'):
-        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
+        path_list = None
+        if 'linux' in build_platform:
+            path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')]
+        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
     if 'osx' == build_util.get_target_os():
@@ -1410,33 +1419,56 @@ def detect(conf):
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
 
-        conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['CPP']     = '%s/usr/bin/clang -E' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['AR']      = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
+        llvm_prefix = ''
+        bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
+        if 'linux' in build_platform:
+            llvm_prefix = 'llvm-'
+            bin_dir = os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+
+        conf.env['CC']      = '%s/clang' % bin_dir
+        conf.env['CXX']     = '%s/clang++' % bin_dir
+        conf.env['LINK_CC'] = '%s/clang' % bin_dir
+        conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+        conf.env['CPP']     = '%s/clang -E' % bin_dir
+        conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
+        conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
-        # Wrap clang in a bash-script due to a bug in clang related to cwd
-        # waf change directory from ROOT to ROOT/build when building.
-        # clang "thinks" however that cwd is ROOT instead of ROOT/build
-        # This bug is at least prevalent in "Apple clang version 3.0 (tags/Apple/clang-211.12) (based on LLVM 3.0svn)"
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
-        clang_wrapper = create_clang_wrapper(conf, 'clang')
-        clangxx_wrapper = create_clang_wrapper(conf, 'clang++')
+        if 'linux' in build_platform:
+            bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+
+            conf.env['CC']      = '%s/clang' % bin_dir
+            conf.env['CXX']     = '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = '%s/clang' % bin_dir
+            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['CPP']     = '%s/clang -E' % bin_dir
+            conf.env['AR']      = '%s/llvm-ar' % bin_dir
+            conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
+
+        else:
+            # # Wrap clang in a bash-script due to a bug in clang related to cwd
+            # # waf change directory from ROOT to ROOT/build when building.
+            # # clang "thinks" however that cwd is ROOT instead of ROOT/build
+            # # This bug is at least prevalent in "Apple clang version 3.0 (tags/Apple/clang-211.12) (based on LLVM 3.0svn)"
+            # clang_wrapper = create_clang_wrapper(conf, 'clang')
+            # clangxx_wrapper = create_clang_wrapper(conf, 'clang++')
+            bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
+
+            conf.env['CC']      = '%s/clang' % bin_dir
+            conf.env['CXX']     = '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = '%s/clang' % bin_dir
+            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['CPP']     = '%s/clang -E' % bin_dir
+            conf.env['AR']      = '%s/ar' % bin_dir
+            conf.env['RANLIB']  = '%s/ranlib' % bin_dir
+            conf.env['LD']      = '%s/ld' % bin_dir
 
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
-        conf.env['CC'] = clang_wrapper
-        conf.env['CXX'] = clangxx_wrapper
-        conf.env['LINK_CXX'] = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['CPP'] = '%s/usr/bin/clang -E' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
+
+
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch        = 'x86_64'
@@ -1454,18 +1486,25 @@ def detect(conf):
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
         conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+
     elif 'linux' == build_util.get_target_os():
-        conf.find_program('gcc-5', var='GCC5', mandatory = False)
-        if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
-            conf.env.CXX = "g++-5"
-            conf.env.CC = "gcc-5"
-            conf.env.CPP = "cpp-5"
-            conf.env.AR = "gcc-ar-5"
-            conf.env.RANLIB = "gcc-ranlib-5"
+        bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+        conf.find_program('clang-9', var='CLANG9', mandatory = False, path_list=[bin_dir])
+
+        if conf.env.CLANG9 and "clang-9" in conf.env.CLANG9:
+            conf.env['CC']      = '%s/clang' % bin_dir
+            conf.env['CXX']     = '%s/clang++' % bin_dir
+            conf.env['CPP']     = '%s/clang -E' % bin_dir
+            conf.env['LINK_CC'] = '%s/clang' % bin_dir
+            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['AR']      = '%s/llvm-ar' % bin_dir
+            conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
+
         else:
-            conf.env.CXX = "g++"
-            conf.env.CC = "gcc"
-            conf.env.CPP = "cpp"
+            # Fallback to default compiler
+            conf.env.CXX = "clang++"
+            conf.env.CC = "clang++"
+            conf.env.CPP = "clang -E"
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -1520,6 +1559,13 @@ def detect(conf):
 
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
+
+    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        conf.check_tool('waf_objectivec')
+
+        # Unknown argument: -Bstatic, -Bdynamic
+        conf.env['STATICLIB_MARKER']=''
+        conf.env['SHLIB_MARKER']=''
 
     if re.match('.*?linux', platform):
         conf.env['LIB_PLATFORM_SOCKET'] = ''

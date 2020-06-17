@@ -77,7 +77,7 @@ jobs:
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
-    runs-on: macOS-latest
+    runs-on: linux-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
