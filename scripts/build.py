@@ -318,7 +318,7 @@ class Configuration(object):
             tf.extractall(path)
             tf.close()
 
-    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
+    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         src = src.replace('\\', '/')
 
         force_local = ''
@@ -332,9 +332,11 @@ class Configuration(object):
         if not os.path.exists(dirname):
             os.makedirs(dirname)
 
-        suffix = os.path.splitext(src)[1]
-        fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-        cmd = ['tar', 'xf%s' % fmts.get(suffix, 'z'), src, '-C', dirname]
+        if format is None:
+            suffix = os.path.splitext(src)[1]
+            fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+            format = fmts.get(suffix, 'z')
+        cmd = ['tar', 'xf%s' % format, src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
         if force_local:
@@ -496,7 +498,9 @@ class Configuration(object):
                 return os.path.normpath(os.path.abspath(path))
             print "Could not find local file:", path
             sys.exit(1)
-        path = self._download(urllib.quote(path)) # it should be an url
+        dirname, basename = os.path.split(path)
+        path = os.path.join(dirname, urllib.quote(basename))
+        path = self._download(path) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
             sys.exit(1)
@@ -526,12 +530,12 @@ class Configuration(object):
                 sys.exit(1)
 
     def install_sdk(self):
-        def download_sdk(url, targetfolder, strip_components=1, force_extract=False):
+        def download_sdk(url, targetfolder, strip_components=1, force_extract=False, format='z'):
             if not os.path.exists(targetfolder) or force_extract:
                 if not os.path.exists(os.path.dirname(targetfolder)):
                     os.makedirs(os.path.dirname(targetfolder))
                 path = self.get_local_or_remote_file(url)
-                self._extract_tgz_rename_folder(path, targetfolder, strip_components)
+                self._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
 
         sdkfolder = join(self.ext, 'SDKs')
 
@@ -565,7 +569,7 @@ class Configuration(object):
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if target_platform in ('x86_64-linux','x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
-            download_sdk('%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG))
+            download_sdk('%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
 
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
             if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
