@@ -496,7 +496,7 @@ class Configuration(object):
                 return os.path.normpath(os.path.abspath(path))
             print "Could not find local file:", path
             sys.exit(1)
-        path = self._download(path) # it should be an url
+        path = self._download(urllib.quote(path)) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
             sys.exit(1)
