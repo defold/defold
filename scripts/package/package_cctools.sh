@@ -52,6 +52,9 @@ if [ ! -e ${TARGET_CCTOOLS} ]; then
 
     git clone https://github.com/tpoechtrager/cctools-port.git
 
+    cp -v -r $TAPITMP ${CCTOOLSTMP}
+    TAPITMP=${CCTOOLSTMP}/tapi1.4
+
     pushd cctools-port/cctools
 
     git checkout ${VERSION_CCTOOLS}
