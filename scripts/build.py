@@ -499,7 +499,7 @@ class Configuration(object):
             print "Could not find local file:", path
             sys.exit(1)
         dirname, basename = os.path.split(path)
-        path = os.path.join(dirname, urllib.quote(basename))
+        path = dirname + "/" + urllib.quote(basename)
         path = self._download(path) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
