@@ -7,16 +7,24 @@
     >.split-pane-divider {
       -fx-padding: 0 9 0 8;
       -fx-background-color: transparent;//$dark-grey;
+      -fx-background-image: url("icons/handlebar-v.png");
+      -fx-background-position: center center;
+      -fx-background-repeat: no-repeat;
+      -fx-background-size: auto auto;
     }
   }
 
   &:vertical {
     -fx-border-width: 0;
     -fx-background-insets: 0;
-    
+
     >.split-pane-divider {
       -fx-padding: 1;
       -fx-background-color: transparent;//$dark-grey;
+      -fx-background-image: url("icons/handlebar-h.png");
+      -fx-background-position: center center;
+      -fx-background-repeat: no-repeat;
+      -fx-background-size: auto auto;
     }
   }
 }
