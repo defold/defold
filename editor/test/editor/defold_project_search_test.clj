@@ -97,6 +97,8 @@
         (map (comp resource/proj-path :resource))
         consumed))
 
+(comment Temporarily disabled
+
 (deftest mock-consumer-test
   (let [report-error! (test-util/make-call-logger)
         consumer (make-consumer report-error!)
@@ -250,3 +252,5 @@
         (abort-search!)
         (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
         (is (= [] (test-util/call-logger-calls report-error!)))))))
+
+end of comment)

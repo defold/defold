@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -897,6 +897,7 @@ TEST_P(dmHttpClientTestExternal, PostExternal)
 const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
+#if !defined(GITHUB_CI)
 // For easier debugging, we can use external sites to monitor their responses
 // NOTE: These buckets might expire. If so, we'll have to disable that server test
 const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
@@ -904,6 +905,7 @@ const char* params_http_client_external_test[] = {  // They expire after a few d
                                                     "https://httpbin.org/post",
                                                     "https://ptsv2.com/t/csphn-1581795004/post"};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
+#endif
 
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
