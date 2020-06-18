@@ -388,6 +388,11 @@ class Configuration(object):
         else:
             print("No go found for %s" % self.target_platform)
 
+    def _check_package_path(self):
+        if self.package_path is None:
+            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
+            sys.exit(1)
+
 
     def install_ext(self):
         def make_package_path(root, platform, package):
@@ -396,9 +401,7 @@ class Configuration(object):
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
 
-        if self.package_path is None:
-            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
-            sys.exit(1)
+        self._check_package_path()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -568,7 +571,7 @@ class Configuration(object):
             # Android SDK
             download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
-        if target_platform in ('x86_64-linux','x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
+        if 'linux' in self.host2:
             download_sdk('%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
 
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
@@ -596,6 +599,7 @@ class Configuration(object):
         if os.path.isdir(emsDir):
             print "Emscripten is already installed:", emsDir
         else:
+            self._check_package_path()
             platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
             path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
             path = self.get_local_or_remote_file(path)
