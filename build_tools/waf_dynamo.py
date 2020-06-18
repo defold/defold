@@ -1,6 +1,7 @@
 import os, sys, subprocess, shutil, re, stat, glob, zipfile
 import Build, Options, Utils, Task, Logs
 import Configure
+import cc # for supporting LIBDIR
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
