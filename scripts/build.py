@@ -1787,8 +1787,12 @@ class Configuration(object):
             host = self.host
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
-        env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
-                                                     '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
+        ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
+                            '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
+        if self.host == 'x86_64-linux':
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/tapi1.4/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG))
+
+        env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
                                                   '%s/build_tools' % self.defold,
