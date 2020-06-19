@@ -165,3 +165,42 @@ Links:
                 L  0  2
                 Z";
 }
+
+#main-window {
+  .split-pane {
+    -fx-padding: 0px;
+
+    &:horizontal, &:vertical {
+      -fx-background-insets: 0px;
+      -fx-border-width: 0px;
+    }
+
+    >.split-pane-divider {
+      -fx-background-color: transparent;
+      -fx-background-position: center;
+      -fx-background-repeat: no-repeat;
+      -fx-opacity: 0.06;
+      -fx-padding: 1px;
+
+      &:hover, &:armed {
+        -fx-opacity: 0.1;
+      }
+    }
+  }
+
+  #main-split, #workbench-split {
+    >.split-pane-divider {
+      -fx-background-image: url("widgets/drag-handle-lr.png");
+      -fx-background-size: 7px 32px;
+      -fx-padding: 0px 9px 0px 8px;
+    }
+  }
+
+  #center-split {
+    >.split-pane-divider {
+      -fx-background-image: url("widgets/drag-handle-ud.png");
+      -fx-background-position: center 5px;
+      -fx-background-size: 32px 7px;
+    }
+  }
+}
