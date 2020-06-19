@@ -100,6 +100,10 @@ public class AndroidAAB {
 		return exeName;
 	}
 
+	private static String getExtenderExeDir(Project project) {
+		return FilenameUtils.concat(project.getRootDirectory(), "build");
+	}
+
 
 	private static List<Platform> getArchitectures(Project project) {
 		final Platform platform = Platform.Armv7Android;
@@ -111,7 +115,7 @@ public class AndroidAAB {
 	*/
 	private static void copyEngineBinary(Project project, Platform architecture, File dest) throws IOException {
 		// vanilla or extender exe?
-		final String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+		final String extenderExeDir = getExtenderExeDir(project);
 		List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
 		if (bundleExe == null) {
 			final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -140,7 +144,7 @@ public class AndroidAAB {
 	* Get a list of dex files to include in the aab
 	*/
 	private static ArrayList<File> getClassesDex(Project project) throws IOException {
-		String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+		final String extenderExeDir = getExtenderExeDir(project);
 		ArrayList<File> classesDex = new ArrayList<File>();
 
 		for (Platform architecture : getArchitectures(project)) {
@@ -407,6 +411,34 @@ public class AndroidAAB {
 			throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
 		}
 	}
+	
+	/**
+	* Copy debug symbols
+	*/
+	private static void copySymbols(Project project, File bundleDir, String title) throws IOException, CompileExceptionError {
+		log("Copy debug symbols");
+		File symbolsDir = new File(bundleDir, title + ".apk.symbols");
+		symbolsDir.mkdirs();
+		final String exeName = getBinaryNameFromProject(project);
+		final String extenderExeDir = getExtenderExeDir(project);
+		final List<Platform> architectures = getArchitectures(project);
+		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+		for (Platform architecture : architectures) {
+			List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+			if (bundleExe == null) {
+				bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
+			}
+			File exe = bundleExe.get(0);
+			File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+			FileUtils.copyFile(exe, symbolExe);
+		}
+
+		File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
+		if (proguardMapping.exists()) {
+			File symbolMapping = new File(symbolsDir, proguardMapping.getName());
+			FileUtils.copyFile(proguardMapping, symbolMapping);
+		}
+	}
 
 	public static void create(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
 		Bob.initAndroid(); // extract resources
@@ -433,5 +465,11 @@ public class AndroidAAB {
 
 		// STEP 5. Use bundletool to create AAB from base.zip
 		File baseAab = createBundle(project, appDir, baseZip, canceled);
+
+		// STEP 6. Copy debug symbols
+		final boolean has_symbols = project.hasOption("with-symbols");
+		if (has_symbols) {
+			copySymbols(project, appDir, title);
+		}
 	}
 }
