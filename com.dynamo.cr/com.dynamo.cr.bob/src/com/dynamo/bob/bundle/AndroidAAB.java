@@ -411,12 +411,52 @@ public class AndroidAAB {
 			throw new CompileExceptionError(null, -1, "Failed building Android Application Bundle: " + e.getMessage());
 		}
 	}
+
+	/**
+	* Sign file using certificate and key 
+	* https://developer.android.com/studio/command-line/bundletool
+	*/
+	private static void signFile(Project project, File bundleDir, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
+		log("Sing " + signFile);
+		BundleHelper.throwIfCanceled(canceled);
+
+		String certificate = project.option("certificate", "");
+		String key = project.option("private-key", "");
+
+		File unsignedFile = new File(bundleDir, "unsigned.aab");
+		Files.move(signFile.toPath(), unsignedFile.toPath());
+		signFile.delete();
+
+		if (certificate.length() > 0 && key.length() > 0) {
+			Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
+					"--in=" + unsignedFile.getAbsolutePath(),
+					"--out=" + signFile.getAbsolutePath(),
+					"-cert=" + certificate,
+					"-key=" + key);
+			if (r.ret != 0 ) {
+				throw new IOException(new String(r.stdOutErr));
+			}
+		} else {
+			Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
+					"--in=" + unsignedFile.getAbsolutePath(),
+					"--out=" + signFile.getAbsolutePath());
+			if (r.ret != 0) {
+				if (r.ret != 0 ) {
+					throw new IOException(new String(r.stdOutErr));
+				}
+			}
+		}
+		unsignedFile.delete();
+	}
 	
 	/**
 	* Copy debug symbols
 	*/
 	private static void copySymbols(Project project, File bundleDir, String title, ICanceled canceled) throws IOException, CompileExceptionError {
-		log("Copy debug symbols");
+		final boolean has_symbols = project.hasOption("with-symbols");
+		if (!has_symbols) {
+			return;
+		}
 		File symbolsDir = new File(bundleDir, title + ".apk.symbols");
 		symbolsDir.mkdirs();
 		final String exeName = getBinaryNameFromProject(project);
@@ -430,6 +470,7 @@ public class AndroidAAB {
 			}
 			File exe = bundleExe.get(0);
 			File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+			log("Copy debug symbols " + symbolExe);
 			BundleHelper.throwIfCanceled(canceled);
 			FileUtils.copyFile(exe, symbolExe);
 		}
@@ -447,6 +488,7 @@ public class AndroidAAB {
 	* Cleanup bundle folder from intermediate folders and artifacts.
 	*/
 	private static void cleanupBundleFolder(Project project, File bundleDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
+		log("Cleanup bundle folder");
 		BundleHelper.throwIfCanceled(canceled);
 		FileUtils.deleteDirectory(androidResDir);
 		FileUtils.deleteDirectory(new File(bundleDir, "aab"));
@@ -478,13 +520,13 @@ public class AndroidAAB {
 		// STEP 5. Use bundletool to create AAB from base.zip
 		File baseAab = createBundle(project, appDir, baseZip, canceled);
 
-		// STEP 6. Copy debug symbols
-		final boolean has_symbols = project.hasOption("with-symbols");
-		if (has_symbols) {
-			copySymbols(project, appDir, title, canceled);
-		}
+		//STEP 6. Sing AAB file
+		signFile(project, appDir, baseAab, canceled);
 
-		// STEP 7. Cleanup bundle folder from intermediate folders and artifacts.
+		// STEP 7. Copy debug symbols
+		copySymbols(project, appDir, title, canceled);
+
+		// STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
 		cleanupBundleFolder(project, appDir, androidResDir, canceled);
 	}
 }
