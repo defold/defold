@@ -440,6 +440,14 @@ public class AndroidAAB {
 		}
 	}
 
+	/**
+	* Cleanup bundle folder from intermediate folders and artifacts.
+	*/
+	private static void cleanupBundleFolder(File androidResDir, File bundleDir) throws IOException, CompileExceptionError {
+		FileUtils.deleteDirectory(androidResDir);
+		FileUtils.deleteDirectory(new File(bundleDir, "aab"));
+	}
+
 	public static void create(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
 		Bob.initAndroid(); // extract resources
 
@@ -471,5 +479,8 @@ public class AndroidAAB {
 		if (has_symbols) {
 			copySymbols(project, appDir, title);
 		}
+
+		// STEP 7. Cleanup bundle folder from intermediate folders and artifacts.
+		cleanupBundleFolder(androidResDir, appDir);
 	}
 }
