@@ -415,7 +415,7 @@ public class AndroidAAB {
 	/**
 	* Copy debug symbols
 	*/
-	private static void copySymbols(Project project, File bundleDir, String title) throws IOException, CompileExceptionError {
+	private static void copySymbols(Project project, File bundleDir, String title, ICanceled canceled) throws IOException, CompileExceptionError {
 		log("Copy debug symbols");
 		File symbolsDir = new File(bundleDir, title + ".apk.symbols");
 		symbolsDir.mkdirs();
@@ -430,8 +430,11 @@ public class AndroidAAB {
 			}
 			File exe = bundleExe.get(0);
 			File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+			BundleHelper.throwIfCanceled(canceled);
 			FileUtils.copyFile(exe, symbolExe);
 		}
+
+		BundleHelper.throwIfCanceled(canceled);
 
 		File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
 		if (proguardMapping.exists()) {
@@ -443,7 +446,8 @@ public class AndroidAAB {
 	/**
 	* Cleanup bundle folder from intermediate folders and artifacts.
 	*/
-	private static void cleanupBundleFolder(File androidResDir, File bundleDir) throws IOException, CompileExceptionError {
+	private static void cleanupBundleFolder(Project project, File bundleDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
+		BundleHelper.throwIfCanceled(canceled);
 		FileUtils.deleteDirectory(androidResDir);
 		FileUtils.deleteDirectory(new File(bundleDir, "aab"));
 	}
@@ -477,10 +481,10 @@ public class AndroidAAB {
 		// STEP 6. Copy debug symbols
 		final boolean has_symbols = project.hasOption("with-symbols");
 		if (has_symbols) {
-			copySymbols(project, appDir, title);
+			copySymbols(project, appDir, title, canceled);
 		}
 
 		// STEP 7. Cleanup bundle folder from intermediate folders and artifacts.
-		cleanupBundleFolder(androidResDir, appDir);
+		cleanupBundleFolder(project, appDir, androidResDir, canceled);
 	}
 }
