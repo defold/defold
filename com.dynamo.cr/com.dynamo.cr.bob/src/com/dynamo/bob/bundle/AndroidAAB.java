@@ -101,6 +101,10 @@ public class AndroidAAB {
 		return exeName;
 	}
 
+	private static String getExtenderExeDir(Project project) {
+		return FilenameUtils.concat(project.getRootDirectory(), "build");
+	}
+
 
 	private static List<Platform> getArchitectures(Project project) {
 		final Platform platform = Platform.Armv7Android;
@@ -112,7 +116,7 @@ public class AndroidAAB {
 	*/
 	private static void copyEngineBinary(Project project, Platform architecture, File dest) throws IOException {
 		// vanilla or extender exe?
-		final String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+		final String extenderExeDir = getExtenderExeDir(project);
 		List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
 		if (bundleExe == null) {
 			final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -141,7 +145,7 @@ public class AndroidAAB {
 	* Get a list of dex files to include in the aab
 	*/
 	private static ArrayList<File> getClassesDex(Project project) throws IOException {
-		String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+		final String extenderExeDir = getExtenderExeDir(project);
 		ArrayList<File> classesDex = new ArrayList<File>();
 
 		for (Platform architecture : getArchitectures(project)) {
@@ -232,8 +236,8 @@ public class AndroidAAB {
 		log("Compiling resources from " + androidResDir.getAbsolutePath());
 		try {
 			// compile the resources using aapt2 to flat format files
-			File aabDir = new File(bundleDir, "aab");
-			File compiledResourcesDir = createDir(aabDir, "aapt2/compiled_resources");
+			File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
+			compiledResourcesDir.deleteOnExit();
 
 			// compile the resources for each package
 			for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
@@ -409,6 +413,88 @@ public class AndroidAAB {
 		}
 	}
 
+	/**
+	* Sign file using certificate and key
+	* https://developer.android.com/studio/command-line/bundletool
+	*/
+	private static void signFile(Project project, File bundleDir, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
+		log("Sign " + signFile);
+		BundleHelper.throwIfCanceled(canceled);
+
+		String certificate = project.option("certificate", "");
+		String key = project.option("private-key", "");
+
+		File unsignedFile = new File(bundleDir, "unsigned.aab");
+		Files.move(signFile.toPath(), unsignedFile.toPath());
+		signFile.delete();
+
+		if (certificate.length() > 0 && key.length() > 0) {
+			Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
+					"--in=" + unsignedFile.getAbsolutePath(),
+					"--out=" + signFile.getAbsolutePath(),
+					"-cert=" + certificate,
+					"-key=" + key);
+			if (r.ret != 0 ) {
+				throw new IOException(new String(r.stdOutErr));
+			}
+		} else {
+			Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
+					"--in=" + unsignedFile.getAbsolutePath(),
+					"--out=" + signFile.getAbsolutePath());
+			if (r.ret != 0) {
+				if (r.ret != 0 ) {
+					throw new IOException(new String(r.stdOutErr));
+				}
+			}
+		}
+		unsignedFile.delete();
+	}
+
+	/**
+	* Copy debug symbols
+	*/
+	private static void copySymbols(Project project, File bundleDir, String title, ICanceled canceled) throws IOException, CompileExceptionError {
+		final boolean has_symbols = project.hasOption("with-symbols");
+		if (!has_symbols) {
+			return;
+		}
+		File symbolsDir = new File(bundleDir, title + ".apk.symbols");
+		symbolsDir.mkdirs();
+		final String exeName = getBinaryNameFromProject(project);
+		final String extenderExeDir = getExtenderExeDir(project);
+		final List<Platform> architectures = getArchitectures(project);
+		final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+		for (Platform architecture : architectures) {
+			List<File> bundleExe = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+			if (bundleExe == null) {
+				bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
+			}
+			File exe = bundleExe.get(0);
+			File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+			log("Copy debug symbols " + symbolExe);
+			BundleHelper.throwIfCanceled(canceled);
+			FileUtils.copyFile(exe, symbolExe);
+		}
+
+		BundleHelper.throwIfCanceled(canceled);
+
+		File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
+		if (proguardMapping.exists()) {
+			File symbolMapping = new File(symbolsDir, proguardMapping.getName());
+			FileUtils.copyFile(proguardMapping, symbolMapping);
+		}
+	}
+
+	/**
+	* Cleanup bundle folder from intermediate folders and artifacts.
+	*/
+	private static void cleanupBundleFolder(Project project, File bundleDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
+		log("Cleanup bundle folder");
+		BundleHelper.throwIfCanceled(canceled);
+		FileUtils.deleteDirectory(androidResDir);
+		FileUtils.deleteDirectory(new File(bundleDir, "aab"));
+	}
+
 	public static void create(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
 		Bob.initAndroid(); // extract resources
 
@@ -434,5 +520,14 @@ public class AndroidAAB {
 
 		// STEP 5. Use bundletool to create AAB from base.zip
 		File baseAab = createBundle(project, appDir, baseZip, canceled);
+
+		//STEP 6. Sign AAB file
+		signFile(project, appDir, baseAab, canceled);
+
+		// STEP 7. Copy debug symbols
+		copySymbols(project, appDir, title, canceled);
+
+		// STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
+		cleanupBundleFolder(project, appDir, androidResDir, canceled);
 	}
 }
