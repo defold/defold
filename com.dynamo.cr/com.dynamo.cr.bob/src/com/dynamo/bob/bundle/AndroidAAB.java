@@ -235,8 +235,8 @@ public class AndroidAAB {
 		log("Compiling resources from " + androidResDir.getAbsolutePath());
 		try {
 			// compile the resources using aapt2 to flat format files
-			File aabDir = new File(bundleDir, "aab");
-			File compiledResourcesDir = createDir(aabDir, "aapt2/compiled_resources");
+			File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
+			compiledResourcesDir.deleteOnExit();
 
 			// compile the resources for each package
 			for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
