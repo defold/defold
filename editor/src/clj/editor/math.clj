@@ -132,9 +132,27 @@
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
 (defn offset-scaled
-  ^Tuple3d [^Tuple3d original ^Tuple3d offset ^double scale-factor]
-  (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
-    (.scaleAdd scale-factor offset original)))
+  ^Tuple3d [^Tuple3d original ^Tuple3d offset ^Double scale-factor]
+  (let [MAX_SCALE  100000000000000.0
+        MIN_SCALE -100000000000000.0
+        ; Due to editor2-issues#2698 we want to clamp the scale given
+        ; by this function so it wouldn't lead to an exception.
+        ; scale-add-safe prevents the scale from grow too big or too small
+        scale-add-safe
+        (fn [^Tuple3d tup ^Double scale-factor ^Tuple3d offset ^Tuple3d original]
+          (when
+            (if (neg? scale-factor)
+              (and
+                (-> original .x (< MAX_SCALE))
+                (-> original .y (< MAX_SCALE))
+                (-> original .z (< MAX_SCALE)))
+              (and
+                (-> original .x (> MIN_SCALE))
+                (-> original .y (> MIN_SCALE))
+                (-> original .z (> MIN_SCALE))))
+            (.scaleAdd tup scale-factor offset original )))]
+    (doto ^Tuple3d (.clone original) ; Overwritten - we just want an instance.
+      (scale-add-safe scale-factor offset original))))
 
 (defn rotate
   ^Vector3d [^Quat4d rotation ^Vector3d v]
