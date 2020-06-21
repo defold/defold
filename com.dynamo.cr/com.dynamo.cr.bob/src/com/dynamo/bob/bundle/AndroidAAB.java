@@ -413,11 +413,11 @@ public class AndroidAAB {
 	}
 
 	/**
-	* Sign file using certificate and key 
+	* Sign file using certificate and key
 	* https://developer.android.com/studio/command-line/bundletool
 	*/
 	private static void signFile(Project project, File bundleDir, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
-		log("Sing " + signFile);
+		log("Sign " + signFile);
 		BundleHelper.throwIfCanceled(canceled);
 
 		String certificate = project.option("certificate", "");
@@ -448,7 +448,7 @@ public class AndroidAAB {
 		}
 		unsignedFile.delete();
 	}
-	
+
 	/**
 	* Copy debug symbols
 	*/
@@ -520,7 +520,7 @@ public class AndroidAAB {
 		// STEP 5. Use bundletool to create AAB from base.zip
 		File baseAab = createBundle(project, appDir, baseZip, canceled);
 
-		//STEP 6. Sing AAB file
+		//STEP 6. Sign AAB file
 		signFile(project, appDir, baseAab, canceled);
 
 		// STEP 7. Copy debug symbols
