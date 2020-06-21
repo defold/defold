@@ -776,9 +776,17 @@
     (g/node-instance? AtlasAnimation)))
 
 (handler/defhandler :move-up :workbench
+  (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
+                              node-child-index (g/node-value selected-node-id :child-index)]
+                          (> node-child-index 0)))
   (active? [selection] (move-active? selection))
   (run [selection] (move-node! (selection->image selection) -1)))
 
 (handler/defhandler :move-down :workbench
+  (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
+                              parent (core/scope selected-node-id)
+                              node-child-index (g/node-value selected-node-id :child-index)
+                              child-indices (g/node-value parent :child-indices)]
+                          (< node-child-index (- (.size child-indices) 1))))
   (active? [selection] (move-active? selection))
   (run [selection] (move-node! (selection->image selection) 1)))
