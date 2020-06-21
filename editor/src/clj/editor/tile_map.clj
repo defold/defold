@@ -445,7 +445,7 @@
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
-                             (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+                             (or (prop-resource-error :info _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
 
