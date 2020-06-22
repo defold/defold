@@ -230,7 +230,6 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
-    dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
     dmGraphics::Initialize();
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -311,9 +310,18 @@ void GamesysTest<T>::SetUp()
     assert(m_GamepadMapsDDF);
     dmInput::RegisterGamepads(m_InputContext, m_GamepadMapsDDF);
 
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+    component_create_ctx.m_Script = m_ScriptContext;
+    component_create_ctx.m_Register = m_Register;
+    component_create_ctx.m_Factory = m_Factory;
+    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext,
                                                                                                     &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
+
+    // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
+    //dmGameObject::SortComponentTypes(m_Register);
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }

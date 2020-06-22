@@ -13,7 +13,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
         uselib = 'RECORD VPX PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB DMGLFW LIVEUPDATE CARES',
-        exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'],
+        exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull','ComponentScript','ComponentAnim'],
         uselib_local = 'engine engine_service',
         web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',
