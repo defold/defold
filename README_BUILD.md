@@ -41,11 +41,21 @@ This will start a new shell with all of the required environment variables set (
 
 ### Install packages and SDKs
 
-Next step is to install external packages (from `./packages`) and download required platform SDKs:
+Next thing you need to do is to install external packages and download required platform SDKs:
 
-    $ ./scripts/build.py install_ext --platform=... --package-path=http://path.to/packages
+    $ ./scripts/build.py install_ext --platform=... --package-path=...
 
-Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The external packages and downloaded SDKs will be put in `./tmp/dynamo_home/ext`. This step is required whenever you switch target platform, as different packages are installed. The path to the packages can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
+It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). If you do not provide a platform the command will default to the host platform. When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
+
+IMPORTANT! You need to rerun this command whenever you switch target platform, as different packages and SDKs are installed.
+
+#### Installing packages
+The command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet, Protocol Buffers (a.k.a. protobuf), WebP and c-ares. This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
+
+#### Installing SDKs
+The second step of the `install_ext` command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
+
+Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
 
 
 ### Build the engine

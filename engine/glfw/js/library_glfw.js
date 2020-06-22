@@ -190,7 +190,7 @@ var LibraryGLFW = {
       if (event.charCode) {
         var char = GLFW.getUnicodeChar(event.charCode);
         if (char !== null && GLFW.charFunc) {
-          Runtime.dynCall('vii', GLFW.charFunc, [event.charCode, 1]);
+          dynCall('vii', GLFW.charFunc, [event.charCode, 1]);
         }
       }
     },
@@ -202,7 +202,7 @@ var LibraryGLFW = {
       if (key) {
         GLFW.keys[key] = status;
         if (GLFW.keyFunc) {
-          Runtime.dynCall('vii', GLFW.keyFunc, [key, status]);
+          dynCall('vii', GLFW.keyFunc, [key, status]);
         }
       }
     },
@@ -213,7 +213,7 @@ var LibraryGLFW = {
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       if (event.keyCode === 32) {
         if (GLFW.charFunc) {
-          Runtime.dynCall('vii', GLFW.charFunc, [32, 1]);
+          dynCall('vii', GLFW.charFunc, [32, 1]);
           event.preventDefault();
         }
       }
@@ -244,7 +244,7 @@ var LibraryGLFW = {
 
       if (event.target == Module["canvas"] && GLFW.mousePosFunc) {
         event.preventDefault();
-        Runtime.dynCall('vii', GLFW.mousePosFunc, [lastX, lastY]);
+        dynCall('vii', GLFW.mousePosFunc, [lastX, lastY]);
       }
     },
 
@@ -272,12 +272,12 @@ var LibraryGLFW = {
       // DOM and glfw have different button codes
       var eventButton = GLFW.DOMtoGLFWButton(event['button']);
 
-      Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
+      dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
     },
 
     fillTouch: function(id, x, y, phase) {
       if (GLFW.touchFunc) {
-        Runtime.dynCall('viiii', GLFW.touchFunc, [id, x, y, phase]);
+        dynCall('viiii', GLFW.touchFunc, [id, x, y, phase]);
       }
     },
 
@@ -413,7 +413,7 @@ var LibraryGLFW = {
 
       if (event.target == Module["canvas"]) {
         if (GLFW.mouseWheelFunc) {
-          Runtime.dynCall('vi', GLFW.mouseWheelFunc, [GLFW.wheelPos]);
+          dynCall('vi', GLFW.mouseWheelFunc, [GLFW.wheelPos]);
         }
         event.preventDefault();
       }
@@ -421,7 +421,7 @@ var LibraryGLFW = {
 
     onFocusChanged: function(focus) {
       if (GLFW.focusFunc) {
-        Runtime.dynCall('vi', GLFW.focusFunc, [focus]);
+        dynCall('vi', GLFW.focusFunc, [focus]);
       }
     },
 
@@ -477,7 +477,7 @@ var LibraryGLFW = {
       _free(GLFW.joys[joy].id);
       delete GLFW.joys[joy];
       if (GLFW.gamepadFunc) {
-        Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 0]);
+        dynCall('vii', GLFW.gamepadFunc, [joy, 0]);
       }
     },
 
@@ -510,7 +510,7 @@ var LibraryGLFW = {
                   buttonsCount: gamepad.buttons.length
                 };
                 if (GLFW.gamepadFunc) {
-                  Runtime.dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
+                  dynCall('vii', GLFW.gamepadFunc, [joy, 1]);
                 }
               }
               GLFW.joys[joy].buttons = gamepad.buttons;
@@ -676,13 +676,13 @@ var LibraryGLFW = {
   glfwCloseWindow__deps: ['$Browser'],
   glfwCloseWindow: function() {
     if (GLFW.closeFunc) {
-      Runtime.dynCall('v', GLFW.closeFunc, []);
+      dynCall('v', GLFW.closeFunc, []);
     }
     Module.ctx = Browser.destroyContext(Module['canvas'], true, true);
   },
 
   glfwSetWindowTitle: function(title) {
-    document.title = Pointer_stringify(title);
+    document.title = UTF8ToString(title);
   },
 
   glfwGetWindowSize: function(width, height) {
@@ -693,7 +693,7 @@ var LibraryGLFW = {
   glfwSetWindowSize: function(width, height) {
       Browser.setCanvasSize(width, height);
       if (GLFW.resizeFunc) {
-        Runtime.dynCall('vii', GLFW.resizeFunc, [width, height]);
+        dynCall('vii', GLFW.resizeFunc, [width, height]);
       }
   },
 
@@ -893,7 +893,7 @@ var LibraryGLFW = {
 
   /* Extension support */
   glfwExtensionSupported: function(extension) {
-    return Module.ctx.getSupportedExtensions().indexOf(Pointer_stringify(extension)) > -1;
+    return Module.ctx.getSupportedExtensions().indexOf(UTF8ToString(extension)) > -1;
   },
 
   glfwGetProcAddress__deps: ['glfwGetProcAddress'],
@@ -913,7 +913,7 @@ var LibraryGLFW = {
     for (var i in arg) {
       str += 'i';
     }
-    Runtime.dynCall(str, fun, arg);
+    dynCall(str, fun, arg);
     // One single thread
     return 0;
   },

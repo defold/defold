@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -1009,11 +1021,14 @@ namespace dmRender
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
-                    uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    text_context.m_VerticesFlushed = text_context.m_VertexIndex;
-                    DM_COUNTER("FontVertexBuffer", buffer_size);
+                    if (text_context.m_VertexIndex != text_context.m_VerticesFlushed)
+                    {
+                        uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
+                        dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                        dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                        text_context.m_VerticesFlushed = text_context.m_VertexIndex;
+                        DM_COUNTER("FontVertexBuffer", buffer_size);
+                    }
                 }
                 break;
             default:

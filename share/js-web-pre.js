@@ -6,7 +6,7 @@ if (typeof window === 'undefined') {
 	var _created_files = {}
 
 	function preload(name) {
-		var str_name = Pointer_stringify(name);
+		var str_name = UTF8ToString(name);
 		if (!_created_files[str_name] && node_fs.existsSync(str_name)) {
 			//console.log("loading file: %s", str_name);
 			var a = str_name.split("/")
@@ -15,9 +15,9 @@ if (typeof window === 'undefined') {
 				FS.createPath("", parent, true, true);
 			}
 			// TODO: Use parent instead of analyzePath here?
-			var pi = FS.analyzePath(Pointer_stringify(name));
+			var pi = FS.analyzePath(UTF8ToString(name));
 
-			var data = node_fs.readFileSync(Pointer_stringify(name));
+			var data = node_fs.readFileSync(UTF8ToString(name));
 
 			var target = FS.createDataFile(pi.parentPath, pi.name, data, true, false);
 			_created_files[str_name] = true;

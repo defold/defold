@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
@@ -9,6 +21,7 @@
 
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
+#include "../components/comp_gui.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -152,6 +165,23 @@ class DrawCountTest : public GamesysTest<DrawCountParams>
 {
 public:
     virtual ~DrawCountTest() {}
+};
+
+struct BoxRenderParams
+{
+    const static uint8_t MAX_VERTICES_IN_9_SLICED_QUAD = 16;
+    const static uint8_t MAX_INDICES_IN_9_SLICED_QUAD = 3 * 2 * 9;
+
+    const char* m_GOPath;
+    dmGameSystem::BoxVertex m_ExpectedVertices[MAX_VERTICES_IN_9_SLICED_QUAD];
+    uint8_t m_ExpectedVerticesCount;
+    int m_ExpectedIndices[MAX_INDICES_IN_9_SLICED_QUAD];
+};
+
+class BoxRenderTest : public GamesysTest<BoxRenderParams>
+{
+public:
+    virtual ~BoxRenderTest() {}
 };
 
 struct ResourcePropParams {
@@ -423,4 +453,32 @@ protected:
     dmScript::HContext m_Context;
     lua_State* L;
     dmBuffer::HBuffer m_Buffer;
+};
+
+class LabelTest : public jc_test_base_class 
+{
+protected:
+    virtual void SetUp()
+    {
+        m_Position = Vectormath::Aos::Point3(0.0);
+        m_Size = Vectormath::Aos::Vector3(2.0, 2.0, 0.0);
+        m_Scale = Vectormath::Aos::Vector3(1.0, 1.0, 0.0);
+
+        m_BottomLeft = Vectormath::Aos::Point3(0.0, 0.0, 0.0);
+        m_TopLeft = Vectormath::Aos::Point3(0.0, m_Size.getY(), 0.0);
+        m_TopRight = Vectormath::Aos::Point3(m_Size.getX(), m_Size.getY(), 0.0);
+        m_BottomRight = Vectormath::Aos::Point3(m_Size.getX(), 0.0, 0.0);
+
+        m_Rotation = dmVMath::EulerToQuat(Vectormath::Aos::Vector3(0, 0, -180));
+        m_Rotation = normalize(m_Rotation);
+    }
+
+    Vectormath::Aos::Quat m_Rotation;
+    Vectormath::Aos::Point3 m_Position;
+    Vectormath::Aos::Point3 m_BottomLeft;
+    Vectormath::Aos::Point3 m_TopLeft;
+    Vectormath::Aos::Point3 m_TopRight;
+    Vectormath::Aos::Point3 m_BottomRight;
+    Vectormath::Aos::Vector3 m_Size;
+    Vectormath::Aos::Vector3 m_Scale;
 };

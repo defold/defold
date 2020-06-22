@@ -248,7 +248,7 @@ platforms:
     dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --main-dex-list={{mainDexList}} --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
-    rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --auto-add-overlay -M {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
+    rjavaCmd: 'aapt package -f {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} -m --non-constant-id --auto-add-overlay -M {{manifestFile}} -I {{dynamo_home}}/ext/share/java/android.jar -J {{outputDirectory}} {{#resourceDirectories}} -S {{.}} {{/resourceDirectories}}'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   arm64-android:
@@ -300,20 +300,20 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_38_12}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_38_12}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "BINARYEN_METHOD=\"asmjs\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -334,20 +334,20 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_38_12}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_38_12}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
         engineLibs: ["engine", "engine_service", "mbedtls", "webviewext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "BINARYEN_METHOD=\"native-wasm\"", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "BINARYEN_TRAP_MODE='clamp'", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
+        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1"]
         libs:       []
 
     exePrefix:      ''
@@ -374,19 +374,18 @@ platforms:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
         MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
-        SDK8_DIR:           "{{env.WINDOWS_SDK_8_DIR}}"
         SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
         SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
         VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
         VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx","libcares"]
-        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK8_DIR}}/Lib/winv6.3/um/x64"]
-        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK8_DIR}}/Include/winrt", "{{env.SDK8_DIR}}/Include/um", "{{env.SDK8_DIR}}/Include/shared"]
+        libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
+        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_64", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32", "Psapi"]
+        libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
         symbols:    []
 
     exePrefix:      ''
@@ -410,19 +409,18 @@ platforms:
         TMP:                "{{build_folder}}"
         TEMP:               "{{build_folder}}"
         MSVC_DIR:           "{{env.WINDOWS_MSVC_2019_DIR}}"
-        SDK8_DIR:           "{{env.WINDOWS_SDK_8_DIR}}"
         SDK10_DIR:          "{{env.WINDOWS_SDK_10_DIR}}"
         SDK10_VERSION:      "{{env.WINDOWS_SDK_10_VERSION}}"
         VCINSTALLDIR:       "{{env.WINDOWS_VCINSTALLDIR}}"
         VSINSTALLDIR:       "{{env.WINDOWS_VSINSTALLDIR}}"
     context:
         engineLibs: ["libengine","libengine_service","libmbedtls","libwebviewext","libprofilerext","libfacebookext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx","libcares"]
-        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK8_DIR}}/Lib/winv6.3/um/x86"]
-        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK8_DIR}}/Include/winrt", "{{env.SDK8_DIR}}/Include/um", "{{env.SDK8_DIR}}/Include/shared"]
+        libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
+        platformIncludes:   ["{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp", "AdvAPI32", "Psapi"]
+        libs:       ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi"]
         symbols:    []
 
     exePrefix:      ''

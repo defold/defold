@@ -1,4 +1,17 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <stdint.h>
+#include <stdlib.h> // qsort
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -9,6 +22,8 @@
 #include "BulletCollision/CollisionDispatch/btGhostObject.h"
 
 #include "physics_3d.h"
+
+#include <stdio.h>
 
 namespace dmPhysics
 {
@@ -26,8 +41,8 @@ namespace dmPhysics
     struct CollisionObject3D
     {
         btCollisionObject* m_CollisionObject;
-        short m_CollisionGroup;
-        short m_CollisionMask;
+        uint16_t m_CollisionGroup;
+        uint16_t m_CollisionMask;
     };
 
     static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object);
@@ -105,6 +120,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
@@ -113,6 +129,7 @@ namespace dmPhysics
     : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -148,9 +165,24 @@ namespace dmPhysics
         delete m_CollisionConfiguration;
     }
 
-    struct ProcessRayCastResultCallback3D : public btCollisionWorld::ClosestRayResultCallback
+    static void ResponseFromRayCastResult(RayCastResponse& response, btScalar inv_scale, btScalar fraction,
+                        const btVector3& point, const btVector3& normal, const btCollisionObject* co)
     {
-        ProcessRayCastResultCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
+        response.m_Hit = 1;
+        response.m_Fraction = fraction;
+        FromBt(point, response.m_Position, inv_scale);
+        FromBt(normal, response.m_Normal, 1.0f); // don't scale normal
+
+        if (co != 0x0)
+        {
+            response.m_CollisionObjectUserData = co->getUserPointer();
+            response.m_CollisionObjectGroup = co->getBroadphaseHandle()->m_collisionFilterGroup;
+        }
+    }
+
+    struct RayCastResultClosestCallback3D : public btCollisionWorld::ClosestRayResultCallback
+    {
+        RayCastResultClosestCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
         : btCollisionWorld::ClosestRayResultCallback(from, to)
         , m_IgnoredUserData(ignored_user_data)
         {
@@ -159,7 +191,7 @@ namespace dmPhysics
             m_collisionFilterMask = mask;
         }
 
-        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult,bool normalInWorldSpace)
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
         {
             if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
                 return 1.0f;
@@ -167,6 +199,69 @@ namespace dmPhysics
                 return 1.0f;
             else
                 return btCollisionWorld::ClosestRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
+        }
+
+        void*           m_IgnoredUserData;
+        RayCastResponse m_Response;
+    };
+
+    // Grabbed from a more recent Bullet version for now
+    /// BULLET (do not modify) ->
+    struct AllHitsRayResultCallback : public btCollisionWorld::RayResultCallback
+    {
+        AllHitsRayResultCallback(const btVector3& rayFromWorld, const btVector3& rayToWorld)
+            : m_rayFromWorld(rayFromWorld)
+            , m_rayToWorld(rayToWorld)
+        {
+        }
+        btAlignedObjectArray<const btCollisionObject*> m_collisionObjects;
+        btAlignedObjectArray<btVector3> m_hitNormalWorld;
+        btAlignedObjectArray<btVector3> m_hitPointWorld;
+        btAlignedObjectArray<btScalar> m_hitFractions;
+        btVector3 m_rayFromWorld;//used to calculate hitPointWorld from hitFraction
+        btVector3 m_rayToWorld;
+
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
+        {
+                m_collisionObject = rayResult.m_collisionObject;
+                m_collisionObjects.push_back(rayResult.m_collisionObject);
+                btVector3 hitNormalWorld;
+                if (normalInWorldSpace)
+                {
+                    hitNormalWorld = rayResult.m_hitNormalLocal;
+                } else
+                {
+                    hitNormalWorld = m_collisionObject->getWorldTransform().getBasis()*rayResult.m_hitNormalLocal;
+                }
+                m_hitNormalWorld.push_back(hitNormalWorld);
+                btVector3 hitPointWorld;
+                hitPointWorld.setInterpolate3(m_rayFromWorld,m_rayToWorld,rayResult.m_hitFraction);
+                m_hitPointWorld.push_back(hitPointWorld);
+                m_hitFractions.push_back(rayResult.m_hitFraction);
+                return m_closestHitFraction;
+        }
+    };
+    /// <- END BULLET
+
+    struct RayCastResultAllCallback3D : public AllHitsRayResultCallback
+    {
+        RayCastResultAllCallback3D(const btVector3& from, const btVector3& to, uint16_t mask, void* ignored_user_data)
+            : AllHitsRayResultCallback(from, to)
+            , m_IgnoredUserData(ignored_user_data)
+        {
+            // *all* groups for now, bullet will test this against the colliding object's mask
+            m_collisionFilterGroup = ~0;
+            m_collisionFilterMask = mask;
+        }
+
+        virtual btScalar addSingleResult(btCollisionWorld::LocalRayResult& rayResult, bool normalInWorldSpace)
+        {
+            if (rayResult.m_collisionObject->getUserPointer() == m_IgnoredUserData)
+                return 1.0f;
+            else if (!rayResult.m_collisionObject->hasContactResponse())
+                return 1.0f;
+            else
+                return AllHitsRayResultCallback::addSingleResult(rayResult, normalInWorldSpace);
         }
 
         void* m_IgnoredUserData;
@@ -188,6 +283,7 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit3D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
+        context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -277,7 +373,10 @@ namespace dmPhysics
             for (int i = 0; i < collision_object_count; ++i)
             {
                 btCollisionObject* collision_object = collision_objects[i];
-                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject())
+
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && !collision_object->isStaticObject();
+
+                if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject() || retrieve_gameworld_transform)
                 {
                     Point3 old_position = GetWorldPosition(context, collision_object);
                     Quat old_rotation = GetWorldRotation(context, collision_object);
@@ -294,6 +393,26 @@ namespace dmPhysics
                         btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
                         collision_object->setWorldTransform(world_t);
                         collision_object->activate(true);
+                    }
+                }
+
+                // Scaling
+                if (retrieve_gameworld_transform)
+                {
+                    dmTransform::Transform world_transform;
+                    world->m_GetWorldTransform(collision_object->getUserPointer(), world_transform);
+
+                    // The compound shape scale always defaults to 1
+                    btCollisionShape* shape = collision_object->getCollisionShape();
+
+                    float object_scale = world_transform.GetUniformScale();
+                    float shape_scale = shape->getLocalScaling().getX();
+
+                    if (object_scale != shape_scale)
+                    {
+                        shape->setLocalScaling(btVector3(object_scale,object_scale,object_scale));
+                        if (!collision_object->isActive())
+                            collision_object->activate(true);
                     }
                 }
             }
@@ -324,7 +443,7 @@ namespace dmPhysics
                 ToBt(request.m_From, from, scale);
                 btVector3 to;
                 ToBt(request.m_To, to, scale);
-                ProcessRayCastResultCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+                RayCastResultClosestCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
                 world->m_DynamicsWorld->rayTest(from, to, result_callback);
                 RayCastResponse response;
                 response.m_Hit = result_callback.hasHit() ? 1 : 0;
@@ -571,11 +690,12 @@ namespace dmPhysics
             }
         }
 
+        bool clone_shapes = world->m_AllowDynamicTransforms || object_scale != 1.0f;
         float scale = world->m_Context->m_Scale;
         btCompoundShape* compound_shape = new btCompoundShape(false);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            btConvexShape* shape = object_scale == 1.0f ? (btConvexShape*)shapes[i] : CloneShape((btConvexShape*)shapes[i]);
+            btConvexShape* shape = clone_shapes ? CloneShape((btConvexShape*)shapes[i]) : (btConvexShape*)shapes[i];
 
             if (translations && rotations)
             {
@@ -945,7 +1065,15 @@ namespace dmPhysics
         }
     }
 
-    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& out_response)
+    static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
+    {
+        float diff = a->m_Fraction - b->m_Fraction;
+        if (diff == 0)
+            return 0;
+        return diff < 0 ? -1 : 1;
+    }
+
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
         DM_PROFILE(Physics, "RayCasts");
 
@@ -960,20 +1088,46 @@ namespace dmPhysics
         ToBt(request.m_From, from, scale);
         btVector3 to;
         ToBt(request.m_To, to, scale);
-        ProcessRayCastResultCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
-        world->m_DynamicsWorld->rayTest(from, to, result_callback);
-        RayCastResponse response;
-        response.m_Hit = result_callback.hasHit() ? 1 : 0;
-        response.m_Fraction = result_callback.m_closestHitFraction;
+
         float inv_scale = world->m_Context->m_InvScale;
-        FromBt(result_callback.m_hitPointWorld, response.m_Position, inv_scale);
-        FromBt(result_callback.m_hitNormalWorld, response.m_Normal, 1.0f); // don't scale normal
-        if (result_callback.m_collisionObject != 0x0)
+
+        if (request.m_ReturnAllResults)
         {
-            response.m_CollisionObjectUserData = result_callback.m_collisionObject->getUserPointer();
-            response.m_CollisionObjectGroup = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
+            RayCastResultAllCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+            world->m_DynamicsWorld->rayTest(from, to, result_callback);
+
+            int size = result_callback.m_collisionObjects.size();
+
+            if (results.Capacity() < size)
+                results.SetCapacity(size);
+            results.SetSize(size);
+
+            for (int i = 0; i < size; ++i)
+            {
+                const btCollisionObject* co = result_callback.m_collisionObjects[i];
+                const btVector3& point = result_callback.m_hitPointWorld[i];
+                const btVector3& normal = result_callback.m_hitNormalWorld[i];
+                const btScalar fraction = result_callback.m_hitFractions[i];
+
+                ResponseFromRayCastResult(results[i], inv_scale, fraction, point, normal, co);
+            }
+
+            qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
         }
-        out_response = response;
+        else
+        {
+            RayCastResultClosestCallback3D result_callback(from, to, request.m_Mask, request.m_IgnoredUserData);
+            world->m_DynamicsWorld->rayTest(from, to, result_callback);
+
+            if (result_callback.hasHit())
+            {
+                if (results.Full())
+                    results.OffsetCapacity(1);
+                results.SetSize(1);
+
+                ResponseFromRayCastResult(results[0], inv_scale, result_callback.m_closestHitFraction, result_callback.m_hitPointWorld, result_callback.m_hitNormalWorld, result_callback.m_collisionObject);
+            }
+        }
     }
 
     void SetGravity3D(HWorld3D world, const Vectormath::Aos::Vector3& gravity)
