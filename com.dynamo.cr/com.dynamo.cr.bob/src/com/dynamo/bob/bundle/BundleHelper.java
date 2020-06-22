@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.bundle;
 
 import java.io.BufferedOutputStream;
@@ -320,7 +332,7 @@ public class BundleHelper {
     }
 
     // either copies the merged manifest or writes a new resolved manifest from single source file
-    public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
+    public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
@@ -344,6 +356,7 @@ public class BundleHelper {
             manifestFile = new File(extenderPlatformDir, mainManifestName); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
+        return targetManifest;
     }
 
     private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
@@ -438,22 +451,20 @@ public class BundleHelper {
         return new File(appDir, "res");
     }
 
-    public void copyAndroidResources(Platform platform, File appDir) throws IOException {
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
-
-        File targetResDir = getAndroidResourceDir(appDir);
-        if (hasExtensions) {
-            // pass
-        } else {
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-            packagesDir.mkdir();
-
-            File resDir = new File(packagesDir, "com.defold.android/res");
-            resDir.mkdirs();
-
-            BundleHelper.createAndroidResourceFolders(resDir);
-            copyAndroidIcons(resDir);
+    public File copyAndroidResources(Platform platform) throws IOException {
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            return null;
         }
+
+        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+        packagesDir.mkdir();
+
+        File resDir = new File(packagesDir, "com.defold.android/res");
+        resDir.mkdirs();
+
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+        return resDir;
     }
 
     public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {

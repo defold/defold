@@ -29,17 +29,6 @@ Beta beta channel is automatically released for e very successful push to beta.
     This will trigger a build of the engines and editors for stable.
     Make a note of the release sha1 (the latest commit to the master branch on GitHub)
 
- 1. Merge `master` into `editor-dev`
-
-        $ git checkout editor-dev
-        $ git pull
-        $ git merge master
-        $ git push
-
-    This will trigger a build of the engines and editors for editor-alpha.
-
- 1. When the `editor-dev` is built, all channels have been updated
-
  1. Fetch editor via:
 
     http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-darwin.dmg
@@ -59,6 +48,17 @@ Beta beta channel is automatically released for e very successful push to beta.
         $ git push origin --tags
 
     This will push the tags to GitHub, which is then used later in the release step. Add `-f` to force update the tags.
+
+ 1. Merge `master` into `editor-dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
+
+    This will trigger a build of the engines and editors for editor-alpha.
+
+ 1. When the `editor-dev` is built, all channels have been updated
 
 ### Publishing Stable Release
 

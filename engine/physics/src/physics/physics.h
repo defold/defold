@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #ifndef PHYSICS_H
 #define PHYSICS_H
 
@@ -7,6 +19,8 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
+
+template <typename T> class dmArray;
 
 namespace dmPhysics
 {
@@ -106,7 +120,7 @@ namespace dmPhysics
     /**
      * Callback used to propagate the world transform from the physics simulation to an external object.
      *
-     * @param user_data User data poiting to the external object
+     * @param user_data User data pointing to the external object
      * @param position Position that the external object will obtain
      * @param rotation Rotation that the external object will obtain
      */
@@ -198,6 +212,7 @@ namespace dmPhysics
      * @param response Information about the result of the ray cast
      * @param request The request that the callback originated from
      * @param user_data The user data as supplied to the StepWorldContext::m_RayCastUserData
+     * @return 0 if no more callbacks are needed, non zero otherwise
      */
     typedef void (*RayCastCallback)(const RayCastResponse& response, const RayCastRequest& request, void* user_data);
 
@@ -224,6 +239,9 @@ namespace dmPhysics
         uint32_t m_RayCastLimit3D;
         /// Maximum number of overlapping triggers
         uint32_t m_TriggerOverlapCapacity;
+        /// If true, the collision objects will retrieve the position of its game object
+        uint8_t m_AllowDynamicTransforms:1;
+        uint8_t :7;
     };
 
     /**
@@ -554,6 +572,7 @@ namespace dmPhysics
         uint16_t m_LockedRotation : 1;
         /// Whether the object is enabled from the start or not, default is 1
         uint16_t m_Enabled : 1;
+        uint16_t :14;
     };
 
     /**
@@ -995,7 +1014,8 @@ namespace dmPhysics
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
 
-        uint16_t _padding;
+        uint16_t m_ReturnAllResults:1;
+        uint16_t :15;
 
         /// User supplied id to identify this query when the response is handled
         uint32_t m_UserId;
@@ -1043,18 +1063,20 @@ namespace dmPhysics
      *
      * @param world Physics world in which to perform the ray cast
      * @param request Struct containing data for the query
-     * @param response Struct receiving the output data from the query
+     * @param results Array receiving the raycast hits. Array is sorted with lowest hit time first.
+     * @note The result array may grow during the call
      */
-    void RayCast3D(HWorld3D world, const RayCastRequest& request, RayCastResponse& response);
+    void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results);
 
     /**
      * Request a synchronous ray cast
      *
      * @param world Physics world in which to perform the ray cast
      * @param request Struct containing data for the query
-     * @param response Struct receiving the output data from the query
+     * @param results Array receiving the raycast hits. Array is sorted with lowest hit time first.
+     * @note The result array may grow during the call
      */
-    void RayCast2D(HWorld2D world, const RayCastRequest& request, RayCastResponse& response);
+    void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results);
 
     /**
      * Set the gravity for a 2D physics world.

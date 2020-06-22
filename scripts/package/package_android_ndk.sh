@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# Copyright 2020 The Defold Foundation
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+
 
 # USAGE: (works from same host machine)
 # ./package_android_ndk.sh linux
@@ -11,10 +24,10 @@ ANDROID_NDK_VERSION=r20
 ANDROID_NDK=android-ndk-${ANDROID_NDK_VERSION}
 
 HOST=$1
-shift
-
 if [ "$HOST" == "" ]; then
 	HOST=`uname | tr '[:upper:]' '[:lower:]'`
+else
+	shift
 fi
 
 # Contains the entire NDK (we only need the standalone toochain)
@@ -27,7 +40,8 @@ ANDROID_TOOLS_FILENAME=sdk-tools-${HOST}-4333796.zip
 ANDROID_TOOLS_URL=https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
 
 PWD=`pwd`
-TMP=${PWD}/_tmpdir/$HOST
+TARGET_PATH=${PWD}/local_sdks
+TMP=${TARGET_PATH}/_tmpdir/$HOST
 
 if [ ! -e "${TMP}" ]; then
 	mkdir -p ${TMP}
@@ -43,7 +57,7 @@ if [ ! -e "${TMP}/${ANDROID_NDK}" ]; then
 	(cd ${TMP} && unzip -q ${ANDROID_NDK_FILENAME})
 fi
 
-if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
+if [ ! -e "${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	# Cleanup the package, shrinking 2.9GB down to 1.6GB (extracted)
 	echo "Cleaning NDK" ${TMP}/${ANDROID_NDK}
 
@@ -83,8 +97,8 @@ if [ ! -e "${TMP}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/i686-linux-android)
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/x86_64-linux-android)
 
-	echo "Creating NDK archive" ${TMP}/${ANDROID_NDK_BASENAME}.tar.gz
-	(cd ${TMP} && tar -czf ${ANDROID_NDK_BASENAME}.tar.gz ${ANDROID_NDK})
+	echo "Creating NDK archive" ${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz
+	(cd ${TMP} && tar -czf ${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz ${ANDROID_NDK})
 else
-	echo "Found ${TMP}/${ANDROID_NDK_BASENAME}.tar.gz"
+	echo "Found ${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz"
 fi
