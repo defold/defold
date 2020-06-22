@@ -776,19 +776,19 @@
     (g/node-instance? AtlasAnimation)))
 
 (handler/defhandler :move-up :workbench
+  (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
                               children (vec (g/node-value parent :nodes))
                               node-child-index (.indexOf ^java.util.List children node-id)]
                           (> node-child-index 0)))
-  (active? [selection] (move-active? selection))
   (run [selection] (move-node! (selection->image selection) -1)))
 
 (handler/defhandler :move-down :workbench
+  (active? [selection] (move-active? selection))
   (enabled? [selection] (let [node-id (selection->image selection)
                               parent (core/scope node-id)
                               children (vec (g/node-value parent :nodes))
                               node-child-index (.indexOf ^java.util.List children node-id)]
                           (< node-child-index (- (.size children) 1))))
-  (active? [selection] (move-active? selection))
   (run [selection] (move-node! (selection->image selection) 1)))
