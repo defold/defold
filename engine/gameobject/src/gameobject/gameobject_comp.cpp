@@ -20,8 +20,6 @@ namespace dmGameObject
 {
     static Result CompScriptcInit(const ComponentTypeCreateCtx* ctx, ComponentType* type)
     {
-        dmLogWarning("MAWE: component '%s' created", type->m_Name);
-
         ComponentTypeSetPrio(type, 200);
         ComponentTypeSetContext(type, ctx->m_Script);
         ComponentTypeSetHasUserData(type, true);
@@ -47,8 +45,6 @@ namespace dmGameObject
 
     static Result CompAnimcInit(const ComponentTypeCreateCtx* ctx, ComponentType* type)
     {
-        dmLogWarning("MAWE: component '%s' created", type->m_Name);
-
         ComponentTypeSetPrio(type, 250);
         ComponentTypeSetReadsTransforms(type, true);
         ComponentTypeSetNewWorldFn(type, CompAnimNewWorld);

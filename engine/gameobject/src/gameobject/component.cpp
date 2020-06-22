@@ -31,8 +31,6 @@ Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char
     return dmGameObject::RESULT_OK;
 }
 
-// TODO: Clear the descriptor table?
-
 Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
 {
     ComponentTypeDescriptor* type_desc = g_ComponentTypeSentinel.m_Next;
