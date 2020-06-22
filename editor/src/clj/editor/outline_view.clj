@@ -200,11 +200,6 @@
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :open-as}
    {:label :separator}
-   {:label "Move Up"
-    :command :move-up}
-   {:label "Move Down"
-    :command :move-down}
-   {:label :separator}
    {:label "Copy Project Path"
     :command :copy-project-path}
    {:label "Copy Full Path"
@@ -246,6 +241,11 @@
    {:label "Delete"
     :icon "icons/32/Icons_M_06_trash.png"
     :command :delete}
+   {:label :separator}
+   {:label "Move Up"
+    :command :move-up}
+   {:label "Move Down"
+    :command :move-down}
    {:label :separator}
    {:label "Hide Objects"
     :command :hide-selected}
