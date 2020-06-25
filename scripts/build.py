@@ -285,6 +285,9 @@ class Configuration(object):
         sys.stdout.flush()
         sys.stderr.flush()
 
+    def _get_archive_path(self):
+        return join(self.archive_path, self.channel, "files")
+
     def distclean(self):
         if os.path.exists(self.dynamo_home):
             self._log('Removing %s' % self.dynamo_home)
@@ -793,9 +796,9 @@ class Configuration(object):
 
     def archive_engine(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
-        share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
-        java_archive_path = join(self.archive_path, sha1, 'engine', 'share', 'java').replace('\\', '/')
+        full_archive_path = join(self._get_archive_path(), sha1, 'engine', self.target_platform).replace('\\', '/')
+        share_archive_path = join(self._get_archive_path(), sha1, 'engine', 'share').replace('\\', '/')
+        java_archive_path = join(self._get_archive_path(), sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
         bin_dir = self.build_utility.get_binary_path()
@@ -998,13 +1001,13 @@ class Configuration(object):
 
     def archive_go(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'go', self.target_platform)
+        full_archive_path = join(self._get_archive_path(), sha1, 'go', self.target_platform)
         for p in glob(join(self.defold, 'go', 'bin', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def archive_bob(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        full_archive_path = join(self._get_archive_path(), sha1, 'bob').replace('\\', '/')
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
@@ -1103,15 +1106,15 @@ class Configuration(object):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
 
         sha1 = self._git_sha1()
-        u = urlparse.urlparse(self.archive_path)
+        u = urlparse.urlparse(self._get_archive_path())
         bucket = s3.get_bucket(u.hostname)
 
-        root = urlparse.urlparse(self.archive_path).path[1:]
+        root = urlparse.urlparse(self._get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
         platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
         for platform in platforms:
-            platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
+            platform_sdk_url = join(self._get_archive_path(), sha1, 'engine', platform).replace('\\', '/')
 
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
             entry = bucket.get_key(prefix)
@@ -1134,7 +1137,7 @@ class Configuration(object):
         sdkpath = self._ziptree(treepath, directory=tempdir)
         print "Packaged defold sdk"
 
-        sdkurl = join(self.archive_path, sha1, 'engine').replace('\\', '/')
+        sdkurl = join(self._get_archive_path(), sha1, 'engine').replace('\\', '/')
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
     def build_docs(self):
@@ -1147,14 +1150,15 @@ class Configuration(object):
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
 
+
 # ------------------------------------------------------------
 # BEGIN: EDITOR 2
 #
     def download_editor2(self):
-        u = urlparse.urlparse(self.archive_path)
+        u = urlparse.urlparse(self._get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
-        prefix = s3.get_archive_prefix(self.archive_path, self._git_sha1())
+        prefix = s3.get_archive_prefix(self._get_archive_path(), self._git_sha1())
 
         editor_filename = "Defold-%s.zip" % self.target_platform
         editor_path = join(self.defold_root, 'editor', 'target', 'editor')
@@ -1163,7 +1167,7 @@ class Configuration(object):
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, self.channel, 'editor2')
+        full_archive_path = join(self._get_archive_path(), sha1, self.channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
@@ -1366,20 +1370,24 @@ class Configuration(object):
             self._log('Running git fetch to get latest tags and refs...')
             run.shell_command('git fetch')
 
-        u = urlparse.urlparse(self.archive_path)
-        bucket = s3.get_bucket(u.hostname)
-        host = 'd.defold.com'
+        u = urlparse.urlparse(self._get_archive_path())
+        hostname = u.hostname
+        path = u.path
+        bucket = s3.get_bucket(hostname)
 
         model = {'releases': [],
                  'has_releases': False}
 
         if self.channel == 'stable':
             # Move artifacts to a separate page?
-            model['releases'] = s3.get_tagged_releases(self.archive_path)
+            model['releases'] = s3.get_tagged_releases(self._get_archive_path())
             model['has_releases'] = True
         else:
-            model['releases'] = s3.get_single_release(self.archive_path, self.version, self._git_sha1())
+            model['releases'] = s3.get_single_release(self._get_archive_path(), self.version, self._git_sha1())
             model['has_releases'] = True
+
+        if not model['releases']:
+            raise Exception('Unable to find any releases')
 
         # NOTE
         # - The stable channel is based on the latest tag
@@ -1408,15 +1416,17 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
-        model['release'] = {'editor': [ dict(name='macOS 10.11+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.dmg'),
-                                        dict(name='macOS 10.7-10.10', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-darwin.zip'),
-                                        dict(name='Windows', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-win32.zip'),
-                                        dict(name='Ubuntu 16.04+', url='https://d.defold.com/archive/'+release_sha1+'/'+editor_channel+'/editor2/Defold-x86_64-linux.zip')] }
+        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, path, release_sha1, editor_channel)
+        model['release'] = {'editor': [ dict(name='macOS 10.11+', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
+                                        dict(name='macOS 10.7-10.10', url=editor_download_url + 'Defold-x86_64-darwin.zip'),
+                                        dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
+                                        dict(name='Ubuntu 16.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
         html = page % {'model': json.dumps(model)}
+
         key = bucket.new_key('%s/index.html' % self.channel)
         key.content_type = 'text/html'
         key.set_contents_from_string(html)
@@ -1425,7 +1435,7 @@ class Configuration(object):
         key = bucket.new_key('%s/info.json' % self.channel)
         key.content_type = 'application/json'
         key.set_contents_from_string(json.dumps({'version': self.version,
-                                                 'sha1' : release_sha1}))
+                                                     'sha1' : release_sha1}))
 
         # Editor update-v3.json
         key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.channel)
@@ -1439,7 +1449,7 @@ class Configuration(object):
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
         for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
             key_name = 'editor2/channels/%s/%s' % (self.channel, name)
-            redirect = '/archive/%s/%s/editor2/%s' % (release_sha1, self.channel, name)
+            redirect = '%s/%s/%s/editor2/%s' % (path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
@@ -1454,7 +1464,7 @@ class Configuration(object):
 
 
     def sync_archive(self):
-        u = urlparse.urlparse(self.archive_path)
+        u = urlparse.urlparse(self._get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
 
@@ -1476,7 +1486,7 @@ class Configuration(object):
         # * Defold SDK files
         # * launcher files, used to launch editor2
         pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
-        prefix = s3.get_archive_prefix(self.archive_path, self._git_sha1())
+        prefix = s3.get_archive_prefix(self._get_archive_path(), self._git_sha1())
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
 
