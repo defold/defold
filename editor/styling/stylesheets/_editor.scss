@@ -179,11 +179,11 @@ Links:
       -fx-background-color: transparent;
       -fx-background-position: center;
       -fx-background-repeat: no-repeat;
-      -fx-opacity: 0.06;
+      -fx-opacity: 0.1;
       -fx-padding: 1px;
 
       &:hover, &:armed {
-        -fx-opacity: 0.1;
+        -fx-opacity: 0.25;
       }
     }
   }
