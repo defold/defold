@@ -1668,7 +1668,7 @@ class Configuration(object):
         self.upload_to_s3(src_file, url)
 
         # create redirect so that the old s3 paths still work
-        # s3://d.defold.com/archive/channel/files/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+        # s3://d.defold.com/channel/files/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
         bucket = s3.get_bucket(urlparse.urlparse(url).netloc)
         redirect_key = self.get_archive_redirect_key(url)
         redirect_url = url.replace("s3://", "http://")
