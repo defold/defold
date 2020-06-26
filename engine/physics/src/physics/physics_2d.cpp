@@ -735,6 +735,8 @@ namespace dmPhysics
             const b2CircleShape* circle_shape = (const b2CircleShape*) shape;
             b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
             circle_shape_prim->m_p = TransformScaleB2(transform, scale, circle_shape->m_p);
+            if (context->m_AllowDynamicTransforms)
+                circle_shape_prim->m_creationScale = circle_shape_prim->m_radius;
             circle_shape_prim->m_radius *= scale;
             scale = circle_shape_prim->m_radius;
             ret = circle_shape_prim;
@@ -790,7 +792,8 @@ namespace dmPhysics
             break;
         }
 
-        ret->m_creationScale = scale;
+        if (shape->m_type != b2Shape::e_circle)
+            ret->m_creationScale = scale;
         return ret;
     }
 
