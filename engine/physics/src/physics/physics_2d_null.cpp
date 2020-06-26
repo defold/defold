@@ -218,10 +218,6 @@ namespace dmPhysics
         return 0;
     }
 
-    void SetMass2D(HCollisionObject2D collision_object, float mass)
-    {
-    }
-
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
     }

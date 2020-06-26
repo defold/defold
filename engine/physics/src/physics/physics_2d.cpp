@@ -1116,14 +1116,6 @@ namespace dmPhysics
         return body->GetMass();
     }
 
-    void SetMass2D(HCollisionObject2D collision_object, float mass) {
-        b2Body* body = ((b2Body*)collision_object);
-        b2MassData data;
-        body->GetMassData(&data);
-        data.mass = mass;
-        body->SetMassData(&data);
-    }
-
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())

@@ -118,7 +118,6 @@ struct Funcs
     typedef float (*GetAngularDampingFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetAngularDampingFunc)(typename T::CollisionObjectType collision_object, float angular_damping);
     typedef float (*GetMassFunc)(typename T::CollisionObjectType collision_object);
-    typedef void (*SetMassFunc)(typename T::CollisionObjectType collision_object, float mass);
     typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
     typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
@@ -173,7 +172,6 @@ struct Test3D
     Funcs<Test3D>::GetAngularDampingFunc            m_GetAngularDampingFunc;
     Funcs<Test3D>::SetAngularDampingFunc            m_SetAngularDampingFunc;
     Funcs<Test3D>::GetMassFunc                      m_GetMassFunc;
-    Funcs<Test3D>::SetMassFunc                      m_SetMassFunc;
     Funcs<Test3D>::RequestRayCastFunc               m_RequestRayCastFunc;
     Funcs<Test3D>::RayCastFunc                      m_RayCastFunc;
     Funcs<Test3D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;
@@ -231,7 +229,6 @@ struct Test2D
     Funcs<Test2D>::GetAngularDampingFunc            m_GetAngularDampingFunc;
     Funcs<Test2D>::SetAngularDampingFunc            m_SetAngularDampingFunc;
     Funcs<Test2D>::GetMassFunc                      m_GetMassFunc;
-    Funcs<Test2D>::SetMassFunc                      m_SetMassFunc;
     Funcs<Test2D>::RequestRayCastFunc               m_RequestRayCastFunc;
     Funcs<Test2D>::RayCastFunc                      m_RayCastFunc;
     Funcs<Test2D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;

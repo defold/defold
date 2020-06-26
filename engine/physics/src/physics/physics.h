@@ -1033,22 +1033,6 @@ namespace dmPhysics
     float GetMass2D(HCollisionObject2D collision_object);
 
     /**
-     * Sets the mass of the 3D collision object.
-     *
-     * @param collision_object Collision object
-     * @param mass The mass
-     */
-    void SetMass3D(HCollisionObject3D collision_object, float mass);
-
-    /**
-     * Sets the mass of the 2D collision object.
-     *
-     * @param collision_object Collision object
-     * @param mass The mass
-     */
-    void SetMass2D(HCollisionObject2D collision_object, float mass);
-
-    /**
      * Container of data for ray cast queries.
      */
     struct RayCastRequest

@@ -123,7 +123,6 @@ Test3D::Test3D()
 , m_GetAngularDampingFunc(dmPhysics::GetAngularDamping3D)
 , m_SetAngularDampingFunc(dmPhysics::SetAngularDamping3D)
 , m_GetMassFunc(dmPhysics::GetMass3D)
-, m_SetMassFunc(dmPhysics::SetMass3D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast3D)
 , m_RayCastFunc(dmPhysics::RayCast3D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks3D)
@@ -181,7 +180,6 @@ Test2D::Test2D()
 , m_GetAngularDampingFunc(dmPhysics::GetAngularDamping2D)
 , m_SetAngularDampingFunc(dmPhysics::SetAngularDamping2D)
 , m_GetMassFunc(dmPhysics::GetMass2D)
-, m_SetMassFunc(dmPhysics::SetMass2D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
 , m_RayCastFunc(dmPhysics::RayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
@@ -273,33 +271,6 @@ TYPED_TEST(PhysicsTest, DynamicConstruction)
 
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
-
-TYPED_TEST(PhysicsTest, SetMass)
-{
-    dmPhysics::CollisionObjectData data;
-    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
-    data.m_Mass = 0.0f;
-    typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
-
-    ASSERT_EQ((void*)0, (void*)co);
-
-    data.m_Mass = 1.0f;
-    data.m_LinearDamping = 0.5f;
-    data.m_AngularDamping = 0.25f;
-    co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
-
-    ASSERT_NE((void*)0, (void*)co);
-
-    ASSERT_NEAR(1.0f, (*TestFixture::m_Test.m_GetMassFunc)(co), 0.000001f);
-
-    (*TestFixture::m_Test.m_SetMassFunc)(co, 16.0f);
-    ASSERT_NEAR(16.0f, (*TestFixture::m_Test.m_GetMassFunc)(co), 0.000001f);
-
-    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
-
-    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
-}
-
 
 TYPED_TEST(PhysicsTest, KinematicConstruction)
 {
