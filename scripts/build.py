@@ -1663,6 +1663,7 @@ class Configuration(object):
 
     def upload_to_archive(self, src_file, dst_path):
         url = join(self.get_archive_path(), dst_path).replace("\\", "/")
+        self._log("Uploading %s -> %s" % (file, url))
         self.upload_to_s3(src_file, url)
 
         # create redirect so that the old s3 paths still work
@@ -1670,8 +1671,10 @@ class Configuration(object):
         u = urlparse.urlparse(url)
         bucket = s3.get_bucket(u.netloc)
         key_name = self.get_archive_redirect_key(url)
+        redirect = url.replace("s3://", "http://")
         key = bucket.new_key(key_name)
-        key.set_redirect(url.replace("s3://", "http://"))
+        key.set_redirect(redirect)
+        self._log("Redirecting %s -> %s : %s" % (url, key_name, redirect))
 
     def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
