@@ -1690,6 +1690,7 @@ class Configuration(object):
         else:
             raise Exception('Unsupported url %s' % (url))
 
+
     def upload_to_s3(self, path, url):
         url = url.replace('\\', '/')
         self._log('Uploading %s -> %s' % (path, url))
