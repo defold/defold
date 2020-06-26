@@ -803,6 +803,24 @@ namespace dmPhysics
     Vectormath::Aos::Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
+     * Set the linear velocity of the 3D collision object.
+     *
+     * @param context Physics context
+     * @param collision_object
+     * @param linear_velocity the linear velocity
+     */
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& linear_velocity);
+
+    /**
+     * Set the linear velocity of the 2D collision object.
+     *
+     * @param context Physics context
+     * @param collision_object
+     * @param linear_velocity the linear velocity
+     */
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& linear_velocity);
+
+    /**
      * Return the linear velocity of the 3D collision object.
      *
      * @param context Physics context
@@ -819,6 +837,24 @@ namespace dmPhysics
      * @return The angular velocity. The direction of the vector coincides with the axis of rotation, the magnitude is the angle of rotation.
      */
     Vectormath::Aos::Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object);
+
+    /**
+     * Set the angular velocity of the 3D collision object.
+     *
+     * @param context Physics context
+     * @param collision_object
+     * @param angular_velocity the angular velocity
+     */
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& angular_velocity);
+
+    /**
+     * Set the angular velocity of the 2D collision object.
+     *
+     * @param context Physics context
+     * @param collision_object
+     * @param velocity the angular velocity (uses the Z component.)
+     */
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& angular_velocity);
 
     /**
      * Return whether the 3D collision object is enabled or not.

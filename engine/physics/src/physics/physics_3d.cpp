@@ -919,6 +919,28 @@ namespace dmPhysics
         return angular_velocity;
     }
 
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
+        if (body != 0x0)
+        {
+            btVector3 bt_velocity;
+            ToBt(velocity, bt_velocity, context->m_Scale);
+            body->setLinearVelocity(bt_velocity);
+        }
+    }
+
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
+        if (body != 0x0)
+        {
+            btVector3 bt_velocity;
+            ToBt(velocity, bt_velocity, 1.0f);
+            body->setAngularVelocity(bt_velocity);
+        }
+    }
+
     bool IsEnabled3D(HCollisionObject3D collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);

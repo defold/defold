@@ -1029,6 +1029,18 @@ namespace dmPhysics
         return Vectormath::Aos::Vector3(0.0f, 0.0f, ang_vel);
     }
 
+    void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        b2Vec2 b2_velocity;
+        ToB2(velocity, b2_velocity, context->m_Scale);
+        ((b2Body*)collision_object)->SetLinearVelocity(b2_velocity);
+    }
+
+    void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        ((b2Body*)collision_object)->SetAngularVelocity(velocity.getZ());
+    }
+
     bool IsEnabled2D(HCollisionObject2D collision_object)
     {
         return ((b2Body*)collision_object)->IsActive();

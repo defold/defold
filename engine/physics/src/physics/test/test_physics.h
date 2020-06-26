@@ -107,6 +107,8 @@ struct Funcs
     typedef Vectormath::Aos::Quat (*GetWorldRotationFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
     typedef Vectormath::Aos::Vector3 (*GetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
     typedef Vectormath::Aos::Vector3 (*GetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef void (*SetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& velocity);
+    typedef void (*SetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& velocity);
     typedef bool (*IsEnabledFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetEnabledFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object, bool enabled);
     typedef bool (*IsSleepingFunc)(typename T::CollisionObjectType collision_object);
@@ -160,6 +162,8 @@ struct Test3D
     Funcs<Test3D>::GetWorldRotationFunc             m_GetWorldRotationFunc;
     Funcs<Test3D>::GetLinearVelocityFunc            m_GetLinearVelocityFunc;
     Funcs<Test3D>::GetAngularVelocityFunc           m_GetAngularVelocityFunc;
+    Funcs<Test3D>::SetLinearVelocityFunc            m_SetLinearVelocityFunc;
+    Funcs<Test3D>::SetAngularVelocityFunc           m_SetAngularVelocityFunc;
     Funcs<Test3D>::IsEnabledFunc                    m_IsEnabledFunc;
     Funcs<Test3D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test3D>::IsSleepingFunc                   m_IsSleepingFunc;
@@ -216,6 +220,8 @@ struct Test2D
     Funcs<Test2D>::GetWorldRotationFunc             m_GetWorldRotationFunc;
     Funcs<Test2D>::GetLinearVelocityFunc            m_GetLinearVelocityFunc;
     Funcs<Test2D>::GetAngularVelocityFunc           m_GetAngularVelocityFunc;
+    Funcs<Test2D>::SetLinearVelocityFunc            m_SetLinearVelocityFunc;
+    Funcs<Test2D>::SetAngularVelocityFunc           m_SetAngularVelocityFunc;
     Funcs<Test2D>::IsEnabledFunc                    m_IsEnabledFunc;
     Funcs<Test2D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test2D>::IsSleepingFunc                   m_IsSleepingFunc;
