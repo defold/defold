@@ -285,9 +285,6 @@ class Configuration(object):
         sys.stdout.flush()
         sys.stderr.flush()
 
-    def _get_archive_path(self):
-        return join(self.archive_path, self.channel, "files")
-
     def distclean(self):
         if os.path.exists(self.dynamo_home):
             self._log('Removing %s' % self.dynamo_home)
@@ -794,11 +791,12 @@ class Configuration(object):
         run.shell_command("%s %s" % (strip, path))
         return True
 
+
     def archive_engine(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self._get_archive_path(), sha1, 'engine', self.target_platform).replace('\\', '/')
-        share_archive_path = join(self._get_archive_path(), sha1, 'engine', 'share').replace('\\', '/')
-        java_archive_path = join(self._get_archive_path(), sha1, 'engine', 'share', 'java').replace('\\', '/')
+        full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
+        share_archive_path = join(sha1, 'engine', 'share').replace('\\', '/')
+        java_archive_path = join(sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
         bin_dir = self.build_utility.get_binary_path()
@@ -808,37 +806,37 @@ class Configuration(object):
         if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
-            self.upload_file(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
+            self.upload_to_archive(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
 
         # upload gdc tool on desktop platforms
         if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
             gdc_name = format_exes("gdc", self.target_platform)[0]
             gdc_bin = join(bin_dir, gdc_name)
-            self.upload_file(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
+            self.upload_to_archive(gdc_bin, '%s/%s' % (full_archive_path, gdc_name))
 
         for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
             for engine_name in format_exes(n, self.target_platform):
                 engine = join(bin_dir, engine_name)
-                self.upload_file(engine, '%s/%s' % (full_archive_path, engine_name))
+                self.upload_to_archive(engine, '%s/%s' % (full_archive_path, engine_name))
                 engine_stripped = join(bin_dir, engine_name + "_stripped")
                 shutil.copy2(engine, engine_stripped)
                 if self._strip_engine(engine_stripped):
-                    self.upload_file(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
+                    self.upload_to_archive(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
                 if 'win32' in self.target_platform:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
-                    self.upload_file(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
+                    self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
 
             if 'web' in self.target_platform:
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
-                    self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                    self.upload_to_archive(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
                 engine_symbols = join(bin_dir, engine_name + '.symbols')
                 if os.path.exists(engine_symbols):
-                    self.upload_file(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+                    self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
             elif 'darwin' in self.target_platform:
                 engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
                 if os.path.exists(engine_symbols):
-                    self.upload_file(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
+                    self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
 
         zip_archs = []
         if not self.skip_docs:
@@ -846,11 +844,11 @@ class Configuration(object):
         if not self.skip_builtins:
             zip_archs.append('builtins.zip')
         for zip_arch in zip_archs:
-            self.upload_file(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
+            self.upload_to_archive(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
         if self.target_platform == 'x86_64-linux':
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
-            self.upload_file(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
@@ -860,20 +858,20 @@ class Configuration(object):
             ]
             for f in files:
                 src = join(dynamo_home, f[0], f[1])
-                self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
+                self.upload_to_archive(src, '%s/%s' % (full_archive_path, f[1]))
 
             resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
-            self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
+            self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
             libs = ['texc', 'particle']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
-                self.upload_file(lib_path, '%s/%s' % (full_archive_path, lib_name))
+                self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath = self._package_platform_sdk(self.target_platform)
-        self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+        self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
 
     def _get_build_flags(self):
         supported_tests = {}
@@ -1001,15 +999,15 @@ class Configuration(object):
 
     def archive_go(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self._get_archive_path(), sha1, 'go', self.target_platform)
+        full_archive_path = join(sha1, 'go', self.target_platform)
         for p in glob(join(self.defold, 'go', 'bin', '*')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+            self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def archive_bob(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self._get_archive_path(), sha1, 'bob').replace('\\', '/')
+        full_archive_path = join(sha1, 'bob').replace('\\', '/')
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+            self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def copy_local_bob_artefacts(self):
         apkc_name = format_exes('apkc', self.host2)[0]
@@ -1106,16 +1104,14 @@ class Configuration(object):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
 
         sha1 = self._git_sha1()
-        u = urlparse.urlparse(self._get_archive_path())
-        bucket = s3.get_bucket(u.hostname)
+        u = urlparse.urlparse(self.get_archive_path())
+        bucket = s3.get_bucket(u.netloc)
 
-        root = urlparse.urlparse(self._get_archive_path()).path[1:]
+        root = urlparse.urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
         platforms = ['x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios', 'armv7-android', 'arm64-android', 'js-web', 'wasm-web']
         for platform in platforms:
-            platform_sdk_url = join(self._get_archive_path(), sha1, 'engine', platform).replace('\\', '/')
-
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
             entry = bucket.get_key(prefix)
 
@@ -1137,8 +1133,8 @@ class Configuration(object):
         sdkpath = self._ziptree(treepath, directory=tempdir)
         print "Packaged defold sdk"
 
-        sdkurl = join(self._get_archive_path(), sha1, 'engine').replace('\\', '/')
-        self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
+        sdkurl = join(sha1, 'engine').replace('\\', '/')
+        self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -1155,26 +1151,22 @@ class Configuration(object):
 # BEGIN: EDITOR 2
 #
     def download_editor2(self):
-        u = urlparse.urlparse(self._get_archive_path())
-        bucket_name = u.hostname
-        bucket = s3.get_bucket(bucket_name)
-        prefix = s3.get_archive_prefix(self._get_archive_path(), self._git_sha1())
-
         editor_filename = "Defold-%s.zip" % self.target_platform
-        editor_path = join(self.defold_root, 'editor', 'target', 'editor')
-        s3_path = "s3://%s/%s/%s/editor2/%s" % (bucket_name, prefix, self.channel, editor_filename)
-        self.download_file(join(editor_path, editor_filename), s3_path)
+        editor_path = join(self.defold_root, 'editor', 'target', 'editor', editor_filename)
+
+        s3_path = join(self._git_sha1(), self.channel, 'editor2', editor_filename)
+        self.download_from_archive(s3_path, editor_path)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self._get_archive_path(), sha1, self.channel, 'editor2')
+        full_archive_path = join(sha1, self.channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
         zip_path = join(self.defold_root, 'editor', 'target', 'editor', zip_file)
         dmg_path = join(self.defold_root, 'editor', 'target', 'editor', dmg_file)
-        if os.path.exists(zip_path): self.upload_file(zip_path, '%s/%s' % (full_archive_path, zip_file))
-        if os.path.exists(dmg_path): self.upload_file(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
+        if os.path.exists(zip_path): self.upload_to_archive(zip_path, '%s/%s' % (full_archive_path, zip_file))
+        if os.path.exists(dmg_path): self.upload_to_archive(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
         self.wait_uploads()
 
     def run_editor_script(self, cmd):
@@ -1370,7 +1362,7 @@ class Configuration(object):
             self._log('Running git fetch to get latest tags and refs...')
             run.shell_command('git fetch')
 
-        u = urlparse.urlparse(self._get_archive_path())
+        u = urlparse.urlparse(self.get_archive_path())
         hostname = u.hostname
         path = u.path
         bucket = s3.get_bucket(hostname)
@@ -1380,10 +1372,10 @@ class Configuration(object):
 
         if self.channel == 'stable':
             # Move artifacts to a separate page?
-            model['releases'] = s3.get_tagged_releases(self._get_archive_path())
+            model['releases'] = s3.get_tagged_releases(self.get_archive_path())
             model['has_releases'] = True
         else:
-            model['releases'] = s3.get_single_release(self._get_archive_path(), self.version, self._git_sha1())
+            model['releases'] = s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())
             model['has_releases'] = True
 
         if not model['releases']:
@@ -1464,7 +1456,7 @@ class Configuration(object):
 
 
     def sync_archive(self):
-        u = urlparse.urlparse(self._get_archive_path())
+        u = urlparse.urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
 
@@ -1486,7 +1478,7 @@ class Configuration(object):
         # * Defold SDK files
         # * launcher files, used to launch editor2
         pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
-        prefix = s3.get_archive_prefix(self._get_archive_path(), self._git_sha1())
+        prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
 
@@ -1511,7 +1503,7 @@ class Configuration(object):
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            url = 'https://d.defold.com/archive/%s/%s/editor2/%s' % (sha1, channel, bundle)
+            url = join(self.get_archive_path(), sha1, channel, 'editor2', bundle).replace("s3", "https").replace("\\", "/")
             path = self._download(url)
             return path
         else:
@@ -1619,7 +1611,7 @@ class Configuration(object):
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
             return paths
         for f in _findwebfiles(join(cwd, 'result')):
-            self.upload_file(f, 's3://%s/%s' % (result_archive_path, basename(f)))
+            self.upload_to_s3(f, 's3://%s/%s' % (result_archive_path, basename(f)))
         self.wait_uploads()
         self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
@@ -1659,16 +1651,36 @@ class Configuration(object):
 #
 # END: SMOKE TEST
 # ------------------------------------------------------------
+    def get_archive_path(self):
+        return join(self.archive_path, self.channel, "files")
 
-    def download_file(self, path, url):
+    def get_archive_redirect_key(self, url):
+        # s3://d.defold.com/archive/channel/files/sha1/engine/* -> s3://d.defold.com/archive/sha1/engine/*
+        old_url = url.replace(self.get_archive_path(), self.archive_path)
+        u = urlparse.urlparse(old_url)
+        return u.path
+
+    def download_from_archive(self, src_path, dst_file):
+        url = join(self.get_archive_path(), src_path)
+        self.download_from_s3(dst_file, url)
+
+    def upload_to_archive(self, src_file, dst_path, create_redirect=True):
+        url = join(self.get_archive_path(), dst_path)
+        self.upload_to_s3(src_file, url)
+        if create_redirect:
+            u = urlparse.urlparse(url)
+            bucket = s3.get_bucket(u.netloc)
+            key_name = self.get_archive_redirect_key(url)
+            key = bucket.new_key(key_name)
+            key.set_redirect(url.replace("s3://", "http://"))
+
+    def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
         self._log('Downloading %s -> %s' % (url, path))
-        self._mkdirs(os.path.dirname(path))
         u = urlparse.urlparse(url)
 
-        if u.netloc == '':
-            print("Not implemented")
-        elif u.scheme == 's3':
+        if u.scheme == 's3':
+            self._mkdirs(os.path.dirname(path))
             from boto.s3.key import Key
 
             bucket = s3.get_bucket(u.netloc)
@@ -1676,24 +1688,16 @@ class Configuration(object):
             k.key = u.path
             k.get_contents_to_filename(path)
             self._log('Downloaded %s -> %s' % (url, path))
+        else:
+            raise Exception('Unsupported url %s' % (url))
 
-    def upload_file(self, path, url):
+    def upload_to_s3(self, path, url):
         url = url.replace('\\', '/')
         self._log('Uploading %s -> %s' % (path, url))
 
         u = urlparse.urlparse(url)
 
-        if u.netloc == '':
-            # Assume scp syntax, e.g. host:path
-            if 'win32' in self.host:
-                path = path.replace('\\', '/')
-                # scp interpret c:\path as a network location (host "c")
-                if path[1] == ':':
-                    path = "/" + path[:1] + path[2:]
-
-            run.env_command(self._form_env(), ['ssh', u.scheme, 'mkdir -p %s' % u.path])
-            run.env_command(self._form_env(), ['scp', path, url])
-        elif u.scheme == 's3':
+        if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
 
             if not self.thread_pool:
