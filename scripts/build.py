@@ -1662,7 +1662,7 @@ class Configuration(object):
         self.download_from_s3(dst_file, url)
 
     def upload_to_archive(self, src_file, dst_path):
-        url = join(self.get_archive_path(), dst_path)
+        url = join(self.get_archive_path(), dst_path).replace("\\", "/")
         self.upload_to_s3(src_file, url)
 
         # create redirect so that the old s3 paths still work
