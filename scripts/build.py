@@ -58,7 +58,7 @@ PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
-CDN_UPLOAD_URL="s3://d.defold.com/archive"
+CDN_UPLOAD_URL="s3://d.defold.com"
 
 PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
@@ -1653,7 +1653,7 @@ class Configuration(object):
         return join(self.archive_path, self.channel, "files")
 
     def get_archive_redirect_key(self, url):
-        old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path.replace("\\", "/"))
+        old_url = url.replace(self.get_archive_path().replace("\\", "/"), "/archive")
         u = urlparse.urlparse(old_url)
         return u.path
 
