@@ -791,7 +791,6 @@ class Configuration(object):
         run.shell_command("%s %s" % (strip, path))
         return True
 
-
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
@@ -1146,7 +1145,6 @@ class Configuration(object):
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
 
-
 # ------------------------------------------------------------
 # BEGIN: EDITOR 2
 #
@@ -1427,7 +1425,7 @@ class Configuration(object):
         key = bucket.new_key('%s/info.json' % self.channel)
         key.content_type = 'application/json'
         key.set_contents_from_string(json.dumps({'version': self.version,
-                                                     'sha1' : release_sha1}))
+                                                 'sha1' : release_sha1}))
 
         # Editor update-v3.json
         key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.channel)
@@ -1655,7 +1653,6 @@ class Configuration(object):
         return join(self.archive_path, self.channel, "files")
 
     def get_archive_redirect_key(self, url):
-        # s3://d.defold.com/archive/channel/files/sha1/engine/* -> s3://d.defold.com/archive/sha1/engine/*
         old_url = url.replace(self.get_archive_path(), self.archive_path)
         u = urlparse.urlparse(old_url)
         return u.path
@@ -1664,15 +1661,17 @@ class Configuration(object):
         url = join(self.get_archive_path(), src_path)
         self.download_from_s3(dst_file, url)
 
-    def upload_to_archive(self, src_file, dst_path, create_redirect=True):
+    def upload_to_archive(self, src_file, dst_path):
         url = join(self.get_archive_path(), dst_path)
         self.upload_to_s3(src_file, url)
-        if create_redirect:
-            u = urlparse.urlparse(url)
-            bucket = s3.get_bucket(u.netloc)
-            key_name = self.get_archive_redirect_key(url)
-            key = bucket.new_key(key_name)
-            key.set_redirect(url.replace("s3://", "http://"))
+
+        # create redirect so that the old s3 paths still work
+        # s3://d.defold.com/archive/channel/files/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+        u = urlparse.urlparse(url)
+        bucket = s3.get_bucket(u.netloc)
+        key_name = self.get_archive_redirect_key(url)
+        key = bucket.new_key(key_name)
+        key.set_redirect(url.replace("s3://", "http://"))
 
     def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
