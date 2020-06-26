@@ -1045,6 +1045,19 @@ namespace dmPhysics
         }
     }
 
+    void SetMass3D(HCollisionObject3D collision_object, float mass) {
+        btCollisionObject* co = GetCollisionObject(collision_object);
+        btRigidBody* body = btRigidBody::upcast(co);
+        if (body != 0x0 && !body->isKinematicObject() && !body->isStaticObject()) {
+            btVector3 inertia = body->getInvInertiaDiagLocal();
+            inertia.setValue(inertia.x() != btScalar(0.0) ? btScalar(1.0) / inertia.x(): btScalar(0.0),
+                             inertia.y() != btScalar(0.0) ? btScalar(1.0) / inertia.y(): btScalar(0.0),
+                             inertia.z() != btScalar(0.0) ? btScalar(1.0) / inertia.z(): btScalar(0.0));
+
+            body->setMassProps(mass, inertia);
+        }
+    }
+
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())

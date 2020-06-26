@@ -178,6 +178,10 @@ namespace dmPhysics
         return 0;
     }
 
+    void SetMass3D(HCollisionObject2D collision_object, float mass)
+    {
+    }
+
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
     }

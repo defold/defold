@@ -1198,6 +1198,15 @@ namespace dmGameSystem
                 dmPhysics::SetAngularDamping2D(component->m_Object2D, params.m_Value.m_Number);
             }
             return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_MASS) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmPhysics::SetMass3D(component->m_Object3D, params.m_Value.m_Number);
+            } else {
+                dmPhysics::SetMass2D(component->m_Object2D, params.m_Value.m_Number);
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
         } else {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
