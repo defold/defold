@@ -1652,8 +1652,11 @@ class Configuration(object):
     def get_archive_path(self):
         return join(self.archive_path, self.channel, "files")
 
+    def get_archive_redirect_url(self, url):
+        return url.replace(self.get_archive_path(), self.archive_path).replace("s3://", "http://")
+
     def get_archive_redirect_key(self, url):
-        old_url = url.replace(self.get_archive_path(), self.archive_path)
+        old_url = self.get_archive_redirect_url(url)
         u = urlparse.urlparse(old_url)
         return u.path
 
@@ -1669,13 +1672,12 @@ class Configuration(object):
 
         # create redirect so that the old s3 paths still work
         # s3://d.defold.com/archive/channel/files/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
-        u = urlparse.urlparse(url)
-        bucket = s3.get_bucket(u.netloc)
-        key_name = self.get_archive_redirect_key(url)
-        redirect = url.replace("s3://", "http://")
-        key = bucket.new_key(key_name)
-        key.set_redirect(redirect)
-        self._log("Redirecting %s -> %s : %s" % (url, key_name, redirect))
+        bucket = s3.get_bucket(urlparse.urlparse(url).netloc)
+        redirect_key = self.get_archive_redirect_key(url)
+        redirect_url = self.get_archive_redirect_url(url)
+        key = bucket.new_key(redirect_key)
+        key.set_redirect(redirect_url)
+        self._log("Redirecting %s -> %s : %s" % (url, redirect_key, redirect_url))
 
     def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
