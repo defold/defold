@@ -422,6 +422,7 @@ namespace dmInput
         action->m_TouchCount = 0;
         action->m_TextCount = 0;
         action->m_HasText = 0;
+        action->m_GamepadNameCount = 0;
         action->m_GamepadDisconnected = 0;
         action->m_GamepadConnected = 0;
     }
@@ -685,8 +686,15 @@ namespace dmInput
                                 {
                                     action->m_GamepadDisconnected = packet->m_GamepadDisconnected;
                                     action->m_GamepadConnected = packet->m_GamepadConnected;
-                                }
 
+                                    if (action->m_GamepadConnected) 
+                                    {
+                                        const char* device_name;
+                                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                                        action->m_GamepadNameCount = strlen(device_name) + 1;
+                                        dmStrlCpy(action->m_GamepadName, device_name, action->m_GamepadNameCount);
+                                    }
+                                }
                             } else {
                                 if (input.m_Index != (uint16_t)~0)
                                 {

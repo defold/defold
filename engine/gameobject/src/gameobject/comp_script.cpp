@@ -366,9 +366,17 @@ namespace dmGameObject
 
             int action_table = lua_gettop(L);
 
-            if (params.m_InputAction->m_IsGamepad) {
+            if (params.m_InputAction->m_IsGamepad) 
+            {
                 lua_pushliteral(L, "gamepad");
                 lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
+                lua_settable(L, action_table);
+            }
+
+            if (params.m_InputAction->m_GamepadConnected) 
+            {
+                lua_pushliteral(L, "gamepad_name");
+                lua_pushlstring(L, params.m_InputAction->m_GamepadName, params.m_InputAction->m_GamepadNameCount);
                 lua_settable(L, action_table);
             }
 

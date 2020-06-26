@@ -1188,6 +1188,9 @@ bail:
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
 
+        input_action.m_GamepadNameCount = action->m_GamepadNameCount;
+        dmStrlCpy(input_action.m_GamepadName, action->m_GamepadName, input_action.m_GamepadNameCount);
+
         input_buffer->Push(input_action);
     }
 

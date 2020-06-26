@@ -173,6 +173,8 @@ namespace dmGameObject
         int32_t  m_TouchCount;
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
+        char     m_GamepadName[dmHID::MAX_CHAR_COUNT];
+        uint32_t m_GamepadNameCount;
         uint32_t m_GamepadIndex;
         uint8_t  m_IsGamepad : 1;
         uint8_t  m_GamepadDisconnected : 1;

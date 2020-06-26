@@ -1974,6 +1974,9 @@ namespace dmGameSystem
             gui_input_action.m_TextCount = text_count;
             gui_input_action.m_HasText = params.m_InputAction->m_HasText;
 
+            gui_input_action.m_GamepadNameCount = params.m_InputAction->m_GamepadNameCount;
+            dmStrlCpy(gui_input_action.m_GamepadName, params.m_InputAction->m_GamepadName, gui_input_action.m_GamepadNameCount);
+
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
             if (gui_result != dmGui::RESULT_OK)
