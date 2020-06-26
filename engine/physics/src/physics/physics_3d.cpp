@@ -635,7 +635,7 @@ namespace dmPhysics
         switch(shape->getShapeType())
         {
             case SPHERE_SHAPE_PROXYTYPE:        return new btSphereShape(((btSphereShape*)shape)->getRadius()); break;
-            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithoutMargin()); break;
+            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithMargin()); break;
             case CAPSULE_SHAPE_PROXYTYPE:       return new btCapsuleShape(((btCapsuleShape*)shape)->getRadius(), 2.0f * ((btCapsuleShape*)shape)->getHalfHeight()); break;
             case CONVEX_HULL_SHAPE_PROXYTYPE:   return new btConvexHullShape((btScalar*)((btConvexHullShape*)shape)->getPoints(), ((btConvexHullShape*)shape)->getNumPoints()); break;
         }
