@@ -870,6 +870,7 @@ class Configuration(object):
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
         sdkpath = self._package_platform_sdk(self.target_platform)
+        print("DEBUG archive_engine sdkpath: %s size: %d" % (sdkpath, os.path.getsize(sdkpath)))
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
 
     def _get_build_flags(self):
@@ -1663,6 +1664,7 @@ class Configuration(object):
 
     def upload_to_archive(self, src_file, dst_path):
         url = join(self.get_archive_path(), dst_path).replace("\\", "/")
+        print("DEBUG upload_to_archive src_file: %s dst_path: %s url: %s" % (src_file, dst_path, url))
         self.upload_to_s3(src_file, url)
 
         # create redirect so that the old s3 paths still work
@@ -1695,6 +1697,8 @@ class Configuration(object):
         self._log('Uploading %s -> %s' % (path, url))
 
         u = urlparse.urlparse(url)
+        print("DEBUG upload_to_s3 url: %s, path: %s size: %d" % (url, path, os.path.getsize(path)))
+        print(u)
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
