@@ -1653,7 +1653,7 @@ class Configuration(object):
         return join(self.archive_path, self.channel, "files")
 
     def get_archive_redirect_url(self, url):
-        return url.replace(self.get_archive_path(), self.archive_path).replace("s3://", "http://")
+        return url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path.replace("\\", "/")).replace("s3://", "http://")
 
     def get_archive_redirect_key(self, url):
         old_url = self.get_archive_redirect_url(url)
@@ -1667,7 +1667,7 @@ class Configuration(object):
 
     def upload_to_archive(self, src_file, dst_path):
         url = join(self.get_archive_path(), dst_path).replace("\\", "/")
-        self._log("Uploading %s -> %s" % (file, url))
+        self._log("Uploading %s -> %s" % (src_file, url))
         self.upload_to_s3(src_file, url)
 
         # create redirect so that the old s3 paths still work
