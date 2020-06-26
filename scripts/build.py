@@ -1652,11 +1652,8 @@ class Configuration(object):
     def get_archive_path(self):
         return join(self.archive_path, self.channel, "files")
 
-    def get_archive_redirect_url(self, url):
-        return url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path.replace("\\", "/")).replace("s3://", "http://")
-
     def get_archive_redirect_key(self, url):
-        old_url = self.get_archive_redirect_url(url)
+        old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path.replace("\\", "/"))
         u = urlparse.urlparse(old_url)
         return u.path
 
@@ -1674,7 +1671,7 @@ class Configuration(object):
         # s3://d.defold.com/archive/channel/files/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
         bucket = s3.get_bucket(urlparse.urlparse(url).netloc)
         redirect_key = self.get_archive_redirect_key(url)
-        redirect_url = self.get_archive_redirect_url(url)
+        redirect_url = url.replace("s3://", "http://")
         key = bucket.new_key(redirect_key)
         key.set_redirect(redirect_url)
         self._log("Redirecting %s -> %s : %s" % (url, redirect_key, redirect_url))
