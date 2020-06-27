@@ -37,12 +37,18 @@ namespace dmGameObject
     /// Default max instances in collection
     const uint32_t DEFAULT_MAX_COLLECTION_CAPACITY = 1024;
 
+    /// Default max instances in input stack
+    const uint32_t DEFAULT_MAX_INPUT_STACK_CAPACITY = 16;
+
     // Value for an invalid instance index, this must be the same as defined in
     // gamesys_ddf.proto for Create#index.
     const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
 
     /// Config key to use for tweaking maximum number of instances in a collection
     extern const char* COLLECTION_MAX_INSTANCES_KEY;
+
+    /// Config key to use for tweaking the maximum capacity of the input stack
+    extern const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY;
 
     /// Instance handle
     typedef struct Instance* HInstance;
@@ -715,6 +721,20 @@ namespace dmGameObject
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
+
+    /**
+     * Set default input stack capacity of collections in this register. This does not affect existing collections.
+     * @param regist Register
+     * @param capacity Default capacity of collections in this register.
+     */
+    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
+
+    /**
+     * Get default input stack capacity of collections in this register.
+     * @param regist Register
+     * @return Default capacity
+     */
+    uint32_t GetInputStackDefaultCapacity(HRegister regist);
 
     /**
      * Delete a component type register

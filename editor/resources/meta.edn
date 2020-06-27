@@ -294,6 +294,10 @@
    :help "max number of instances per collection, 1024 by default",
    :default 1024,
    :path ["collection" "max_instances"]}
+  {:type :integer,
+   :help "max number of game objects in the input stack, 16 by default",
+   :default 16,
+   :path ["collection" "max_input_stack_entries"]}
   {:type :number,
    :help "global gain (volume), 0 - 1, 1 by default",
    :default 1.0,
