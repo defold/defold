@@ -103,8 +103,11 @@
 
 (defn- find-custom-resources [resource-map custom-paths]
   (->> (flatten (keep (fn [custom-path]
-                        (when-let [base-resource (resource-map custom-path)]
-                          (resource/resource-seq base-resource)))
+                        (let [base-resource (resource-map custom-path)]
+                          (if base-resource
+                            (resource/resource-seq base-resource)
+                            (throw (ex-info (format "Custom resource not found: '%s'" custom-path)
+                                            {})))))
                       custom-paths))
        (distinct)
        (filter file-resource?)))
