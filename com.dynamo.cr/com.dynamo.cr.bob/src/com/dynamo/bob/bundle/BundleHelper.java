@@ -701,6 +701,11 @@ public class BundleHelper {
         return properties;
     }
 
+    private String derivedBundleName() {
+        String title = projectProperties.getStringValue("project", "title", "dmengine");
+        return title.substring(0, Math.min(title.length(), 15));
+    }
+
     public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -708,6 +713,8 @@ public class BundleHelper {
         String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
         List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
         properties.put("application-localizations", applicationLocalizations);
+
+        properties.put("bundle-name", projectProperties.getStringValue("osx", "bundle_name", derivedBundleName()));
 
         return properties;
     }
@@ -725,6 +732,7 @@ public class BundleHelper {
         properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
+        properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
