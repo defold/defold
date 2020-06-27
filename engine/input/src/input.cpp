@@ -692,7 +692,7 @@ namespace dmInput
                                         const char* device_name;
                                         dmHID::GetGamepadDeviceName(gamepad, &device_name);
                                         size_t device_name_length = strlen(device_name) + 1;
-                                        action->m_GamepadNameCount = dmMath::Min(sizeof(action->m_GamepadName), device_name_length);
+                                        action->m_GamepadNameCount = dmMath::Min(size_t(dmHID::MAX_CHAR_COUNT), device_name_length);
                                         dmStrlCpy(action->m_GamepadName, device_name, action->m_GamepadNameCount);
                                     }
                                 }
