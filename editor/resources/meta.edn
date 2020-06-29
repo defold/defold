@@ -559,6 +559,9 @@
    :help "bundle identifier (CFBundleIdentifier)",
    :default "example.unnamed",
    :path ["ios" "bundle_identifier"]}
+  {:type :string,
+   :help "bundle short name (CFBundleName). max 15 characters",
+   :path ["ios" "bundle_name"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
@@ -756,6 +759,9 @@
    :help "bundle identifier (CFBundleIdentifier)",
    :default "example.unnamed",
    :path ["osx" "bundle_identifier"]}
+  {:type :string,
+   :help "bundle short name (CFBundleName). max 15 characters",
+   :path ["osx" "bundle_name"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
