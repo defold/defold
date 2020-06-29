@@ -471,6 +471,7 @@ class Configuration(object):
 
         print("Installing python eggs")
         run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
+        run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pyaml'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
