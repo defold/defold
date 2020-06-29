@@ -369,6 +369,12 @@ def main(argv):
     # execute commands
     for command in args.commands:
         if command == "engine":
+            # Since github CI cannot skip jobs based on names/branches
+            if platform in ('arm64-nx64',):
+                print("Skipping engine for platform={} branch={}".format(platform, branch))
+                if branch not in ('platform-switch'):
+                    continue
+
             if not platform:
                 raise Exception("No --platform specified.")
             build_engine(
