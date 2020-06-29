@@ -778,12 +778,17 @@
                               ["root.stuff" "root.stuff"]
                               ["more_assets/some_more.stuff" "some_more.stuff"]
                               ["more_assets/some_more2.stuff" "some_more2.stuff"]]))
-      (with-setting "project/custom_resources" "nonexistent_path"
+      (with-setting "project/custom_resources" ""
         (project-build project game-project (g/make-evaluation-context))
         (doseq [path ["assets/some.stuff" "assets/some2.stuff"
                       "root.stuff"
                       "more_assets/some_more.stuff" "more_assets/some_more2.stuff"]]
-          (is (false? (.exists (build-path workspace path)))))))))))
+          (is (false? (.exists (build-path workspace path))))))
+      (with-setting "project/custom_resources" "nonexistent_path"
+        (let [build-error (:error (project-build project game-project (g/make-evaluation-context)))
+              error-message (some :message (tree-seq :causes :causes build-error))]
+          (is (g/error? build-error))
+          (is (= "Custom resource not found: '/nonexistent_path'" error-message)))))))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
