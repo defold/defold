@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -112,6 +112,8 @@ Test3D::Test3D()
 , m_GetWorldRotationFunc(dmPhysics::GetWorldRotation3D)
 , m_GetLinearVelocityFunc(dmPhysics::GetLinearVelocity3D)
 , m_GetAngularVelocityFunc(dmPhysics::GetAngularVelocity3D)
+, m_SetLinearVelocityFunc(dmPhysics::SetLinearVelocity3D)
+, m_SetAngularVelocityFunc(dmPhysics::SetAngularVelocity3D)
 , m_IsEnabledFunc(dmPhysics::IsEnabled3D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled3D)
 , m_IsSleepingFunc(dmPhysics::IsSleeping3D)
@@ -167,6 +169,8 @@ Test2D::Test2D()
 , m_GetWorldRotationFunc(dmPhysics::GetWorldRotation2D)
 , m_GetLinearVelocityFunc(dmPhysics::GetLinearVelocity2D)
 , m_GetAngularVelocityFunc(dmPhysics::GetAngularVelocity2D)
+, m_SetLinearVelocityFunc(dmPhysics::SetLinearVelocity2D)
+, m_SetAngularVelocityFunc(dmPhysics::SetAngularVelocity2D)
 , m_IsEnabledFunc(dmPhysics::IsEnabled2D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled2D)
 , m_IsSleepingFunc(dmPhysics::IsSleeping2D)
@@ -796,6 +800,39 @@ TYPED_TEST(PhysicsTest, ApplyForce)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
+TYPED_TEST(PhysicsTest, SetVelocity)
+{
+    float box_half_ext = 0.5f;
+    dmPhysics::CollisionObjectData data;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
+    typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    Vector3 lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_EQ(0.0f, lengthSqr(lin_vel));
+    Vector3 ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_EQ(0.0f, lengthSqr(ang_vel));
+
+    lin_vel = Vector3(1,0,0);
+    (*TestFixture::m_Test.m_SetLinearVelocityFunc)(TestFixture::m_Context, box_co, lin_vel);
+    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_EQ(1.0f, lengthSqr(lin_vel));
+
+    ang_vel = Vector3(0,0,2);
+    (*TestFixture::m_Test.m_SetAngularVelocityFunc)(TestFixture::m_Context, box_co, ang_vel);
+    ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_EQ(4.0f, lengthSqr(ang_vel));
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    lin_vel = (*TestFixture::m_Test.m_GetLinearVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_NEAR(1.0f, lengthSqr(lin_vel), 0.05f);
+    ang_vel = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_NEAR(4.0f, lengthSqr(ang_vel), 0.05f);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
 TYPED_TEST(PhysicsTest, EnableDisable)
 {
     // Dynamic object
@@ -1103,6 +1140,89 @@ TYPED_TEST(PhysicsTest, TriggerRayCasting)
     ASSERT_FALSE(result.m_Response.m_Hit);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+}
+
+TYPED_TEST(PhysicsTest, SynchronousRayCasting)
+{
+    float box_half_ext = 0.5f;
+
+    VisualObject vo_a;
+    //vo_a.m_Position = EngineToPhysicsWorld<T>(Vectormath::Aos::Point3(0.5f, 0.0, 0.0));
+    vo_a.m_Position.setX(1.0f);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setX(2.5f);
+
+    VisualObject vo_c;
+    vo_c.m_Position.setX(4.0f);
+
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
+
+    dmPhysics::CollisionObjectData data_a;
+    data_a.m_Group = 1;
+    data_a.m_Mass = 0.0f;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_a.m_UserData = &vo_a;
+    typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape, 1u);
+
+    dmPhysics::CollisionObjectData data_b;
+    data_b.m_Group = 2;
+    data_b.m_Mass = 0.0f;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_b.m_UserData = &vo_b;
+    typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape, 1u);
+
+    dmPhysics::CollisionObjectData data_c;
+    data_c.m_Group = 1;
+    data_c.m_Mass = 0.0f;
+    data_c.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_c.m_UserData = &vo_c;
+    typename TypeParam::CollisionObjectType box_co_c = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_c, &shape, 1u);
+
+    dmArray<dmPhysics::RayCastResponse> hits;
+    hits.SetCapacity(8);
+
+    dmPhysics::RayCastRequest request;
+    request.m_UserId = 0;
+    request.m_Mask = 1;
+
+    // A miss
+    hits.SetSize(0);
+    request.m_From = Vectormath::Aos::Point3(-1.0f, 0.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
+    request.m_ReturnAllResults = 0;
+    (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
+
+    ASSERT_EQ(0u, hits.Size());
+
+    // A hit
+    hits.SetSize(0);
+    request.m_From = Vectormath::Aos::Point3(-1.0f, 0.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(5.0f, 0.0f, 0.0f);
+    request.m_ReturnAllResults = 0;
+    (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
+
+    ASSERT_EQ(1u, hits.Size());
+    ASSERT_EQ(0.25f, hits[0].m_Fraction);
+
+    // Two hits (the middle object has the wrong group)
+    hits.SetSize(0);
+    request.m_From = Vectormath::Aos::Point3(-1.0f, 0.0f, 0.0f);
+    request.m_To = Vectormath::Aos::Point3(5.0f, 0.0f, 0.0f);
+    request.m_ReturnAllResults = 1;
+    (*TestFixture::m_Test.m_RayCastFunc)(TestFixture::m_World, request, hits);
+
+    ASSERT_EQ(2u, hits.Size());
+    ASSERT_EQ(0.25f, hits[0].m_Fraction);
+    ASSERT_EQ(0.75f, hits[1].m_Fraction);
+    ASSERT_EQ(0.5f, hits[0].m_Position.getX());
+    ASSERT_EQ(3.5f, hits[1].m_Position.getX());
+
+    //
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_c);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 

@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,6 +28,7 @@ def main(argv):
     parser.add_argument("--skip-sdk", dest="skip_sdk", action='store_true', default=False, help="Skip building the Defold SDK")
     parser.add_argument("--skip-bob", dest="skip_bob", action='store_true', default=False, help="Skip building bob")
     parser.add_argument("--skip-editor", dest="skip_editor", action='store_true', default=False, help="Skip building the editor")
+    parser.add_argument("--skip-sign", dest="skip_sign", action='store_true', default=False, help="Skip signing the artefacts")
 
     args = parser.parse_args()
 
@@ -44,6 +45,7 @@ def main(argv):
             "skip_sdk": args.skip_sdk,
             "skip_bob": args.skip_bob,
             "skip_editor": args.skip_editor,
+            "skip_sign": args.skip_sign,
             "branch": args.branch
         }
     }
