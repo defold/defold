@@ -85,6 +85,8 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_Localhost)
     ASSERT_EQ(0x01000000, address.m_address[3]);
 }
 
+// E.g. when running a linux vm on osx host.
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST_F(dmDNSTest, GetHostByName_IPv6_External)
 {
 #if !defined(_WIN32)
@@ -98,6 +100,7 @@ TEST_F(dmDNSTest, GetHostByName_IPv6_External)
     ASSERT_TRUE(true);
 #endif
 }
+#endif
 
 TEST_F(dmDNSTest, GetHostByName_IPv4_Unavailable)
 {

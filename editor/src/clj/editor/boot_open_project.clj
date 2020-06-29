@@ -55,7 +55,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
-           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent]
+           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent KeyCombination]
            [javafx.scene.layout VBox]
            [javafx.stage Stage]))
 
@@ -159,6 +159,7 @@
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
+    (.setFullScreenExitKeyCombination stage KeyCombination/NO_MATCH)
     (app-view/restore-window-dimensions stage prefs)
     
     (ui/show! stage)

@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -122,7 +122,7 @@ namespace dmGameSystem
     static void DeleteJoint(CollisionWorld* world, dmPhysics::HJoint joint);
     static void DeleteJoint(CollisionWorld* world, JointEntry* joint_entry);
 
-    void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
+    static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
         if (!user_data)
             return;
@@ -134,7 +134,7 @@ namespace dmGameSystem
     // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
     static int g_NumPhysicsTransformsUpdated = 0;
 
-    void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
+    static void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
             return;
@@ -367,19 +367,11 @@ namespace dmGameSystem
         {
             dmPhysics::HWorld2D physics_world = world->m_World2D;
             dmPhysics::HCollisionObject2D collision_object = 0;
-            if (resource->m_TileGrid)
-            {
-                dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-                collision_object = dmPhysics::NewCollisionObject2D(physics_world, data, &shapes.Front(), shapes.Size());
-            }
-            else
-            {
-                collision_object = dmPhysics::NewCollisionObject2D(physics_world, data,
-                                                                   resource->m_Shapes2D,
-                                                                   resource->m_ShapeTranslation,
-                                                                   resource->m_ShapeRotation,
-                                                                   resource->m_ShapeCount);
-            }
+            collision_object = dmPhysics::NewCollisionObject2D(physics_world, data,
+                                                               resource->m_Shapes2D,
+                                                               resource->m_ShapeTranslation,
+                                                               resource->m_ShapeRotation,
+                                                               resource->m_ShapeCount);
 
             if (collision_object != 0x0)
             {
@@ -1145,21 +1137,7 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping3D(component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping2D(component->m_Object2D));
-            }
-            return dmGameObject::PROPERTY_RESULT_OK;
-        } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
-            if (physics_context->m_3D) {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping3D(component->m_Object3D));
-            } else {
-                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping2D(component->m_Object2D));
-            }
-            return dmGameObject::PROPERTY_RESULT_OK;
-        } else if (params.m_PropertyId == PROP_LINEAR_VELOCITY) {
+        if (params.m_PropertyId == PROP_LINEAR_VELOCITY) {
             if (physics_context->m_3D) {
                 out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D));
             } else {
@@ -1180,6 +1158,20 @@ namespace dmGameSystem
                 out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass2D(component->m_Object2D));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping3D(component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping2D(component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping3D(component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping2D(component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
         } else {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
@@ -1188,7 +1180,26 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
+
+        if (params.m_PropertyId == PROP_LINEAR_VELOCITY) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmPhysics::SetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+            } else {
+                dmPhysics::SetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmPhysics::SetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+            } else {
+                dmPhysics::SetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D, Vectormath::Aos::Vector3(params.m_Value.m_V4[0], params.m_Value.m_V4[1], params.m_Value.m_V4[2]));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             if (physics_context->m_3D) {
@@ -1216,16 +1227,16 @@ namespace dmGameSystem
         return GetGroupBitIndex((CollisionWorld*)world, group_hash);
     }
 
-    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response)
+    void RayCast(void* _world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)
         {
-            dmPhysics::RayCast3D(world->m_World3D, request, response);
+            dmPhysics::RayCast3D(world->m_World3D, request, results);
         }
         else
         {
-            dmPhysics::RayCast2D(world->m_World2D, request, response);
+            dmPhysics::RayCast2D(world->m_World2D, request, results);
         }
     }
 

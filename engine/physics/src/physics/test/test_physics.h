@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,8 @@
 #include "../physics_2d.h"
 #include "../physics_3d.h"
 #include <jc_test/jc_test.h>
+
+template <typename T> class dmArray;
 
 struct VisualObject
 {
@@ -105,6 +107,8 @@ struct Funcs
     typedef Vectormath::Aos::Quat (*GetWorldRotationFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
     typedef Vectormath::Aos::Vector3 (*GetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
     typedef Vectormath::Aos::Vector3 (*GetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object);
+    typedef void (*SetLinearVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& velocity);
+    typedef void (*SetAngularVelocityFunc)(typename T::ContextType context, typename T::CollisionObjectType collision_object, const Vectormath::Aos::Vector3& velocity);
     typedef bool (*IsEnabledFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetEnabledFunc)(typename T::WorldType world, typename T::CollisionObjectType collision_object, bool enabled);
     typedef bool (*IsSleepingFunc)(typename T::CollisionObjectType collision_object);
@@ -115,7 +119,7 @@ struct Funcs
     typedef void (*SetAngularDampingFunc)(typename T::CollisionObjectType collision_object, float angular_damping);
     typedef float (*GetMassFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
-    typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmPhysics::RayCastResponse& response);
+    typedef void (*RayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request, dmArray<dmPhysics::RayCastResponse>& results);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
     typedef void (*SetGravityFunc)(typename T::WorldType world, const Vectormath::Aos::Vector3& gravity);
@@ -157,6 +161,8 @@ struct Test3D
     Funcs<Test3D>::GetWorldRotationFunc             m_GetWorldRotationFunc;
     Funcs<Test3D>::GetLinearVelocityFunc            m_GetLinearVelocityFunc;
     Funcs<Test3D>::GetAngularVelocityFunc           m_GetAngularVelocityFunc;
+    Funcs<Test3D>::SetLinearVelocityFunc            m_SetLinearVelocityFunc;
+    Funcs<Test3D>::SetAngularVelocityFunc           m_SetAngularVelocityFunc;
     Funcs<Test3D>::IsEnabledFunc                    m_IsEnabledFunc;
     Funcs<Test3D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test3D>::IsSleepingFunc                   m_IsSleepingFunc;
@@ -212,6 +218,8 @@ struct Test2D
     Funcs<Test2D>::GetWorldRotationFunc             m_GetWorldRotationFunc;
     Funcs<Test2D>::GetLinearVelocityFunc            m_GetLinearVelocityFunc;
     Funcs<Test2D>::GetAngularVelocityFunc           m_GetAngularVelocityFunc;
+    Funcs<Test2D>::SetLinearVelocityFunc            m_SetLinearVelocityFunc;
+    Funcs<Test2D>::SetAngularVelocityFunc           m_SetAngularVelocityFunc;
     Funcs<Test2D>::IsEnabledFunc                    m_IsEnabledFunc;
     Funcs<Test2D>::SetEnabledFunc                   m_SetEnabledFunc;
     Funcs<Test2D>::IsSleepingFunc                   m_IsSleepingFunc;
