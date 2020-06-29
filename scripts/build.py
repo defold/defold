@@ -58,7 +58,7 @@ PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
-CDN_UPLOAD_URL="s3://d.defold.com"
+CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
@@ -1650,10 +1650,10 @@ class Configuration(object):
 # END: SMOKE TEST
 # ------------------------------------------------------------
     def get_archive_path(self):
-        return join(self.archive_path, self.channel, "files")
+        return join(self.archive_path, self.channel)
 
     def get_archive_redirect_key(self, url):
-        old_url = url.replace(self.get_archive_path().replace("\\", "/"), "/archive")
+        old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
         u = urlparse.urlparse(old_url)
         return u.path
 
@@ -1668,7 +1668,7 @@ class Configuration(object):
         self.upload_to_s3(src_file, url)
 
         # create redirect so that the old s3 paths still work
-        # s3://d.defold.com/channel/files/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+        # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
         bucket = s3.get_bucket(urlparse.urlparse(url).netloc)
         redirect_key = self.get_archive_redirect_key(url)
         redirect_url = url.replace("s3://", "http://")
