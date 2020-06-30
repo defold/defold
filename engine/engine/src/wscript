@@ -55,7 +55,7 @@ def build(bld):
     graphics_lib = 'GRAPHICS DMGLFW'
     graphics_lib_symbols = 'GraphicsAdapterOpenGL'
     if bld.env['PLATFORM'] in ('arm64-nx64',) or Options.options.with_vulkan:
-        graphics_lib = 'GRAPHICS_VULKAN DMGLFW_VULKAN VULKAN'
+        graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
         graphics_lib_symbols = 'GraphicsAdapterVulkan'
 
     exported_symbols.append(graphics_lib_symbols)

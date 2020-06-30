@@ -1,10 +1,10 @@
 ;; Copyright 2020 The Defold Foundation
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,6 +23,7 @@
     [editor.resource :as resource]
     [editor.system :as system]
     [editor.ui :as ui]
+    [editor.prefs :as prefs]
     [editor.workspace :as workspace])
   (:import
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
@@ -148,12 +149,13 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs)
+        editor-texture-compression (if (prefs/get-prefs prefs "general-enable-texture-compression" false) "true" "false")
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
@@ -164,7 +166,10 @@
              ;; From AbstractBundleHandler
              "archive" "true"
              "bundle-output" bundle-output-path
-             "texture-compression" "true"
+             "texture-compression" (case texture-compression
+                                    "enabled" "true"
+                                    "disabled" "false"
+                                    "editor" editor-texture-compression)
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
@@ -187,7 +192,7 @@
   {:architecture-32bit? "armv7-android"
    :architecture-64bit? "arm64-android"})
 
-(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as bundle-options}]
+(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key bundle-format] :as bundle-options}]
   (let [bob-architectures
         (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
               :when (bundle-options option-key)]
@@ -198,6 +203,7 @@
                 (and (.isFile certificate)
                      (.isFile private-key))))
     (cond-> bob-args
+            bundle-format (assoc "bundle-format" bundle-format)
             certificate (assoc "certificate" (.getAbsolutePath certificate))
             private-key (assoc "private-key" (.getAbsolutePath private-key)))))
 

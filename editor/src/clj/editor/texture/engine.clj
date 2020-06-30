@@ -15,10 +15,10 @@
             [editor.image-util :refer [image-color-components image-convert-type image-pixels]]
             [editor.texture.math :refer [closest-power-of-two]]
             [editor.types :refer [map->EngineFormatTexture]])
-  (:import [java.awt.image BufferedImage ColorModel]
-           [java.nio ByteBuffer]
+  (:import [com.dynamo.bob TexcLibrary TexcLibrary$ColorSpace TexcLibrary$CompressionLevel TexcLibrary$CompressionType TexcLibrary$DitherType TexcLibrary$PixelFormat]
            [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]
-           [com.defold.libs TexcLibrary TexcLibrary$ColorSpace TexcLibrary$CompressionLevel TexcLibrary$CompressionType TexcLibrary$DitherType TexcLibrary$PixelFormat]))
+           [java.awt.image BufferedImage ColorModel]
+           [java.nio ByteBuffer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
