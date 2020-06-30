@@ -107,6 +107,10 @@ PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(WINDOWS_SDK_10_VERSION)
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r20"
 PACKAGES_ANDROID_SDK="android-sdk"
+PACKAGES_LINUX_CLANG="clang-9.0.0"
+PACKAGES_LINUX_TOOLCHAIN="clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04"
+PACKAGES_CCTOOLS_PORT="cctools-port-darwin14-3f979bbcd7ee29d79fb93f829edf3d1d16441147-linux"
+
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.39.16"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -235,12 +239,12 @@ class Future(object):
         else:
             return self.result
 
-def download_sdk(conf, url, targetfolder, strip_components=1):
-    if not os.path.exists(targetfolder):
+def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=False, format='z'):
+    if not os.path.exists(targetfolder) or force_extract:
         if not os.path.exists(os.path.dirname(targetfolder)):
             os.makedirs(os.path.dirname(targetfolder))
         path = conf.get_local_or_remote_file(url)
-        conf._extract_tgz_rename_folder(path, targetfolder, strip_components)
+        conf._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
     else:
         print "SDK already installed:", targetfolder
 
@@ -265,6 +269,8 @@ class Configuration(object):
                  notarization_password = None,
                  notarization_itc_provider = None,
                  github_token = None,
+                 github_target_repo = None,
+                 github_sha1 = None,
                  version = None):
 
         if sys.platform == 'win32':
@@ -301,6 +307,8 @@ class Configuration(object):
         self.notarization_password = notarization_password
         self.notarization_itc_provider = notarization_itc_provider
         self.github_token = github_token
+        self.github_target_repo = github_target_repo
+        self.github_sha1 = github_sha1
         self.version = version
 
         if self.github_token is None:
@@ -351,15 +359,18 @@ class Configuration(object):
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
         version = sys.version_info
+        suffix = os.path.splitext(file)[1]
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
         if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            run.env_command(self._form_env(), ['tar', 'xfz', file], cwd = path)
+            fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+            run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
         else:
-            tf = TarFile.open(file, 'r:gz')
+            fmts = {'.gz': 'gz', '.xz': 'xz', '.bzip2': 'bz2'}
+            tf = TarFile.open(file, 'r:%s' % fmts.get(suffix, 'gz'))
             tf.extractall(path)
             tf.close()
 
-    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1):
+    def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         src = src.replace('\\', '/')
 
         force_local = ''
@@ -373,7 +384,11 @@ class Configuration(object):
         if not os.path.exists(dirname):
             os.makedirs(dirname)
 
-        cmd = ['tar', 'xfz', src, '-C', dirname]
+        if format is None:
+            suffix = os.path.splitext(src)[1]
+            fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+            format = fmts.get(suffix, 'z')
+        cmd = ['tar', 'xf%s' % format, src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
         if force_local:
@@ -426,6 +441,11 @@ class Configuration(object):
         else:
             print("No go found for %s" % self.target_platform)
 
+    def _check_package_path(self):
+        if self.package_path is None:
+            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
+            sys.exit(1)
+
 
     def install_ext(self):
         def make_package_path(root, platform, package):
@@ -434,9 +454,7 @@ class Configuration(object):
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
 
-        if self.package_path is None:
-            print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
-            sys.exit(1)
+        self._check_package_path()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -506,6 +524,7 @@ class Configuration(object):
 
         print("Installing python eggs")
         run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'requests'])
+        run.env_command(self._form_env(), ['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), 'pyaml'])
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             run.env_command(self._form_env(), ['python', '-m', 'easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
@@ -536,6 +555,8 @@ class Configuration(object):
                 return os.path.normpath(os.path.abspath(path))
             print "Could not find local file:", path
             sys.exit(1)
+        dirname, basename = os.path.split(path)
+        path = dirname + "/" + urllib.quote(basename)
         path = self._download(path) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
@@ -595,7 +616,14 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk('%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-29-29.0.3.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host), join(sdkfolder, PACKAGES_ANDROID_SDK))
+
+        if 'linux' in self.host2:
+            download_sdk(self, '%s/%s.tar.xz' % (self.package_path, PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), format='J')
+
+        if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
+            if not os.path.exists(join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'cctools')):
+                download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG), force_extract=True)
 
         build_private.install_sdk(self, target_platform)
 
@@ -619,6 +647,7 @@ class Configuration(object):
         if os.path.isdir(emsDir):
             print "Emscripten is already installed:", emsDir
         else:
+            self._check_package_path()
             platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
             path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
             path = self.get_local_or_remote_file(path)
@@ -818,10 +847,12 @@ class Configuration(object):
         if self.target_platform not in ['x86_64-linux','x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
             return False
 
+        sdkfolder = join(self.ext, 'SDKs')
+
         strip = "strip"
         if 'android' in self.target_platform:
             ANDROID_NDK_VERSION = '20'
-            ANDROID_NDK_ROOT = os.path.join(self.dynamo_home, 'ext', 'SDKs','android-ndk-r%s' % ANDROID_NDK_VERSION)
+            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % ANDROID_NDK_VERSION)
             ANDROID_GCC_VERSION = '4.9'
             if target_platform == 'armv7-android':
                 ANDROID_PLATFORM = 'arm-linux-androideabi'
@@ -830,6 +861,9 @@ class Configuration(object):
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
+
+        if self.target_platform in ('x86_64-darwin','armv7-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
+            strip = os.path.join(sdkfolder, 'linux', PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin14-strip')
 
         run.shell_command("%s %s" % (strip, path))
         return True
@@ -1499,6 +1533,8 @@ class Configuration(object):
     def release_to_github(self):
         release_to_github.release(self)
 
+    def release_to_github_markdown(self):
+        release_to_github.release_markdown(self)
 
     def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1809,8 +1845,12 @@ class Configuration(object):
             host = self.host
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
-        env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
-                                                     '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
+        ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
+                            '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
+        if self.host == 'x86_64-linux':
+            ld_library_paths.append('%s/ext/SDKs/linux/%s/tapi1.4/lib' % (self.dynamo_home, PACKAGES_LINUX_CLANG))
+
+        env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
 
         pythonpaths = ['%s/lib/python' % self.dynamo_home,
                       '%s/build_tools' % self.defold,
@@ -1981,6 +2021,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'GitHub authentication token when releasing to GitHub')
 
+    parser.add_option('--github-target-repo', dest='github_target_repo',
+                      default = release_to_github.get_default_repo(),
+                      help = 'GitHub target repo when releasing artefacts')
+
+    parser.add_option('--github-sha1', dest='github_sha1',
+                      default = None,
+                      help = 'A specific sha1 to use in github operations')
+
     parser.add_option('--version', dest='version',
                       default = None,
                       help = 'Version to use instead of from VERSION file')
@@ -2019,6 +2067,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       notarization_password = options.notarization_password,
                       notarization_itc_provider = options.notarization_itc_provider,
                       github_token = options.github_token,
+                      github_target_repo = options.github_target_repo,
+                      github_sha1 = options.github_sha1,
                       version = options.version)
 
     for cmd in args:

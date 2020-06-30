@@ -59,7 +59,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
     * Use the .clang_format file for engine code.
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
-* All pull requests must be made towards the defold:dev branch for changes to the engine and defold:editor-dev for changes to the editor.
+* All pull requests should be made to `defold:dev` by default. However, if your pull request *only* touches the editor and you want it to reach users as quickly as possible, it can be made towards the `defold:editor-dev` branch instead. Users will receive an editor update as soon as a change is merged into `defold:editor-dev`, so this should be done with care. The editor uses the latest stable release of the runtime, so any change that touches the runtime, the Bob command-line build tool, or makes a change to the file formats *must* be made towards the `defold:dev` branch, even if it contains mostly editor changes.
 * Pull requests should be given descriptive names: Issue-1234-Changed-the-flux-capacitor-to-use-uranium
   * Make sure to [link the issue to the pull request](https://help.github.com/en/github/managing-your-work-on-github/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
 

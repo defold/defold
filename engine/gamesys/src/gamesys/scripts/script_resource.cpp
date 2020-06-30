@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -124,6 +124,29 @@ namespace dmGameSystem
  * go.property("my_atlas", resource.atlas("/atlas.atlas"))
  * function init(self)
  *   go.set("#sprite", "image", self.my_atlas)
+ * end
+ * ```
+ */
+
+/*# reference to buffer resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.buffer
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Set a unique buffer it to a sprite:
+ *
+ * ```lua
+ * go.property("my_buffer", resource.buffer("/cube.buffer"))
+ * function init(self)
+ *   go.set("#mesh", "vertices", self.my_buffer)
  * end
  * ```
  */
