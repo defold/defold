@@ -1750,12 +1750,7 @@ def detect(conf):
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
-    if Options.options.with_vulkan:
-        conf.env['STATICLIB_DMGLFW'] = 'dmglfw_vulkan'
-    else:
-        conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-
-    conf.env['STATICLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
