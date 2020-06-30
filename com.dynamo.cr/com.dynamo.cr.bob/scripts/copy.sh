@@ -1,10 +1,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -12,6 +12,8 @@
 
 # NOTE: This script is only used for CI
 # The corresponding file for development is build.xml
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 set -e
 mkdir -p lib/x86_64-linux
@@ -122,5 +124,6 @@ copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
 copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
 
-copy arm64-nx64/dmengine.nso arm64-nx64/dmengine.nso
-copy arm64-nx64/dmengine_release.nso arm64-nx64/dmengine_release.nso
+if [ -e "${DIR}/copy_private.sh" ]; then
+    sh ${DIR}/copy_private.sh
+fi
