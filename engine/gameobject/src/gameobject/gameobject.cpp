@@ -244,7 +244,7 @@ namespace dmGameObject
         regist->m_DefaultInputStackCapacity = capacity;
     }
 
-    uint32_t GetInputStackDefaultCapacity(HRegister regist)
+    static uint32_t GetInputStackDefaultCapacity(HRegister regist)
     {
         assert(regist != 0x0);
         return regist->m_DefaultInputStackCapacity;

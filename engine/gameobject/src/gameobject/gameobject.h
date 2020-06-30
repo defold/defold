@@ -730,13 +730,6 @@ namespace dmGameObject
     void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
-     * Get default input stack capacity of collections in this register.
-     * @param regist Register
-     * @return Default capacity
-     */
-    uint32_t GetInputStackDefaultCapacity(HRegister regist);
-
-    /**
      * Delete a component type register
      * @param regist Register to delete
      */
