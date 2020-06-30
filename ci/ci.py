@@ -259,11 +259,16 @@ def archive_editor2(channel = None, engine_artifacts = None, platform = None):
         call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
 
 
-def build_bob(channel = None):
+def build_bob(channel = None, branch = None):
     call("python scripts/build.py distclean")
 
     # Prerequisites for other platforms
-    call("python scripts/build.py install_ext --platform=arm64-nx64")
+
+    platform = None
+    if 'switch' in branch:
+        platform = '--platform=arm64-nx64'
+
+    call("python scripts/build.py install_ext %s" % platform)
 
     #
     args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
@@ -417,7 +422,7 @@ def main(argv):
         elif command == "archive-editor":
             archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            build_bob(channel = engine_channel)
+            build_bob(channel = engine_channel, branch = branch)
         elif command == "sdk":
             build_sdk()
         elif command == "smoke":
