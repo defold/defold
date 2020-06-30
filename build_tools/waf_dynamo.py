@@ -1744,9 +1744,9 @@ def detect(conf):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
     elif platform in ('x86_64-linux',):
-        conf.env['STATICLIB_VULKAN'] = ['vulkan', 'X11-xcb']
+        conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):
-        conf.env['STATICLIB_VULKAN'] = ['vulkan']
+        conf.env['SHLIB_VULKAN'] = ['vulkan']
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
