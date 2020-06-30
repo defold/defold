@@ -25,7 +25,7 @@
   (:import [java.io File]
            [javafx.scene Parent Scene]
            [javafx.stage Modality Stage]
-           [org.apache.commons.configuration.plist XMLPropertyListConfiguration]))
+           [org.apache.commons.configuration2.plist XMLPropertyListConfiguration]))
 
 (set! *warn-on-reflection* true)
 

@@ -13,7 +13,7 @@
 package com.defold.editor;
 
 import java.util.ArrayList;
-import org.apache.commons.lang.NullArgumentException;
+import org.apache.commons.lang3.NullArgumentException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

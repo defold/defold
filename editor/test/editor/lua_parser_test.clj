@@ -19,7 +19,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support])
-  (:import [org.apache.commons.lang RandomStringUtils]))
+  (:import [org.apache.commons.lang3 RandomStringUtils]))
 
 (defn- lua-info
   ([code]

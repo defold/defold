@@ -15,11 +15,14 @@ package com.dynamo.bob.bundle;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,8 +32,11 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
+import org.apache.commons.configuration2.io.FileLocator;
+import org.apache.commons.configuration2.io.FileLocator.FileLocatorBuilder;
+import org.apache.commons.configuration2.io.FileLocatorUtils;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -397,15 +403,14 @@ public class IOSBundler implements IBundler {
                     XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                     XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
 
-                    decodedProvision.load(textProvisionFile);
+                    decodedProvision.read(new FileReader(textProvisionFile));
                     XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
                     entitlements.append(decodedProvision.configurationAt("Entitlements"));
-
                     if (customEntitlementsProperty != null && customEntitlementsProperty.length() > 0) {
                         IResource customEntitlementsResource = project.getResource(customEntitlementsProperty);
                         if (customEntitlementsResource.exists()) {
                             InputStream is = new ByteArrayInputStream(customEntitlementsResource.getContent());
-                            customEntitlements.load(is);
+                            customEntitlements.read(new InputStreamReader(is));
 
                             Iterator<String> keys = customEntitlements.getKeys();
                             while (keys.hasNext()) {
@@ -420,9 +425,13 @@ public class IOSBundler implements IBundler {
                             entitlements.append(customEntitlements);
                         }
                     }
-
+                    FileWriter writer = new FileWriter(entitlementOut);
+                    FileLocatorBuilder builder = FileLocatorUtils.fileLocator();
+                    FileLocator locator = new FileLocator(builder);
+                    entitlements.initFileLocator(locator);
+                    entitlements.write(writer);
+                    writer.close();
                     entitlementOut.deleteOnExit();
-                    entitlements.save(entitlementOut);
                 } catch (ConfigurationException e) {
                     logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
                     throw new RuntimeException(e);
