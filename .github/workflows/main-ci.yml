@@ -337,7 +337,7 @@ jobs:
 
       {
         name: 'test echo',
-        if: (contains(github.head_ref, 'dev')),
+        if: "(contains(github.head_ref, 'dev'))",
         run: 'echo MAWE TEST DEV ECHO branch: ${{ github.head_ref }}'
       },
       {
