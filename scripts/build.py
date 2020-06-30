@@ -269,6 +269,8 @@ class Configuration(object):
                  notarization_password = None,
                  notarization_itc_provider = None,
                  github_token = None,
+                 github_target_repo = None,
+                 github_sha1 = None,
                  version = None):
 
         if sys.platform == 'win32':
@@ -305,6 +307,8 @@ class Configuration(object):
         self.notarization_password = notarization_password
         self.notarization_itc_provider = notarization_itc_provider
         self.github_token = github_token
+        self.github_target_repo = github_target_repo
+        self.github_sha1 = github_sha1
         self.version = version
 
         if self.github_token is None:
@@ -1529,6 +1533,8 @@ class Configuration(object):
     def release_to_github(self):
         release_to_github.release(self)
 
+    def release_to_github_markdown(self):
+        release_to_github.release_markdown(self)
 
     def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
@@ -2015,6 +2021,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'GitHub authentication token when releasing to GitHub')
 
+    parser.add_option('--github-target-repo', dest='github_target_repo',
+                      default = release_to_github.get_default_repo(),
+                      help = 'GitHub target repo when releasing artefacts')
+
+    parser.add_option('--github-sha1', dest='github_sha1',
+                      default = None,
+                      help = 'A specific sha1 to use in github operations')
+
     parser.add_option('--version', dest='version',
                       default = None,
                       help = 'Version to use instead of from VERSION file')
@@ -2053,6 +2067,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       notarization_password = options.notarization_password,
                       notarization_itc_provider = options.notarization_itc_provider,
                       github_token = options.github_token,
+                      github_target_repo = options.github_target_repo,
+                      github_sha1 = options.github_sha1,
                       version = options.version)
 
     for cmd in args:
