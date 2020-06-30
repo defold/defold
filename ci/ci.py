@@ -286,6 +286,22 @@ def release(channel = None):
     cmd = ' '.join(args + opts)
     call(cmd)
 
+def release_to_markdown(token = None, repo = None, sha1 = None):
+    args = "python scripts/build.py release_to_markdown".split()
+    opts = []
+
+    if token:
+        opts.append("--github_token=%s" % token)
+
+    if repo:
+        opts.append("--github_target_repo=%s" % repo)
+
+    if sha1:
+        opts.append("--github_sha1=%s" % sha1)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
 
 def build_sdk():
     call('python scripts/build.py build_sdk')
@@ -319,6 +335,9 @@ def main(argv):
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
+    parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
+    parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
+    parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
 
     args = parser.parse_args()
 
@@ -410,6 +429,10 @@ def main(argv):
                 release(channel = release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
+        elif command == "release_to_markdown":
+            release_to_markdown(token = args.github_token,
+                                repo = args.github_target_repo,
+                                sha1 = args.github_sha1)
         else:
             print("Unknown command {0}".format(command))
 
