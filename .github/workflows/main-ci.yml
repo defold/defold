@@ -24,7 +24,7 @@ env:
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-switch:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+    if: "!contains(github.event.head_commit.message, 'skip-ci') && contains(github.head_ref, 'switch')"
     strategy:
       matrix:
         platform: [arm64-nx64]
@@ -327,6 +327,18 @@ jobs:
             user: 'services@defold.se',
             action: 'refdoc'
         }
+      },
+
+      {
+        name: 'Publish release to releases.md',
+        # if: (contains(github.head_ref, 'switch')),
+        run: 'ci/ci.sh release_to_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-repo=defold-switch-releases'
+      },
+
+      {
+        name: 'test echo',
+        if: (contains(github.head_ref, 'dev')),
+        run: 'echo MAWE TEST DEV ECHO branch: ${{ github.head_ref }}'
       },
       {
        name: 'Notify if build status changed',
