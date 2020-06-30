@@ -1739,7 +1739,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     if (ia->m_GamepadConnected) 
                     {
                         lua_pushliteral(L, "gamepad_name");
-                        lua_pushlstring(L, ia->m_GamepadName, ia->m_GamepadNameCount);
+                        lua_pushstring(L, ia->m_GamepadName);
                         lua_settable(L, -3);
                     }
 

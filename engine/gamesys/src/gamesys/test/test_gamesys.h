@@ -184,6 +184,12 @@ public:
     virtual ~BoxRenderTest() {}
 };
 
+class GamepadConnectedTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~GamepadConnectedTest() {}
+};
+
 struct ResourcePropParams {
     const char* m_PropertyName;
     const char* m_ResourcePath;

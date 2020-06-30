@@ -1,0 +1,29 @@
+local error_message = ""
+
+function init(self)
+	self.error_message = "";
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("gamepad_connected") then
+		if action.gamepad_name ~= "null_device" then
+			error_message = "non zero connected gamepad_name is passed incorrectly";
+		end
+	elseif action_id == hash("gamepad_connected_0") then
+		if action.gamepad_name ~= "" then
+			error_message = "zero connected gamepad_name is passed incorrectly";
+		end
+	else
+		if action.gamepad_name ~= nil then
+			error_message = "gamepad name is passed when not connected";
+		end
+	end
+end
+
+function update(self, dt)
+	if error_message ~= "" then
+		print(error_message);
+		error_message = "";
+		assert(false);
+	end
+end

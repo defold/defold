@@ -222,6 +222,67 @@ TEST_P(ComponentTest, Test)
     dmDDF::FreeMessage(go_ddf);
 }
 
+TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/input/connected_event_test.goc", dmHashString64("/gamepad_connected"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::AcquireInputFocus(m_Collection, go);
+
+    //test gamepad connected with device name and connected flag
+    dmGameObject::InputAction input_action_connected;
+    input_action_connected.m_ActionId = dmHashString64("gamepad_connected");
+    input_action_connected.m_GamepadNameCount = strlen("null_device") + 1;
+    input_action_connected.m_GamepadConnected = 1;
+    dmStrlCpy(input_action_connected.m_GamepadName, "null_device", input_action_connected.m_GamepadNameCount);
+    dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    //test gamepad connected with empty device name
+    dmGameObject::InputAction input_action_empty;
+    input_action_empty.m_ActionId = dmHashString64("gamepad_connected_0");
+    input_action_empty.m_GamepadNameCount = 0;
+    input_action_empty.m_GamepadConnected = 1;
+    dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    //test gamepad connected with device name and no connected flag
+    dmGameObject::InputAction input_action_other;
+    input_action_other.m_ActionId = dmHashString64("other_event");
+    input_action_other.m_GamepadNameCount = strlen("null_device") + 1;
+    input_action_other.m_GamepadConnected = 0;
+    dmStrlCpy(input_action_other.m_GamepadName, "null_device", input_action_other.m_GamepadNameCount);
+    dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_P(ComponentTest, TestReloadFail)
 {
     const char* go_name = GetParam();
