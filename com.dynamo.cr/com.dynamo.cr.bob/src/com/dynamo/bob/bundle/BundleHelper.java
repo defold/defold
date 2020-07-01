@@ -348,7 +348,7 @@ public class BundleHelper {
     }
 
     // either copies the merged manifest or writes a new resolved manifest from single source file
-    public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
+    public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
@@ -372,6 +372,7 @@ public class BundleHelper {
             manifestFile = new File(extenderPlatformDir, mainManifestName); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
+        return targetManifest;
     }
 
     private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
@@ -466,22 +467,20 @@ public class BundleHelper {
         return new File(appDir, "res");
     }
 
-    public void copyAndroidResources(Platform platform, File appDir) throws IOException {
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
-
-        File targetResDir = getAndroidResourceDir(appDir);
-        if (hasExtensions) {
-            // pass
-        } else {
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-            packagesDir.mkdir();
-
-            File resDir = new File(packagesDir, "com.defold.android/res");
-            resDir.mkdirs();
-
-            BundleHelper.createAndroidResourceFolders(resDir);
-            copyAndroidIcons(resDir);
+    public File copyAndroidResources(Platform platform) throws IOException {
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            return null;
         }
+
+        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+        packagesDir.mkdir();
+
+        File resDir = new File(packagesDir, "com.defold.android/res");
+        resDir.mkdirs();
+
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+        return resDir;
     }
 
     public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {
@@ -717,6 +716,11 @@ public class BundleHelper {
         return properties;
     }
 
+    private String derivedBundleName() {
+        String title = projectProperties.getStringValue("project", "title", "dmengine");
+        return title.substring(0, Math.min(title.length(), 15));
+    }
+
     public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -724,6 +728,8 @@ public class BundleHelper {
         String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
         List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
         properties.put("application-localizations", applicationLocalizations);
+
+        properties.put("bundle-name", projectProperties.getStringValue("osx", "bundle_name", derivedBundleName()));
 
         return properties;
     }
@@ -741,6 +747,7 @@ public class BundleHelper {
         properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
+        properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {

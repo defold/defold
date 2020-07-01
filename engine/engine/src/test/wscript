@@ -12,7 +12,7 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS_NULL'
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android'):
-        graphics_lib = 'GRAPHICS_NULL DMGLFW'
+        graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',

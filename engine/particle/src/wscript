@@ -12,6 +12,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+import Options
+
 def configure(conf):
     pass
 
@@ -38,4 +40,5 @@ def build(bld):
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/particle/particle_ddf.proto')
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

@@ -1072,6 +1072,7 @@ bail:
 
     static void VulkanFlip(HContext context)
     {
+        DM_PROFILE(VSync, "Wait");
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
         FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
 
@@ -1333,6 +1334,8 @@ bail:
 
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        DM_PROFILE(Graphics, "SetVertexBufferData");
+
         if (size == 0)
         {
             return;
@@ -1350,6 +1353,7 @@ bail:
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        DM_PROFILE(Graphics, "SetVertexBufferSubData");
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_MemorySize);
@@ -1383,6 +1387,8 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        DM_PROFILE(Graphics, "SetIndexBufferData");
+
         if (size == 0)
         {
             return;
@@ -1402,6 +1408,7 @@ bail:
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        DM_PROFILE(Graphics, "SetIndexBufferSubData");
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
@@ -1911,6 +1918,8 @@ bail:
     static void VulkanDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context->m_FrameBegun);
+        DM_PROFILE(Graphics, "DrawElements");
+        DM_COUNTER("DrawCalls", 1);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
@@ -1925,6 +1934,8 @@ bail:
     static void VulkanDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context->m_FrameBegun);
+        DM_PROFILE(Graphics, "Draw");
+        DM_COUNTER("DrawCalls", 1);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
