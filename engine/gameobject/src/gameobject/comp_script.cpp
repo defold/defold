@@ -376,7 +376,7 @@ namespace dmGameObject
             if (params.m_InputAction->m_GamepadConnected) 
             {
                 lua_pushliteral(L, "gamepad_name");
-                lua_pushstring(L, params.m_InputAction->m_GamepadName);
+                lua_pushstring(L, params.m_InputAction->m_Text);
                 lua_settable(L, action_table);
             }
 
@@ -514,7 +514,7 @@ namespace dmGameObject
                 lua_settable(L, -3);
             }
 
-            if (params.m_InputAction->m_TextCount > 0 || params.m_InputAction->m_HasText)
+            if (params.m_InputAction->m_HasText)
             {
                 int tc = params.m_InputAction->m_TextCount;
                 lua_pushliteral(L, "text");

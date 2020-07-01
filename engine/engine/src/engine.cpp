@@ -1188,9 +1188,6 @@ bail:
         input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
         input_action.m_GamepadConnected = action->m_GamepadConnected;
 
-        input_action.m_GamepadNameCount = action->m_GamepadNameCount;
-        dmStrlCpy(input_action.m_GamepadName, action->m_GamepadName, input_action.m_GamepadNameCount);
-
         input_buffer->Push(input_action);
     }
 
@@ -1207,8 +1204,8 @@ bail:
     {
         dmGameObject::InputAction *ipa = (dmGameObject::InputAction *)a;
         dmGameObject::InputAction *ipb = (dmGameObject::InputAction *)b;
-        bool a_is_text = ipa->m_HasText || ipa->m_TextCount > 0;
-        bool b_is_text = ipb->m_HasText || ipb->m_TextCount > 0;
+        bool a_is_text = ipa->m_HasText;
+        bool b_is_text = ipb->m_HasText;
         return a_is_text - b_is_text;
     }
 

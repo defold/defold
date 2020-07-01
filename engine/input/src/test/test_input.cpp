@@ -82,7 +82,7 @@ TEST_F(InputTest, CreateContext)
 void TextInputCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
 {
     dmHashTable64<dmInput::Action*>* actions = (dmHashTable64<dmInput::Action*>*)user_data;
-    ASSERT_TRUE(action->m_HasText || action->m_TextCount > 0);
+    ASSERT_TRUE(action->m_HasText);
     actions->Put(action_id, action);
 }
 
@@ -393,7 +393,7 @@ TEST_F(InputTest, GamepadConnectedContainsGamepadName)
 
     dmhash_t action_id = dmHashString64("GAMEPAD_CONNECTED");
     ASSERT_TRUE(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadConnected);
-    ASSERT_STREQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadName, "null_device");
+    ASSERT_STREQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_Text, "null_device");
 
     dmInput::DeleteBinding(binding);
 }
@@ -415,8 +415,8 @@ TEST_F(InputTest, GamepadStickEventNotContainsGamepadName)
     ASSERT_TRUE(dmInput::Pressed(binding->m_GamepadBindings[0], action_id));
     ASSERT_FALSE(dmInput::Released(binding->m_GamepadBindings[0], action_id));
     ASSERT_FALSE(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadConnected);
-    ASSERT_STREQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadName, "");
-    ASSERT_EQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadNameCount, 0);
+    ASSERT_STREQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_Text, "");
+    ASSERT_EQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_TextCount, 0);
 
     dmInput::DeleteBinding(binding);
 }

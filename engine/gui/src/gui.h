@@ -444,10 +444,9 @@ namespace dmGui
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
-        char     m_GamepadName[dmHID::MAX_CHAR_COUNT];
-        uint32_t m_GamepadNameCount;
         uint32_t m_GamepadIndex;
         uint16_t m_IsGamepad : 1;
         uint16_t m_GamepadDisconnected : 1;
