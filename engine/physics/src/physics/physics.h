@@ -1144,6 +1144,14 @@ namespace dmPhysics
      */
     Vectormath::Aos::Vector3 GetGravity3D(HWorld3D world);
 
+    /**
+     * Set Step iteration per frame for 2D physics world.
+     * 
+     * @param world Physics world for which to get the gravity
+     * 
+     * @param stepIteration amount of iteration to run physics step per frame
+     */
+    void SetWorld2DStepIteration(HWorld2D world, int stepIteration, int velocityIteration, int positionIteration);
 
     /**
      * Callbacks used to draw the world for debugging purposes.

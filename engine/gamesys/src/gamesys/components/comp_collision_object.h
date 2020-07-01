@@ -63,6 +63,8 @@ namespace dmGameSystem
 
     void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
     Vectormath::Aos::Vector3 GetGravity(void* _world);
+    // TrungB : custom step iteration
+    void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration);
 
     bool IsCollision2D(void* _world);
     void SetCollisionFlipH(void* _component, bool flip);

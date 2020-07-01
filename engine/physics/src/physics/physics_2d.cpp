@@ -53,6 +53,7 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
+    , m_stepIteration(1)
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
@@ -379,6 +380,12 @@ namespace dmPhysics
         }
     }
 
+    void SetWorld2DStepIteration(HWorld2D world, int stepIteration, int velocityIteration, int positionIteration){
+        world->m_stepIteration = stepIteration;
+        world->m_velocityIteration = velocityIteration;
+        world->m_positionIteration = positionIteration;
+    }
+
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -434,7 +441,10 @@ namespace dmPhysics
         {
             DM_PROFILE(Physics, "StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
-            world->m_World.Step(dt, 10, 10);
+
+            for(int i = 0; i < world->m_stepIteration; i++)
+                world->m_World.Step(dt / world->m_stepIteration, world->m_velocityIteration, world->m_positionIteration);
+
             float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
@@ -1202,6 +1212,8 @@ namespace dmPhysics
         FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
         return gravity;
     }
+
+    
 
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {

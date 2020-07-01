@@ -31,8 +31,7 @@ namespace dmPhysics
 
         void SetStepWorldContext(const StepWorldContext* context);
 
-    private:
-        HWorld2D m_World;
+        private : HWorld2D m_World;
         /// Temporary context to be set before each stepping of the world
         const StepWorldContext* m_TempStepWorldContext;
     };
@@ -49,6 +48,11 @@ namespace dmPhysics
         ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
+        // custom iteration
+        uint8_t                     m_stepIteration;
+        uint8_t                     m_velocityIteration;
+        uint8_t                     m_positionIteration;
+
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     :7;
     };
@@ -68,7 +72,7 @@ namespace dmPhysics
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
         uint8_t                     m_AllowDynamicTransforms:1;
-        uint8_t                     :7;
+        uint8_t                     : 7;
     };
 
     inline void ToB2(const Vectormath::Aos::Point3& p0, b2Vec2& p1, float scale)
