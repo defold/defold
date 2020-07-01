@@ -353,18 +353,18 @@ def main(argv):
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
-        engine_channel = "editor-alpha"
+        engine_channel = None
         editor_channel = "editor-alpha"
         release_channel = editor_channel
         make_release = True
         engine_artifacts = args.engine_artifacts
     elif branch and branch.startswith("DEFEDIT-"):
-        engine_channel = "editor-dev"
+        engine_channel = None
         editor_channel = None
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
-        engine_channel = "engine-dev"
+        engine_channel = "dev"
         editor_channel = None
         make_release = False
         skip_editor_tests = True
