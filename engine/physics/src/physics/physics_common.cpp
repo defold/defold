@@ -30,6 +30,7 @@ namespace dmPhysics
     , m_RayCastLimit2D(0)
     , m_RayCastLimit3D(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }

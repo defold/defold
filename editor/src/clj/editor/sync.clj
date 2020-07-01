@@ -569,7 +569,7 @@
 (def ^:private ^String push-done-info-text
   (string/join
     "\n\n"
-    ["Yor changes were successfully pushed to the server."
+    ["Your changes were successfully pushed to the server."
      "Click Done to return to the editor."]))
 
 (def ^:private ^String push-error-info-text

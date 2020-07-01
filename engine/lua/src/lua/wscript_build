@@ -14,20 +14,21 @@ lua_lib = bld.new_task_gen(features = 'cc cxx cstaticlib',
 
 lua_lib.source = ['lapi.c', 'lcode.c', 'ldebug.c', 'ldo.c', 'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c', 'lmem.c', 'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c', 'lzio.c', 'lauxlib.c', 'lbaselib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c', 'loslib.c', 'ltablib.c', 'lstrlib.c', 'loadlib.c', 'linit.c']
 
-if bld.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-darwin', 'x86_64-linux'):
+is_desktop = bld.env.PLATFORM  in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+if is_desktop:
     lua = bld.new_task_gen(features = 'cc cxx cprogram',
-                         includes = '.',
-                         source = 'lua.c',
-                         target = 'lua',
-                         uselib_local = 'lua',
-                         defines = ['LUA_ANSI'] + EXTRA_DEFINES)
+                           includes = '.',
+                           source = 'lua.c',
+                           target = 'lua',
+                           uselib_local = 'lua',
+                           defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
     luac = bld.new_task_gen(features = 'cc cxx cprogram',
-                          includes = '.',
-                          source = 'luac.c print.c',
-                          target = 'luac',
-                          uselib_local = 'lua',
-                          defines = ['LUA_ANSI'] + EXTRA_DEFINES)
+                            includes = '.',
+                            source = 'luac.c print.c',
+                            target = 'luac',
+                            uselib_local = 'lua',
+                            defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
 bld.install_files('${PREFIX}/include/lua', 'lua.h')
 bld.install_files('${PREFIX}/include/lua', 'lauxlib.h')

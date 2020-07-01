@@ -75,7 +75,7 @@ Download and unpack this this:
 
 And repackage into a tar file:
 
-	$ tar -czf android-sdk-tools-linux-3859397.tag.gz tools
+	$ tar -czf android-sdk-tools-linux-3859397.tar.gz tools
 
 
 ## iOS + macOS

@@ -12,11 +12,16 @@ def build(bld):
                          uselib_local = 'graphics_null',
                          target = name)
 
-    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and bld.env.PLATFORM not in ('armv7-android', 'arm64-android', 'x86_64-linux'):
+    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and bld.env.PLATFORM not in ('x86_64-linux',):
+
+        extra_libs = []
+        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+            extra_libs += ['CARES', 'OPENGL']
+
         bld.new_task_gen(features = 'cxx cprogram test skip_test',
                          includes = ['../../src', '../../proto'],
                          exported_symbols = ['GraphicsAdapterVulkan'],
                          source = 'test_app_vulkan.cpp',
-                         uselib = 'TESTMAIN PLATFORM DDF DLIB APP DMGLFW GRAPHICS_VULKAN VULKAN',
+                         uselib = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
                          uselib_local = 'graphics_vulkan',
                          target = 'test_app_vulkan')
