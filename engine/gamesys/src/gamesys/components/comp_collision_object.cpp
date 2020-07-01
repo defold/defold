@@ -1528,6 +1528,16 @@ namespace dmGameSystem
         }
     }
 
+    void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D){}
+        else
+        {
+            dmPhysics::SetWorld2DStepIteration(world->m_World2D, stepIteration, velocityIteration, positionIteration);
+        }
+    }
+
     dmhash_t CompCollisionObjectGetIdentifier(void* _component)
     {
         CollisionComponent* component = (CollisionComponent*)_component;

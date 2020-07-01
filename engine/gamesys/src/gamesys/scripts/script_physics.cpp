@@ -987,6 +987,53 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# set physics step per frame.
+     *
+     * Set the amount of steps for physics 2D to update inside Step().
+     *
+     * , velocityIteration, positionIteration
+     * @name physics.set_step_per_frame   
+     * @param  stepIteration [type:integer] steps per frame that Physics2D will update
+     * @param  velocityIteration [type:integer] iteration of velocity per step
+     * @param  positionIteration [type:integer] iteration of position per step
+     * 
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local gravity = physics.set_step_per_frame(8,16,8)
+     * end
+     * ```
+     */
+    static int Physics_SetStepPerFrame(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmMessage::URL sender;
+        if (!dmScript::GetURL(L, &sender))
+        {
+            return DM_LUA_ERROR("could not find a requesting instance for physics.step");
+        }
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+        void* world                             = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+
+        int stepIteration     = lua_tointeger(L, 1);
+        int velocityIteration = lua_tointeger(L, 2);
+        int positionIteration = lua_tointeger(L, 3);
+
+        dmGameSystem::SetWorld2DStepIteration(world, stepIteration, velocityIteration, positionIteration);
+
+        // dmScript::PushVector3(L, gravity);
+
+        return 0;
+    }
+
     static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1070,8 +1117,9 @@ namespace dmGameSystem
         {"get_joint_reaction_force",  Physics_GetJointReactionForce},
         {"get_joint_reaction_torque", Physics_GetJointReactionTorque},
 
-        {"set_gravity",     Physics_SetGravity},
-        {"get_gravity",     Physics_GetGravity},
+        {"set_gravity",         Physics_SetGravity},
+        {"get_gravity",         Physics_GetGravity},
+        {"set_step_per_frame",  Physics_SetStepPerFrame},
 
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
