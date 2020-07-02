@@ -25,6 +25,7 @@
   (:import [java.io File]
            [javafx.scene Parent Scene]
            [javafx.stage Modality Stage]
+           [org.apache.commons.configuration2.io FileLocatorUtils]
            [org.apache.commons.configuration2.plist XMLPropertyListConfiguration]))
 
 (set! *warn-on-reflection* true)
@@ -137,26 +138,32 @@
 
 (g/defnk extract-entitlements-plist [^File provisioning-profile-plist]
   (try
-    (let [profile-info (XMLPropertyListConfiguration.)
-          entitlements-info (XMLPropertyListConfiguration.)
+    (let [file-locator (.create (FileLocatorUtils/fileLocator))
+          profile-info (XMLPropertyListConfiguration.)
+          entitlements-info (doto (XMLPropertyListConfiguration.)
+                              (.initFileLocator file-locator))
           entitlements-plist (fs/create-temp-file! "entitlement" ".xcent")]
       (with-open [r (io/reader provisioning-profile-plist)]
-        (.load profile-info r))
+        (.read profile-info r))
       (.append entitlements-info (.configurationAt profile-info "Entitlements"))
-      (.save entitlements-info entitlements-plist)
+      (with-open [w (io/writer entitlements-plist)]
+        (.write entitlements-info w))
       {:entitlements-plist entitlements-plist})
     (catch Exception e
       {:err e :message "Failed to extract entitlements from provisioning profile."})))
 
 (g/defnk make-info-plist [props]
   (try
-    (let [plist-file (fs/create-temp-file! "Info.plist" "")
-          plist (XMLPropertyListConfiguration.)]
+    (let [file-locator (.create (FileLocatorUtils/fileLocator))
+          plist-file (fs/create-temp-file! "Info.plist" "")
+          plist (doto (XMLPropertyListConfiguration.)
+                  (.initFileLocator file-locator))]
       (with-open [r (io/reader (io/resource "bundle/ios/Info-dev-app.plist"))]
-        (.load plist r))
+        (.read plist r))
       (doseq [[k v]  props]
         (.setProperty plist k v))
-      (.save plist plist-file)
+      (with-open [w (io/writer plist-file)]
+        (.write plist w))
       {:info-plist plist-file})
     (catch Exception e
       {:err e :message "Failed to create Info.plist."})))

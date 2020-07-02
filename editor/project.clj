@@ -36,8 +36,7 @@
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
-                     [commons-configuration/commons-configuration "1.10"
-                      :exclusions [commons-logging/commons-logging]] ; commons-configuration -> 1.1.1, amazonica -> 1.2
+                     [org.apache.commons/commons-configuration2   "2.0"]
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
