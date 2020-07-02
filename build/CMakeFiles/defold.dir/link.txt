@@ -1,0 +1,2 @@
+/usr/bin/ar qc libdefold.a  CMakeFiles/defold.dir/defold.cpp.o
+/usr/bin/ranlib libdefold.a
