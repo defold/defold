@@ -31,6 +31,7 @@ scripts/android-v4/.settings/
 scripts/android-v4/build/
 
 # eastwood
+editor/release/*
 editor/.eastwood
 editor/eastwood-warnings.txt
 

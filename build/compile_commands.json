@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/Volumes/StorageSD/Projects/dotGears/defold/build",
+  "command": "/usr/bin/clang++    -g -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -mmacosx-version-min=10.14   -o CMakeFiles/defold.dir/defold.cpp.o -c /Volumes/StorageSD/Projects/dotGears/defold/defold.cpp",
+  "file": "/Volumes/StorageSD/Projects/dotGears/defold/defold.cpp"
+}
+]
