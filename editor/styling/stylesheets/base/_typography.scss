@@ -1,7 +1,7 @@
 @font-face {
   font-family: 'Open Sans';
   src: url("OpenSans-Regular.ttf");
-} 
+}
 
 @font-face {
   font-family: 'Source Sans Pro';
@@ -36,9 +36,31 @@
   font-family: 'Dejavu Sans Mono Bold';
   src: url("DejaVuSansMono-Bold.ttf"); }
 
-$default-font: 'Source Sans Pro';
-$default-font-bold: 'Source Sans Pro Semibold';
-$default-font-italic: 'Source Sans Pro Italic';
+/* SF Mono */
+@font-face {
+  font-family: 'SF Mono';
+  src: url("SF-Mono-Regular.otf");
+}
+
+@font-face {
+  font-family: 'SF Mono Semibold';
+  src: url("SF-Mono-Semibold.otf");
+}
+
+@font-face {
+  font-family: 'SF Mono Italic';
+  src: url("SF-Mono-MediumItalic.otf");
+}
+
+@font-face {
+  font-family: 'SF Mono Light';
+  src: url("SF-Mono-Light.otf");
+}
+
+
+$default-font: 'SF Mono';
+$default-font-bold: 'SF Mono Semibold';
+$default-font-italic: 'SF Mono Italic';
 $default-font-size: 13px;
 
 /* Common measurements */

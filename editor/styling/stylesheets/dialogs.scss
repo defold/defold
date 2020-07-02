@@ -34,8 +34,8 @@ $spacing-largest: 40px;
 
 @mixin font-size-default { -fx-font-size: 14px; }
 @mixin font-size-header { -fx-font-size: 22px; }
-@mixin font-default { -fx-font-family: "Source Sans Pro"; }
-@mixin font-light { -fx-font-family: "Source Sans Pro Light"; }
+@mixin font-default { -fx-font-family: $default-font; }
+@mixin font-light { -fx-font-family: $default-font-italic; }
 @mixin text-fill-text-color { -fx-text-fill: $light-grey; }
 @mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
 @mixin spacing-default { -fx-spacing: $spacing-default;}
