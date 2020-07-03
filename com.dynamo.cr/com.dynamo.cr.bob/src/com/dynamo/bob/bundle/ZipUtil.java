@@ -33,7 +33,7 @@ public class ZipUtil {
 	}
 
 	private static void zipFile(ZipOutputStream zipOut, File baseDir, File file) throws IOException {
-		final String filePath = stripBaseDir(baseDir, file);
+		final String filePath = stripBaseDir(baseDir, file).replace('\\', '/');
 		final long fileSize = file.length();
 
 		ZipEntry ze = new ZipEntry(filePath);
