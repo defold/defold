@@ -16,9 +16,9 @@
             [editor.math :as math]
             [internal.util :as util])
   (:import [com.defold.util Geometry]
+           [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [editor.types AABB Frustum Rect]
-           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Quat4d Vector3d Vector4d]
-           [com.defold.editor.pipeline TextureSetGenerator$UVTransform]))
+           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 

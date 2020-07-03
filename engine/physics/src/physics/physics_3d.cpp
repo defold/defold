@@ -120,6 +120,7 @@ namespace dmPhysics
     , m_TriggerEnterLimit(0.0f)
     , m_RayCastLimit(0)
     , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
 
     }
@@ -493,12 +494,14 @@ namespace dmPhysics
                 if (max_impulse < contact_impulse_limit)
                     continue;
 
-                if (collision_callback != 0x0 && requests_collision_callbacks)
+                if (collision_callback != 0x0 && requests_collision_callbacks && num_contacts > 0)
                 {
                     requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, step_context.m_CollisionUserData);
                 }
 
-                if (contact_point_callback != 0x0)
+                bool is_trigger_contact = object_a->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || object_b->getInternalType() == btCollisionObject::CO_GHOST_OBJECT;
+
+                if (contact_point_callback != 0x0 && !is_trigger_contact)
                 {
                     for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
                     {
@@ -559,13 +562,15 @@ namespace dmPhysics
             btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
             btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
 
-            if (!object_a->isActive() || !object_b->isActive())
-                continue;
+            // Don't skip sleeping objects, in order to be able to catch exit events (also consistent with 2d physics)
 
             if (btGhostObject::upcast(object_a) != 0x0 || btGhostObject::upcast(object_b) != 0x0)
             {
-                float max_distance = 0.0f;
                 int contact_count = contact_manifold->getNumContacts();
+                if (contact_count == 0)
+                    continue;
+
+                float max_distance = 0.0f;
                 for (int j = 0; j < contact_count; ++j)
                 {
                     const btManifoldPoint& point = contact_manifold->getContactPoint(j);
@@ -634,7 +639,7 @@ namespace dmPhysics
         switch(shape->getShapeType())
         {
             case SPHERE_SHAPE_PROXYTYPE:        return new btSphereShape(((btSphereShape*)shape)->getRadius()); break;
-            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithoutMargin()); break;
+            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithMargin()); break;
             case CAPSULE_SHAPE_PROXYTYPE:       return new btCapsuleShape(((btCapsuleShape*)shape)->getRadius(), 2.0f * ((btCapsuleShape*)shape)->getHalfHeight()); break;
             case CONVEX_HULL_SHAPE_PROXYTYPE:   return new btConvexHullShape((btScalar*)((btConvexHullShape*)shape)->getPoints(), ((btConvexHullShape*)shape)->getNumPoints()); break;
         }
@@ -916,6 +921,28 @@ namespace dmPhysics
             FromBt(v, angular_velocity, 1.0f);
         }
         return angular_velocity;
+    }
+
+    void SetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
+        if (body != 0x0)
+        {
+            btVector3 bt_velocity;
+            ToBt(velocity, bt_velocity, context->m_Scale);
+            body->setLinearVelocity(bt_velocity);
+        }
+    }
+
+    void SetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& velocity)
+    {
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
+        if (body != 0x0)
+        {
+            btVector3 bt_velocity;
+            ToBt(velocity, bt_velocity, 1.0f);
+            body->setAngularVelocity(bt_velocity);
+        }
     }
 
     bool IsEnabled3D(HCollisionObject3D collision_object)

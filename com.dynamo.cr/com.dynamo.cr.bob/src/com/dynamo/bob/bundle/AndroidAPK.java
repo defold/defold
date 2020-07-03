@@ -305,17 +305,17 @@ public class AndroidAPK {
 
                 ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
                 try {
-                	if (inE.getSize() > 0) {
-	                    int count;
-	                    entryData = new byte[(int) inE.getSize()];
-	                    InputStream stream = zipFileIn.getInputStream(inE);
-	                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
-	                        byteOut.write(entryData, 0, count);
-	                        if (zipMethod == ZipEntry.STORED) {
-	                            crc.update(entryData, 0, count);
-	                        }
-	                    }
-                	}
+                    if (inE.getSize() > 0) {
+                        int count;
+                        entryData = new byte[(int) inE.getSize()];
+                        InputStream stream = zipFileIn.getInputStream(inE);
+                        while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
+                            byteOut.write(entryData, 0, count);
+                            if (zipMethod == ZipEntry.STORED) {
+                                crc.update(entryData, 0, count);
+                            }
+                        }
+                    }
                 } finally {
                     if(null != byteOut) {
                         byteOut.close();
@@ -357,6 +357,8 @@ public class AndroidAPK {
         ap3.delete();
         ap4.delete();
         FileUtils.deleteDirectory(tmpResourceDir);
+        FileUtils.deleteDirectory(new File(appDir, "libs"));
+        FileUtils.deleteDirectory(resDir);
 
         // Copy debug symbols
         if (has_symbols) {

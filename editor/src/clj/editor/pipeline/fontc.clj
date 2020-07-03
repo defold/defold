@@ -11,9 +11,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.fontc
-  (:require [editor.resource :as resource]
-            [clojure.java.io :as io])
-  (:import [com.defold.editor.pipeline BMFont BMFont$BMFontFormatException BMFont$Char DistanceFieldGenerator]
+  (:require [clojure.java.io :as io]
+            [editor.resource :as resource])
+  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
            [com.google.protobuf ByteString]
            [javax.imageio ImageIO]
            [java.util Arrays]

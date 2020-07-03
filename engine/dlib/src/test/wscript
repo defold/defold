@@ -7,6 +7,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     req_libs = ['UUID', 'CARES']
     req_defines = []
 
+    if 'DM_IPV6_UNSUPPORTED' in os.environ:
+        req_defines += ['DM_IPV6_UNSUPPORTED']
+
     req_features = ['cxx', 'cprogram']
     req_includes = ['../../src']
     req_embed = None

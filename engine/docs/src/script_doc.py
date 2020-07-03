@@ -22,6 +22,8 @@ from markdown import Markdown
 from markdown import Extension
 from markdown.util import etree, AtomicString
 from markdown.inlinepatterns import Pattern
+from pprint import pprint
+import yaml
 
 import script_doc_ddf_pb2
 
@@ -252,6 +254,142 @@ def _parse_comment(str):
 
     return element
 
+def extract_type_from_docstr(str):
+    # try to extract the type information
+    m = re.search('^\[type:(.*)\] (.*)', str)
+    if m and m.group(1) and m.group(2):
+        type_list = m.group(1).split("|")
+        if len(type_list) == 1:
+            type_list = type_list[0]
+        return type_list, m.group(2)
+
+    return "", str
+
+def is_optional(str):
+    m = re.search('^\[(.*)\]', str)
+    if m and m.group(1):
+        return True, m.group(1)
+
+    return False, str
+
+def _parse_comment_yaml(str):
+    str = _strip_comment_stars(str)
+    # The regexp means match all strings that:
+    # * begins with line start, possible whitespace and an @
+    # * followed by non-white-space (the tag)
+    # * followed by possible spaces
+    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
+    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
+
+    name_found = False
+    element_type = "function"
+    for (tag, value) in lst:
+        tag = tag.strip()
+        value = value.strip()
+        if tag == 'name':
+            name_found = True
+        elif tag == 'variable':
+            element_type = "variable"
+        elif tag == 'message':
+            element_type = "message"
+        elif tag == 'property':
+            element_type = "property"
+        elif tag == 'struct':
+            element_type = "struct"
+        elif tag == 'macro':
+            element_type = "macro"
+        elif tag == 'enum':
+            element_type = "enum"
+        elif tag == 'typedef':
+            element_type = "typedef"
+        elif tag == 'document':
+            element_type = "document"
+
+    if not name_found:
+        logging.warn('Missing tag @name in "%s"' % str)
+        return None
+
+    desc_start = min(len(str), str.find('\n'))
+    brief = str[0:desc_start]
+    desc_end = min(len(str), str.find('\n@'))
+    description = str[desc_start:desc_end].strip()
+
+    element = {}
+    element["type"] = element_type
+    element["brief"] = brief
+    element["description"] = description
+    element["returns"] = []
+    element["members"] = []
+    element["params"] = []
+
+    namespace_found = False
+    for (tag, value) in lst:
+        value = value.strip()
+        if tag == 'name':
+            element["name"] = value
+
+        elif tag == 'return':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            ret = {}
+            ret["name"] = tmp[0]
+            ret["type"], ret["doc"] = extract_type_from_docstr(tmp[1])
+            element["returns"].append(ret)
+
+        elif tag == 'param':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            param = {}
+            param["optional"], param["name"] = is_optional(tmp[0])
+            # param["name"] = tmp[0]
+            param["type"], param["doc"] = extract_type_from_docstr(tmp[1])
+            element["params"].append(param)
+
+        elif tag == 'member':
+            tmp = value.split(' ', 1)
+            if len(tmp) < 2:
+                tmp = [tmp[0], '']
+            mem = {}
+            mem["name"] = tmp[0]
+            mem["type"], mem["doc"] = extract_type_from_docstr(tmp[1])
+            element["members"].append(mem)
+
+        elif tag == 'examples':
+            element["examples"] = value
+
+        elif tag == 'replaces':
+            element["replaces"] = value
+
+        elif tag == 'namespace' and element_type == 'document':
+            # only care for @namespace in @document comments.
+            element["namespace"] = value
+            namespace_found = True
+
+    if element_type == 'document' and not namespace_found:
+        logging.warn('Missing tag @namespace in "%s"' % str)
+        return None
+
+    return element
+
+def parse_document_yaml(doc_str):
+    lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
+    info = {}
+    element_list = []
+    for comment_str in lst:
+        element = _parse_comment_yaml(comment_str)
+        if element == None:
+            continue
+
+        if element["type"] == 'document':
+            info = element
+        else:
+            element_list.append(element)
+
+    return info, element_list
+
+
 def parse_document(doc_str):
     doc = script_doc_ddf_pb2.Document()
     lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
@@ -335,11 +473,82 @@ def message_to_dict(message):
             ret[field.name] = str(value)
     return ret
 
+def doc_to_ydict(info, elements):
+    api = []
+
+    module_name = info["namespace"]
+    module = {
+        'name': module_name,
+        'type': "table",
+        'desc': info["description"],
+        'members': []
+    }
+
+    for element in elements:
+        # name
+        elem_name = element["name"]
+        part_of_ns = elem_name.startswith(module_name)
+        if part_of_ns:
+            elem_name = elem_name[len(module_name)+1:]
+
+        # type
+        elem_type = element["type"]
+        if elem_type == "variable":
+            elem_type = "number"
+
+        # desc
+        elem_desc = element["description"]
+        if len(elem_desc) == 0:
+            elem_desc = element["brief"]
+
+        entry = {
+            'name': elem_name,
+            'type': elem_type,
+            'desc': elem_desc
+        }
+
+        # type specific fields
+        if elem_type == "function":
+
+            # parameters for functions
+            elem_params = []
+            for param in element["params"]:
+                func_param = {
+                        'name': param["name"],
+                        'desc': param["doc"],
+                        'type': param["type"]
+                    }
+                if param["optional"]:
+                    func_param["optional"] = True
+
+                elem_params.append(func_param)
+
+            entry["parameters"] = elem_params
+
+            # function returns
+            elem_returns = []
+            for ret in element["returns"]:
+                elem_returns.append({
+                        'desc': ret["doc"],
+                        'type': ret["type"]
+                    })
+            if len(elem_returns) > 0:
+                entry["returns"] = elem_returns
+
+        if part_of_ns:
+            module["members"].append(entry)
+        else:
+            api.append(entry)
+
+    api.append(module)
+
+    return api
+
 if __name__ == '__main__':
     usage = "usage: %prog [options] INFILE(s) OUTFILE"
     parser = OptionParser(usage = usage)
     parser.add_option("-t", "--type", dest="type",
-                      help="Supported formats: protobuf and json. default is protobuf", metavar="TYPE", default='protobuf')
+                      help="Supported formats: protobuf, json and script_api. default is protobuf", metavar="TYPE", default='protobuf')
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
@@ -361,6 +570,11 @@ if __name__ == '__main__':
             doc_dict = message_to_dict(doc)
             add_group_to_doc_dict(doc_dict)
             json.dump(doc_dict, f, indent = 2)
+        elif options.type == 'script_api':
+            info, elements = parse_document_yaml(doc_str)
+            doc_dict = doc_to_ydict(info, elements)
+            yaml.dump(doc_dict, f, default_flow_style = False)
+            # print(yaml.dump(doc_dict, default_flow_style = False))
         else:
             print 'Unknown type: %s' % options.type
             sys.exit(5)

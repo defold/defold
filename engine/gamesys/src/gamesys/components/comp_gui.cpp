@@ -1123,20 +1123,67 @@ namespace dmGameSystem
                 continue;
             }
 
+            // pre-multiplied alpha
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-
-            // Pre-multiplied alpha
             Vector4 pm_color(color.getXYZ(), node_opacities[i]);
-            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
-            Point3 size = dmGui::GetNodeSize(scene, node);
 
+            // default not uv_rotated texture coords
+            const float default_tc[6] = {0, 0, 0, 1, 1, 1};
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+
+            // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
+            bool manually_set_texture = tc == 0;
+            if (manually_set_texture) {
+                tc = default_tc;
+            }
+
+            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             bool use_slice_nine = sum(slice9) != 0;
+
+            // render simple quad ignoring 9-slicing
+            if ((!use_slice_nine && manually_set_texture) || !texture)
+            {
+                BoxVertex v00;
+                v00.SetColor(pm_color);
+                v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
+                v00.SetUV(0, 0);
+
+                BoxVertex v10;
+                v10.SetColor(pm_color);
+                v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+                v10.SetUV(1, 0);
+
+                BoxVertex v01;
+                v01.SetColor(pm_color);
+                v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+                v01.SetUV(0, 1);
+
+                BoxVertex v11;
+                v11.SetColor(pm_color);
+                v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
+                v11.SetUV(1, 1);
+
+                gui_world->m_ClientVertexBuffer.Push(v00);
+                gui_world->m_ClientVertexBuffer.Push(v10);
+                gui_world->m_ClientVertexBuffer.Push(v11);
+                gui_world->m_ClientVertexBuffer.Push(v00);
+                gui_world->m_ClientVertexBuffer.Push(v11);
+                gui_world->m_ClientVertexBuffer.Push(v01);
+
+                rendered_vert_count += 6;
+                continue;
+            }
 
             dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
             dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
             bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
 
-            // we skip sprite trimming on slice 9 nodes
+            bool flip_u = false;
+            bool flip_v = false;
+            if (!manually_set_texture)
+                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+
+            // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
             {
                 int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
@@ -1155,10 +1202,6 @@ namespace dmGameSystem
 
                 // Depending on the sprite is flipped or not, we loop the vertices forward or backward
                 // to respect face winding (and backface culling)
-
-                bool flip_u, flip_v;
-                GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
-
                 int reverse = (int)flip_u ^ (int)flip_v;
 
                 float scaleX = flip_u ? -1 : 1;
@@ -1186,41 +1229,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
-
-            // we skip sprite trimming on slice 9 nodes
-            if(!tc)
-            {
-                BoxVertex v00;
-                v00.SetColor(pm_color);
-                v00.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
-                v00.SetUV(0, 0);
-
-                BoxVertex v10;
-                v10.SetColor(pm_color);
-                v10.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
-                v10.SetUV(1, 0);
-
-                BoxVertex v01;
-                v01.SetColor(pm_color);
-                v01.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
-                v01.SetUV(0, 1);
-
-                BoxVertex v11;
-                v11.SetColor(pm_color);
-                v11.SetPosition(node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
-                v11.SetUV(1, 1);
-
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v10);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v00);
-                gui_world->m_ClientVertexBuffer.Push(v11);
-                gui_world->m_ClientVertexBuffer.Push(v01);
-
-                rendered_vert_count += 6;
-                continue;
-            }
+            // render 9-sliced node
 
             //   0 1     2 3
             // 0 *-*-----*-*
@@ -1244,13 +1253,13 @@ namespace dmGameSystem
 
             const float su = 1.0f / org_width;
             const float sv = 1.0f / org_height;
+
+            Point3 size = dmGui::GetNodeSize(scene, node);
             const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
             const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
             static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
             bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-            bool flip_u, flip_v;
-            GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
             if(uv_rotated)
             {
                 const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
@@ -1332,9 +1341,9 @@ namespace dmGameSystem
                     gui_world->m_ClientVertexBuffer.Push(v01);
                 }
             }
-
             rendered_vert_count += verts_per_node;
         }
+
         ro.m_VertexCount = rendered_vert_count;
     }
 

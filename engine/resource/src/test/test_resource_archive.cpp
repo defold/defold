@@ -243,6 +243,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     free(resource);
     dmResourceArchive::Delete(archive);
     FreeMutableIndexData((void*&)arci_copy);
+    remove(resource_filename);
 }
 
 TEST(dmResourceArchive, NewArchiveIndexFromCopy)

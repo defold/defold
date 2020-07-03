@@ -1021,11 +1021,14 @@ namespace dmRender
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
-                    uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    text_context.m_VerticesFlushed = text_context.m_VertexIndex;
-                    DM_COUNTER("FontVertexBuffer", buffer_size);
+                    if (text_context.m_VertexIndex != text_context.m_VerticesFlushed)
+                    {
+                        uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
+                        dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                        dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                        text_context.m_VerticesFlushed = text_context.m_VertexIndex;
+                        DM_COUNTER("FontVertexBuffer", buffer_size);
+                    }
                 }
                 break;
             default:
