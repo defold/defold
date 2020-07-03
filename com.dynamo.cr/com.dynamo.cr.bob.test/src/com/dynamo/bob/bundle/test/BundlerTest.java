@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -360,6 +360,7 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
+        createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;
@@ -547,6 +548,7 @@ public class BundlerTest {
             case X86_64Ios:
                 expectedFiles.add("Payload/unnamed.app/unnamed");
                 expectedFiles.add("Payload/unnamed.app/Info.plist");
+                expectedFiles.add("Payload/unnamed.app/LaunchScreen.storyboardc/Info.plist");
                 expectedFiles.add("Payload/unnamed.app/game.arcd");
                 expectedFiles.add("Payload/unnamed.app/game.arci");
                 expectedFiles.add("Payload/unnamed.app/game.dmanifest");

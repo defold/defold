@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -733,6 +733,9 @@ public class BundleHelper {
         properties.put("application-queries-schemes", applicationQueriesSchemes);
         properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
 
+        String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
+        properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));
+
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
@@ -1185,5 +1188,21 @@ public class BundleHelper {
             bos.write(bytesIn, 0, read);
         }
         bos.close();
+    }
+
+    public static List<IResource> listFilesRecursive(Project project, String path) {
+        List<IResource> resources = new ArrayList<>();
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths(path, paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+
+            // Note: findResourcePaths will return the supplied path even if it's not a file.
+            // We need to check if the resource is not a directory before adding it to the list of paths found.
+            if (r.isFile()) {
+                resources.add(r);
+            }
+        }
+        return resources;
     }
 }
