@@ -222,70 +222,6 @@ TEST_P(ComponentTest, Test)
     dmDDF::FreeMessage(go_ddf);
 }
 
-TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
-{
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory = m_Factory;
-    scriptlibcontext.m_Register = m_Register;
-    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-
-    // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/input/connected_event_test.goc", dmHashString64("/gamepad_connected"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
-
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-    dmGameObject::AcquireInputFocus(m_Collection, go);
-
-    //test gamepad connected with device name and connected flag
-    dmGameObject::InputAction input_action_connected;
-    input_action_connected.m_ActionId = dmHashString64("gamepad_connected");
-    input_action_connected.m_TextCount = strlen("null_device") + 1;
-    input_action_connected.m_GamepadConnected = 1;
-    dmStrlCpy(input_action_connected.m_Text, "null_device", input_action_connected.m_TextCount);
-    dmGameObject::UpdateResult res = dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
-
-    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-    //test gamepad connected with empty device name
-    dmGameObject::InputAction input_action_empty;
-    input_action_empty.m_ActionId = dmHashString64("gamepad_connected_0");
-    input_action_empty.m_TextCount = 0;
-    input_action_empty.m_GamepadConnected = 1;
-    res = dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
-
-    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-    //test gamepad connected with device name and no connected flag
-    dmGameObject::InputAction input_action_other;
-    input_action_other.m_ActionId = dmHashString64("other_event");
-    input_action_other.m_TextCount = strlen("null_device") + 1;
-    input_action_other.m_GamepadConnected = 0;
-    dmStrlCpy(input_action_other.m_Text, "null_device", input_action_other.m_TextCount);
-    res = dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
-
-    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-    // cleanup
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
-}
-
 TEST_P(ComponentTest, TestReloadFail)
 {
     const char* go_name = GetParam();
@@ -1155,6 +1091,37 @@ TEST_P(CollectionFactoryTest, Test)
 
 /* Draw Count */
 
+TEST_P(DrawCountTest, DrawCount)
+{
+    const DrawCountParams& p = GetParam();
+    const char* go_path = p.m_GOPath;
+    const uint64_t expected_draw_count = p.m_ExpectedDrawCount;
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Make the render list that will be used later.
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
+
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_EQ(expected_draw_count, dmGraphics::GetDrawCount());
+    dmGraphics::Flip(m_GraphicsContext);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+/* GUI Box Render */
+
 void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
 {
     static const float test_epsilon = 0.000001f;
@@ -1202,33 +1169,69 @@ TEST_P(BoxRenderTest, BoxRender)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_P(DrawCountTest, DrawCount)
+/* Gamepad connected */
+
+TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
 {
-    const DrawCountParams& p = GetParam();
-    const char* go_path = p.m_GOPath;
-    const uint64_t expected_draw_count = p.m_ExpectedDrawCount;
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/input/connected_event_test.goc", dmHashString64("/gamepad_connected"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    // Make the render list that will be used later.
-    dmRender::RenderListBegin(m_RenderContext);
-    dmGameObject::Render(m_Collection);
-
-    dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0);
-
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
-    ASSERT_EQ(expected_draw_count, dmGraphics::GetDrawCount());
-    dmGraphics::Flip(m_GraphicsContext);
+    dmGameObject::AcquireInputFocus(m_Collection, go);
 
+    // test gamepad connected with device name and connected flag
+    dmGameObject::InputAction input_action_connected;
+    input_action_connected.m_ActionId = dmHashString64("gamepad_connected");
+    input_action_connected.m_TextCount = strlen("null_device") + 1;
+    input_action_connected.m_GamepadConnected = 1;
+    dmStrlCpy(input_action_connected.m_Text, "null_device", input_action_connected.m_TextCount);
+    dmGameObject::UpdateResult res = dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
+
+    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // test gamepad connected with empty device name
+    dmGameObject::InputAction input_action_empty;
+    input_action_empty.m_ActionId = dmHashString64("gamepad_connected_0");
+    input_action_empty.m_TextCount = 0;
+    input_action_empty.m_GamepadConnected = 1;
+    res = dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
+
+    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // test gamepad connected with device name and no connected flag
+    dmGameObject::InputAction input_action_other;
+    input_action_other.m_ActionId = dmHashString64("other_event");
+    input_action_other.m_TextCount = strlen("null_device") + 1;
+    input_action_other.m_GamepadConnected = 0;
+    dmStrlCpy(input_action_other.m_Text, "null_device", input_action_other.m_TextCount);
+    res = dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
+
+    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 /* Physics joints */
@@ -1826,6 +1829,8 @@ DrawCountParams draw_count_params[] =
     {"/gui/draw_count_test2.goc", 1},
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
+
+/* Validate gui box rendering for different GOs. */
 
 BoxRenderParams box_render_params[] =
 {

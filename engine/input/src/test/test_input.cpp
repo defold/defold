@@ -383,7 +383,6 @@ TEST_F(InputTest, GamepadConnectedContainsGamepadName)
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
 
-
     dmInput::GamepadConfig* map = m_Context->m_GamepadMaps.Get(dmHashString32("null_device"));
     ASSERT_NE((void*)0x0, (void*)map);
     
