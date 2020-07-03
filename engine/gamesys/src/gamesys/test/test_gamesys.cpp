@@ -247,8 +247,9 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     input_action_connected.m_TextCount = strlen("null_device") + 1;
     input_action_connected.m_GamepadConnected = 1;
     dmStrlCpy(input_action_connected.m_Text, "null_device", input_action_connected.m_TextCount);
-    dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
+    dmGameObject::UpdateResult res = dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
 
+    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -257,8 +258,9 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     input_action_empty.m_ActionId = dmHashString64("gamepad_connected_0");
     input_action_empty.m_TextCount = 0;
     input_action_empty.m_GamepadConnected = 1;
-    dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
+    res = dmGameObject::DispatchInput(m_Collection, &input_action_empty, 1);
 
+    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -268,8 +270,9 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     input_action_other.m_TextCount = strlen("null_device") + 1;
     input_action_other.m_GamepadConnected = 0;
     dmStrlCpy(input_action_other.m_Text, "null_device", input_action_other.m_TextCount);
-    dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
+    res = dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
 
+    ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
