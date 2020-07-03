@@ -120,8 +120,6 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
         packages = [
-            "gcc-5",
-            "g++-5",
             "libssl-dev",
             "openssl",
             "libtool",

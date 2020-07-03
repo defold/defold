@@ -304,6 +304,10 @@
    :help "max number of instances per collection, 1024 by default",
    :default 1024,
    :path ["collection" "max_instances"]}
+  {:type :integer,
+   :help "max number of game objects in the input stack, 16 by default",
+   :default 16,
+   :path ["collection" "max_input_stack_entries"]}
   {:type :number,
    :help "global gain (volume), 0 - 1, 1 by default",
    :default 1.0,
@@ -559,6 +563,9 @@
    :help "bundle identifier (CFBundleIdentifier)",
    :default "example.unnamed",
    :path ["ios" "bundle_identifier"]}
+  {:type :string,
+   :help "bundle short name (CFBundleName). max 15 characters",
+   :path ["ios" "bundle_name"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,
@@ -756,6 +763,9 @@
    :help "bundle identifier (CFBundleIdentifier)",
    :default "example.unnamed",
    :path ["osx" "bundle_identifier"]}
+  {:type :string,
+   :help "bundle short name (CFBundleName). max 15 characters",
+   :path ["osx" "bundle_name"]}
   {:type :resource,
    :filter "plist",
    :preserve-extension true,

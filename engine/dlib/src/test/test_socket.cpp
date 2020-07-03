@@ -865,6 +865,8 @@ TEST(Socket, GetHostByName_IPv4_External)
     ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
 }
 
+// E.g. when running a linux vm on osx host.
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, GetHostByName_IPv6_External)
 {
 #if !defined(_WIN32)
@@ -880,6 +882,7 @@ TEST(Socket, GetHostByName_IPv6_External)
     ASSERT_TRUE(true);
 #endif
 }
+#endif
 
 TEST(Socket, GetHostByName_IPv4_Unavailable)
 {

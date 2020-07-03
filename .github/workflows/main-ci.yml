@@ -58,7 +58,6 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
-      { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
         if: (github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
@@ -77,7 +76,7 @@ jobs:
     strategy:
       matrix:
         platform: [armv7-darwin, arm64-darwin, x86_64-ios]
-    runs-on: macOS-latest
+    runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
