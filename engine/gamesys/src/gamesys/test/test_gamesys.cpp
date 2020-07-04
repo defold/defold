@@ -1192,9 +1192,8 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     // test gamepad connected with device name and connected flag
     dmGameObject::InputAction input_action_connected;
     input_action_connected.m_ActionId = dmHashString64("gamepad_connected");
-    input_action_connected.m_TextCount = strlen("null_device") + 1;
     input_action_connected.m_GamepadConnected = 1;
-    dmStrlCpy(input_action_connected.m_Text, "null_device", input_action_connected.m_TextCount);
+    input_action_connected.m_TextCount = dmStrlCpy(input_action_connected.m_Text, "null_device", sizeof(input_action_connected.m_Text));
     dmGameObject::UpdateResult res = dmGameObject::DispatchInput(m_Collection, &input_action_connected, 1);
 
     ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
@@ -1215,9 +1214,8 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     // test gamepad connected with device name and no connected flag
     dmGameObject::InputAction input_action_other;
     input_action_other.m_ActionId = dmHashString64("other_event");
-    input_action_other.m_TextCount = strlen("null_device") + 1;
     input_action_other.m_GamepadConnected = 0;
-    dmStrlCpy(input_action_other.m_Text, "null_device", input_action_other.m_TextCount);
+    input_action_other.m_TextCount = dmStrlCpy(input_action_other.m_Text, "null_device", sizeof(input_action_other.m_Text));
     res = dmGameObject::DispatchInput(m_Collection, &input_action_other, 1);
 
     ASSERT_TRUE(res == dmGameObject::UpdateResult::UPDATE_RESULT_OK);
