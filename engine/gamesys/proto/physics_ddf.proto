@@ -127,6 +127,29 @@ message ApplyForce
     required dmMath.Point3  position    = 2;
 }
 
+/*# applies a impulse force on a collision object
+ * Post this message to a collision-object-component to apply the specified force on the collision object.
+ * The collision object must be dynamic.
+ *
+ * @message
+ * @name apply_force_impulse
+ * @param force [type:vector3] the impulse force to be applied on the collision object, measured in Newton
+ * @param position [type:vector3] the position where the force should be applied
+ * @examples
+ *
+ * Assuming the instance of the script has a collision-object-component with id "co":
+ *
+ * ```lua
+ * -- apply a force of 1 Newton towards world-x at the center of the game object instance
+ * msg.post("#co", "apply_force_impulse", {force = vmath.vector3(1, 0, 0), position = go.get_world_position()})
+ * ```
+ */
+message ApplyForceImpulse
+{
+    required dmMath.Vector3 force       = 1;
+    required dmMath.Point3  position    = 2;
+}
+
 /*# reports a collision between two collision objects
  *
  * This message is broadcasted to every component of an instance that has a collision object,

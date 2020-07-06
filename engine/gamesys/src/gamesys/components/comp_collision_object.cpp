@@ -1037,6 +1037,18 @@ namespace dmGameSystem
             {
                 dmPhysics::ApplyForce2D(physics_context->m_Context2D, component->m_Object2D, af->m_Force, af->m_Position);
             }
+        }        
+        else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForceImpulse::m_DDFDescriptor->m_NameHash)
+        {
+            dmPhysicsDDF::ApplyForceImpulse* af = (dmPhysicsDDF::ApplyForceImpulse*) params.m_Message->m_Data;
+            if (physics_context->m_3D)
+            {
+                dmPhysics::ApplyForce3DImpulse(physics_context->m_Context3D, component->m_Object3D, af->m_Force, af->m_Position);
+            }
+            else
+            {
+                dmPhysics::ApplyForce2DImpulse(physics_context->m_Context2D, component->m_Object2D, af->m_Force, af->m_Position);
+            }
         }
         else if (params.m_Message->m_Id == dmPhysicsDDF::RequestVelocity::m_DDFDescriptor->m_NameHash)
         {
@@ -1537,28 +1549,6 @@ namespace dmGameSystem
         {
             dmPhysics::SetWorld2DStepIteration(world->m_World2D, stepIteration, velocityIteration, positionIteration);
         }
-    }
-
-    void ApplyForce2D(
-    void* context,
-    void* collision_object,
-    const Vectormath::Aos::Vector3& force,
-    const Vectormath::Aos::Point3& position)
-    {
-        PhysicsContext* _context        = (PhysicsContext*)context;
-        CollisionComponent* component   = (CollisionComponent*)collision_object;
-        dmPhysics::ApplyForce2D(_context->m_Context2D, component->m_Object2D, force, position);
-    }
-
-    void ApplyForce2DImpulse(
-    void* context,
-    void* collision_object,
-    const Vectormath::Aos::Vector3& force,
-    const Vectormath::Aos::Point3& position)
-    {
-        PhysicsContext* _context      = (PhysicsContext*)context;
-        CollisionComponent* component = (CollisionComponent*)collision_object;
-        dmPhysics::ApplyForce2DImpulse(_context->m_Context2D, component->m_Object2D, force, position);
     }
 
     dmhash_t CompCollisionObjectGetIdentifier(void* _component)

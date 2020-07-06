@@ -859,6 +859,22 @@ namespace dmPhysics
         }
     }
 
+    void ApplyForce3DImpulse(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    {
+        btCollisionObject* bt_co = GetCollisionObject(collision_object);
+        btRigidBody* rigid_body = btRigidBody::upcast(bt_co);
+        if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
+        {
+            bool force_activate = false;
+            rigid_body->activate(force_activate);
+            btVector3 bt_force;
+            ToBt(force, bt_force, context->m_Scale);
+            btVector3 bt_position;
+            ToBt(position, bt_position, context->m_Scale);
+            rigid_body->applyForce(bt_force, bt_position - bt_co->getWorldTransform().getOrigin());
+        }
+    }
+
     Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
     {
         btRigidBody* rigid_body = btRigidBody::upcast(GetCollisionObject(collision_object));

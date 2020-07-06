@@ -721,6 +721,17 @@ namespace dmPhysics
     void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
+     * Apply a force to the specified 3D collision object at the specified position
+     *
+     * @param context Physics context
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param force Force to be applied (world space)
+     * @param position Position of where the force will be applied (world space)
+     */
+    void ApplyForce3DImpulse(HContext3D context, HCollisionObject3D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+
+
+    /**
      * Apply a force to the specified 2D collision object at the specified position
      *
      * @param context Physics context
