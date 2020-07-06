@@ -1003,6 +1003,16 @@ namespace dmPhysics
         ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
     }
 
+    void ApplyForce2DImpulse(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
+    {
+        float scale = context->m_Scale;
+        b2Vec2 b2_force;
+        ToB2(force, b2_force, scale);
+        b2Vec2 b2_position;
+        ToB2(position, b2_position, scale);
+        ((b2Body*)collision_object)->ApplyLinearImpulse(b2_force, b2_position);
+    }
+
     Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
         const b2Vec2& b2_force = ((b2Body*)collision_object)->GetForce();

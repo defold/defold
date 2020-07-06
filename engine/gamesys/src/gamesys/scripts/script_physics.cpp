@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include <dlib/hash.h>
+#include "dlib/hash.h"
 #include <dlib/log.h>
 #include <dlib/math.h>
 
@@ -23,6 +23,7 @@
 #include "physics_ddf.h"
 #include "../gamesys_private.h"
 
+#include "../../script/src/script.h"
 #include "components/comp_collision_object.h"
 
 #include "script_physics.h"
@@ -1034,7 +1035,88 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
+    /*# Physics_ApplyForce ()
+     *
+     * Apply force into position of an collision object.
+     *
+     * 
+     * @name physics.apply_force   
+     * @param collisionobject [type:string|hash|url] collision object to apply force
+     * @param  force [type:vector3] amount of force to apply
+     * @param  position [type:point3] where to apply the force
+     * 
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.apply_force("#collisionobject", vmath.vector3(1,1,1), vmath.vector3(0,0,0))
+     * end
+     * ```
+     */
+    static int Physics_ApplyForce(lua_State* L){
+
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsContext* physics_context = (PhysicsContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp       = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);       // collisionobject [type:string|hash|url]
+        Vectormath::Aos::Vector3 force(*dmScript::CheckVector3(L, 2));  // 
+        Vectormath::Aos::Point3 position(*dmScript::CheckVector3(L, 3));//
+
+        // comp_collision_object.cpp
+        dmGameSystem::ApplyForce2D(physics_context, comp, force, position);
+
+        return 0;
+    }
+
+    /*# Physics_ApplyForceImpulse ()
+     *
+     * Apply linear impulse force into position of an collision object.
+     *
+     * 
+     * @name physics.apply_force_impulse   
+     * @param collisionobject [type:string|hash|url] collision object to apply force
+     * @param  force [type:vector3] amount of force to apply
+     * @param  position [type:point3] where to apply the force
+     * 
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.apply_force_impulse("#collisionobject", vmath.vector3(1,1,1), vmath.vector3(0,0,0))
+     * end
+     * ```
+     */
+    static int Physics_ApplyForceImpulse(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsContext* physics_context = (PhysicsContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp       = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);        // collisionobject [type:string|hash|url]
+        Vectormath::Aos::Vector3 force(*dmScript::CheckVector3(L, 2));   //
+        Vectormath::Aos::Point3 position(*dmScript::CheckVector3(L, 3)); //
+
+        // comp_collision_object.cpp 
+        dmGameSystem::ApplyForce2DImpulse(physics_context, comp, force, position);
+
+        return 0;
+    }
+
+    static int
+    Physics_SetFlipInternal(lua_State* L, bool horizontal)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1120,6 +1202,9 @@ namespace dmGameSystem
         {"set_gravity",         Physics_SetGravity},
         {"get_gravity",         Physics_GetGravity},
         {"set_step_per_frame",  Physics_SetStepPerFrame},
+        {"apply_force",         Physics_ApplyForce},
+        {"apply_force_impulse", Physics_ApplyForceImpulse},
+        
 
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},

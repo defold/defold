@@ -1528,6 +1528,7 @@ namespace dmGameSystem
         }
     }
 
+    // TrungB : add step modification -> physics
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
@@ -1536,6 +1537,28 @@ namespace dmGameSystem
         {
             dmPhysics::SetWorld2DStepIteration(world->m_World2D, stepIteration, velocityIteration, positionIteration);
         }
+    }
+
+    void ApplyForce2D(
+    void* context,
+    void* collision_object,
+    const Vectormath::Aos::Vector3& force,
+    const Vectormath::Aos::Point3& position)
+    {
+        PhysicsContext* _context        = (PhysicsContext*)context;
+        CollisionComponent* component   = (CollisionComponent*)collision_object;
+        dmPhysics::ApplyForce2D(_context->m_Context2D, component->m_Object2D, force, position);
+    }
+
+    void ApplyForce2DImpulse(
+    void* context,
+    void* collision_object,
+    const Vectormath::Aos::Vector3& force,
+    const Vectormath::Aos::Point3& position)
+    {
+        PhysicsContext* _context      = (PhysicsContext*)context;
+        CollisionComponent* component = (CollisionComponent*)collision_object;
+        dmPhysics::ApplyForce2DImpulse(_context->m_Context2D, component->m_Object2D, force, position);
     }
 
     dmhash_t CompCollisionObjectGetIdentifier(void* _component)
