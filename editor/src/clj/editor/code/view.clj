@@ -860,7 +860,7 @@
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focus-state FocusState (default :not-focused) (dynamic visible (g/constantly false)))
 
-  (property font-name g/Str (default "SF Mono Semibold"))
+  (property font-name g/Str (default "SF Mono Regular"))
   (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
   (property visible-indentation-guides? g/Bool (default false))
