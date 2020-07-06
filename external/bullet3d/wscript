@@ -78,12 +78,13 @@ def package(conf):
 
     env = waf_package.load_build_context(blddir)
 
-    cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION))
+    cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION)).replace('\\', '/')
 
     files = waf_package.glob_files("include/**/*", cwd=cwd)
     files.extend(waf_package.glob_files("include/*", cwd=cwd))
     target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
     waf_package.create_tar(files, cwd, target=target)
+    print "Wrote", target
 
     files = waf_package.glob_files(["bin/%s/*" % env.PLATFORM,
                                     "bin/%s/**/*" % env.PLATFORM,
@@ -93,6 +94,8 @@ def package(conf):
 
     target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, env.PLATFORM))
     waf_package.create_tar(files, cwd, target=target)
+
+    print "Wrote", target
 
 
 
