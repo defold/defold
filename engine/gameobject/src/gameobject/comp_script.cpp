@@ -373,19 +373,10 @@ namespace dmGameObject
                 lua_settable(L, action_table);
             }
 
-            if (params.m_InputAction->m_GamepadConnected) 
+            if (params.m_InputAction->m_GamepadConnected)
             {
-                lua_pushliteral(L, "gamepad_name");
-                if (params.m_InputAction->m_TextCount == 0)
-                {
-                    lua_pushstring(L, "");
-                }
-                else
-                {
-                    lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_TextCount);
-                }
-
-                lua_settable(L, action_table);
+                lua_pushlstring(L, params.m_InputAction->m_Text, params.m_InputAction->m_TextCount);
+                lua_setfield(L, action_table, "gamepad_name");
             }
 
             if (params.m_InputAction->m_ActionId != 0)
