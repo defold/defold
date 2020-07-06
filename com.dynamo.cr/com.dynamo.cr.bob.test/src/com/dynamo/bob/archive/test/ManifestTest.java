@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -358,32 +358,32 @@ public class ManifestTest {
 
         assertArrayEquals(expected, actual);
     }
-    
+
     @Test
     public void testReadManifestFile() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, InvalidKeyException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException {
         ManifestInstance instance = new ManifestInstance();
         ManifestFile manifestFile = instance.manifestBuilder.buildManifestFile();
-        
+
         File tmp_file = Files.createTempFile("test_tmp", "dmanifest").toFile();
         FileOutputStream fouts = new FileOutputStream(tmp_file);
         manifestFile.writeTo(fouts);
         fouts.close();
-        
+
         FileInputStream fins = new FileInputStream(tmp_file);
         ManifestFile manifestFile2 = ManifestFile.parseFrom(fins);
         fins.close();
-        
+
         assertEquals(true, manifestFile2.hasData());
         ManifestData data = ManifestData.parseFrom(manifestFile2.getData());
         ManifestHeader header = data.getHeader();
-        
+
         assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
         assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getResourceHashAlgorithm());
         assertEquals(HashAlgorithm.HASH_SHA1, header.getSignatureHashAlgorithm());
         assertEquals(SignAlgorithm.SIGN_RSA, header.getSignatureSignAlgorithm());
         assertEquals(instance.projectIdentifierHash(), header.getProjectIdentifier());
-        
+
         FileUtils.deleteQuietly(tmp_file);
     }
 
@@ -497,7 +497,7 @@ public class ManifestTest {
         assertEquals(3, parents.get(1).size());
 
         assertEquals("/main/main.collectionc",          parents.get(0).get(0));
-    
+
         assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
         assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
         assertEquals("/main/main.collectionc",          parents.get(1).get(2));
@@ -509,13 +509,6 @@ public class ManifestTest {
         String filepath = "/main/dynamic.goc";
         List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollections(filepath);
 
-
-        for (List<String> l : parents) {
-            System.out.printf("MAWE: list:\n");
-            for (String s : l) {
-                System.out.printf("MAWE: parent: %s\n", s);
-            }
-        }
         assertEquals(3, parents.size());
         assertEquals(2, parents.get(0).size());
         assertEquals(3, parents.get(1).size());
@@ -523,11 +516,11 @@ public class ManifestTest {
 
         assertEquals("/main/dynamic.collectionc",       parents.get(0).get(0));
         assertEquals("/main/main.collectionc",          parents.get(0).get(1));
-    
+
         assertEquals("/main/level1.collectionc",        parents.get(1).get(0));
         assertEquals("/main/level1.collectionproxyc",   parents.get(1).get(1));
         assertEquals("/main/main.collectionc",          parents.get(1).get(2));
-    
+
         assertEquals("/main/level2.collectionc",        parents.get(2).get(0));
         assertEquals("/main/level2.collectionproxyc",   parents.get(2).get(1));
         assertEquals("/main/level1.collectionc",        parents.get(2).get(2));

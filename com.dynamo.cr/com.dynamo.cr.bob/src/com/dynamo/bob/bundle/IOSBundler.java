@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,19 +50,6 @@ import com.dynamo.bob.util.Exec.Result;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
-
-    private void copyImage(Project project, BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
-            throws IOException {
-        String resource = projectProperties.getStringValue("ios", name);
-        if (resource != null && resource.length() > 0) {
-            IResource inResource = project.getResource(resource);
-            if (!inResource.exists()) {
-                throw new IOException(String.format("%s does not exist.", resource));
-            }
-            File outFile = new File(appDir, outName);
-            FileUtils.writeByteArrayToFile(outFile, inResource.getContent());
-        }
-    }
 
     private void logProcess(Process process)
             throws RuntimeException, IOException {
@@ -227,61 +214,50 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy launch images
-        try
+        String launchScreen = projectProperties.getStringValue("ios", "launch_screen");
+        // It might be null if the user uses the "bundle_resources" to copy everything
+        if (launchScreen != null)
         {
-            // iphone 3, 4, 5 portrait
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
+            final String launchScreenBaseName = FilenameUtils.getName(launchScreen);
+            IResource source = project.getResource(launchScreen);
+            IResource storyboardPlist = project.getResource(launchScreen + "/Info.plist");
+            if (source == null) {
+                throw new IOException(String.format("'ios.launch_screen' = '%s' does not exist", source));
+            }
+            // We cannot really if it's a directory, due to our resource abstractions
+            // but we can check for a file that should be there, the Info.plist
+            if (storyboardPlist == null) {
+                throw new IOException(String.format("'ios.launch_screen' = '%s' does not contain an Info.plist", source));
+            }
 
-            // ipad portrait+landscape
-            // backward compatibility with old game.project files with the incorrect launch image sizes
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
+            // Get all files that needs copying
+            List<IResource> resources = BundleHelper.listFilesRecursive(project, launchScreen);
 
-            // iPhone 6, 7 and 8 (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+            for (IResource r : resources) {
 
-            // iPhone 6 plus portrait+landscape
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+                // Don't create a file out of the source folder name!
+                if (r.getPath().equals(source.getPath()))
+                    continue;
 
-            // iPad retina portrait+landscape
-            // backward compatibility with old game.project files with the incorrect launch image sizes
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
+                String relativePath = r.getPath().substring(source.getPath().length());
+                File target = new File(appDir, launchScreenBaseName + "/" + relativePath);
 
-            // iPad pro (10.5")
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+                try {
+                    File parentDir = target.getParentFile();
+                    if (!parentDir.exists()) {
+                        Files.createDirectories(parentDir.toPath());
+                    }
 
-            // iPad pro (12.9")
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+                    FileUtils.writeByteArrayToFile(target, r.getContent());
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, String.format("Failed copying %s to %s\n", r.getPath(), target));
+                    throw e;
+                }
+            }
 
-            // iPad pro (11")
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1668x2388", "Default-Portrait-1194h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2388x1668", "Default-Landscape-1194h@2x.png");
-
-            // iPhone X, XS (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
-
-            // iPhone XR (portrait+landscape
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_828x1792", "Default-Portrait-896h@2x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1792x828", "Default-Landscape-896h@2x.png");
-
-            // iPhone XS Max (portrait+landscape)
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_1242x2688", "Default-Portrait-896h@3x.png");
-            copyImage(project, projectProperties, projectRoot, appDir, "launch_image_2688x1242", "Default-Landscape-896h@3x.png");
-        } catch (Exception e) {
-            throw new CompileExceptionError(project.getGameProjectResource(), -1, e);
+        } else
+        {
+            logger.log(Level.WARNING, "ios.launch_screen is not set");
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, variant);
