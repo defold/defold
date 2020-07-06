@@ -39,6 +39,9 @@ from ConfigParser import ConfigParser
     Run build.py --help for help
 """
 
+## Let's fixed the local SDK into this folder:
+PACKAGES_FOLDER="./local_sdks"
+
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
@@ -64,6 +67,20 @@ PACKAGES_IOS_SDK="iPhoneOS13.5.sdk"
 PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.5.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.5.xctoolchain"
+prefix = "XcodeDefault"
+extension = ".xctoolchain.tar.gz"
+
+files = []
+# r=root, d=directories, f = files
+for r, d, f in os.walk(PACKAGES_FOLDER):
+    for file in f:
+        if prefix and extension in file:
+            # print(file)
+            files.append(file)
+
+if len(files) > 0:
+    PACKAGES_XCODE_TOOLCHAIN = files[0].replace('.tar.gz','')
+    print("Found " + str(len(files)) + " " + prefix + " => use " + files[0])
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
@@ -492,6 +509,7 @@ class Configuration(object):
             print("Error. Could not download %s" % path)
             sys.exit(1)
         return path
+
 
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')

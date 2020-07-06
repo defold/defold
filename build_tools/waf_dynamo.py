@@ -35,9 +35,31 @@ MIN_IOS_SDK_VERSION="8.0"
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="11.5"
+## Let's fixed the local SDK into this folder:
+PACKAGES_FOLDER="./local_sdks"
+PACKAGES_XCODE_TOOLCHAIN = "XcodeDefault11.5.xctoolchain"
 
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
+def get_xcode_name():
+    prefix = "XcodeDefault"
+    extension = ".xctoolchain.tar.gz"
+
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(PACKAGES_FOLDER):
+        for file in f:
+            if prefix and extension in file:
+                # print(file)
+                files.append(file)
+
+    if len(files) > 0:
+        return files[0].replace('.tar.gz', '')
+        print("Found " + str(len(files)) + " " + prefix + " => use " + files[0])
+    else : 
+        return PACKAGES_XCODE_TOOLCHAIN
+
+PACKAGES_XCODE_TOOLCHAIN = get_xcode_name()
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', PACKAGES_XCODE_TOOLCHAIN)#'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234

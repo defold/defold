@@ -7,6 +7,8 @@
 /share/extender/build
 /go/pkg
 /go/bin
+/build
+
 
 .cache
 .dcache
@@ -14,6 +16,7 @@
 .oracle*
 .bash*
 *.pyc
+*.log
 
 /.ccache
 /.idea
