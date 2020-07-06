@@ -258,14 +258,18 @@ def archive_editor2(channel = None, engine_artifacts = None, platform = None):
     for platform in platforms:
         call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
 
-
-def build_bob(channel = None):
+def distclean():
     call("python scripts/build.py distclean")
 
-    # Prerequisites for other platforms
-    call("python scripts/build.py install_ext --platform=arm64-nx64")
 
-    #
+def install_ext(platform = None):
+    opts = []
+    if platform:
+        opts.append('--platform=%s' % platform)
+
+    call("python scripts/build.py install_ext %s" % ' '.join(opts))
+
+def build_bob(channel = None, branch = None):
     args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
 
@@ -388,12 +392,6 @@ def main(argv):
     # execute commands
     for command in args.commands:
         if command == "engine":
-            # Since github CI cannot skip jobs based on names/branches
-            if platform in ('arm64-nx64',):
-                print("Skipping engine for platform={} branch={}".format(platform, branch))
-                if branch not in ('platform-switch'):
-                    continue
-
             if not platform:
                 raise Exception("No --platform specified.")
             build_engine(
@@ -417,13 +415,17 @@ def main(argv):
         elif command == "archive-editor":
             archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            build_bob(channel = engine_channel)
+            build_bob(channel = engine_channel, branch = branch)
         elif command == "sdk":
             build_sdk()
         elif command == "smoke":
             smoke_test()
         elif command == "install":
             install(args)
+        elif command == "install_ext":
+            install_ext(platform = platform)
+        elif command == "distclean":
+            distclean()
         elif command == "release":
             if make_release:
                 release(channel = release_channel)
