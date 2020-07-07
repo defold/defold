@@ -797,6 +797,13 @@ namespace dmPhysics
     void SetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& position);
 
     /**
+     * Set the world angle of the specified 2D collision object.
+     *
+     * @param collision_object Collision object handle
+     * @param angle object angle in float
+     */
+    void SetBodyAngle2D(HCollisionObject2D collision_object, float angle);
+    /**
      * Return the world rotation of the specified 3D collision object.
      *
      * @param context Physics context
@@ -1062,6 +1069,24 @@ namespace dmPhysics
      */
     float GetMass2D(HCollisionObject2D collision_object);
 
+    /**
+     * Return the angle of the 2D collision object.
+     *
+     * @param collision_object Collision object
+     * @return the angle
+     */
+    float GetBodyAngle2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return the angle of the 2D collision object.
+     *
+     * @param collision_object Collision object
+     * @param angle body angle
+     * 
+     */
+    void GetBodyAngle2D(HCollisionObject2D collision_object, float angle);
+
+    
     /**
      * Container of data for ray cast queries.
      */

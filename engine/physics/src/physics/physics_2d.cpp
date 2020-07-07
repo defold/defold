@@ -1136,11 +1136,24 @@ namespace dmPhysics
         return body->GetMass();
     }
 
-    void SetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& position){
+    void SetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& position)
+    {
         b2Body* body = ((b2Body*)collision_object);
         b2Vec2 b2_position;
         ToB2(position, b2_position, context->m_InvScale);
         body->SetTransform(b2_position, context->m_InvScale);
+    }
+
+    void SetBodyAngle2D(HCollisionObject2D collision_object, float angle)
+    {
+        b2Body* body = ((b2Body*)collision_object);
+        body->SetTransform(body->GetPosition(), angle);
+    }
+
+    float GetBodyAngle2D(HCollisionObject2D collision_object)
+    {
+        b2Body* body = ((b2Body*)collision_object);
+        return body->GetAngle();
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
