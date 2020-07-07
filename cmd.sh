@@ -3,6 +3,7 @@ RUN="sh run_editor.sh"
 SETUP="sh setup_env.sh"
 BUILD="sh build_editor.sh"
 BUNDLE="sh bundle_editor.sh"
+BUILD_ENGINE="./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
 
 while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
   -S | --shell )
@@ -14,6 +15,10 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     exit
     ;;
   -b | --build )
+    eval $BUILD
+    exit
+    ;;
+  -e | --engine )
     eval $BUILD
     exit
     ;;
@@ -33,6 +38,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "__________________[COMMAND]___________________"
     echo "sh cmd.sh --setup | -s : for environment setup"
     echo "sh cmd.sh --build | -b : for building editor"
+    echo "sh cmd.sh --engine| -e : for building engine"
     echo "sh cmd.sh --run   | -r : for running editor"
     echo "sh cmd.sh --bundle| -B : for bundling editor"
     echo "______________________________________________"
