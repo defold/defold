@@ -341,6 +341,13 @@ message VelocityResponse
     required dmMath.Vector3 angular_velocity    = 2;
 }
 
+message RequestBodyPosition {}
+
+message BodyPositionResponse
+{
+    required dmMath.Vector3 body_position     = 1;
+}
+
 // System message (TileGrid=>CollisionObject)
 message SetGridShapeHull
 {

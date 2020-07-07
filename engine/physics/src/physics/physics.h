@@ -788,6 +788,15 @@ namespace dmPhysics
     Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object);
 
     /**
+     * Set the world position of the specified 2D collision object.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object handle
+     * @param position object position in vector3
+     */
+    void SetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& position);
+
+    /**
      * Return the world rotation of the specified 3D collision object.
      *
      * @param context Physics context
