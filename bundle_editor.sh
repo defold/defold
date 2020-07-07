@@ -9,4 +9,6 @@ eval $SHELL
 (cd "./editor";eval $BUNDLE)
 eval $OPEN_FOLDER
 
+echo "finished bundling Defold, enjoy ;)"
+echo "_____________________________________________________"
 

@@ -24,4 +24,5 @@ eval $SHELL
 eval $INSTALL_EXT
 
 echo "finished setup environment. ready to build engine/editor."
-echo "run build_editor.sh to continue..."
+echo "run `sh build_editor.sh` to continue..."
+echo "_____________________________________________________"

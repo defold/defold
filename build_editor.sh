@@ -12,3 +12,4 @@ eval $BUILTIN
 eval $BOB
 
 echo "Finish building editor. 'sh run_editor.sh' to run it."
+echo "_____________________________________________________"
