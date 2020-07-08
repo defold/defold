@@ -221,7 +221,8 @@ class Configuration(object):
                  notarization_password = None,
                  notarization_itc_provider = None,
                  github_token = None,
-                 version = None):
+                 version = None,
+                 codesigning_identity = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -258,6 +259,7 @@ class Configuration(object):
         self.notarization_itc_provider = notarization_itc_provider
         self.github_token = github_token
         self.version = version
+        self.codesigning_identity = codesigning_identity
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -2010,7 +2012,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       notarization_password = options.notarization_password,
                       notarization_itc_provider = options.notarization_itc_provider,
                       github_token = options.github_token,
-                      version = options.version)
+                      version = options.version,
+                      codesigning_identity = options.codesigning_identity)
 
     for cmd in args:
         f = getattr(c, cmd, None)
