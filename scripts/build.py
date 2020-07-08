@@ -12,7 +12,6 @@
 # specific language governing permissions and limitations under the License.
 
 
-
 # add build_tools folder to the import search path
 import sys, os
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
