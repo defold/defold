@@ -36,8 +36,7 @@ OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
 ## Let's fixed the local SDK into this folder:
-PACKAGES_FOLDER="./local_sdks"
-# PACKAGES_XCODE_TOOLCHAIN = 
+PACKAGES_FOLDER="../../../defold/local_sdks"
 
 def get_xcode_name():
     prefix = "XcodeDefault"
@@ -52,10 +51,11 @@ def get_xcode_name():
                 files.append(file)
 
     if len(files) > 0:
-        print("Found " + str(len(files)) + " " + prefix + " => use " + files[0])
-        return files[0].replace('.tar.gz', '')
+        ret = files[0].replace(".tar.gz", '')
+        print("[waf_dynamo.py] -- Found " + ret)
+        return ret
     else : 
-        return "XcodeDefault11.3.1.xctoolchain"
+        return "XcodeDefault11.5.xctoolchain"
 
 PACKAGES_XCODE_TOOLCHAIN = get_xcode_name()
 

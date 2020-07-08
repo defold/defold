@@ -19,7 +19,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     exit
     ;;
   -e | --engine )
-    eval $BUILD
+    eval $BUILD_ENGINE
     exit
     ;;
   -B | --bundle )
