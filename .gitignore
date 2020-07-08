@@ -8,7 +8,6 @@
 /go/pkg
 /go/bin
 /build
-/build/Testing/Temporary/LastTest.log
 
 
 .cache

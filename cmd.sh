@@ -37,10 +37,10 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo ""
     echo "__________________[COMMAND]___________________"
     echo "sh cmd.sh --setup | -s : for environment setup"
-    echo "sh cmd.sh --build | -b : for building editor"
-    echo "sh cmd.sh --engine| -e : for building engine"
+    echo "sh cmd.sh --engine| -e : for building engine alone"
+    echo "sh cmd.sh --build | -b : for building editor + engine"
     echo "sh cmd.sh --run   | -r : for running editor"
-    echo "sh cmd.sh --bundle| -B : for bundling editor"
+    echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release"
     echo "______________________________________________"
     echo "You can also run each script separately as :"
     echo $RUN
