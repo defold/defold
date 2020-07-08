@@ -1223,6 +1223,7 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--codesigning-identity=%s' % self.codesigning_identity,
                'bundle']
         self.run_editor_script(cmd)
 
@@ -1970,6 +1971,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     parser.add_option('--version', dest='version',
                       default = None,
                       help = 'Version to use instead of from VERSION file')
+
+    parser.add_option('--codesigning-identity', dest='codesigning_identity',
+                      default = None,
+                      help = 'Codesigning identity for macOS version of the editor')
 
     options, all_args = parser.parse_args()
 
