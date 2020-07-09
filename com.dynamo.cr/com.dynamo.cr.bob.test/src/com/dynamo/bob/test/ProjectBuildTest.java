@@ -28,7 +28,7 @@ import static org.junit.Assert.assertEquals;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
