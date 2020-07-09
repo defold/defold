@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -383,6 +383,7 @@ namespace dmGui
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
+        scene->m_ValueToAnimationIndex.SetCapacity(params->m_MaxAnimations*2,params->m_MaxAnimations);
         scene->m_SpineAnimations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
@@ -1493,6 +1494,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
+    // Removes the last zero bits, allowing for better distribution in a hash table
+    // From: https://stackoverflow.com/questions/20953390/what-is-the-fastest-hash-function-for-pointers
+    template<typename T>
+    inline uint64_t PtrToUint(const T* val){
+        static const uint64_t shift = (uint64_t)log2(1 + sizeof(T));
+        return (uint64_t)(val) >> shift;
+    };
+
     void UpdateAnimations(HScene scene, float dt)
     {
         dmArray<Animation>* animations = &scene->m_Animations;
@@ -1610,6 +1619,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
+                scene->m_ValueToAnimationIndex.Erase(PtrToUint(anim->m_Value));
                 animations->EraseSwap(i);
                 i--;
                 n--;
@@ -2434,6 +2444,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
+                scene->m_ValueToAnimationIndex.Erase(PtrToUint(anim->m_Value));
                 animations->EraseSwap(i);
                 i--;
                 n_anims--;
@@ -2456,6 +2467,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NodePool.Clear();
         scene->m_Animations.SetSize(0);
+        scene->m_ValueToAnimationIndex.Clear();
     }
 
     static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode)
@@ -2573,6 +2585,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
         scene->m_Animations.SetSize(0);
+        scene->m_ValueToAnimationIndex.Clear();
     }
 
     uint16_t GetRenderOrder(HScene scene)
@@ -3646,22 +3659,19 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         Animation animation;
         uint32_t animation_index = 0xffffffff;
 
-        // Remove old animation for the same property
-        for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
-        {
-            const Animation* anim = &scene->m_Animations[i];
-            if (value == anim->m_Value)
-            {
-                // Make sure to invoke the callback when we are re-using the
-                // animation index so that we can clean up dangling ref's in
-                // the gui_script module.
-                if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
-                {
-                    anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-                }
+        uint32_t* animation_index_ptr = scene->m_ValueToAnimationIndex.Get(PtrToUint(value));
 
-                animation_index = i;
-                break;
+        if (animation_index_ptr)
+        {
+            animation_index = *animation_index_ptr;
+
+            const Animation* anim = &scene->m_Animations[animation_index];
+            // Make sure to invoke the callback when we are re-using the
+            // animation index so that we can clean up dangling ref's in
+            // the gui_script module.
+            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+            {
+                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
             }
         }
 
@@ -3674,6 +3684,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
+
+            scene->m_ValueToAnimationIndex.Put(PtrToUint(value), animation_index);
         }
 
         animation.m_Node = node;
