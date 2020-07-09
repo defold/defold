@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1041,13 +1041,17 @@ namespace dmSound
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
-        if (info.m_BitsPerSample == 16 && info.m_Channels > SOUND_MAX_MIX_CHANNELS ) {
-            dmLogError("Only mono/stereo with 16 bits per sample is supported (%s)", GetSoundName(sound, instance));
+        bool correct_bit_depth = info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
+        bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
+        if (!correct_bit_depth || !correct_num_channels) {
+            dmLogError("Only mono/stereo with 8/16 bits per sample is supported (%s): %u bpp %u ch", GetSoundName(sound, instance), (uint32_t)info.m_BitsPerSample, (uint32_t)info.m_Channels);
+            instance->m_Playing = 0;
             return;
         }
 
         if (info.m_Rate > sound->m_MixRate) {
-            dmLogError("Sounds with rate higher than sample-rate not supported (%d > %d) (%s)", info.m_Rate, sound->m_MixRate, GetSoundName(sound, instance));
+            dmLogError("Sounds with rate higher than sample-rate not supported (%d hz > %d hz) (%s)", info.m_Rate, sound->m_MixRate, GetSoundName(sound, instance));
+            instance->m_Playing = 0;
             return;
         }
 
@@ -1108,7 +1112,6 @@ namespace dmSound
 
         if (r != dmSoundCodec::RESULT_OK) {
             dmLogWarning("Unable to decode file '%s'. Result %d", GetSoundName(sound, instance), r);
-
             instance->m_Playing = 0;
             return;
         }
