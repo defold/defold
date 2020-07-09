@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -287,9 +287,13 @@ namespace dmGameObject
 
     void DeallocCollection(Collection* collection)
     {
+        DM_PROFILE(GameObject, "DeallocCollection");
+
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
+            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name, dmProfile::GetNameHash(regist->m_ComponentTypes[i].m_Name, strlen((regist->m_ComponentTypes[i].m_Name))));
+
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
             params.m_World = collection->m_ComponentWorlds[i];
@@ -437,6 +441,8 @@ namespace dmGameObject
 
     void DeleteCollection(Collection* collection)
     {
+        DM_PROFILE(GameObject, "DeleteCollection"); // ~60ms
+
         // We mark the collection as beeing deleted here to avoid component
         // triggered recursive deletes to add gameobjects to the delayed delete list.
         //
@@ -698,6 +704,8 @@ namespace dmGameObject
     }
 
     bool CreateComponents(Collection* collection, HInstance instance) {
+        DM_PROFILE(GameObject, "CreateComponents");
+
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
@@ -711,6 +719,8 @@ namespace dmGameObject
             Prototype::Component* component = &proto->m_Components[i];
             ComponentType* component_type = component->m_Type;
             assert(component_type);
+
+            DM_PROFILE_DYN(GameObjectCreateComponents, component_type->m_Name, dmProfile::GetNameHash(component_type->m_Name, (uint32_t)strlen(component_type->m_Name)))
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -777,12 +787,16 @@ namespace dmGameObject
     }
 
     static void DestroyComponents(Collection* collection, HInstance instance) {
+        DM_PROFILE(GameObject, "DestroyComponents");
+
         HPrototype prototype = instance->m_Prototype;
         uint32_t next_component_instance_data = 0;
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
+
+            DM_PROFILE_DYN(GameObjectDestroyComponents, component_type->m_Name, dmProfile::GetNameHash(component_type->m_Name, (uint32_t)strlen(component_type->m_Name)))
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1792,6 +1806,7 @@ namespace dmGameObject
 
     static void DoDeleteInstance(Collection* collection, HInstance instance)
     {
+        DM_PROFILE(GameObject, "DoDeleteInstance");
         HCollection hcollection = collection->m_HCollection;
         CancelAnimations(hcollection, instance);
         if (instance->m_ToBeAdded) {
