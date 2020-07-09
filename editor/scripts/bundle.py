@@ -435,7 +435,7 @@ Commands:
                       help = 'Skip tests when building')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
-                      default = 'Mac Developer: Defold Foundation (5T99YGK7F6)',
+                      default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS')
 
     parser.add_option('--bundle-dir', dest='bundle_dir',
