@@ -17,9 +17,13 @@ def build(bld):
         bld.new_task_gen(source = source,
                      target = '%s_doc.json' % namespace,
                      rule = 'python ${SCRIPT_DOC} -t json ${SRC} ${TGT}')
+        bld.new_task_gen(source = source,
+                     target = '%s_doc.script_api' % namespace,
+                     rule = 'python ${SCRIPT_DOC} -t script_api ${SRC} ${TGT}')
 
         bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % namespace)
         bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % namespace)
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.script_api' % namespace)
 
 def set_options(opt):
     opt.tool_options('waf_dynamo')

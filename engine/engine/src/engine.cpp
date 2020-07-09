@@ -790,6 +790,7 @@ namespace dmEngine
             dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
             return false;
         }
+        dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
