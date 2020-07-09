@@ -6,7 +6,7 @@ BUILTIN="sudo ./scripts/build.py build_builtins"
 
 BOB="sudo ./scripts/build.py build_bob --skip-tests"
 
-LEIN_INIT="(cd ./editor;lein init"
+LEIN_INIT="(cd ./editor;lein init)"
 
 eval $SHELL
 eval $ENGINE
