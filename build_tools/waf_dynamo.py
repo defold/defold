@@ -26,8 +26,8 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="13.1"
-IOS_SIMULATOR_SDK_VERSION="13.1"
+IOS_SDK_VERSION="13.5"
+IOS_SIMULATOR_SDK_VERSION="13.5"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
@@ -37,7 +37,7 @@ MIN_OSX_SDK_VERSION="10.7"
 
 ## Let's fixed the local SDK into this folder:
 PACKAGES_FOLDER="./local_sdks"
-# PACKAGES_XCODE_TOOLCHAIN = 
+# PACKAGES_XCODE_TOOLCHAIN =
 
 def get_xcode_name():
     prefix = "XcodeDefault"
@@ -54,8 +54,8 @@ def get_xcode_name():
     if len(files) > 0:
         print("Found " + str(len(files)) + " " + prefix + " => use " + files[0])
         return files[0].replace('.tar.gz', '')
-    else : 
-        return "XcodeDefault11.3.1.xctoolchain"
+    else :
+        return "XcodeDefault11.5.xctoolchain"
 
 PACKAGES_XCODE_TOOLCHAIN = get_xcode_name()
 
