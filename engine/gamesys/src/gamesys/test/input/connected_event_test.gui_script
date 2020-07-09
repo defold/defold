@@ -1,0 +1,11 @@
+function on_input(self, action_id, action)
+	if action_id == hash("gamepad_connected") then
+		assert(action.gamepad_name == "null_device")
+		assert(action.text == nil)
+	elseif action_id == hash("gamepad_connected_0") then
+		assert(action.gamepad_name == "")
+		assert(action.text == nil)
+	else
+		assert(action.gamepad_name == nil)
+	end
+end

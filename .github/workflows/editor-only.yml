@@ -5,6 +5,10 @@ on:
     branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
+  pull_request:
+    branches:
+      - 'DEFEDIT-*'
+      - 'editor-dev'
 
 env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}

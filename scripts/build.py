@@ -60,10 +60,10 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
-PACKAGES_IOS_SDK="iPhoneOS13.1.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.1.sdk"
+PACKAGES_IOS_SDK="iPhoneOS13.5.sdk"
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.5.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.1.xctoolchain"
+PACKAGES_XCODE_TOOLCHAIN="XcodeDefault11.5.xctoolchain"
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(WINDOWS_MSVC_2019_VERSION)
@@ -221,7 +221,8 @@ class Configuration(object):
                  notarization_password = None,
                  notarization_itc_provider = None,
                  github_token = None,
-                 version = None):
+                 version = None,
+                 codesigning_identity = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -258,6 +259,7 @@ class Configuration(object):
         self.notarization_itc_provider = notarization_itc_provider
         self.github_token = github_token
         self.version = version
+        self.codesigning_identity = codesigning_identity
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -1223,6 +1225,7 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
+               '--codesigning-identity=%s' % self.codesigning_identity,
                'bundle']
         self.run_editor_script(cmd)
 
@@ -1971,6 +1974,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Version to use instead of from VERSION file')
 
+    parser.add_option('--codesigning-identity', dest='codesigning_identity',
+                      default = None,
+                      help = 'Codesigning identity for macOS version of the editor')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2005,7 +2012,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       notarization_password = options.notarization_password,
                       notarization_itc_provider = options.notarization_itc_provider,
                       github_token = options.github_token,
-                      version = options.version)
+                      version = options.version,
+                      codesigning_identity = options.codesigning_identity)
 
     for cmd in args:
         f = getattr(c, cmd, None)

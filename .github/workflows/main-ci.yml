@@ -6,6 +6,11 @@ on:
        - '*'
        - '!DEFEDIT-*'
        - '!editor-dev'
+  pull_request:
+     branches:
+       - '*'
+       - '!DEFEDIT-*'
+       - '!editor-dev'
   repository_dispatch: {}
 
 env:
