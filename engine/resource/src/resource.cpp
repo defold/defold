@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1798,6 +1798,8 @@ uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 
 void Release(HFactory factory, void* resource)
 {
+    DM_PROFILE(Resource, "Release");
+
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
@@ -1809,6 +1811,8 @@ void Release(HFactory factory, void* resource)
     if (rd->m_ReferenceCount == 0)
     {
         SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+
+        DM_PROFILE_DYN(ResourceRelease, resource_type->m_Extension, resource_type->m_ExtensionHash);
 
         ResourceDestroyParams params;
         params.m_Factory = factory;
