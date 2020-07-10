@@ -1497,7 +1497,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     // Removes the last zero bits, allowing for better distribution in a hash table
     // From: https://stackoverflow.com/questions/20953390/what-is-the-fastest-hash-function-for-pointers
     template<typename T>
-    inline uint64_t PtrToUint(const T* val){
+    inline uint64_t PtrToHash(const T* val){
         static const uint64_t shift = (uint64_t)log2(1 + sizeof(T));
         return (uint64_t)(val) >> shift;
     };
@@ -1619,7 +1619,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
-                scene->m_ValueToAnimationIndex.Erase(PtrToUint(anim->m_Value));
+                scene->m_ValueToAnimationIndex.Erase(PtrToHash(anim->m_Value));
                 animations->EraseSwap(i);
                 i--;
                 n--;
@@ -2444,7 +2444,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
-                scene->m_ValueToAnimationIndex.Erase(PtrToUint(anim->m_Value));
+                scene->m_ValueToAnimationIndex.Erase(PtrToHash(anim->m_Value));
                 animations->EraseSwap(i);
                 i--;
                 n_anims--;
@@ -3659,7 +3659,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         Animation animation;
         uint32_t animation_index = 0xffffffff;
 
-        uint32_t* animation_index_ptr = scene->m_ValueToAnimationIndex.Get(PtrToUint(value));
+        uint32_t* animation_index_ptr = scene->m_ValueToAnimationIndex.Get(PtrToHash(value));
 
         if (animation_index_ptr)
         {
@@ -3685,7 +3685,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
 
-            scene->m_ValueToAnimationIndex.Put(PtrToUint(value), animation_index);
+            scene->m_ValueToAnimationIndex.Put(PtrToHash(value), animation_index);
         }
 
         animation.m_Node = node;
