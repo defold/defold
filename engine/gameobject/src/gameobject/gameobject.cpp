@@ -292,7 +292,7 @@ namespace dmGameObject
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name, dmProfile::GetNameHash(regist->m_ComponentTypes[i].m_Name, strlen((regist->m_ComponentTypes[i].m_Name))));
+            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name, regist->m_ComponentTypes[i].m_NameHash);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
