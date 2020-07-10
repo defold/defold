@@ -1,4 +1,4 @@
-SHELL="./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/"
+# SHELL="./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/"
 
 ENGINE="./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
 
