@@ -1570,6 +1570,8 @@ namespace dmGameSystem
                     uint32_t node_count,
                     void* context)
     {
+        DM_PROFILE(Gui, "RenderNodes");
+
         if (node_count == 0)
             return;
 
@@ -1805,6 +1807,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
+        DM_PROFILE(Gui, "Update");
+
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
