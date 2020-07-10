@@ -1,5 +1,5 @@
 SHELL_MOJAVE="echo 'alias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/' >> ~/.bash_profile"
-SHELL_CATALINA="echo 'alias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/' >> ~/.zbashrc"
+SHELL_CATALINA="echo 'alias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/' >> ~/.zshrc"
 
 SETUP="sh setup_env.sh"
 BUNDLE="sh bundle_editor.sh"
