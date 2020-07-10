@@ -89,8 +89,16 @@ namespace dmRender
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         AddMaterialTag(material2d, dmHashString64(DEBUG_2D_NAME));
 
-        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES, dmGraphics::PRIMITIVE_TRIANGLES, dmGraphics::PRIMITIVE_LINES};
-        HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {material3d, material3d, material2d, material2d};
+        dmGraphics::PrimitiveType primitive_types[MAX_DEBUG_RENDER_TYPE_COUNT] = {
+            dmGraphics::PRIMITIVE_TRIANGLES, // 0 - FACE_3D
+            dmGraphics::PRIMITIVE_LINES,     // 1 - LINE_3D
+            dmGraphics::PRIMITIVE_TRIANGLES, // 2 - FACE_2D
+            dmGraphics::PRIMITIVE_LINES};    // 3 - LINE_2D
+        HMaterial materials[MAX_DEBUG_RENDER_TYPE_COUNT] = {
+            material3d, // 0 
+            material3d, // 1
+            material2d, // 2
+            material2d}; // 3
 
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
@@ -154,7 +162,8 @@ namespace dmRender
         static bool has_warned = false;
         if (!has_warned)
         {
-            dmLogWarning("Out of debug vertex data (%u). Increase graphics.max_debug_vertices to avoid this warning.", context->m_DebugRenderer.m_MaxVertexCount);
+            dmLogWarning("Out of debug vertex data (%u). Increase graphics.max_debug_vertices to avoid this warning.", 
+            context->m_DebugRenderer.m_MaxVertexCount);
             has_warned = true;
         }
     }
@@ -177,6 +186,37 @@ namespace dmRender
             v[4].m_Position = v[1].m_Position;
             for (uint32_t i = 0; i < vertex_count; ++i)
                 v[i].m_Color = color;
+            char* buffer = (char*)type_data.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
+            ro.m_VertexCount += vertex_count;
+        }
+        else
+        {
+            LogVertexWarning(context);
+        }
+    }
+
+    void Rectangle2D(HRenderContext context, Point3 v1,Point3 v2,Point3 v3,Point3 v4, Vector4 color)
+    {
+       if (!context->m_DebugRenderer.m_RenderContext)
+            return;
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D]; // Type Face for filling color
+        RenderObject& ro = type_data.m_RenderObject;
+        const uint32_t vertex_count = 6;//+1 point to finish the rect
+        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
+        {
+            DebugVertex v[vertex_count];
+            // It's actually 2 triangles :
+            v[0].m_Position = Vector4(v1);
+            v[1].m_Position = Vector4(v2);
+            v[2].m_Position = Vector4(v3);
+            v[3].m_Position = v[0].m_Position;
+            v[4].m_Position = Vector4(v4);
+            v[5].m_Position = v[2].m_Position;
+            // Fill Color
+            for (uint32_t i = 0; i < vertex_count; ++i)
+                v[i].m_Color = color;
+            
             char* buffer = (char*)type_data.m_ClientBuffer;
             memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
             ro.m_VertexCount += vertex_count;
@@ -212,44 +252,58 @@ namespace dmRender
         }
     }
 
-    const float PI = 22/7;
-    const float RAD = 180/PI;
-    const float RAD360 = 360 * (1/RAD);
+    const float PI =  355.0/113.0;
+    const float RAD = 180.0/PI;
+    const float RAD360 = 360.0 * (1/RAD);
 
-    void Circle2D(HRenderContext context, float radius, Point3 position, Vector4 color0)
+    void Circle2D(HRenderContext context, float radius, int segment, Point3 position, Vector4 color0)
     {
-        if (!context->m_DebugRenderer.m_RenderContext || radius > 0)
+        if (!context->m_DebugRenderer.m_RenderContext || radius < 0)
             return;
-            
-        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_2D];
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D];
         RenderObject& ro               = type_data.m_RenderObject;
-        const uint32_t vertex_count    = 16;
+        const uint32_t vertex_count    = segment * 3; //Need to finish the circle
+        // Useless precheck for over-vertex limit ( default: 10k)
         if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
         {
-            float x0 = position.getX();
-            float y0 = position.getY();
-
-            int segment_count = vertex_count/2;
-            int step          = (int)RAD360 / segment_count;
-            
             DebugVertex v[vertex_count];
+            float x0 = position.getX(); 
+            float y0 = position.getY();
+            float step = RAD360 / (float)(vertex_count);
+            // Center:
+            Vector4 center = Vector4(position);
             // Starting point:
-            Point3 point_b = Point3(x0 + radius, y0, 0.0f);
+            Vector4 point = Vector4(
+                    x0 + radius * cos((vertex_count-3) * step), 
+                    y0 + radius * sin((vertex_count-3) * step), 
+                    0.0f, 0.0f);
 
-            for (int i = 0; i < segment_count; i++)
+            for (int i = 0; i < vertex_count; i+=3)
             {
-                float angle = i * step;
-                // drawing
-                v[i].m_Position = Vector4(point_b);
+                float angle = (i) * step;
+                // point_a
+                v[i].m_Position = point;
+                // point_b
+                point = Vector4(
+                    x0 + radius * cos(angle), 
+                    y0 + radius * sin(angle), 
+                    0.0f, 0.0f);
+                // point_b
+                v[i+1].m_Position = point;
+                // center
+                v[i+2].m_Position = center;
+
                 v[i].m_Color    = color0;
-                char* buffer    = (char*)type_data.m_ClientBuffer;
-                memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], 
-                    (const void*)v, vertex_count * sizeof(DebugVertex));
-                // increment++
-                ro.m_VertexCount += 1;
-                // next
-                point_b = Point3(x0 + radius * cos(angle), y0 + radius * sin(angle), 0.0f);
+                v[i+1].m_Color    = color0;
+                v[i+2].m_Color    = color0;
+                // debug
+                // dmLogInfo("vertex: (%i) - (%f):(%f)", i, point.getX(), point.getY());
             }
+            // copy buffer
+            char* buffer = (char*)type_data.m_ClientBuffer;
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], 
+               (const void*)v, vertex_count * sizeof(DebugVertex));
+            ro.m_VertexCount += vertex_count;
         }
         else
         {
@@ -272,7 +326,8 @@ namespace dmRender
             v[1].m_Position = Vector4(x1, y1, 0.0f, 0.0f);
             v[1].m_Color = color1;
             char* buffer = (char*)type_data.m_ClientBuffer;
-            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], (const void*)v, vertex_count * sizeof(DebugVertex));
+            memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], 
+                (const void*)v, vertex_count * sizeof(DebugVertex));
             ro.m_VertexCount += vertex_count;
         }
         else
@@ -324,6 +379,7 @@ namespace dmRender
 
     void FlushDebug(HRenderContext render_context, uint32_t render_order)
     {
+        // dmLogInfo("FlushDebug -- Start");
         if (!render_context->m_DebugRenderer.m_RenderContext)
             return;
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
@@ -335,6 +391,7 @@ namespace dmRender
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
             RenderObject& ro = type_data.m_RenderObject;
             uint32_t vertex_count = ro.m_VertexCount;
+            // dmLogInfo("FlushDebug -- type-data:(%i) -- vertex-count:(%i)", i, vertex_count);
             if (vertex_count > 0)
             {
                 ro.m_VertexStart = total_vertex_count;
@@ -342,7 +399,8 @@ namespace dmRender
                 total_render_objects++;
             }
         }
-
+        if(total_vertex_count > 2000) // As A warning at 2k Render Objects
+            dmLogInfo("debug_renderer.cpp -- v = (%i)", total_vertex_count);
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, total_render_objects);

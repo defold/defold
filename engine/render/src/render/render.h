@@ -266,6 +266,17 @@ namespace dmRender
      * @param color Color
      */
     void Triangle3d(HRenderContext context, Point3 vertices[3], Vector4 color);
+    
+    /**
+     * Render debug rectangle in world space.
+     * @param context Render context handle
+     * @param v1 Vertices of the rectangle, CW winding
+     * @param v2 Vertices of the rectangle, CW winding
+     * @param v3 Vertices of the rectangle, CW winding
+     * @param v4 Vertices of the rectangle, CW winding
+     * @param color Color
+     */
+    void Rectangle2D(HRenderContext context, Point3 v1,Point3 v2,Point3 v3,Point3 v4, Vector4 color);
 
     /**
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
@@ -274,7 +285,7 @@ namespace dmRender
      * @param position position of the circle
      * @param color0 Color of the circle
      */
-    void Circle2D(HRenderContext context, float radius, Point3 position, Vector4 color0);
+    void Circle2D(HRenderContext context, float radius, int segment, Point3 position, Vector4 color0);
 
     /**
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).

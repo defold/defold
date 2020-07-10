@@ -79,6 +79,7 @@ message DrawLine
  * @message
  * @name draw_circle
  * @param radius [type:float] radius of the circle
+ * @param segment [type:int] segment amount
  * @param position [type:vector3] position of the circle
  * @param color [type:vector4] color of the circle
  * @examples
@@ -91,8 +92,9 @@ message DrawLine
 message DrawCircle
 {
     required float radius = 1;
-    required dmMath.Point3 position= 2;
-    required dmMath.Vector4 color = 3;
+    required uint32 segment = 2;
+    required dmMath.Point3 position= 3;
+    required dmMath.Vector4 color = 4;
 }
 /*# draw a rectangle on the screen
  * Draw a line on the screen. This should mostly be used for debugging purposes.
@@ -100,9 +102,6 @@ message DrawCircle
  * @message
  * @name draw_rectangle
  * @param v1 [type:vector3] v1 of the rectangle
- * @param v2 [type:vector3] v1 of the rectangle
- * @param v3 [type:vector3] v1 of the rectangle
- * @param v4 [type:vector3] v1 of the rectangle
  * @param color [type:vector4] color of the line
  * @examples
  *

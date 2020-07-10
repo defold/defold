@@ -2863,13 +2863,13 @@ bail:
             else if (descriptor == dmRenderDDF::DrawCircle::m_DDFDescriptor)
             {
                 dmRenderDDF::DrawCircle* dl = (dmRenderDDF::DrawCircle*)message->m_Data;
-                Circle2D(instance->m_RenderContext, dl->m_Radius, dl->m_Position, dl->m_Color);
+                Circle2D(instance->m_RenderContext, dl->m_Radius, dl->m_Segment, dl->m_Position, dl->m_Color);
                 return;
             }
             else if (descriptor == dmRenderDDF::DrawRectangle::m_DDFDescriptor)
             {
-                // dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
-                // Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
+                dmRenderDDF::DrawRectangle* dl = (dmRenderDDF::DrawRectangle*)message->m_Data;
+                Rectangle2D(instance->m_RenderContext, dl->m_V1, dl->m_V2, dl->m_V3, dl->m_V4, dl->m_Color);
                 return;
             }
             else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)
