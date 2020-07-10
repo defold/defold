@@ -2860,6 +2860,18 @@ bail:
                 Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
                 return;
             }
+            else if (descriptor == dmRenderDDF::DrawCircle::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawCircle* dl = (dmRenderDDF::DrawCircle*)message->m_Data;
+                Circle2D(instance->m_RenderContext, dl->m_Radius, dl->m_Position, dl->m_Color);
+                return;
+            }
+            else if (descriptor == dmRenderDDF::DrawRectangle::m_DDFDescriptor)
+            {
+                // dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
+                // Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
+                return;
+            }
             else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)
             {
                 dmRenderDDF::Resize* resize_msg = (dmRenderDDF::Resize*)message->m_Data;

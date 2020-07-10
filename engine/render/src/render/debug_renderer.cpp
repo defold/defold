@@ -212,6 +212,51 @@ namespace dmRender
         }
     }
 
+    const float PI = 22/7;
+    const float RAD = 180/PI;
+    const float RAD360 = 360 * (1/RAD);
+
+    void Circle2D(HRenderContext context, float radius, Point3 position, Vector4 color0)
+    {
+        if (!context->m_DebugRenderer.m_RenderContext || radius > 0)
+            return;
+            
+        DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_2D];
+        RenderObject& ro               = type_data.m_RenderObject;
+        const uint32_t vertex_count    = 16;
+        if (ro.m_VertexCount + vertex_count < context->m_DebugRenderer.m_MaxVertexCount)
+        {
+            float x0 = position.getX();
+            float y0 = position.getY();
+
+            int segment_count = vertex_count/2;
+            int step          = (int)RAD360 / segment_count;
+            
+            DebugVertex v[vertex_count];
+            // Starting point:
+            Point3 point_b = Point3(x0 + radius, y0, 0.0f);
+
+            for (int i = 0; i < segment_count; i++)
+            {
+                float angle = i * step;
+                // drawing
+                v[i].m_Position = Vector4(point_b);
+                v[i].m_Color    = color0;
+                char* buffer    = (char*)type_data.m_ClientBuffer;
+                memcpy(&buffer[ro.m_VertexCount * sizeof(DebugVertex)], 
+                    (const void*)v, vertex_count * sizeof(DebugVertex));
+                // increment++
+                ro.m_VertexCount += 1;
+                // next
+                point_b = Point3(x0 + radius * cos(angle), y0 + radius * sin(angle), 0.0f);
+            }
+        }
+        else
+        {
+            LogVertexWarning(context);
+        }
+    }
+
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
         if (!context->m_DebugRenderer.m_RenderContext)
