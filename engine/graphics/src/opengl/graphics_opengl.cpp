@@ -2614,7 +2614,66 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
         CHECK_GL_ERROR
     }
-
+    static void OpenGLBlendFuncSeparate(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor, BlendFactor source_alpha, BlendFactor destinaton_alpha)
+    {
+        assert(context);
+        GLenum blend_factor_lut[] = {
+            GL_ZERO,
+            GL_ONE,
+            GL_SRC_COLOR,
+            GL_ONE_MINUS_SRC_COLOR,
+            GL_DST_COLOR,
+            GL_ONE_MINUS_DST_COLOR,
+            GL_SRC_ALPHA,
+            GL_ONE_MINUS_SRC_ALPHA,
+            GL_DST_ALPHA,
+            GL_ONE_MINUS_DST_ALPHA,
+            GL_SRC_ALPHA_SATURATE,
+        #if !defined (GL_ARB_imaging)
+            0x8001,
+            0x8002,
+            0x8003,
+            0x8004,
+        #else
+            GL_CONSTANT_COLOR,
+            GL_ONE_MINUS_CONSTANT_COLOR,
+            GL_CONSTANT_ALPHA,
+            GL_ONE_MINUS_CONSTANT_ALPHA,
+        #endif
+        };
+        glBlendFuncSeparate(
+            blend_factor_lut[source_factor],blend_factor_lut[destinaton_factor],
+            blend_factor_lut[source_alpha] ,blend_factor_lut[destinaton_alpha]);
+        CHECK_GL_ERROR
+    }
+    static void OpenGLBlendEquation(HContext context, BlendFactor mode)
+    {
+        assert(context);
+        GLenum blend_mode_lut[] = {
+            GL_ZERO,
+            GL_ONE,
+            GL_SRC_COLOR,
+            GL_ONE_MINUS_SRC_COLOR,
+            GL_DST_COLOR,
+            GL_ONE_MINUS_DST_COLOR,
+            GL_SRC_ALPHA,
+            GL_ONE_MINUS_SRC_ALPHA,
+            GL_DST_ALPHA,
+            GL_ONE_MINUS_DST_ALPHA,
+            GL_SRC_ALPHA_SATURATE,
+            GL_CONSTANT_COLOR,
+            GL_ONE_MINUS_CONSTANT_COLOR,
+            GL_CONSTANT_ALPHA,
+            GL_ONE_MINUS_CONSTANT_ALPHA,
+            GL_FUNC_ADD,
+            GL_FUNC_SUBTRACT,
+            GL_FUNC_REVERSE_SUBTRACT,
+            GL_MIN,
+            GL_MAX
+        };
+        glBlendEquation(blend_mode_lut[mode]);
+        CHECK_GL_ERROR
+    }
     static void OpenGLSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
@@ -2816,6 +2875,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_EnableState = OpenGLEnableState;
         fn_table.m_DisableState = OpenGLDisableState;
         fn_table.m_SetBlendFunc = OpenGLSetBlendFunc;
+        fn_table.m_BlendFuncSeparate = OpenGLBlendFuncSeparate;
+        fn_table.m_BlendEquation = OpenGLBlendEquation;
         fn_table.m_SetColorMask = OpenGLSetColorMask;
         fn_table.m_SetDepthMask = OpenGLSetDepthMask;
         fn_table.m_SetDepthFunc = OpenGLSetDepthFunc;

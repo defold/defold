@@ -425,9 +425,17 @@ namespace dmGraphics
     {
         g_functions.m_DisableState(context, state);
     }
+    void BlendEquation(HContext context, BlendFactor mode)
+    {
+        g_functions.m_BlendEquation(context, mode);
+    }
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);
+    }
+    void BlendFuncSeparate(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor, BlendFactor source_alpha, BlendFactor destinaton_alpha)
+    {
+        g_functions.m_BlendFuncSeparate(context, source_factor, destinaton_factor, source_alpha, destinaton_alpha);
     }
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
