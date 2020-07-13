@@ -114,6 +114,7 @@ namespace dmGraphics
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);
     typedef void (*BlendEquationFn)(HContext context, BlendFactor mode);
+    typedef void (*BlendEquationSeparateFn)(HContext context, BlendFactor mode, BlendFactor modeAlpha);
     typedef void (*SetBlendFuncFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     typedef void (*BlendFuncSeparateFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor, BlendFactor source_alpha, BlendFactor destinaton_alpha);
     typedef void (*SetColorMaskFn)(HContext context, bool red, bool green, bool blue, bool alpha);
@@ -223,6 +224,7 @@ namespace dmGraphics
         SetBlendFuncFn m_SetBlendFunc;
         BlendFuncSeparateFn m_BlendFuncSeparate;
         BlendEquationFn m_BlendEquation;
+        BlendEquationSeparateFn m_BlendEquationSeparate;
         SetColorMaskFn m_SetColorMask;
         SetDepthMaskFn m_SetDepthMask;
         SetDepthFuncFn m_SetDepthFunc;

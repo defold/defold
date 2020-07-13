@@ -1536,8 +1536,7 @@ namespace dmRender
      * @variable
      */
 
-
- /*# sets the blending equation function
+    /*# sets the blending equation function
      * Added by .GEARS
      * Specifies the arithmetic used when computing pixel values that are written to the frame
      * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
@@ -1578,6 +1577,56 @@ namespace dmRender
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+
+    /*# sets the blending equation function
+     * Added by .GEARS
+     * Specifies the arithmetic used when computing pixel values that are written to the frame
+     * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
+     * pixel values with the destination pixel values already in the frame buffer.
+     * Blending is initially disabled.
+     *
+     * `mode` specifies which mode is used to the source color components.
+     *
+     * Blend Equation function `(render.ADD, render.SUBSTRACT, render.MIN, render.MAX...)` is useful for
+     * drawing with transparency when the drawn objects are sorted from farthest to nearest.
+     * It is also useful for drawing antialiased points and lines in arbitrary order.
+     *
+     * @name render.blend_equation_separate
+     * @param mode [type:constant] blend mode
+     * @param modeAlpha [type:constant] blend mode alpha
+     * @examples
+     *
+     * Set the blend func to the most common one:
+     *
+     * ```lua
+     * render.blend_equation_alpha(render.BLEND_FUNC_ADD, render.BLEND_FUNC_ADD)
+     * ```
+     */
+    int RenderScript_BlendEquationSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            factors[i] = luaL_checknumber(L, 1 + i);
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            if (factors[i] != dmGraphics::BLEND_FACTOR_FUNC_ADD &&
+                factors[i] != dmGraphics::BLEND_FACTOR_FUNC_SUBTRACT &&
+                factors[i] != dmGraphics::BLEND_FACTOR_FUNC_REVERSE_SUBTRACT &&
+                factors[i] != dmGraphics::BLEND_FACTOR_MIN &&
+                factors[i] != dmGraphics::BLEND_FACTOR_MAX)
+            {
+                return luaL_error(L, "Invalid blend types: %s.blend_equation(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_BLEND_EQUATION_SEPARATE, factors[0], factors[1])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+
      /*# sets the blending function
      *
      * Specifies the arithmetic used when computing pixel values that are written to the frame

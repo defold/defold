@@ -648,6 +648,7 @@ namespace dmGraphics
     void EnableState(HContext context, State state);
     void DisableState(HContext context, State state);
     void BlendEquation(HContext context, BlendFactor mode);
+    void BlendEquationSeparate(HContext context, BlendFactor mode, BlendFactor modeAlpha);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     void BlendFuncSeparate(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor,BlendFactor source_alpha, BlendFactor destinaton_alpha);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);

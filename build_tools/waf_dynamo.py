@@ -1439,8 +1439,8 @@ def detect(conf):
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
-        os.environ['CC'] = 'clang'
-        os.environ['CXX'] = 'clang++'
+        os.environ['CC'] = 'clang -j'    # Added by .GEARS / TRUNGB
+        os.environ['CXX'] = 'clang++ -j'  # Added by .GEARS / TRUNGB
 
         llvm_prefix = ''
         bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
