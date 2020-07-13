@@ -425,6 +425,10 @@ namespace dmGraphics
     {
         g_functions.m_DisableState(context, state);
     }
+    void BlendColor(HContext context, float r, float g, float b, float a)
+    {
+        g_functions.m_BlendColor(context, r, g, b, a);
+    }
     void BlendEquation(HContext context, BlendFactor mode)
     {
         g_functions.m_BlendEquation(context, mode);

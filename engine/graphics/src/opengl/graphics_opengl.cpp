@@ -2582,7 +2582,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glDisable(GetOpenGLState(state));
         CHECK_GL_ERROR
     }
+    static void OpenGLBlendColor(HContext context, float R, float G, float B, float A)
+    {
+        assert(context);
+        GLclampf red = (GLclampf) R;
+        GLclampf green = (GLclampf) G;
+        GLclampf blue = (GLclampf) B;
+        GLclampf alpha = (GLclampf) A;
 
+        // dmLogInfo("graphics_opengl.cpp -- calling glBlendColor: (%f),(%f),(%f),(%f)", red, green, blue, alpha);
+        glBlendColor(red, green, blue, alpha);
+        CHECK_GL_ERROR
+    }
     static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
@@ -2902,10 +2913,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_SetViewport = OpenGLSetViewport;
         fn_table.m_EnableState = OpenGLEnableState;
         fn_table.m_DisableState = OpenGLDisableState;
+        fn_table.m_BlendColor= OpenGLBlendColor;
         fn_table.m_SetBlendFunc = OpenGLSetBlendFunc;
-        fn_table.m_BlendFuncSeparate              = OpenGLBlendFuncSeparate;
-        fn_table.m_BlendEquation                  = OpenGLBlendEquation;
-        fn_table.m_BlendEquationSeparate                  = OpenGLBlendEquationSeparate;
+        fn_table.m_BlendFuncSeparate = OpenGLBlendFuncSeparate;
+        fn_table.m_BlendEquation = OpenGLBlendEquation;
+        fn_table.m_BlendEquationSeparate = OpenGLBlendEquationSeparate;
         fn_table.m_SetColorMask = OpenGLSetColorMask;
         fn_table.m_SetDepthMask = OpenGLSetDepthMask;
         fn_table.m_SetDepthFunc = OpenGLSetDepthFunc;

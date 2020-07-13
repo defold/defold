@@ -378,6 +378,13 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     ASSERT_EQ(dmRender::COMMAND_TYPE_BLEND_EQUATION, command->m_Type);
     ASSERT_EQ(dmGraphics::BLEND_FACTOR_FUNC_ADD, (int32_t)command->m_Operands[0]);
 
+    command = &commands[13];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_BLEND_COLOR, command->m_Type);
+    ASSERT_EQ(1.0, (float)command->m_Operands[0]);
+    ASSERT_EQ(1.0, (float)command->m_Operands[1]);
+    ASSERT_EQ(1.0, (float)command->m_Operands[2]);
+    ASSERT_EQ(1.0, (float)command->m_Operands[3]);
+
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
