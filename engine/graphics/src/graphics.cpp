@@ -429,6 +429,10 @@ namespace dmGraphics
     {
         g_functions.m_BlendEquation(context, mode);
     }
+    void BlendEquationSeparate(HContext context, BlendFactor mode, BlendFactor modeAlpha)
+    {
+        g_functions.m_BlendEquationSeparate(context, mode, modeAlpha);
+    }
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);

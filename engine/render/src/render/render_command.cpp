@@ -117,10 +117,13 @@ namespace dmRender
                     dmRender::SetProjectionMatrix(render_context, *matrix);
                     delete matrix;
                     break;
-                } 
-                case COMMAND_TYPE_BLEND_EQUATION:
-                {
+                }
+                case COMMAND_TYPE_BLEND_EQUATION: {
                     dmGraphics::BlendEquation(context, (dmGraphics::BlendFactor)c->m_Operands[0]);
+                    break;
+                }
+                case COMMAND_TYPE_BLEND_EQUATION_SEPARATE: {
+                    dmGraphics::BlendEquationSeparate(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
                     break;
                 }
                 case COMMAND_TYPE_SET_BLEND_FUNC:
