@@ -118,6 +118,12 @@ namespace dmRender
                     delete matrix;
                     break;
                 }
+                case COMMAND_TYPE_BLEND_COLOR: 
+                {
+                    // dmLogInfo("render_command.cpp -- BlendColor: (%f)-(%f)-(%f)-(%f)", (float)c->m_Operands[0], (float)c->m_Operands[1], (float)c->m_Operands[2], (float)c->m_Operands[3]);
+                    dmGraphics::BlendColor(context, (float)c->m_Operands[0], (float)c->m_Operands[1], (float)c->m_Operands[2], (float)c->m_Operands[3]);
+                    break;
+                }
                 case COMMAND_TYPE_BLEND_EQUATION: {
                     dmGraphics::BlendEquation(context, (dmGraphics::BlendFactor)c->m_Operands[0]);
                     break;

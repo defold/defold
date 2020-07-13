@@ -1536,6 +1536,44 @@ namespace dmRender
      * @variable
      */
 
+    /*# sets the blending color function
+     * Added by .GEARS
+     * Original read from glBlendColor function.
+     * RGBA ranging in [0.0~1.0]
+     * 
+     * @name render.blend_color
+     * @param r [type:number] red 
+     * @param g [type:number] green 
+     * @param b [type:number] blue
+     * @param a [type:number] alpha 
+     * @examples
+     *
+     * Set the blend func to the most common one:
+     *
+     * ```lua
+     * render.blend_color(1.0, 0.0, 0.0, 1.0) -- red
+     * ```
+     */
+    int RenderScript_BlendColor(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[4];
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            factors[i] = luaL_checknumber(L, 1 + i);
+        }
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            if (factors[i] < 0.0 || factors[i] > 1.0)
+            {
+                return luaL_error(L, "Invalid blend types: %s.blend_equation(self, %d, %d, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1], factors[2], factors[3]);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_BLEND_COLOR, factors[0], factors[1], factors[2], factors[3])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
     /*# sets the blending equation function
      * Added by .GEARS
      * Specifies the arithmetic used when computing pixel values that are written to the frame
@@ -1625,7 +1663,7 @@ namespace dmRender
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-        }
+    }
 
      /*# sets the blending function
      *
@@ -2555,6 +2593,7 @@ namespace dmRender
         { "set_viewport", RenderScript_SetViewport },
         { "set_view", RenderScript_SetView },
         { "set_projection", RenderScript_SetProjection },
+        { "blend_color", RenderScript_BlendColor },
         { "blend_equation", RenderScript_BlendEquation },
         { "blend_equation_separate", RenderScript_BlendEquationSeparate },
         { "set_blend_func", RenderScript_SetBlendFunc },
