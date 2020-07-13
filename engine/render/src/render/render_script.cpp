@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1512,25 +1512,25 @@ namespace dmRender
      * @name render.BLEND_FUNC_ADD
      * @variable
      */
-    
+
     /*#
      * @name render.BLEND_FUNC_SUBTRACT
      * @variable
      */
 
-    
+
     /*#
      * @name render.BLEND_FUNC_REVERSE_SUBTRACT
      * @variable
      */
 
-    
+
     /*#
      * @name render.BLEND_MIN
      * @variable
      */
 
-    
+
     /*#
      * @name render.BLEND_MAX
      * @variable
@@ -1538,7 +1538,7 @@ namespace dmRender
 
 
  /*# sets the blending equation function
-     *
+     * Added by .GEARS
      * Specifies the arithmetic used when computing pixel values that are written to the frame
      * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
      * pixel values with the destination pixel values already in the frame buffer.
@@ -1569,7 +1569,7 @@ namespace dmRender
             factor != dmGraphics::BLEND_FACTOR_FUNC_SUBTRACT &&
             factor != dmGraphics::BLEND_FACTOR_FUNC_REVERSE_SUBTRACT &&
             factor != dmGraphics::BLEND_FACTOR_MIN &&
-            factor != dmGraphics::BLEND_FACTOR_MAX 
+            factor != dmGraphics::BLEND_FACTOR_MAX
         ){
             return luaL_error(L, "Invalid blend types: %s.blend_equation(self, %d)", RENDER_SCRIPT_LIB_NAME, factor);
         }
@@ -1676,7 +1676,7 @@ namespace dmRender
     }
 
      /*# sets the blending function separately
-     *
+     * Added by .GEARS
      * Specifies the arithmetic used when computing pixel values that are written to the frame
      * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
      * pixel values with the destination pixel values already in the frame buffer.
@@ -1768,8 +1768,8 @@ namespace dmRender
                 factors[i] != dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA &&
                 factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA)
             {
-                return luaL_error(L, 
-                "Invalid blend types: %s.set_blend_func(self, %d, %d, %d, %d)", 
+                return luaL_error(L,
+                "Invalid blend types: %s.set_blend_func(self, %d, %d, %d, %d)",
                 RENDER_SCRIPT_LIB_NAME, factors[0], factors[1], factors[2], factors[3]);
             }
         }
@@ -2638,7 +2638,7 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(FUNC_REVERSE_SUBTRACT);
         REGISTER_BLEND_CONSTANT(MIN);
         REGISTER_BLEND_CONSTANT(MAX);
-        
+
 
 #undef REGISTER_BLEND_CONSTANT
 
