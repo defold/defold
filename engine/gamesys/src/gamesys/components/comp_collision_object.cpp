@@ -1469,6 +1469,19 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
+    // Added by dotGears/TrungB
+    void SetAlphaTag(void* comp, bool flag)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetAlphaTag(component->m_Object2D, flag);
+    }
+    void SetAlphaValue(void* comp,float alphaX, float alphaY, float alphaZ )
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetAlphaValue(component->m_Object2D, alphaX, alphaY, alphaZ);
+    }
+    // End of Passion
+
     dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)
     {
         CollisionWorld* world = (CollisionWorld*)_world;

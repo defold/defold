@@ -752,6 +752,26 @@ namespace dmPhysics
     void ApplyForce2DImpulse(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
+     * Set Alpha Tag to an object body, which make it to be updated more than others.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param flag enable Alpha Value update or not
+     */
+    void SetAlphaTag(HCollisionObject2D collision_object, bool flag);
+
+    /**
+     * Set Alpha Value to an object body, which will update its transform along with world step.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param alphaX Set AlphaX position update
+     * @param alphaY Set AlphaY position update
+     * @param alphaZ Set AlphaZ position update
+     */
+    void SetAlphaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ );
+
+    /**
      * Return the total force currently applied to the specified 3D collision object.
      *
      * @param context Physics context

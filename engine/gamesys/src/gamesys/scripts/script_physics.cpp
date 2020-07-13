@@ -989,8 +989,8 @@ namespace dmGameSystem
     }
 
     /*# set physics step per frame.
-     *
-     * Set the amount of steps for physics 2D to update inside Step().
+     * Set the amount of steps for physics 2D to update inside Step() function.
+     * Added by dotGears/TrungB.
      *
      * , velocityIteration, positionIteration
      * @name physics.set_step_per_frame   
@@ -1032,9 +1032,93 @@ namespace dmGameSystem
 
         return 0;
     }
+    
+    /*# Set alpha tag to a body, which is by then will be updated more per frame
+     * along with the world step. 
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_alpha_tag   
+     * @param  collision-object-id [type:string|hash|url] mark a body with alpha tag.
+     * @param  flag [type:boolean] mark a body with alpha tag or disable it.
+     * 
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_alpha_tag("#body")
+     * end
+     * ```
+     */
+    static int Physics_SetAlphaTag(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
 
-    static int
-    Physics_SetFlipInternal(lua_State* L, bool horizontal)
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flag = lua_toboolean(L, 2);
+        
+        dmGameSystem::SetAlphaTag(comp, flag);
+
+        return 0;
+    }
+    /*# Set alpha tag to a body, which is by then will be updated more per frame
+     * along with the world step. 
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_alpha_value   
+     * @param  collision-object-id [type:string|hash|url] string, hash or url of the collision-object
+     * @param  alphaX [type:float] alpha value of body position
+     * @param  alphaY [type:float] alpha value of body position
+     * @param  alphaZ [type:float] alpha value of body position
+     * 
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_alpha_value("#body", 1.0 ,2.0 , 0.0)
+     * end
+     * ```
+     */
+    static int Physics_SetAlphaValue(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+        
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        float alphaX = lua_tonumber(L, 2);
+        float alphaY = lua_tonumber(L, 3);
+        float alphaZ = lua_tonumber(L, 4);
+        ///
+        /// Need correct place to cast down pointer :
+        ///
+        dmGameSystem::SetAlphaValue(comp, alphaX, alphaY, alphaZ);
+
+        return 0;
+    }
+
+    static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1119,6 +1203,8 @@ namespace dmGameSystem
 
         {"set_gravity",         Physics_SetGravity},
         {"get_gravity",         Physics_GetGravity},
+        {"set_alpha_tag",       Physics_SetAlphaTag},
+        {"set_alpha_value",     Physics_SetAlphaValue},
         {"set_step_per_frame",  Physics_SetStepPerFrame},
 
         {"set_hflip",       Physics_SetFlipH},

@@ -175,7 +175,19 @@ public:
 	/// Get the angle in radians.
 	/// @return the current world rotation angle in radians.
 	float32 GetAngle() const;
-
+	
+	/// Get the alphaX.
+	/// @return the current alphaX position.
+	float32 GetAlphaX() const;
+	
+	/// Get the alphaY.
+	/// @return the current alphaY position.
+	float32 GetAlphaY() const;
+	
+	/// Get the alphaZ.
+	/// @return the current alphaZ position.
+	float32 GetAlphaZ() const;
+	
 	/// Get the world position of the center of mass.
 	const b2Vec2& GetWorldCenter() const;
 
@@ -322,6 +334,20 @@ public:
 	/// @param flag set to true to put body to sleep, false to wake it.
 	void SetAwake(bool flag);
 
+	/// Set the Alpha Tag to the body, so it get updated more times 
+	/// than others, with increment update of alpha value on every world step.
+	/// Added by .Gears
+	/// @param flag set to true to put this body to update layer.
+	void SetAlphaTag(bool flag);
+
+	/// Set the Alpha Value to the body, so it get updated more times 
+	/// than others, with increment update of alpha value on every world step.
+	/// Added by .Gears
+	/// @param alphaX set for alphaX position change per update.
+	/// @param alphaY set for alphaY position change per update.
+	/// @param alphaZ set for alphaZ rotation change per update.
+	void SetAlphaValue(float32 alphaX, float32 alphaY, float32 alphaZ);
+
 	/// Get the sleeping state of this body.
 	/// @return true if the body is sleeping.
 	bool IsAwake() const;
@@ -343,6 +369,9 @@ public:
 
 	/// Get the active state of the body.
 	bool IsActive() const;
+
+	/// Get the tagged alpha to update body.
+	bool IsTaggedAlpha() const;
 
 	/// Set this body to have fixed rotation. This causes the mass
 	/// to be reset.
@@ -417,7 +446,8 @@ private:
 		e_bulletFlag		= 0x0008,
 		e_fixedRotationFlag	= 0x0010,
 		e_activeFlag		= 0x0020,
-		e_toiFlag			= 0x0040
+		e_toiFlag			= 0x0040,
+		e_updateAlphaFlag   = 0x0080
 	};
 
 	b2Body(const b2BodyDef* bd, b2World* world);
@@ -470,6 +500,11 @@ private:
 
 	float32 m_sleepTime;
 
+	// Added by .Gears/TrungB
+	float32 m_alphaX;
+	float32 m_alphaY;
+	float32 m_alphaZ;
+
 	void* m_userData;
 };
 
@@ -492,6 +527,20 @@ inline float32 b2Body::GetAngle() const
 {
 	return m_sweep.a;
 }
+
+inline float32 b2Body::GetAlphaX() const
+{
+	return m_alphaX;
+}
+inline float32 b2Body::GetAlphaY() const
+{
+	return m_alphaY;
+}
+inline float32 b2Body::GetAlphaZ() const
+{
+	return m_alphaZ;
+}
+
 
 inline const b2Vec2& b2Body::GetWorldCenter() const
 {
@@ -658,6 +707,30 @@ inline void b2Body::SetAwake(bool flag)
 	}
 }
 
+// Added by .Gears
+inline void b2Body::SetAlphaTag(bool flag)
+{
+	if (flag)
+	{
+		// enable updateAlphaFlag if haven't :
+		if ((m_flags & e_updateAlphaFlag) == 0)
+		{
+			m_flags |= e_updateAlphaFlag;
+		}
+	}
+	else
+	{
+		m_flags &= ~e_updateAlphaFlag;
+	}
+}
+inline void b2Body::SetAlphaValue(float32 alphaX, float32 alphaY, float32 alphaZ)
+{
+	// update value
+	m_alphaX = alphaX;
+	m_alphaY = alphaY;
+	m_alphaZ = alphaZ;
+}
+
 inline bool b2Body::IsAwake() const
 {
 	return (m_flags & e_awakeFlag) == e_awakeFlag;
@@ -667,6 +740,12 @@ inline bool b2Body::IsActive() const
 {
 	return (m_flags & e_activeFlag) == e_activeFlag;
 }
+
+inline bool b2Body::IsTaggedAlpha() const
+{
+	return (m_flags & e_updateAlphaFlag) == e_updateAlphaFlag;
+}
+
 
 inline void b2Body::SetFixedRotation(bool flag)
 {

@@ -63,8 +63,11 @@ namespace dmGameSystem
 
     void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
     Vectormath::Aos::Vector3 GetGravity(void* _world);
-    // TrungB : custom step iteration
+    /// Added by dotGears/TrungB
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration);
+    void SetAlphaValue(void* comp, float alphaX, float alphaY, float alphaZ);
+    void SetAlphaTag(void* comp, bool flag);
+    /// End of Passion
 
     bool IsCollision2D(void* _world);
     void SetCollisionFlipH(void* _component, bool flip);
