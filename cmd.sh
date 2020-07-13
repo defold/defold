@@ -99,9 +99,12 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "sh cmd.sh --cd_catalina    | -cdc : add defold path so you can just call: cd_defold"
     echo "______________________________________________"
     echo "You can also run each script separately as :"
-    echo $RUN
     echo $SETUP
-    echo $BUILD
+    echo $BUILD_ENGINE
+    echo $BUILD_BOB
+    echo $BUILD_BUILTIN
+    echo $BUILD_EDITOR
+    echo $RUN_EDITOR
     echo $BUNDLE
     ;;
 esac; shift; done
