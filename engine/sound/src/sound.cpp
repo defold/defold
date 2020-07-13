@@ -194,8 +194,6 @@ namespace dmSound
         dmHashTable<dmhash_t, int> m_GroupMap;
         SoundGroup              m_Groups[MAX_GROUPS];
 
-        Stats                   m_Stats;
-
         uint32_t                m_MixRate;
         uint32_t                m_FrameCount;
         uint32_t                m_PlayCounter;
@@ -350,7 +348,6 @@ namespace dmSound
         }
         sound->m_NextOutBuffer = 0;
 
-        memset(&g_SoundSystem->m_Stats, 0, sizeof(g_SoundSystem->m_Stats));
         sound->m_GroupMap.SetCapacity(MAX_GROUPS * 2 + 1, MAX_GROUPS);
         for (uint32_t i = 0; i < MAX_GROUPS; ++i) {
             memset(&sound->m_Groups[i], 0, sizeof(SoundGroup));
@@ -401,11 +398,6 @@ namespace dmSound
         }
 
         return result;
-    }
-
-    void GetStats(Stats* stats)
-    {
-        *stats = g_SoundSystem->m_Stats;
     }
 
     static inline const char* GetSoundName(SoundSystem* sound, SoundInstance* instance)
