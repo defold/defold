@@ -1,3 +1,6 @@
+CD_DEFOLD_MOJAVE="echo \"#Shorthand for entering defold folder\nalias cd_defold='cd $PWD'\" >> ~/.bash_profile"
+CD_DEFOLD_CATALINA="echo \"#Shorthand for entering defold folder\nalias cd_defold='cd $PWD'\" >> ~/.zshrc"
+
 SHELL_MOJAVE="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.bash_profile"
 SHELL_CATALINA="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
 
@@ -35,11 +38,19 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     eval $RUN_EDITOR
     exit
     ;;
-  -SM | --shell_mojave )
+  -cdm | --cd_mojave )
+    eval $CD_DEFOLD_MOJAVE
+    exit
+    ;;
+  -cdc | --cd_catalina )
+    eval $CD_DEFOLD_CATALINA
+    exit
+    ;;
+  -sm | --shell_mojave )
     eval $SHELL_MOJAVE
     exit
     ;;
-  -SC | --shell_catalina )
+  -sc | --shell_catalina )
     eval $SHELL_CATALINA
     exit
     ;;
@@ -75,19 +86,17 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo ""
     echo "__________________[COMMAND]___________________"
     echo "sh cmd.sh --setup | -s : for environment setup"
-    
     echo "sh cmd.sh --engine| -e : for building engine alone"
     echo "sh cmd.sh --editor| -e : for building editor + launch"
     echo "sh cmd.sh --misc  | -m : for building bob + builtin"
-    
     echo "sh cmd.sh --fast  | -F : to build engine/editor + launch"
-    
-    
     echo "sh cmd.sh --run   | -r : for running editor"
-
     echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release"
-    echo "sh cmd.sh --shell_mojave | -sm : to add shell_defold to your bash on Mojave"
-    echo "sh cmd.sh --shell_catalina | -sc : to add shell_defold to your bash on Catalina"
+    echo "__________________[SHORTHAND]___________________"
+    echo "sh cmd.sh --shell_mojave   | -sm : to run shell_defold on Mojave"
+    echo "sh cmd.sh --shell_catalina | -sc : to run shell_defold on Catalina"
+    echo "sh cmd.sh --cd_mojave      | -cdm : add defold path so you can just call: cd_defold"
+    echo "sh cmd.sh --cd_catalina    | -cdc : add defold path so you can just call: cd_defold"
     echo "______________________________________________"
     echo "You can also run each script separately as :"
     echo $RUN
