@@ -1480,6 +1480,22 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetAlphaValue(component->m_Object2D, alphaX, alphaY, alphaZ);
     }
+    void SetGravityScale(void* comp, float gravityScale)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetGravityScale(component->m_Object2D, gravityScale);
+    }
+    void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+        {
+        }
+        else
+        {
+            dmPhysics::SetWorld2DStepIteration(world->m_World2D, stepIteration, velocityIteration, positionIteration);
+        }
+    }
     // End of Passion
 
     dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)
@@ -1662,17 +1678,6 @@ namespace dmGameSystem
         else
         {
             return dmPhysics::GetGravity2D(world->m_World2D);
-        }
-    }
-
-    // TrungB : add step modification -> physics
-    void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration)
-    {
-        CollisionWorld* world = (CollisionWorld*)_world;
-        if (world->m_3D){}
-        else
-        {
-            dmPhysics::SetWorld2DStepIteration(world->m_World2D, stepIteration, velocityIteration, positionIteration);
         }
     }
 

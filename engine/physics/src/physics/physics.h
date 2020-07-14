@@ -772,6 +772,14 @@ namespace dmPhysics
     void SetAlphaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ );
 
     /**
+     * Set Alpha Value to an object body, which will update its transform along with world step.
+     *
+     * @param body Physics body
+     * @param gravityScale the scale of gravity in Box2D
+     */
+    void SetGravityScale(HCollisionObject2D collision_object, float gravityScale);
+
+    /**
      * Return the total force currently applied to the specified 3D collision object.
      *
      * @param context Physics context

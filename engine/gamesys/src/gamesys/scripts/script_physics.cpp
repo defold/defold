@@ -988,6 +988,50 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# set the gravity scale for collection
+     *
+     * Set the gravity in runtime. The gravity change is not global, it will only affect
+     * the collection that the function is called from.
+     *
+     * Note: For 2D physics the z component of the gravity vector will be ignored.
+     *
+     * @name physics.set_gravity_scale
+     * @param body [type:string|hash|url] collision-object-id
+     * @param gravity [type:vector3] the new gravity vector
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     -- Set "upside down" gravity scale for this collection.
+     *     physics.set_gravity_scale("#body", 1.5)
+     * end
+     * ```
+     */
+    static int Physics_SetGravityScale(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        float gravityScale = lua_tonumber(L, 2);
+
+        dmGameSystem::SetGravityScale(comp, gravityScale);
+
+        return 0;
+    }
+
     /*# set physics step per frame.
      * Set the amount of steps for physics 2D to update inside Step() function.
      * Added by dotGears/TrungB.
@@ -1188,28 +1232,28 @@ namespace dmGameSystem
         return Physics_SetFlipInternal(L, false);
     }
 
-    static const luaL_reg PHYSICS_FUNCTIONS[] =
-    {
-        {"ray_cast",        Physics_RayCastAsync}, // Deprecated
-        {"raycast_async",   Physics_RayCastAsync},
-        {"raycast",         Physics_RayCast},
+    static const luaL_reg PHYSICS_FUNCTIONS[] = {
+        { "ray_cast", Physics_RayCastAsync }, // Deprecated
+        { "raycast_async", Physics_RayCastAsync },
+        { "raycast", Physics_RayCast },
 
-        {"create_joint",    Physics_CreateJoint},
-        {"destroy_joint",   Physics_DestroyJoint},
-        {"get_joint_properties", Physics_GetJointProperties},
-        {"set_joint_properties", Physics_SetJointProperties},
-        {"get_joint_reaction_force",  Physics_GetJointReactionForce},
-        {"get_joint_reaction_torque", Physics_GetJointReactionTorque},
+        { "create_joint", Physics_CreateJoint },
+        { "destroy_joint", Physics_DestroyJoint },
+        { "get_joint_properties", Physics_GetJointProperties },
+        { "set_joint_properties", Physics_SetJointProperties },
+        { "get_joint_reaction_force", Physics_GetJointReactionForce },
+        { "get_joint_reaction_torque", Physics_GetJointReactionTorque },
 
-        {"set_gravity",         Physics_SetGravity},
-        {"get_gravity",         Physics_GetGravity},
-        {"set_alpha_tag",       Physics_SetAlphaTag},
-        {"set_alpha_value",     Physics_SetAlphaValue},
-        {"set_step_per_frame",  Physics_SetStepPerFrame},
+        { "set_gravity", Physics_SetGravity },
+        { "get_gravity", Physics_GetGravity },
+        { "set_alpha_tag", Physics_SetAlphaTag },
+        { "set_alpha_value", Physics_SetAlphaValue },
+        { "set_gravity_scale", Physics_SetGravityScale },
+        { "set_step_per_frame", Physics_SetStepPerFrame },
 
-        {"set_hflip",       Physics_SetFlipH},
-        {"set_vflip",       Physics_SetFlipV},
-        {0, 0}
+        { "set_hflip", Physics_SetFlipH },
+        { "set_vflip", Physics_SetFlipV },
+        { 0, 0 }
     };
 
     void ScriptPhysicsRegister(const ScriptLibContext& context)

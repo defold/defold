@@ -67,6 +67,7 @@ namespace dmGameSystem
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration);
     void SetAlphaValue(void* comp, float alphaX, float alphaY, float alphaZ);
     void SetAlphaTag(void* comp, bool flag);
+    void SetGravityScale(void* comp, float gravityScale);
     /// End of Passion
 
     bool IsCollision2D(void* _world);
