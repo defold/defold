@@ -380,12 +380,6 @@ namespace dmPhysics
         }
     }
 
-    void SetWorld2DStepIteration(HWorld2D world, int stepIteration, int velocityIteration, int positionIteration){
-        world->m_stepIteration = stepIteration;
-        world->m_velocityIteration = velocityIteration;
-        world->m_positionIteration = positionIteration;
-    }
-
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -442,9 +436,6 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
 
-            for(int i = 0; i < world->m_stepIteration; i++)
-                world->m_World.Step(dt / world->m_stepIteration, world->m_velocityIteration, world->m_positionIteration);
-
             float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
@@ -460,6 +451,40 @@ namespace dmPhysics
                     }
                 }
             }
+            /// Added by .Gears/TrungB
+            float deltaStep = dt / world->m_stepIteration;
+            for(int i = 0; i < world->m_stepIteration; i++)
+            {
+                world->m_World.Step(deltaStep, world->m_velocityIteration, world->m_positionIteration);
+                // Update transforms of dynamic bodies
+                if (world->m_SetWorldTransformCallback)
+                {
+                    for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+                    {
+                        if (//body->GetType() == b2_dynamicBody && 
+                            body->IsActive() && body->IsTaggedAlpha())
+                        {
+                            // Debug Log:
+                            // dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i, 
+                            // body->GetAlphaX(), body->GetAlphaY(),body->GetAlphaZ());
+                            // Fetch Position
+                            Vectormath::Aos::Point3 position;
+                            FromB2(body->GetPosition(), position, inv_scale);
+                            // Added with X:Y Alpha position
+                            position = Vectormath::Aos::Point3(
+                                position.getX() + body->GetAlphaX()/world->m_stepIteration,
+                                position.getY() + body->GetAlphaY()/world->m_stepIteration,
+                                position.getZ());
+                            // Added with Z rotation Alpha
+                            Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(
+                                body->GetAngle() + body->GetAlphaZ()/world->m_stepIteration);
+                            // Set World Transform
+                            (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                        }
+                    }
+                }
+            }
+
         }
         // Perform requested ray casts
         uint32_t size = world->m_RayCastRequests.Size();
@@ -1003,6 +1028,27 @@ namespace dmPhysics
         ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
     }
 
+    /// Added by dotGears/TrungB
+    void SetAlphaTag(HCollisionObject2D collision_object, bool flag)
+    {
+        ((b2Body*)collision_object)->SetAlphaTag(flag);
+    }
+    void SetAlphaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ )
+    {
+        ((b2Body*)collision_object)->SetAlphaValue(alphaX, alphaY, alphaZ);
+    }
+    void SetGravityScale(HCollisionObject2D collision_object, float gravityScale)
+    {
+        ((b2Body*)collision_object)->SetGravityScale(gravityScale);
+    }
+    void SetWorld2DStepIteration(HWorld2D world, int stepIteration, int velocityIteration, int positionIteration)
+    {
+        world->m_stepIteration     = stepIteration;
+        world->m_velocityIteration = velocityIteration;
+        world->m_positionIteration = positionIteration;
+    }
+    /// End of Passion
+
     void ApplyForce2DImpulse(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position)
     {
         float scale = context->m_Scale;
@@ -1012,6 +1058,7 @@ namespace dmPhysics
         ToB2(position, b2_position, scale);
         ((b2Body*)collision_object)->ApplyLinearImpulse(b2_force, b2_position);
     }
+    /// End of Passion
 
     Vectormath::Aos::Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {

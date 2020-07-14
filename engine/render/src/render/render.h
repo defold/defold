@@ -282,10 +282,13 @@ namespace dmRender
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
      * @param context Render context handle
      * @param radius radius of the circle
+     * @param segment segments divided by 360 degree
+     * @param angleBegin begin angle to draw
+     * @param angleEnd end angle to draw
      * @param position position of the circle
      * @param color0 Color of the circle
      */
-    void Circle2D(HRenderContext context, float radius, int segment, Point3 position, Vector4 color0);
+    void Circle2D(HRenderContext context, float radius, int segment, float angleBegin, float angleEnd, Point3 position, Vector4 color0);
 
     /**
      * Render debug line. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).

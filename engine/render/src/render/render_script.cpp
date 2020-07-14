@@ -3132,7 +3132,7 @@ bail:
             else if (descriptor == dmRenderDDF::DrawCircle::m_DDFDescriptor)
             {
                 dmRenderDDF::DrawCircle* dl = (dmRenderDDF::DrawCircle*)message->m_Data;
-                Circle2D(instance->m_RenderContext, dl->m_Radius, dl->m_Segment, dl->m_Position, dl->m_Color);
+                Circle2D(instance->m_RenderContext, dl->m_Radius, dl->m_Segment, dl->m_AngleBegin, dl->m_AngleEnd, dl->m_Position, dl->m_Color);
                 return;
             }
             else if (descriptor == dmRenderDDF::DrawRectangle::m_DDFDescriptor)

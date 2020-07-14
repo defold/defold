@@ -256,7 +256,7 @@ namespace dmRender
     const float RAD = 180.0/PI;
     const float RAD360 = 360.0 * (1/RAD);
 
-    void Circle2D(HRenderContext context, float radius, int segment, Point3 position, Vector4 color0)
+    void Circle2D(HRenderContext context, float radius, int segment, float angleBegin, float angleEnd, Point3 position, Vector4 color0)
     {
         if (!context->m_DebugRenderer.m_RenderContext || radius < 0)
             return;
@@ -269,18 +269,22 @@ namespace dmRender
             DebugVertex v[vertex_count];
             float x0 = position.getX(); 
             float y0 = position.getY();
-            float step = RAD360 / (float)(vertex_count);
+            float stepBegin = angleBegin * (1/RAD);
+            float step = ((angleEnd-angleBegin)*(1/RAD)) / (float)(vertex_count);
             // Center:
             Vector4 center = Vector4(position);
             // Starting point:
             Vector4 point = Vector4(
-                    x0 + radius * cos((vertex_count-3) * step), 
-                    y0 + radius * sin((vertex_count-3) * step), 
+                    x0 + radius * cos(stepBegin), 
+                    y0 + radius * sin(stepBegin), 
                     0.0f, 0.0f);
 
             for (int i = 0; i < vertex_count; i+=3)
             {
-                float angle = (i) * step;
+                // angle 
+                float angle = stepBegin + (i+3) * step;
+                // Debug Angle/Step at i:
+                // dmLogInfo("debug_renderer.cpp --(%i)# angle: (%f) at step=(%f)", i,angle, step);
                 // point_a
                 v[i].m_Position = point;
                 // point_b
@@ -292,12 +296,10 @@ namespace dmRender
                 v[i+1].m_Position = point;
                 // center
                 v[i+2].m_Position = center;
-
-                v[i].m_Color    = color0;
+                // colors
+                v[i].m_Color      = color0;
                 v[i+1].m_Color    = color0;
                 v[i+2].m_Color    = color0;
-                // debug
-                // dmLogInfo("vertex: (%i) - (%f):(%f)", i, point.getX(), point.getY());
             }
             // copy buffer
             char* buffer = (char*)type_data.m_ClientBuffer;
