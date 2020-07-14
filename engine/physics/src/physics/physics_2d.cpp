@@ -478,7 +478,8 @@ namespace dmPhysics
                 {
                     for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                     {
-                        if (body->GetType() == b2_dynamicBody && body->IsActive() && body->IsTaggedAlpha())
+                        if (//body->GetType() == b2_dynamicBody && 
+                            body->IsActive() && body->IsTaggedAlpha())
                         {
                             // Debug Log:
                             dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i, 
