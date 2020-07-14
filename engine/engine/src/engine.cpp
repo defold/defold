@@ -764,24 +764,16 @@ namespace dmEngine
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
-        // The attempt to fallback to other audio devices only has meaning if:
-        // - sound is being used
-        // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
-        static const char* audio_devices[] = {
-                "default",
-                "null",
-                NULL
-        };
-        int deviceIndex = 0;
-        while (NULL != audio_devices[deviceIndex]) {
-            sound_params.m_OutputDevice = audio_devices[deviceIndex];
-            dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
-            if (dmSound::RESULT_OK == soundInit) {
-                dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
-                break;
-            }
-            ++deviceIndex;
+        sound_params.m_OutputDevice = "default";
+#if defined(__EMSCRIPTEN__)
+        sound_params.m_UseThread = false;
+#else
+        sound_params.m_UseThread = true;
+#endif
+        dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
+        if (dmSound::RESULT_OK == soundInit) {
+            dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
