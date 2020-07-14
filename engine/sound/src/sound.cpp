@@ -468,6 +468,8 @@ namespace dmSound
             dmLogError("Out of sound data slots (%u). Increase the project setting 'sound.max_sound_data'", sound->m_SoundDataPool.Capacity());
             return RESULT_OUT_OF_INSTANCES;
         }
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+
         uint16_t index = sound->m_SoundDataPool.Pop();
 
         SoundData* sd = &sound->m_SoundData[index];
