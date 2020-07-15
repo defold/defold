@@ -437,32 +437,16 @@ namespace dmPhysics
             world->m_ContactListener.SetStepWorldContext(&step_context);
 
             float inv_scale = world->m_Context->m_InvScale;
-            // Update transforms of dynamic bodies
-            if (world->m_SetWorldTransformCallback)
-            {
-                for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
-                {
-                    if (body->GetType() == b2_dynamicBody && body->IsActive())
-                    {
-                        Vectormath::Aos::Point3 position;
-                        FromB2(body->GetPosition(), position, inv_scale);
-                        Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
-                        (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
-                    }
-                }
-            }
             /// Added by .Gears/TrungB
             float deltaStep = dt / world->m_stepIteration;
             for(int i = 0; i < world->m_stepIteration; i++)
             {
-                world->m_World.Step(deltaStep, world->m_velocityIteration, world->m_positionIteration);
                 // Update transforms of dynamic bodies
                 if (world->m_SetWorldTransformCallback)
                 {
                     for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                     {
-                        if (//body->GetType() == b2_dynamicBody && 
-                            body->IsActive() && body->IsTaggedAlpha())
+                        if (body->IsActive() && body->IsTaggedAlpha())
                         {
                             // Debug Log:
                             // dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i, 
@@ -483,8 +467,22 @@ namespace dmPhysics
                         }
                     }
                 }
+                world->m_World.Step(deltaStep, world->m_velocityIteration, world->m_positionIteration);
+            } 
+            // Update transforms of dynamic bodies
+            if (world->m_SetWorldTransformCallback)
+            {
+                for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
+                {
+                    if (body->GetType() == b2_dynamicBody && body->IsActive())
+                    {
+                        Vectormath::Aos::Point3 position;
+                        FromB2(body->GetPosition(), position, inv_scale);
+                        Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
+                        (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                    }
+                }
             }
-
         }
         // Perform requested ray casts
         uint32_t size = world->m_RayCastRequests.Size();
