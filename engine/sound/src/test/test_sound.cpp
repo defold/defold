@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -144,11 +144,12 @@ struct TestParams2
     bool        m_Ramp2;
 
     uint32_t    m_BufferFrameCount;
+    bool        m_UseThread;
 
     TestParams2(const char* device_name,
                 void* sound1, uint32_t sound_size1, SoundDataType type1, uint32_t tone_rate1, uint32_t mix_rate1, uint32_t frame_count1, float gain1, bool ramp1,
                 void* sound2, uint32_t sound_size2, SoundDataType type2, uint32_t tone_rate2, uint32_t mix_rate2, uint32_t frame_count2, float gain2, bool ramp2,
-                uint32_t buffer_frame_count)
+                uint32_t buffer_frame_count, bool use_thread)
     {
         m_DeviceName = device_name;
 
@@ -171,6 +172,7 @@ struct TestParams2
         m_Ramp2 = ramp2;
 
         m_BufferFrameCount = buffer_frame_count;
+        m_UseThread = use_thread;
     }
 };
 
@@ -194,6 +196,7 @@ public:
         params.m_MaxSources = MAX_SOURCES;
         params.m_OutputDevice = m_DeviceName;
         params.m_FrameCount = GetParam().m_BufferFrameCount;
+        params.m_UseThread = false;
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -222,6 +225,7 @@ public:
         params.m_MaxSources = MAX_SOURCES;
         params.m_OutputDevice = m_DeviceName;
         params.m_FrameCount = GetParam().m_BufferFrameCount;
+        params.m_UseThread = GetParam().m_UseThread;
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -411,9 +415,10 @@ TEST_P(dmSoundVerifyTest, Mix)
 
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+    printf("Playing: %d\n", dmSound::IsPlaying(instance));
+
     do {
         r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
     } while (dmSound::IsPlaying(instance));
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -486,6 +491,17 @@ TEST_P(dmSoundVerifyTest, NoEarlyBailOnSoundInstances)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+const TestParams params_verify_test[] = {
+TestParams("loopback",
+            MONO_TONE_440_22050_44100_WAV,
+            MONO_TONE_440_22050_44100_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            22050,
+            44100,
+            2048)};
+
+/*
 const TestParams params_verify_test[] = {
 TestParams("loopback",
             MONO_TONE_440_22050_44100_WAV,
@@ -615,7 +631,7 @@ TestParams("loopback",
             44100,
             88200,
             2048)
-};
+};*/
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
@@ -1145,17 +1161,20 @@ TEST_P(dmSoundMixerTest, Mixer)
     r = dmSound::AddGroup("g2");
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
-    ASSERT_EQ(3, dmSound::GetGroupCount());
-    std::set<dmhash_t> groups;
-    for (uint32_t i = 0; i < dmSound::GetGroupCount(); i++) {
-        dmhash_t group = 0;
-        dmSound::GetGroupHash(i, &group);
-        groups.insert(group);
+
+    dmhash_t groups[dmSound::MAX_GROUPS];
+    uint32_t group_count = dmSound::MAX_GROUPS;
+    dmSound::GetGroupHashes(&group_count, groups);
+
+    ASSERT_EQ(3, group_count);
+    std::set<dmhash_t> testgroups;
+    for (uint32_t i = 0; i < group_count; i++) {
+        testgroups.insert(groups[i]);
     }
 
-    ASSERT_TRUE(groups.find(dmHashString64("master")) != groups.end());
-    ASSERT_TRUE(groups.find(dmHashString64("g1")) != groups.end());
-    ASSERT_TRUE(groups.find(dmHashString64("g2")) != groups.end());
+    ASSERT_TRUE(testgroups.find(dmHashString64("master")) != testgroups.end());
+    ASSERT_TRUE(testgroups.find(dmHashString64("g1")) != testgroups.end());
+    ASSERT_TRUE(testgroups.find(dmHashString64("g2")) != testgroups.end());
 
     r = dmSound::SetGroupGain(dmHashString64("g1"), params.m_Gain1);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1182,7 +1201,8 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     do {
         r = dmSound::Update();
-        ASSERT_EQ(dmSound::RESULT_OK, r);
+        if (!GetParam().m_UseThread)
+            ASSERT_EQ(dmSound::RESULT_OK, r);
 
     } while (dmSound::IsPlaying(instance1) || dmSound::IsPlaying(instance2));
 
@@ -1280,7 +1300,8 @@ const TestParams2 params_mixer_test[] = {
                 0.3f,
                 false,
 
-                2048),
+                2048,
+                false),
 
     TestParams2("loopback",
                 MONO_TONE_440_22050_44100_WAV,
@@ -1301,7 +1322,8 @@ const TestParams2 params_mixer_test[] = {
                 0.4f,
                 false,
 
-                2048),
+                2048,
+                false),
 
     TestParams2("loopback",
                 MONO_TONERAMP_440_32000_64000_WAV,
@@ -1322,7 +1344,31 @@ const TestParams2 params_mixer_test[] = {
                 0.6f,
                 true,
 
-                2048)
+                2048,
+                false),
+
+    // Threaded
+    TestParams2("loopback",
+                MONO_TONE_440_22050_44100_WAV,
+                MONO_TONE_440_22050_44100_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                22050,
+                44100,
+                0.8f,
+                false,
+
+                MONO_TONE_440_22050_44100_WAV,
+                MONO_TONE_440_22050_44100_WAV_SIZE,
+                dmSound::SOUND_DATA_TYPE_WAV,
+                440,
+                22050,
+                44100,
+                0.3f,
+                false,
+
+                2048,
+                true),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
 #endif

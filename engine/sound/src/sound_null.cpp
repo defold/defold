@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,11 +50,6 @@ namespace dmSound
             g_Instances = 0x0;
         }
         return RESULT_OK;
-    }
-
-    void GetStats(Stats* stats)
-    {
-        memset(stats, 0, sizeof(*stats));
     }
 
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
@@ -157,17 +152,8 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    uint32_t GetGroupCount()
+    Result GetGroupHashes(uint32_t* count, dmhash_t* buffer)
     {
-        // NOTE: Not supported.
-        // sound_null is deprecated and should be replaced by sound2 with null-device
-        return 0;
-    }
-
-    Result GetGroupHash(uint32_t index, dmhash_t* hash)
-    {
-        // NOTE: Not supported.
-        // sound_null is deprecated and should be replaced by sound2 with null-device
         return RESULT_OK;
     }
 
