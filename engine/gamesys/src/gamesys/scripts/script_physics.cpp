@@ -1081,19 +1081,19 @@ namespace dmGameSystem
      * along with the world step. 
      * Added by dotGears/TrungB
      *
-     * @name physics.set_alpha_tag   
-     * @param  collision-object-id [type:string|hash|url] mark a body with alpha tag.
+     * @name physics.set_controllable   
+     * @param  collisionobject [type:string|hash|url] mark a body with alpha tag.
      * @param  flag [type:boolean] mark a body with alpha tag or disable it.
      * 
      * @examples
      *
      * ```lua
      * function init(self)
-     *     physics.set_alpha_tag("#body")
+     *     physics.set_controllable("#body", true)
      * end
      * ```
      */
-    static int Physics_SetAlphaTag(lua_State* L)
+    static int Physics_SetControllable(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1112,7 +1112,7 @@ namespace dmGameSystem
 
         bool flag = lua_toboolean(L, 2);
         
-        dmGameSystem::SetAlphaTag(comp, flag);
+        dmGameSystem::SetControllable(comp, flag);
 
         return 0;
     }
@@ -1120,21 +1120,21 @@ namespace dmGameSystem
      * along with the world step. 
      * Added by dotGears/TrungB
      *
-     * @name physics.set_alpha_value   
-     * @param  collision-object-id [type:string|hash|url] string, hash or url of the collision-object
-     * @param  alphaX [type:float] alpha value of body position
-     * @param  alphaY [type:float] alpha value of body position
-     * @param  alphaZ [type:float] alpha value of body position
+     * @name physics.set_delta_value   
+     * @param  collisionobject [type:string|hash|url] string, hash or url of the collision-object
+     * @param  deltaX [type:float] delta value of body position
+     * @param  deltaY [type:float] delta value of body position
+     * @param  deltaZ [type:float] delta value of body position
      * 
      * @examples
      *
      * ```lua
      * function init(self)
-     *     physics.set_alpha_value("#body", 1.0 ,2.0 , 0.0)
+     *     physics.set_delta_value("#body", 1.0 ,2.0 , 0.0)
      * end
      * ```
      */
-    static int Physics_SetAlphaValue(lua_State* L)
+    static int Physics_SetDeltaValue(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1157,7 +1157,7 @@ namespace dmGameSystem
         ///
         /// Need correct place to cast down pointer :
         ///
-        dmGameSystem::SetAlphaValue(comp, alphaX, alphaY, alphaZ);
+        dmGameSystem::SetDeltaValue(comp, alphaX, alphaY, alphaZ);
 
         return 0;
     }
@@ -1246,8 +1246,8 @@ namespace dmGameSystem
 
         { "set_gravity", Physics_SetGravity },
         { "get_gravity", Physics_GetGravity },
-        { "set_alpha_tag", Physics_SetAlphaTag },
-        { "set_alpha_value", Physics_SetAlphaValue },
+        { "set_controllable", Physics_SetControllable },
+        { "set_delta_value", Physics_SetDeltaValue },
         { "set_gravity_scale", Physics_SetGravityScale },
         { "set_step_per_frame", Physics_SetStepPerFrame },
 

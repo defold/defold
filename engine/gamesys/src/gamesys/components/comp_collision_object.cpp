@@ -1470,15 +1470,15 @@ namespace dmGameSystem
     }
 
     // Added by dotGears/TrungB
-    void SetAlphaTag(void* comp, bool flag)
+    void SetControllable(void* comp, bool flag)
     {
         CollisionComponent* component = (CollisionComponent*)comp;
-        dmPhysics::SetAlphaTag(component->m_Object2D, flag);
+        dmPhysics::SetControllable(component->m_Object2D, flag);
     }
-    void SetAlphaValue(void* comp,float alphaX, float alphaY, float alphaZ )
+    void SetDeltaValue(void* comp,float alphaX, float alphaY, float alphaZ )
     {
         CollisionComponent* component = (CollisionComponent*)comp;
-        dmPhysics::SetAlphaValue(component->m_Object2D, alphaX, alphaY, alphaZ);
+        dmPhysics::SetDeltaValue(component->m_Object2D, alphaX, alphaY, alphaZ);
     }
     void SetGravityScale(void* comp, float gravityScale)
     {
