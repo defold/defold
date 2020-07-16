@@ -383,7 +383,6 @@ namespace dmGui
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
-        scene->m_ValueToAnimationIndex.SetCapacity(params->m_MaxAnimations*2,params->m_MaxAnimations);
         scene->m_SpineAnimations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
@@ -1494,13 +1493,50 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    // Removes the last zero bits, allowing for better distribution in a hash table
-    // From: https://stackoverflow.com/questions/20953390/what-is-the-fastest-hash-function-for-pointers
-    template<typename T>
-    inline uint64_t PtrToHash(const T* val){
-        static const uint64_t shift = (uint64_t)log2(1 + sizeof(T));
-        return (uint64_t)(val) >> shift;
-    };
+    #define OLD_VERSION false
+
+    static bool AnimCompare(const Animation& lhs, const float* value)
+    {
+        return lhs.m_Value < value;
+    }
+
+    static inline void RemoveAnimation(dmArray<Animation>& animations, uint32_t i)
+    {
+        Animation* current = &animations[i];
+        Animation* end = animations.End();
+        // Move all one step to the "left"
+        memmove(current, current+1, sizeof(Animation) * (end-current-1));
+        animations.SetSize(animations.Size()-1);
+    }
+
+    static inline uint32_t FindAnimation(dmArray<Animation>& animations, float* value)
+    {
+        Animation* begin = animations.Begin();
+        Animation* end = animations.End();
+        Animation* anim = std::lower_bound(begin, end, value, AnimCompare);
+
+        if (anim != end && anim->m_Value == value)
+        {
+            return (uint32_t)(anim - begin);
+        }
+        return 0xffffffff;
+    }
+
+    // This function assumes the size of the array has already grown 1 element
+    static inline uint32_t InsertAnimation(dmArray<Animation>& animations, Animation* anim)
+    {
+        Animation* begin = animations.Begin();
+        Animation* end = animations.End();
+        // We use the fact that the actual end pointer is actually valid here (it's just uninitialized)
+        Animation* current = std::lower_bound(begin, end-1, anim->m_Value, AnimCompare);
+        if (current != end && current->m_Value != anim->m_Value) // anim.m_Value >= value
+        {
+            // Move all one step to the "right"
+            memmove(current+1, current, sizeof(Animation) * (end-current));
+        }
+        *current = *anim;
+        return (uint32_t)(current - begin);
+    }
 
     void UpdateAnimations(HScene scene, float dt)
     {
@@ -1619,8 +1655,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
-                scene->m_ValueToAnimationIndex.Erase(PtrToHash(anim->m_Value));
-                animations->EraseSwap(i);
+                RemoveAnimation(*animations, i);
                 i--;
                 n--;
                 continue;
@@ -2444,8 +2479,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                 }
 
-                scene->m_ValueToAnimationIndex.Erase(PtrToHash(anim->m_Value));
-                animations->EraseSwap(i);
+                RemoveAnimation(*animations, i);
                 i--;
                 n_anims--;
                 continue;
@@ -2467,7 +2501,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NodePool.Clear();
         scene->m_Animations.SetSize(0);
-        scene->m_ValueToAnimationIndex.Clear();
     }
 
     static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode)
@@ -2585,7 +2618,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
         scene->m_Animations.SetSize(0);
-        scene->m_ValueToAnimationIndex.Clear();
     }
 
     uint16_t GetRenderOrder(HScene scene)
@@ -3657,23 +3689,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         assert(n->m_Version == version);
 
         Animation animation;
-        uint32_t animation_index = 0xffffffff;
-
-        uint32_t* animation_index_ptr = scene->m_ValueToAnimationIndex.Get(PtrToHash(value));
-
-        if (animation_index_ptr)
-        {
-            animation_index = *animation_index_ptr;
-
-            const Animation* anim = &scene->m_Animations[animation_index];
-            // Make sure to invoke the callback when we are re-using the
-            // animation index so that we can clean up dangling ref's in
-            // the gui_script module.
-            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
-            {
-                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
-            }
-        }
+        uint32_t animation_index = FindAnimation(scene->m_Animations, value);
 
         if (animation_index == 0xffffffff)
         {
@@ -3684,8 +3700,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
             animation_index = scene->m_Animations.Size();
             scene->m_Animations.SetSize(animation_index+1);
-
-            scene->m_ValueToAnimationIndex.Put(PtrToHash(value), animation_index);
+        }
+        else
+        {
+            // Make sure to invoke the callback when we are re-using the
+            // animation index so that we can clean up dangling ref's in
+            // the gui_script module.
+            Animation* anim = &scene->m_Animations[animation_index];
+            if (anim->m_AnimationComplete && !anim->m_AnimationCompleteCalled)
+            {
+                anim->m_AnimationComplete(scene, anim->m_Node, false, anim->m_Userdata1, anim->m_Userdata2);
+            }
         }
 
         animation.m_Node = node;
@@ -3705,7 +3730,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         animation.m_Cancelled = 0;
         animation.m_Backwards = 0;
 
-        scene->m_Animations[animation_index] = animation;
+        animation_index = InsertAnimation(scene->m_Animations, &animation);
         return &scene->m_Animations[animation_index];
     }
 

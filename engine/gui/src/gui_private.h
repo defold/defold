@@ -283,7 +283,6 @@ namespace dmGui
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<TextureInfo>    m_Textures;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
-        dmHashTable64<uint32_t> m_ValueToAnimationIndex;
         dmRig::HRigContext      m_RigContext;
         dmHashTable64<void*>    m_SpineScenes;
         dmParticle::HParticleContext m_ParticlefxContext;
