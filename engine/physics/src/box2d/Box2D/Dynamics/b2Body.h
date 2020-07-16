@@ -338,7 +338,7 @@ public:
 	/// than others, with increment update of alpha value on every world step.
 	/// Added by .Gears
 	/// @param flag set to true to put this body to update layer.
-	void SetAlphaTag(bool flag);
+	void SetControllable(bool flag);
 
 	/// Set the Alpha Value to the body, so it get updated more times 
 	/// than others, with increment update of alpha value on every world step.
@@ -346,7 +346,7 @@ public:
 	/// @param alphaX set for alphaX position change per update.
 	/// @param alphaY set for alphaY position change per update.
 	/// @param alphaZ set for alphaZ rotation change per update.
-	void SetAlphaValue(float32 alphaX, float32 alphaY, float32 alphaZ);
+	void SetDeltaValue(float32 alphaX, float32 alphaY, float32 alphaZ);
 
 	/// Get the sleeping state of this body.
 	/// @return true if the body is sleeping.
@@ -708,7 +708,7 @@ inline void b2Body::SetAwake(bool flag)
 }
 
 // Added by .Gears
-inline void b2Body::SetAlphaTag(bool flag)
+inline void b2Body::SetControllable(bool flag)
 {
 	if (flag)
 	{
@@ -723,7 +723,7 @@ inline void b2Body::SetAlphaTag(bool flag)
 		m_flags &= ~e_updateAlphaFlag;
 	}
 }
-inline void b2Body::SetAlphaValue(float32 alphaX, float32 alphaY, float32 alphaZ)
+inline void b2Body::SetDeltaValue(float32 alphaX, float32 alphaY, float32 alphaZ)
 {
 	// update value
 	m_alphaX = alphaX;

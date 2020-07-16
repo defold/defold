@@ -1027,13 +1027,13 @@ namespace dmPhysics
     }
 
     /// Added by dotGears/TrungB
-    void SetAlphaTag(HCollisionObject2D collision_object, bool flag)
+    void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
-        ((b2Body*)collision_object)->SetAlphaTag(flag);
+        ((b2Body*)collision_object)->SetControllable(flag);
     }
-    void SetAlphaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ )
+    void SetDeltaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ )
     {
-        ((b2Body*)collision_object)->SetAlphaValue(alphaX, alphaY, alphaZ);
+        ((b2Body*)collision_object)->SetDeltaValue(alphaX, alphaY, alphaZ);
     }
     void SetGravityScale(HCollisionObject2D collision_object, float gravityScale)
     {

@@ -65,8 +65,8 @@ namespace dmGameSystem
     Vectormath::Aos::Vector3 GetGravity(void* _world);
     /// Added by dotGears/TrungB
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration);
-    void SetAlphaValue(void* comp, float alphaX, float alphaY, float alphaZ);
-    void SetAlphaTag(void* comp, bool flag);
+    void SetDeltaValue(void* comp, float alphaX, float alphaY, float alphaZ);
+    void SetControllable(void* comp, bool flag);
     void SetGravityScale(void* comp, float gravityScale);
     /// End of Passion
 
