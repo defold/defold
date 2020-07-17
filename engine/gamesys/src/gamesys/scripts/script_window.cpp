@@ -147,9 +147,10 @@ static int SetListener(lua_State* L)
 
     WindowInfo* window_info = &g_Window;
 
-    if (lua_isnil(L, 1) && window_info->m_Callback != 0)
+    if (lua_isnil(L, 1))
     {
-        dmScript::DestroyCallback(window_info->m_Callback);
+        if (window_info->m_Callback)
+            dmScript::DestroyCallback(window_info->m_Callback);
         window_info->m_Callback = 0;
         return 0;
     }
@@ -353,7 +354,9 @@ void ScriptWindowRegister(const ScriptLibContext& context)
 
 void ScriptWindowFinalize(const ScriptLibContext& context)
 {
-    dmScript::DestroyCallback(g_Window.m_Callback);
+    if (g_Window.m_Callback)
+        dmScript::DestroyCallback(g_Window.m_Callback);
+    g_Window.m_Callback = 0;
 }
 
 void ScriptWindowOnWindowFocus(bool focus)
