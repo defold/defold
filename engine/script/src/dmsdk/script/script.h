@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -526,6 +526,34 @@ namespace dmScript
      * @param L Lua state
      * @param index Lua stack index of the function
      * @return Lua callback struct if successful, 0 otherwise
+     *
+     * @examples
+     *
+     * ```cpp
+     * static int SomeFunction(lua_State* L) // called from Lua
+     * {
+     *     LuaCallbackInfo* cbk = dmScript::CreateCallback(L, 1);
+     *     ... store the callback for later
+     * }
+     *
+     * static void InvokeCallback(LuaCallbackInfo* cbk)
+     * {
+     *     lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+     *     DM_LUA_STACK_CHECK(L, 0);
+     *
+     *     if (!dmScript::SetupCallback(callback))
+     *     {
+     *         return;
+     *     }
+     *
+     *     lua_pushstring(L, "hello");
+     *
+     *     dmScript::PCall(L, 2, 0); // self + # user arguments
+     *
+     *     dmScript::TeardownCallback(callback);
+     *     dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
+     * }
+     * ```
      */
     LuaCallbackInfo* CreateCallback(lua_State* L, int index);
 
