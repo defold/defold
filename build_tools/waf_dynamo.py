@@ -355,7 +355,7 @@ def default_flags(self):
             legacy_vm_support = 0
 
         emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
-                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_main"]',
+                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
                    'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456', 'LLD_REPORT_UNDEFINED']
         emflags = zip(['-s'] * len(emflags), emflags)
         emflags =[j for i in emflags for j in i]
