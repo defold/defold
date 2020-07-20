@@ -790,6 +790,7 @@ namespace dmEngine
             dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
             return false;
         }
+        dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
@@ -1204,8 +1205,8 @@ bail:
     {
         dmGameObject::InputAction *ipa = (dmGameObject::InputAction *)a;
         dmGameObject::InputAction *ipb = (dmGameObject::InputAction *)b;
-        bool a_is_text = ipa->m_HasText || ipa->m_TextCount > 0;
-        bool b_is_text = ipb->m_HasText || ipb->m_TextCount > 0;
+        bool a_is_text = ipa->m_HasText;
+        bool b_is_text = ipb->m_HasText;
         return a_is_text - b_is_text;
     }
 

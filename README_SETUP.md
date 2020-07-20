@@ -20,8 +20,16 @@ Verify that Java is installed and working:
 
     > javac -version
 
+#### Linux
 
-### Python
+On Linux you can use apt-get to install the open jdk:
+
+    > apt-get install -y software-properties-common
+    > add-apt-repository ppa:openjdk-r/ppa
+    > apt-get update
+    > apt-get install -y openjdk-11-jdk
+
+### Python 2
 
 You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages.
 
@@ -37,9 +45,9 @@ Install Python from the [official download page](https://www.python.org/download
 
 #### Linux
 
-Install Python using:
+Install Python 2 using:
 
-    > sudo apt-get install python 2.7 python-setuptools
+    > sudo apt install python-minimal python-setuptools
 
 Configure use of Easy Install (if it's not already installed: `which easy_install`):
 
@@ -78,13 +86,7 @@ You need additional files and tools to be able to build and work with Defold on 
 
 Download and install using `apt-get`:
 
-    > sudo apt-get install -y --no-install-recommends gcc-5 g++-5 libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
-    > sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 10 && sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20 && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 10 && sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20 && sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 30 && sudo update-alternatives --set cc /usr/bin/gcc && sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30 && sudo update-alternatives --set c++ /usr/bin/g++
-
-Verify the compiler installation with
-
-    > gcc --version
-    gcc (Ubuntu 5.5.0-12ubuntu1) 5.5.0 20171010
+    > sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
 
 ### Windows
 
@@ -96,15 +98,15 @@ Verify the compiler installation with
 
 This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](http://www.mingw.org/download/installer) and run the installer and check these packages (binary):
 
-	* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
-	* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
+    * MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
+    * MSYS Base System: `msys-base-bin`, `msys-patch-bin`
     * MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
 
 Select the menu option `Installation -> Apply Changes`.
 
 You also need to install `wget`. From the mingw terminal run:
 
-	> mingw-get install msys-wget-bin msys-zip msys-unzip
+    > mingw-get install msys-wget-bin msys-zip msys-unzip
 
 **NOTE:** You can start the visual installer again by simply running `mingw-get`
 
@@ -112,11 +114,11 @@ You also need to install `wget`. From the mingw terminal run:
 
 You need to [download](https://git-scm.com/download/win) a command line version of Git. During install, select the option to not do any CR/LF conversion. If you use ssh (public/private keys) to access GitHub then:
 
-	- Run Git GUI
-	- Help > Show SSH Key
-	- If you don't have an SSH Key, press Generate Key
-	- Add the public key to your Github profile
-	- You might need to run `start-ssh-agent` (in `C:\Program Files\Git\cmd`)
+    - Run Git GUI
+    - Help > Show SSH Key
+    - If you don't have an SSH Key, press Generate Key
+    - Add the public key to your Github profile
+    - You might need to run `start-ssh-agent` (in `C:\Program Files\Git\cmd`)
 
 Alternatively, you can easily create your own key from command line:
 
@@ -129,7 +131,7 @@ Alternatively, you can easily create your own key from command line:
 
 Now you should be able to clone the defold repo from a command prompt:
 
-	> git clone git@github.com:defold/defold.git
+    > git clone git@github.com:defold/defold.git
 
 If this won't work, you can try cloning using Github Desktop.
 
@@ -137,11 +139,25 @@ If this won't work, you can try cloning using Github Desktop.
 
 These tools are not essential, but merely things that might help during your development
 
-##### [Chocolatey](https://chocolatey.org/docs/installation)
+##### [Chocolatey](https://chocolatey.org/docs/installation) (Win32)
 
 Chocolatey is another package installer that will help install various helper tools such as [ripgrep](https://github.com/BurntSushi/ripgrep)
 
 
+##### [ripgrep](https://github.com/BurntSushi/ripgrep)
+
+A very fast text search program
+
+###### Linux
+
+Install snapd package manager:
+
+    > sudo apt install snapd
+
+Install ripgrep:
+
+    > sudo snap install ripgrep --classic
+    
 ### Command Prompt
 
 It's useful to modify your command prompt to show the status of the repo you're in.

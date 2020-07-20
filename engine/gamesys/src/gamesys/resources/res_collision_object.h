@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,7 +14,7 @@
 #define DM_GAMESYS_RES_COLLISION_OBJECT_H
 
 #include <string.h>
-
+#include <dlib/array.h>
 #include <resource/resource.h>
 #include <physics/physics.h>
 
@@ -25,8 +25,6 @@
 
 namespace dmGameSystem
 {
-    const uint32_t COLLISION_OBJECT_MAX_SHAPES = 16; // Number of shapes including shape from convex shape resource
-
     struct CollisionObjectResource
     {
         inline CollisionObjectResource()
@@ -38,13 +36,11 @@ namespace dmGameSystem
         uint64_t m_Group;
         TileGridResource* m_TileGridResource;
 
-        union
-        {
-            dmPhysics::HCollisionShape3D m_Shapes3D[COLLISION_OBJECT_MAX_SHAPES];
-            dmPhysics::HCollisionShape2D m_Shapes2D[COLLISION_OBJECT_MAX_SHAPES];
-        };
-        Vectormath::Aos::Vector3 m_ShapeTranslation[COLLISION_OBJECT_MAX_SHAPES];
-        Vectormath::Aos::Quat m_ShapeRotation[COLLISION_OBJECT_MAX_SHAPES];
+        dmPhysics::HCollisionShape3D* m_Shapes3D;
+        dmPhysics::HCollisionShape2D* m_Shapes2D;
+        Vectormath::Aos::Vector3* m_ShapeTranslation;
+        Vectormath::Aos::Quat* m_ShapeRotation;
+        uint32_t m_TileGridShapeCount;
         uint32_t m_ShapeCount;
 
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;

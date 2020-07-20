@@ -55,6 +55,7 @@ The command starts by installing external packages, mostly pre-built libraries f
 #### Installing SDKs
 The second step of the `install_ext` command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
 
+**IMPORTANT!**
 Due to licensing restrictions the SDKs are not distributed with Defold. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them. In order to simplify this process we provide scripts to download and package the SDKs. Read more about this process [here](/scripts/package/README.md). The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
 
 

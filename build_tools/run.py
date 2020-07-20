@@ -49,14 +49,14 @@ def command(args, **kwargs):
     try:
         return _exec_command(args, **kwargs)
     except ExecException, e:
-        sys.exit(e.returncode)
+        sys.exit(e.retcode)
 
 def shell_command(args):
     # Executes a command, and exits if it fails
     try:
         return _exec_command(args, shell = True)
     except ExecException, e:
-        sys.exit(e.returncode)
+        sys.exit(e.retcode)
 
 
 def env_command(env, args, **kwargs):

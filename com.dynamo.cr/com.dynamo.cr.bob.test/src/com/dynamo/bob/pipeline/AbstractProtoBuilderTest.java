@@ -76,6 +76,10 @@ public abstract class AbstractProtoBuilderTest {
         }
     }
 
+    protected Project GetProject() {
+        return this.project;
+    }
+
     protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);
         project.setInputs(Collections.singletonList(file));
