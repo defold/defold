@@ -1037,11 +1037,11 @@ namespace dmGameSystem
      * Added by dotGears/TrungB.
      *
      * , velocityIteration, positionIteration
-     * @name physics.set_step_per_frame   
+     * @name physics.set_step_per_frame
      * @param  stepIteration [type:integer] steps per frame that Physics2D will update
      * @param  velocityIteration [type:integer] iteration of velocity per step
      * @param  positionIteration [type:integer] iteration of position per step
-     * 
+     *
      * @examples
      *
      * ```lua
@@ -1076,15 +1076,15 @@ namespace dmGameSystem
 
         return 0;
     }
-    
+
     /*# Set alpha tag to a body, which is by then will be updated more per frame
-     * along with the world step. 
+     * along with the world step.
      * Added by dotGears/TrungB
      *
-     * @name physics.set_controllable   
+     * @name physics.set_controllable
      * @param  collisionobject [type:string|hash|url] mark a body with alpha tag.
      * @param  flag [type:boolean] mark a body with alpha tag or disable it.
-     * 
+     *
      * @examples
      *
      * ```lua
@@ -1101,7 +1101,7 @@ namespace dmGameSystem
         void* comp = 0x0;
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
-        
+
         if (!IsCollision2D(comp_world)) {
             return DM_LUA_ERROR("function only available in 2D physics");
         }
@@ -1111,21 +1111,62 @@ namespace dmGameSystem
         }
 
         bool flag = lua_toboolean(L, 2);
-        
+
         dmGameSystem::SetControllable(comp, flag);
 
         return 0;
     }
+
+    /*# Set Master Body for an collision object
+     * Added by dotGears/TrungVu
+     *
+     * @name physics.set_master_body
+     * @param  collision_object [type:string|hash|url] mark a body with alpha tag.
+     * @param  master_body [type:string|hash|url]  mark a body to copy.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_master_body("#body_slave", "#body_master")
+     * end
+     * ```
+     */
+    static int Physics_SetMasterBody(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        void * master = 0x0;
+        GetCollisionObject(L, 2, collection, &master, &comp_world);
+
+        dmGameSystem::SetMasterBody(comp, master);
+
+        return 0;
+    }
+    
     /*# Set alpha tag to a body, which is by then will be updated more per frame
-     * along with the world step. 
+     * along with the world step.
      * Added by dotGears/TrungB
      *
-     * @name physics.set_delta_value   
+     * @name physics.set_delta_value
      * @param  collisionobject [type:string|hash|url] string, hash or url of the collision-object
      * @param  deltaX [type:float] delta value of body position
      * @param  deltaY [type:float] delta value of body position
      * @param  deltaZ [type:float] delta value of body position
-     * 
+     *
      * @examples
      *
      * ```lua
@@ -1142,7 +1183,7 @@ namespace dmGameSystem
         void* comp = 0x0;
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
-        
+
         if (!IsCollision2D(comp_world)) {
             return DM_LUA_ERROR("function only available in 2D physics");
         }
@@ -1247,6 +1288,7 @@ namespace dmGameSystem
         { "set_gravity", Physics_SetGravity },
         { "get_gravity", Physics_GetGravity },
         { "set_controllable", Physics_SetControllable },
+        { "set_master_body", Physics_SetMasterBody },
         { "set_delta_value", Physics_SetDeltaValue },
         { "set_gravity_scale", Physics_SetGravityScale },
         { "set_step_per_frame", Physics_SetStepPerFrame },

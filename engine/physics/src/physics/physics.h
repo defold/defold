@@ -752,6 +752,15 @@ namespace dmPhysics
     void ApplyForce2DImpulse(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
+     * Set Master Body to an object body.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object which is slave object
+     * @param master_body which is b2Body
+     */
+    void SetMasterBody(HCollisionObject2D collision_object, HCollisionObject2D master_body);
+
+    /**
      * Set Controllable Tag to an object body, which make it to be updated more than others.
      *
      * @param context Physics context
@@ -1110,11 +1119,11 @@ namespace dmPhysics
      *
      * @param collision_object Collision object
      * @param angle body angle
-     * 
+     *
      */
     void GetBodyAngle2D(HCollisionObject2D collision_object, float angle);
 
-    
+
     /**
      * Container of data for ray cast queries.
      */
@@ -1229,9 +1238,9 @@ namespace dmPhysics
 
     /**
      * Set Step iteration per frame for 2D physics world.
-     * 
+     *
      * @param world Physics world for which to get the gravity
-     * 
+     *
      * @param stepIteration amount of iteration to run physics step per frame
      */
     void SetWorld2DStepIteration(HWorld2D world, int stepIteration, int velocityIteration, int positionIteration);

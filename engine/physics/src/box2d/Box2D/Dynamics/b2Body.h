@@ -175,19 +175,19 @@ public:
 	/// Get the angle in radians.
 	/// @return the current world rotation angle in radians.
 	float32 GetAngle() const;
-	
+
 	/// Get the alphaX.
 	/// @return the current alphaX position.
 	float32 GetAlphaX() const;
-	
+
 	/// Get the alphaY.
 	/// @return the current alphaY position.
 	float32 GetAlphaY() const;
-	
+
 	/// Get the alphaZ.
 	/// @return the current alphaZ position.
 	float32 GetAlphaZ() const;
-	
+
 	/// Get the world position of the center of mass.
 	const b2Vec2& GetWorldCenter() const;
 
@@ -206,9 +206,9 @@ public:
 	/// @param omega the new angular velocity in radians/second.
 	void SetAngularVelocity(float32 omega);
 
-    /// Get the angular velocity.
-    /// @return the angular velocity in radians/second.
-    float32 GetAngularVelocity() const;
+  /// Get the angular velocity.
+  /// @return the angular velocity in radians/second.
+  float32 GetAngularVelocity() const;
 
 	/// Apply a force at a world point. If the force is not
 	/// applied at the center of mass, it will generate a torque and
@@ -334,13 +334,13 @@ public:
 	/// @param flag set to true to put body to sleep, false to wake it.
 	void SetAwake(bool flag);
 
-	/// Set the Alpha Tag to the body, so it get updated more times 
+	/// Set the Alpha Tag to the body, so it get updated more times
 	/// than others, with increment update of alpha value on every world step.
 	/// Added by .Gears
 	/// @param flag set to true to put this body to update layer.
 	void SetControllable(bool flag);
 
-	/// Set the Alpha Value to the body, so it get updated more times 
+	/// Set the Alpha Value to the body, so it get updated more times
 	/// than others, with increment update of alpha value on every world step.
 	/// Added by .Gears
 	/// @param alphaX set for alphaX position change per update.
@@ -412,9 +412,14 @@ public:
 	void Dump();
 
     /* The following functions are added by defold */
-
     /// Get the total force
-    const b2Vec2& GetForce() const;
+  const b2Vec2& GetForce() const;
+
+	/* The following functions are added by dotGears*/
+	void SetMasterBody(b2Body * masterBody);
+	bool isHavingMasterBody() const;
+	b2Body* GetMasterBody();
+
 
 private:
 
@@ -435,7 +440,7 @@ private:
 	friend class b2FrictionJoint;
 	friend class b2RopeJoint;
 
-    friend class b2GridShape;
+  friend class b2GridShape;
 
 	// m_flags
 	enum
@@ -447,7 +452,8 @@ private:
 		e_fixedRotationFlag	= 0x0010,
 		e_activeFlag		= 0x0020,
 		e_toiFlag			= 0x0040,
-		e_updateAlphaFlag   = 0x0080
+		e_updateAlphaFlag   = 0x0080,
+		e_haveMasterBody = 0x0100
 	};
 
 	b2Body(const b2BodyDef* bd, b2World* world);
@@ -504,6 +510,9 @@ private:
 	float32 m_alphaX;
 	float32 m_alphaY;
 	float32 m_alphaZ;
+
+	//Added by dotGears
+	b2Body * m_masterBody;
 
 	void* m_userData;
 };
@@ -741,12 +750,6 @@ inline bool b2Body::IsActive() const
 	return (m_flags & e_activeFlag) == e_activeFlag;
 }
 
-inline bool b2Body::IsTaggedAlpha() const
-{
-	return (m_flags & e_updateAlphaFlag) == e_updateAlphaFlag;
-}
-
-
 inline void b2Body::SetFixedRotation(bool flag)
 {
 	if (flag)
@@ -940,6 +943,32 @@ inline const b2World* b2Body::GetWorld() const
 inline const b2Vec2& b2Body::GetForce() const
 {
     return m_force;
+}
+
+/* dotGears additions */
+inline void b2Body::SetMasterBody(b2Body * masterBody)
+{
+		m_masterBody = masterBody;
+
+		if ((m_flags & e_haveMasterBody) == 0)
+		{
+			m_flags |= e_haveMasterBody;
+		}
+}
+
+inline bool b2Body::IsTaggedAlpha() const
+{
+	return (m_flags & e_updateAlphaFlag) == e_updateAlphaFlag;
+}
+
+inline bool b2Body::isHavingMasterBody() const
+{
+	return (m_flags & e_haveMasterBody) == e_haveMasterBody;
+}
+
+inline b2Body* b2Body::GetMasterBody()
+{
+	return m_masterBody;
 }
 
 #endif

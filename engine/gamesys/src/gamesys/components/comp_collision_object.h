@@ -68,6 +68,9 @@ namespace dmGameSystem
     void SetDeltaValue(void* comp, float alphaX, float alphaY, float alphaZ);
     void SetControllable(void* comp, bool flag);
     void SetGravityScale(void* comp, float gravityScale);
+
+    //Added by dotGears / Trung Vu
+    void SetMasterBody(void * comp, void * master_body);
     /// End of Passion
 
     bool IsCollision2D(void* _world);

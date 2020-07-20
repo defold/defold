@@ -1041,7 +1041,7 @@ namespace dmGameSystem
             {
                 dmPhysics::ApplyForce2D(physics_context->m_Context2D, component->m_Object2D, af->m_Force, af->m_Position);
             }
-        }        
+        }
         else if (params.m_Message->m_Id == dmPhysicsDDF::ApplyForceImpulse::m_DDFDescriptor->m_NameHash)
         {
             dmPhysicsDDF::ApplyForceImpulse* af = (dmPhysicsDDF::ApplyForceImpulse*) params.m_Message->m_Data;
@@ -1320,8 +1320,8 @@ namespace dmGameSystem
             {
                 dmPhysics::SetWorldPosition2D(physics_context->m_Context2D,component->m_Object2D,
                                               Vectormath::Aos::Vector3(
-                                                  params.m_Value.m_V4[0], 
-                                                  params.m_Value.m_V4[1], 
+                                                  params.m_Value.m_V4[0],
+                                                  params.m_Value.m_V4[1],
                                                   params.m_Value.m_V4[2]));
             }
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -1469,12 +1469,21 @@ namespace dmGameSystem
         return dmPhysics::RESULT_OK;
     }
 
+    //Added by dotGears / TrungVu
+    void SetMasterBody(void * comp, void * master_body)
+    {
+      CollisionComponent* component = (CollisionComponent*)comp;
+      CollisionComponent* master = (CollisionComponent*)master_body;
+      dmPhysics::SetMasterBody(component->m_Object2D, master->m_Object2D);
+    }
+
     // Added by dotGears/TrungB
     void SetControllable(void* comp, bool flag)
     {
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetControllable(component->m_Object2D, flag);
     }
+
     void SetDeltaValue(void* comp,float alphaX, float alphaY, float alphaZ )
     {
         CollisionComponent* component = (CollisionComponent*)comp;
@@ -1496,6 +1505,7 @@ namespace dmGameSystem
             dmPhysics::SetWorld2DStepIteration(world->m_World2D, stepIteration, velocityIteration, positionIteration);
         }
     }
+
     // End of Passion
 
     dmPhysics::JointResult GetJointParams(void* _world, void* _component, dmhash_t id, dmPhysics::JointType& joint_type, dmPhysics::ConnectJointParams& joint_params)

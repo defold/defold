@@ -446,10 +446,12 @@ namespace dmPhysics
                 {
                     for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                     {
-                        if (body->IsActive() && body->IsTaggedAlpha())
+                      if (body->IsActive())
+                      {
+                        if (body->IsTaggedAlpha())
                         {
                             // Debug Log:
-                            // dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i, 
+                            // dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i,
                             // body->GetAlphaX(), body->GetAlphaY(),body->GetAlphaZ());
                             // Fetch Position
                             Vectormath::Aos::Point3 position;
@@ -465,10 +467,19 @@ namespace dmPhysics
                             // Set World Transform
                             (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                         }
+
+                        if (body->isHavingMasterBody())
+                        {
+                            dmLogInfo("bodyA has master body");
+                            b2Body * masterBody = body->GetMasterBody();
+                            dmLogInfo("master body position (%f) - (%f)", masterBody->GetPosition().x, masterBody->GetPosition().y);
+                        }
+
+                      }
                     }
                 }
                 world->m_World.Step(deltaStep, world->m_velocityIteration, world->m_positionIteration);
-            } 
+            }
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
             {
@@ -1026,11 +1037,21 @@ namespace dmPhysics
         ((b2Body*)collision_object)->ApplyForce(b2_force, b2_position);
     }
 
+    //Added by dotGears / TrungVu
+    void SetMasterBody(HCollisionObject2D collision_object, HCollisionObject2D master_body)
+    {
+        b2Body * master = (b2Body *) master_body;
+        if (master_body != NULL)
+        {
+            ((b2Body*)collision_object)->SetMasterBody(master);
+        }
+    }
     /// Added by dotGears/TrungB
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
         ((b2Body*)collision_object)->SetControllable(flag);
     }
+
     void SetDeltaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ )
     {
         ((b2Body*)collision_object)->SetDeltaValue(alphaX, alphaY, alphaZ);
@@ -1288,7 +1309,7 @@ namespace dmPhysics
         return gravity;
     }
 
-    
+
 
     void SetDebugCallbacks2D(HContext2D context, const DebugCallbacks& callbacks)
     {
