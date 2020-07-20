@@ -1600,15 +1600,11 @@ bail:
 
         engine->m_Alive = false;
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
-        dmLogWarning("ENGINE REBOOT return: %d  alive: %d", engine->m_RunResult.m_Action, engine->m_Alive?1:0);
     }
 
     RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
-
-        dmLogWarning("ENGINE InitRun  engine: %p", engine);
-
         dmEngine::RunResult run_result;
         if (dmEngine::Init(engine, argc, argv))
         {
