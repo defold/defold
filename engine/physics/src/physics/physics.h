@@ -45,12 +45,35 @@ namespace dmPhysics
         JOINT_TYPE_COUNT
     };
 
-    enum JointResult
+    // Added by dotGears / TheTrung
+    //
+    // in script_physics.cpp :
+    // SETCONSTANT(COPY_ANGULAR_VEC) 
+    //
+    // just for passing correct bit
+    // that map with b2Body enum.
+    enum CopyState
     {
-        RESULT_OK = 0,
+        COPY_POSITION_X = 0x0001,
+        COPY_POSITION_Y = 0x0002,
+        COPY_ROTATION_Z = 0x0004,
+        COPY_LINEAR_VEC = 0x0008,
+        COPY_ANGULAR_VEC = 0x0010,
+    };
+    // b2Body.h
+    // e_copy_position_x = 0x0001,
+    // e_copy_position_y = 0x0002,
+    // e_copy_rotation_z = 0x0004,
+    // e_copy_velocity   = 0x0008,
+    // e_copy_angular    = 0x0010
+    //
+    // End of Passion
+
+    enum JointResult {
+        RESULT_OK            = 0,
         RESULT_NOT_SUPPORTED = 1,
-        RESULT_ID_EXISTS = 2,
-        RESULT_ID_NOT_FOUND = 3,
+        RESULT_ID_EXISTS     = 2,
+        RESULT_ID_NOT_FOUND  = 3,
         RESULT_NOT_CONNECTED = 4,
         RESULT_UNKNOWN_ERROR = 5,
     };
@@ -754,11 +777,19 @@ namespace dmPhysics
     /**
      * Set Master Body to an object body.
      *
-     * @param context Physics context
      * @param collision_object Collision object which is slave object
      * @param master_body which is b2Body
      */
     void SetMasterBody(HCollisionObject2D collision_object, HCollisionObject2D master_body);
+
+    /**
+     * Add Copy State to an object body, which enable certains copy-state at runtime.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     * @param state enable delta Value update or not
+     */
+    void CopyState(HCollisionObject2D collision_object, int state);
 
     /**
      * Set Controllable Tag to an object body, which make it to be updated more than others.

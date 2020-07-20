@@ -69,11 +69,14 @@ namespace dmGameSystem
     void SetControllable(void* comp, bool flag);
     void SetGravityScale(void* comp, float gravityScale);
 
-    //Added by dotGears / Trung Vu
+    void CopyState(void* comp, int state);
+    
+    //Added by dotGears / TrungA
     void SetMasterBody(void * comp, void * master_body);
     /// End of Passion
 
-    bool IsCollision2D(void* _world);
+    bool
+    IsCollision2D(void* _world);
     void SetCollisionFlipH(void* _component, bool flip);
     void SetCollisionFlipV(void* _component, bool flip);
 }

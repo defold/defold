@@ -1477,7 +1477,13 @@ namespace dmGameSystem
       dmPhysics::SetMasterBody(component->m_Object2D, master->m_Object2D);
     }
 
-    // Added by dotGears/TrungB
+    // Added by dotGears/TheTrung
+    void CopyState(void* comp, int state)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::CopyState(component->m_Object2D, state);
+    }
+
     void SetControllable(void* comp, bool flag)
     {
         CollisionComponent* component = (CollisionComponent*)comp;

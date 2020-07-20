@@ -448,11 +448,8 @@ namespace dmPhysics
                     {
                       if (body->IsActive())
                       {
-                        if (body->IsTaggedAlpha())
+                        if (body->IsControllable())
                         {
-                            // Debug Log:
-                            // dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i,
-                            // body->GetDeltaX(), body->GetDeltaY(),body->GetDeltaZ());
                             // Fetch Position
                             Vectormath::Aos::Point3 position;
                             FromB2(body->GetPosition(), position, inv_scale);
@@ -1047,6 +1044,10 @@ namespace dmPhysics
         }
     }
     /// Added by dotGears/TrungB
+    void CopyState(HCollisionObject2D collision_object, int state)
+    {
+        ((b2Body*)collision_object)->CopyState(state);
+    }
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
         ((b2Body*)collision_object)->SetControllable(flag);

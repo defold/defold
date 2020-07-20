@@ -51,6 +51,36 @@ namespace dmGameSystem
      * @namespace physics
      */
 
+    /*# Physics.COPY_POSITION_X
+     *
+     * @name physics.COPY_POSITION_X
+     * @variable
+     */
+
+    /*# Physics.COPY_POSITION_Y
+     *
+     * @name physics.COPY_POSITION_Y
+     * @variable
+     */
+
+    /*# Physics.COPY_ROTATION_Z
+     *
+     * @name physics.COPY_ROTATION_Z
+     * @variable
+     */
+
+    /*# Physics.COPY_LINEAR_VEC
+     *
+     * @name physics.COPY_LINEAR_VEC
+     * @variable
+     */
+
+    /*# Physics.COPY_ANGULAR_VEC
+     *
+     * @name physics.COPY_ANGULAR_VEC
+     * @variable
+     */
+
     /*# spring joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
@@ -1156,8 +1186,50 @@ namespace dmGameSystem
 
         return 0;
     }
-    
-    /*# Set alpha tag to a body, which is by then will be updated more per frame
+
+    /*# Add copy State to body
+     * Added by dotGears/TrungVu
+     *
+     * @name physics.copy_state
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     * @param  state [type:constant]  add copy state [0 ~ 4]
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.copy_state("#body_slave", physics.COPY_POSITION_X)
+     * end
+     * ```
+     */
+    static int Physics_CopyState(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        int state = luaL_checknumber(L, 2);
+
+        dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
+        dmGameSystem::CopyState(comp, state);
+
+        return 0;
+    }
+
+    /*# Set delta tag to a body, which is by then will be updated more per frame
      * along with the world step.
      * Added by dotGears/TrungB
      *
@@ -1287,9 +1359,16 @@ namespace dmGameSystem
 
         { "set_gravity", Physics_SetGravity },
         { "get_gravity", Physics_GetGravity },
-        { "set_controllable", Physics_SetControllable },
+        
+        // Copying B2Body States
         { "set_master_body", Physics_SetMasterBody },
+        { "copy_state", Physics_CopyState },
+
+        // Set delta value during physics step
+        { "set_controllable", Physics_SetControllable },
         { "set_delta_value", Physics_SetDeltaValue },
+
+        // Config Body/World 
         { "set_gravity_scale", Physics_SetGravityScale },
         { "set_step_per_frame", Physics_SetStepPerFrame },
 
@@ -1312,7 +1391,15 @@ namespace dmGameSystem
         SETCONSTANT(JOINT_TYPE_HINGE)
         SETCONSTANT(JOINT_TYPE_SLIDER)
 
- #undef SETCONSTANT
+        // Added by dotGears / TheTrung
+        // This is for CopyState enum as physics.COPY_
+        SETCONSTANT(COPY_POSITION_X)
+        SETCONSTANT(COPY_POSITION_Y)
+        SETCONSTANT(COPY_ROTATION_Z)
+        SETCONSTANT(COPY_LINEAR_VEC)
+        SETCONSTANT(COPY_ANGULAR_VEC)
+
+#undef SETCONSTANT
 
         lua_pop(L, 1);
 

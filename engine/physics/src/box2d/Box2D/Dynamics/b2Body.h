@@ -371,7 +371,7 @@ public:
 	bool IsActive() const;
 
 	/// Get the tagged alpha to update body.
-	bool IsTaggedAlpha() const;
+	bool IsControllable() const;
 
 	/// Set this body to have fixed rotation. This causes the mass
 	/// to be reset.
@@ -417,8 +417,10 @@ public:
 
 	/* The following functions are added by dotGears*/
 	void SetMasterBody(b2Body * masterBody);
+	void CopyState(uint16 state);
+    uint16 GetCopyState() const; 
 	bool isHavingMasterBody() const;
-	b2Body* GetMasterBody();
+    b2Body* GetMasterBody();
 
 
 private:
@@ -453,11 +455,21 @@ private:
 		e_activeFlag		= 0x0020,
 		e_toiFlag			= 0x0040,
 		e_updateAlphaFlag   = 0x0080,
-		e_haveMasterBody = 0x0100
+		e_haveMasterBody 	= 0x0100
 	};
 
-	b2Body(const b2BodyDef* bd, b2World* world);
-	~b2Body();
+	// m_copy_flags
+    enum 
+    {
+        e_copy_position_x = 0x0001,
+        e_copy_position_y = 0x0002,
+        e_copy_rotation_z = 0x0004,
+        e_copy_velocity   = 0x0008,
+        e_copy_angular 	  = 0x0010
+    };
+
+    b2Body(const b2BodyDef* bd, b2World* world);
+    ~b2Body();
 
     void SynchronizeFixtures();
     // Defold mod
@@ -506,15 +518,17 @@ private:
 
 	float32 m_sleepTime;
 
-	// Added by .Gears/TrungB
+	// Added by dotGears/TheTrung
 	float32 m_deltaX;
 	float32 m_deltaY;
 	float32 m_deltaZ;
 
-	//Added by dotGears
-	b2Body * m_masterBody;
+    uint16 m_copy_flags;
 
-	void* m_userData;
+    //Added by dotGears/TrungVu
+    b2Body* m_masterBody;
+
+    void* m_userData;
 };
 
 inline b2BodyType b2Body::GetType() const
@@ -955,8 +969,25 @@ inline void b2Body::SetMasterBody(b2Body * masterBody)
 			m_flags |= e_haveMasterBody;
 		}
 }
+inline void b2Body::CopyState(uint16 state)
+{
+	if((m_copy_flags & state) == 0)
+	{
+		m_copy_flags |= state;
+		printf("b2Body -- added state: (%i) => flags: (%i)", state, m_copy_flags);
+	}
+	else
+	{
+        m_copy_flags &= ~state;
+        printf("b2Body -- removed state: (%i) => flags: (%i)", state, m_copy_flags);
+    }
+}
+inline uint16 b2Body::GetCopyState() const
+{
+	return m_copy_flags;
+}
 
-inline bool b2Body::IsTaggedAlpha() const
+inline bool b2Body::IsControllable() const
 {
 	return (m_flags & e_updateAlphaFlag) == e_updateAlphaFlag;
 }
