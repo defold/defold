@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include <crash/crash.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -48,6 +49,10 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
+
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -1494,9 +1499,62 @@ bail:
         return engine->m_Alive;
     }
 
+#if defined(__EMSCRIPTEN__)
+    static void PreStepEmscripten(HEngine engine)
+    {
+        dmEngine::RunResult run_result = engine->m_RunResult;
+        if (run_result.m_Action == dmEngine::RunResult::REBOOT)
+        {
+            dmEngineService::HEngineService engine_service = engine->m_EngineService;
+            PreRun pre_run = engine->m_PreRun;
+            PostRun post_run = engine->m_PostRun;
+            void* context = engine->m_PrePostRunContext;
+
+            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
+
+            emscripten_pause_main_loop(); // stop further callbacks
+            emscripten_cancel_main_loop(); // Causes an exception
+
+            if (engine->m_PostRun)
+            {
+                engine->m_PostRun(engine, context);
+            }
+
+            dmEngine::Delete(engine);
+
+            // enters the main loop again (i.e. calls emscripten_set_main_loop_arg(PerformStep, engine))
+            dmEngine::InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
+            return;
+        }
+        else if (run_result.m_Action == dmEngine::RunResult::EXIT)
+        {
+            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
+
+            emscripten_pause_main_loop();
+            emscripten_cancel_main_loop();
+
+            if (engine->m_PostRun)
+            {
+                engine->m_PostRun(engine, context);
+            }
+
+            dmEngine::Delete(engine);
+        }
+
+        if (!dmCrash::IsEnabled()) {
+            dmCrash::SetEnabled(true);
+        }
+    }
+#endif // __EMSCRIPTEN__
+
     static void PerformStep(void* context)
     {
         HEngine engine = (HEngine)context;
+
+#if defined(__EMSCRIPTEN__)
+        PreStepEmscripten(engine);
+#endif
+
         Step(engine);
     }
 
@@ -1509,6 +1567,8 @@ bail:
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
     {
+        dmLogWarning("ENGINE REBOOT");
+
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
@@ -1540,25 +1600,34 @@ bail:
 
         engine->m_Alive = false;
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
+        dmLogWarning("ENGINE REBOOT return: %d  alive: %d", engine->m_RunResult.m_Action, engine->m_Alive?1:0);
     }
 
-    static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+    RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
+
+        dmLogWarning("ENGINE InitRun  engine: %p", engine);
+
         dmEngine::RunResult run_result;
         if (dmEngine::Init(engine, argc, argv))
         {
-            if (pre_run)
+            engine->m_PreRun = pre_run;
+            engine->m_PostRun = post_run;
+            engine->m_PrePostRunContext = context;
+
+            if (engine->m_PreRun)
             {
-                pre_run(engine, context);
+                engine->m_PreRun(engine, engine->m_PrePostRunContext);
             }
 
+            // Note that this will not return on certain platforms (currently HTML5)
             dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
             run_result = engine->m_RunResult;
 
-            if (post_run)
+            if (engine->m_PostRun)
             {
-                post_run(engine, context);
+                engine->m_PostRun(engine, engine->m_PrePostRunContext);
             }
         }
         else
@@ -1581,9 +1650,14 @@ bail:
             engine_service = dmEngineService::New(engine_port);
         }
 
+
+        dmLogWarning("ENGINE LAUNCH A");
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
+
+        dmLogWarning("ENGINE LAUNCH B");
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
         {
+        dmLogWarning("ENGINE LAUNCH C");
             dmEngine::RunResult tmp = InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
             run_result.Free();
             run_result = tmp;
