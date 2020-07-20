@@ -452,18 +452,18 @@ namespace dmPhysics
                         {
                             // Debug Log:
                             // dmLogInfo("physics_2d.cpp -- World Step #(%i) update alpha->(%f):(%f):(%f) on body", i,
-                            // body->GetAlphaX(), body->GetAlphaY(),body->GetAlphaZ());
+                            // body->GetDeltaX(), body->GetDeltaY(),body->GetDeltaZ());
                             // Fetch Position
                             Vectormath::Aos::Point3 position;
                             FromB2(body->GetPosition(), position, inv_scale);
                             // Added with X:Y Alpha position
                             position = Vectormath::Aos::Point3(
-                                position.getX() + body->GetAlphaX()/world->m_stepIteration,
-                                position.getY() + body->GetAlphaY()/world->m_stepIteration,
+                                position.getX() + body->GetDeltaX()/world->m_stepIteration,
+                                position.getY() + body->GetDeltaY()/world->m_stepIteration,
                                 position.getZ());
                             // Added with Z rotation Alpha
                             Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(
-                                body->GetAngle() + body->GetAlphaZ()/world->m_stepIteration);
+                                body->GetAngle() + body->GetDeltaZ()/world->m_stepIteration);
                             // Set World Transform
                             (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                         }

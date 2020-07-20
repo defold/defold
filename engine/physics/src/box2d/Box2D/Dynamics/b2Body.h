@@ -178,15 +178,15 @@ public:
 
 	/// Get the alphaX.
 	/// @return the current alphaX position.
-	float32 GetAlphaX() const;
+	float32 GetDeltaX() const;
 
 	/// Get the alphaY.
 	/// @return the current alphaY position.
-	float32 GetAlphaY() const;
+	float32 GetDeltaY() const;
 
 	/// Get the alphaZ.
 	/// @return the current alphaZ position.
-	float32 GetAlphaZ() const;
+	float32 GetDeltaZ() const;
 
 	/// Get the world position of the center of mass.
 	const b2Vec2& GetWorldCenter() const;
@@ -507,9 +507,9 @@ private:
 	float32 m_sleepTime;
 
 	// Added by .Gears/TrungB
-	float32 m_alphaX;
-	float32 m_alphaY;
-	float32 m_alphaZ;
+	float32 m_deltaX;
+	float32 m_deltaY;
+	float32 m_deltaZ;
 
 	//Added by dotGears
 	b2Body * m_masterBody;
@@ -537,17 +537,17 @@ inline float32 b2Body::GetAngle() const
 	return m_sweep.a;
 }
 
-inline float32 b2Body::GetAlphaX() const
+inline float32 b2Body::GetDeltaX() const
 {
-	return m_alphaX;
+	return m_deltaX;
 }
-inline float32 b2Body::GetAlphaY() const
+inline float32 b2Body::GetDeltaY() const
 {
-	return m_alphaY;
+	return m_deltaY;
 }
-inline float32 b2Body::GetAlphaZ() const
+inline float32 b2Body::GetDeltaZ() const
 {
-	return m_alphaZ;
+	return m_deltaZ;
 }
 
 
@@ -735,9 +735,9 @@ inline void b2Body::SetControllable(bool flag)
 inline void b2Body::SetDeltaValue(float32 alphaX, float32 alphaY, float32 alphaZ)
 {
 	// update value
-	m_alphaX = alphaX;
-	m_alphaY = alphaY;
-	m_alphaZ = alphaZ;
+	m_deltaX = alphaX;
+	m_deltaY = alphaY;
+	m_deltaZ = alphaZ;
 }
 
 inline bool b2Body::IsAwake() const
