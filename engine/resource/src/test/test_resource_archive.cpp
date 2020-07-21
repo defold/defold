@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -227,9 +227,9 @@ void FreeBundledArchive(dmResourceArchive::HArchiveIndexContainer& bundled_archi
 
 TEST(dmResourceArchive, ShiftInsertResource)
 {
-    const char* resource_name = "test_resource_liveupdate.arcd";
+    const char* resource_filename = "test_resource_liveupdate.arcd";
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), resource_name);
+    const char* path = MakeHostPath(host_name, sizeof(host_name), resource_filename);
 
     FILE* resource_file = fopen(path, "wb");
     bool success = resource_file != 0x0;
@@ -246,7 +246,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
 
     // Init archive container
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCD, resource_name, 0x0, resource_file, &archive);
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, RESOURCES_ARCD, resource_filename, 0x0, resource_file, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
     ASSERT_EQ(7U, entry_count_before);
