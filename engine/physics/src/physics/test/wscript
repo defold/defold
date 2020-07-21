@@ -2,35 +2,33 @@
 from waf_dynamo import platform_supports_feature
 
 def build(bld):
-    if platform_supports_feature(bld.env.PLATFORM, 'bullet3d', {}):
-        bld.new_task_gen(features = 'cxx cprogram test',
-                        source = 'test_physics.cpp',
-                        uselib = 'TESTMAIN DLIB PLATFORM_THREAD BULLET',
-                        uselib_local = 'physics Box2D',
-                        includes = ['../../../src', '../../../src/box2d'],
-                        target = 'test_physics')
+    bld.new_task_gen(features = 'cxx cprogram test',
+                    source = 'test_physics.cpp',
+                    uselib = 'TESTMAIN DLIB PLATFORM_THREAD BULLET',
+                    uselib_local = 'physics Box2D',
+                    includes = ['../../../src', '../../../src/box2d'],
+                    target = 'test_physics')
 
-        bld.new_task_gen(features = 'cxx cprogram test',
-                        source = 'test_physics_2d.cpp',
-                        uselib = 'TESTMAIN DLIB PLATFORM_THREAD BULLET',
-                        uselib_local = 'physics_2d Box2D',
-                        includes = ['../../../src', '../../../src/box2d'],
-                        target = 'test_physics_2d')
+    bld.new_task_gen(features = 'cxx cprogram test',
+                    source = 'test_physics_2d.cpp',
+                    uselib = 'TESTMAIN DLIB PLATFORM_THREAD BULLET',
+                    uselib_local = 'physics_2d Box2D',
+                    includes = ['../../../src', '../../../src/box2d'],
+                    target = 'test_physics_2d')
 
     # Note that these null tests won't actually work since the tests aren't written that way.
     # The test is instead that the executables link properly (so that we don't miss any unresolved symbols)
     # We do this by removing the 'test' feature which excludes it from the test run
-    if platform_supports_feature(bld.env.PLATFORM, 'bullet3d', {}):
-        bld.new_task_gen(features = 'cxx cprogram test skip_test',
-                        source = 'test_physics.cpp',
-                        uselib = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET',
-                        uselib_local = 'physics_null',
-                        includes = ['../../../src', '../../../src/box2d'],
-                        target = 'test_physics_null')
+    bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                    source = 'test_physics.cpp',
+                    uselib = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET',
+                    uselib_local = 'physics_null',
+                    includes = ['../../../src', '../../../src/box2d'],
+                    target = 'test_physics_null')
 
-        bld.new_task_gen(features = 'cxx cprogram test skip_test',
-                        source = 'test_physics_2d.cpp',
-                        uselib = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET',
-                        uselib_local = 'physics_null',
-                        includes = ['../../../src', '../../../src/box2d'],
-                        target = 'test_physics_2d_null')
+    bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                    source = 'test_physics_2d.cpp',
+                    uselib = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET',
+                    uselib_local = 'physics_null',
+                    includes = ['../../../src', '../../../src/box2d'],
+                    target = 'test_physics_2d_null')

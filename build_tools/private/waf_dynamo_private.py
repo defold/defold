@@ -415,7 +415,7 @@ def supports_feature_nx(platform, feature, data):
         return False
 
     # until implemented
-    if feature in ['luajit', 'bullet3d']:
+    if feature in ['luajit']:
         return False
 
     # we're not featuring these
