@@ -298,13 +298,13 @@ def release_to_github_markdown(token = None, repo = None, sha1 = None):
     opts = []
 
     if token:
-        opts.append("--github_token=%s" % token)
+        opts.append("--github-token=%s" % token)
 
     if repo:
-        opts.append("--github_target_repo=%s" % repo)
+        opts.append("--github-target-repo=%s" % repo)
 
     if sha1:
-        opts.append("--github_sha1=%s" % sha1)
+        opts.append("--github-sha1=%s" % sha1)
 
     cmd = ' '.join(args + opts)
     call(cmd)
