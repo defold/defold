@@ -1535,7 +1535,7 @@ bail:
 
             if (engine->m_PostRun)
             {
-                engine->m_PostRun(engine, context);
+                engine->m_PostRun(engine, engine->m_PrePostRunContext);
             }
 
             dmEngine::Delete(engine);
@@ -1646,14 +1646,9 @@ bail:
             engine_service = dmEngineService::New(engine_port);
         }
 
-
-        dmLogWarning("ENGINE LAUNCH A");
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
-
-        dmLogWarning("ENGINE LAUNCH B");
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
         {
-        dmLogWarning("ENGINE LAUNCH C");
             dmEngine::RunResult tmp = InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
             run_result.Free();
             run_result = tmp;
