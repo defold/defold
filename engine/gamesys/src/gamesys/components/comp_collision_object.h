@@ -70,9 +70,10 @@ namespace dmGameSystem
     void SetGravityScale(void* comp, float gravityScale);
 
     void CopyState(void* comp, uint16_t state);
+    void SetCopyRatio(void* comp, float ratio);
 
     //Added by dotGears / TrungA
-    void SetMasterBody(void * comp, void * master_body);
+    void SetMasterBody(void* comp, void* master_body);
     /// End of Passion
 
     bool

@@ -1151,8 +1151,8 @@ namespace dmGameSystem
      * Added by dotGears/TrungVu
      *
      * @name physics.set_master_body
-     * @param  collision_object [type:string|hash|url] mark a body with alpha tag.
-     * @param  master_body [type:string|hash|url]  mark a body to copy.
+     * @param  collision_object [type:string|hash|url] current body
+     * @param  master_body [type:string|hash|url]  target body to be copied.
      *
      * @examples
      *
@@ -1225,6 +1225,48 @@ namespace dmGameSystem
 
         dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
         dmGameSystem::CopyState(comp, state);
+
+        return 0;
+    }
+
+    /*# Set copy ratio to body
+     * Added by dotGears/TheTrung
+     *
+     * @name physics.set_copy_ratio
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     * @param  ratio [type:number]  set copy ratio [0.0 ~ 1.0]
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_copy_ratio("#body_slave", 1.0)
+     * end
+     * ```
+     */
+    static int Physics_SetCopyRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        float ratio = luaL_checknumber(L, 2);
+
+        dmLogInfo("Physics_SetCopyRatio -- (%f)", ratio);
+        dmGameSystem::SetCopyRatio(comp, ratio);
 
         return 0;
     }
@@ -1359,16 +1401,17 @@ namespace dmGameSystem
 
         { "set_gravity", Physics_SetGravity },
         { "get_gravity", Physics_GetGravity },
-        
+
         // Copying B2Body States
         { "set_master_body", Physics_SetMasterBody },
         { "copy_state", Physics_CopyState },
+        { "set_copy_ratio", Physics_SetCopyRatio },
 
         // Set delta value during physics step
         { "set_controllable", Physics_SetControllable },
         { "set_delta_value", Physics_SetDeltaValue },
 
-        // Config Body/World 
+        // Config Body/World
         { "set_gravity_scale", Physics_SetGravityScale },
         { "set_step_per_frame", Physics_SetStepPerFrame },
 

@@ -801,6 +801,15 @@ namespace dmPhysics
     void CopyState(HCollisionObject2D collision_object, uint16_t state);
 
     /**
+     * Set Copy Ratio to an object body, which enable copying state at a percent.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     * @param ratio in range [0.0 ~ 1.0]
+     */
+    void SetCopyRatio(HCollisionObject2D collision_object, float ratio);
+
+    /**
      * Set Controllable Tag to an object body, which make it to be updated more than others.
      *
      * @param context Physics context
@@ -1454,7 +1463,6 @@ namespace dmPhysics
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
-
 }
 
 #endif // PHYSICS_H

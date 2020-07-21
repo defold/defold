@@ -456,11 +456,9 @@ namespace dmPhysics
 
                            if (body->isHavingMasterBody())
                            {
-                            //    dmLogInfo("bodyA has master body");
-                               dmLogInfo("bodyA CopyFlag: (%i) & (%i)", body->GetCopyState(), COPY_POSITION_Y);
+                               dmLogInfo("bodyA m_copy_flags = (%i) & COPY_POSITION_X = (%i)", body->GetCopyState(), COPY_POSITION_X);
 
                                b2Body* masterBody = body->GetMasterBody();
-                            //    dmLogInfo("master body position (%f) - (%f)", masterBody->GetPosition().x, masterBody->GetPosition().y);
 
                                float positionX  = position.getX();
                                float positionY  = position.getY();
@@ -472,28 +470,28 @@ namespace dmPhysics
                                if ((body->GetCopyState() & COPY_POSITION_X )== COPY_POSITION_X)
                                {
                                    positionX = positionCopy.getX() * body->GetCopyRatio();
-                                //    dmLogInfo("Copying PositionX: (%f)", positionX);
+                                   dmLogInfo("Copying PositionX: (%f)", positionX);
                                }
                                if ((body->GetCopyState() & COPY_POSITION_Y )== COPY_POSITION_Y)
                                {
                                    positionY = positionCopy.getY() * body->GetCopyRatio();
-                                //    dmLogInfo("Copying PositionY: (%f)", positionY);
+                                   dmLogInfo("Copying PositionY: (%f)", positionY);
                                }
                                if ((body->GetCopyState() & COPY_ROTATION_Z )== COPY_ROTATION_Z)
                                {
                                    rotation = Vectormath::Aos::Quat::rotationZ(body->GetMasterBody()->GetAngle() * body->GetCopyRatio());
-                                //    dmLogInfo("Copying RotationZ: (%f)", rotation.getZ());
+                                   dmLogInfo("Copying RotationZ: (%f)", rotation.getZ());
                                }
                                if ((body->GetCopyState() & COPY_LINEAR_VEC )== COPY_LINEAR_VEC)
                                {
                                    b2Vec2 cloneV = body->GetMasterBody()->GetLinearVelocity();
                                    body->SetLinearVelocity(b2Vec2(cloneV.x * body->GetCopyRatio(), cloneV.y * body->GetCopyRatio()));
-                                //    dmLogInfo("Copying LinearVelocity");
+                                   dmLogInfo("Copying LinearVelocity");
                                }
                                if ((body->GetCopyState() & COPY_ANGULAR_VEC) == COPY_ANGULAR_VEC)
                                {
                                    body->SetAngularVelocity(body->GetMasterBody()->GetAngularVelocity() * body->GetCopyRatio());
-                                //    dmLogInfo("Copying AngularVelocity");
+                                   dmLogInfo("Copying AngularVelocity");
                                }
                                // Summary Position
                                position = Vectormath::Aos::Point3(positionX, positionY, position.getZ());
@@ -1094,6 +1092,20 @@ namespace dmPhysics
         }
         
     }
+    void SetCopyRatio(HCollisionObject2D collision_object, float ratio)
+    {
+        b2Body* b2_body = (b2Body*)collision_object;
+        if (b2_body != NULL)
+        {
+            b2_body->SetCopyRatio(ratio);
+            dmLogInfo("physics_2d.cpp -- SetCopyRatio:(%f) > (%f)", ratio, b2_body->GetCopyRatio());
+        }
+        else
+        {
+            dmLogInfo("physics_2d.cpp -- Warning: can't set ratio because body is null");
+        }
+    } 
+    
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
         ((b2Body*)collision_object)->SetControllable(flag);
