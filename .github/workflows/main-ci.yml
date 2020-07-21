@@ -37,9 +37,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Pip',
-        run: 'python -m pip install --upgrade pip && pip install -r ci/pip_requirements.txt'
-      },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
       {
@@ -65,9 +62,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Pip',
-        run: 'python -m pip install --upgrade pip && pip install -r ci/pip_requirements.txt'
-      },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install' },
       {
@@ -93,9 +87,6 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Pip',
-        run: 'python -m pip install --upgrade pip && pip install -r ci/pip_requirements.txt'
-      },
       { name: 'Install Java', uses: actions/setup-java@v1, with: { java-version: '11.0.2' } },
       {
         name: 'Build engine',
