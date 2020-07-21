@@ -413,18 +413,21 @@ public:
 
     /* The following functions are added by defold */
     /// Get the total force
-  const b2Vec2& GetForce() const;
+	const b2Vec2& GetForce() const;
 
 	/* The following functions are added by dotGears*/
-	void SetMasterBody(b2Body * masterBody);
-	void CopyState(uint16 state);
-    uint16 GetCopyState() const; 
+	void SetMasterBody(b2Body* masterBody);
 	bool isHavingMasterBody() const;
-    b2Body* GetMasterBody();
+	b2Body* GetMasterBody();
+	
+	void CopyState(uint16 state);
+	uint16 GetCopyState() const;
+	
+	float GetCopyRatio() const;
+	void SetCopyRatio(float ratio);
+	/* End */
 
-
-private:
-
+	private:
 	friend class b2World;
 	friend class b2Island;
 	friend class b2ContactManager;
@@ -442,7 +445,7 @@ private:
 	friend class b2FrictionJoint;
 	friend class b2RopeJoint;
 
-  friend class b2GridShape;
+	friend class b2GridShape;
 
 	// m_flags
 	enum
@@ -461,11 +464,11 @@ private:
 	// m_copy_flags
     enum 
     {
-        e_copy_position_x = 0x0001,
-        e_copy_position_y = 0x0002,
-        e_copy_rotation_z = 0x0004,
-        e_copy_velocity   = 0x0008,
-        e_copy_angular 	  = 0x0010
+        e_copy_position_x = 1 << 0,
+        e_copy_position_y = 1 << 1,
+        e_copy_rotation_z = 1 << 2,
+        e_copy_velocity   = 1 << 3,
+        e_copy_angular 	  = 1 << 4
     };
 
     b2Body(const b2BodyDef* bd, b2World* world);
@@ -524,6 +527,7 @@ private:
 	float32 m_deltaZ;
 
     uint16 m_copy_flags;
+	float  m_copy_ratio;
 
     //Added by dotGears/TrungVu
     b2Body* m_masterBody;
@@ -971,7 +975,8 @@ inline void b2Body::SetMasterBody(b2Body * masterBody)
 }
 inline void b2Body::CopyState(uint16 state)
 {
-	if((m_copy_flags & state) == 0)
+	printf("CopyState invoked");
+    if((m_copy_flags & state) == 0)
 	{
 		m_copy_flags |= state;
 		printf("b2Body -- added state: (%i) => flags: (%i)", state, m_copy_flags);
@@ -981,10 +986,7 @@ inline void b2Body::CopyState(uint16 state)
         m_copy_flags &= ~state;
         printf("b2Body -- removed state: (%i) => flags: (%i)", state, m_copy_flags);
     }
-}
-inline uint16 b2Body::GetCopyState() const
-{
-	return m_copy_flags;
+    printf("b2Body -- added state: (%i) => flags: (%i)", state, m_copy_flags);
 }
 
 inline bool b2Body::IsControllable() const
@@ -1000,6 +1002,21 @@ inline bool b2Body::isHavingMasterBody() const
 inline b2Body* b2Body::GetMasterBody()
 {
 	return m_masterBody;
+}
+
+inline uint16 b2Body::GetCopyState() const
+{
+	return m_copy_flags;
+}
+
+inline float b2Body::GetCopyRatio() const 
+{
+	return m_copy_ratio;
+}
+
+inline void b2Body::SetCopyRatio(float ratio)
+{
+	m_copy_ratio = ratio;
 }
 
 #endif

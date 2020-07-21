@@ -1221,7 +1221,7 @@ namespace dmGameSystem
             return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
         }
 
-        int state = luaL_checknumber(L, 2);
+        uint16_t state = luaL_checknumber(L, 2);
 
         dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
         dmGameSystem::CopyState(comp, state);

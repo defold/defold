@@ -1478,10 +1478,11 @@ namespace dmGameSystem
     }
 
     // Added by dotGears/TheTrung
-    void CopyState(void* comp, int state)
+    void CopyState(void* comp, uint16_t state)
     {
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::CopyState(component->m_Object2D, state);
+        dmLogInfo("comp_collision_object.cpp -- CopyState: (%i)", state);
     }
 
     void SetControllable(void* comp, bool flag)

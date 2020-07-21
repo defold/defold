@@ -54,12 +54,21 @@ namespace dmPhysics
     // that map with b2Body enum.
     enum CopyState
     {
-        COPY_POSITION_X = 0x0001,
-        COPY_POSITION_Y = 0x0002,
-        COPY_ROTATION_Z = 0x0004,
-        COPY_LINEAR_VEC = 0x0008,
-        COPY_ANGULAR_VEC = 0x0010,
+        COPY_POSITION_X = 1 << 0,
+        COPY_POSITION_Y = 1 << 1,
+        COPY_ROTATION_Z = 1 << 2,
+        COPY_LINEAR_VEC = 1 << 3,
+        COPY_ANGULAR_VEC = 1 << 4
     };
+
+    // enum CopyState
+    // {
+    //     COPY_POSITION_X,
+    //     COPY_POSITION_Y,
+    //     COPY_ROTATION_Z,
+    //     COPY_LINEAR_VEC,
+    //     COPY_ANGULAR_VEC
+    // };
     // b2Body.h
     // e_copy_position_x = 0x0001,
     // e_copy_position_y = 0x0002,
@@ -789,7 +798,7 @@ namespace dmPhysics
      * @param collision_object Collision object that will hold b2Body babe
      * @param state enable delta Value update or not
      */
-    void CopyState(HCollisionObject2D collision_object, int state);
+    void CopyState(HCollisionObject2D collision_object, uint16_t state);
 
     /**
      * Set Controllable Tag to an object body, which make it to be updated more than others.

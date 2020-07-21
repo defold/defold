@@ -69,8 +69,8 @@ namespace dmGameSystem
     void SetControllable(void* comp, bool flag);
     void SetGravityScale(void* comp, float gravityScale);
 
-    void CopyState(void* comp, int state);
-    
+    void CopyState(void* comp, uint16_t state);
+
     //Added by dotGears / TrungA
     void SetMasterBody(void * comp, void * master_body);
     /// End of Passion
