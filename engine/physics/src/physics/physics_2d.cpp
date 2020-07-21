@@ -447,7 +447,7 @@ namespace dmPhysics
                 {
                     for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                     {
-                       if (body->IsActive())
+                       if (body->IsActive() && (body->isHavingMasterBody() || body-> IsControllable()))
                        {
                            // Fetch Position
                            Vectormath::Aos::Quat rotation;
@@ -508,6 +508,12 @@ namespace dmPhysics
                                rotation = Vectormath::Aos::Quat::rotationZ(
                                     body->GetAngle() + body->GetDeltaZ() / world->m_stepIteration);
                            }
+
+                            // Actualize data in box2d
+                        //    b2Vec2 b2pos;
+                        //    ToB2(position, b2pos, inv_scale);
+                        //    body->SetTransform(b2pos, rotation.getZ());
+                           (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                        }
                     }
                 }
