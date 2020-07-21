@@ -104,6 +104,8 @@ b2Body::b2Body(const b2BodyDef* bd, b2World* world)
 	m_fixtureList = NULL;
 	m_fixtureCount = 0;
 	m_copy_flags = 0;
+	m_copy_ratio = 1.0;
+	m_masterBody = NULL;
 }
 
 b2Body::~b2Body()

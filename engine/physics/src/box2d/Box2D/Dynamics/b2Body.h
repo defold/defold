@@ -419,10 +419,10 @@ public:
 	void SetMasterBody(b2Body* masterBody);
 	bool isHavingMasterBody() const;
 	b2Body* GetMasterBody();
-	
+
 	void CopyState(uint16 state);
 	uint16 GetCopyState() const;
-	
+
 	float GetCopyRatio() const;
 	void SetCopyRatio(float ratio);
 	/* End */
@@ -462,7 +462,7 @@ public:
 	};
 
 	// m_copy_flags
-    enum 
+    enum
     {
         e_copy_position_x = 1 << 0,
         e_copy_position_y = 1 << 1,
@@ -1009,14 +1009,14 @@ inline uint16 b2Body::GetCopyState() const
 	return m_copy_flags;
 }
 
-inline float b2Body::GetCopyRatio() const 
+inline float b2Body::GetCopyRatio() const
 {
 	return m_copy_ratio;
 }
 
 inline void b2Body::SetCopyRatio(float ratio)
 {
-	m_copy_ratio = ratio;
+		m_copy_ratio = ratio;
 }
 
 #endif
