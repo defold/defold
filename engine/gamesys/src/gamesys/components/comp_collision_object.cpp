@@ -1482,7 +1482,6 @@ namespace dmGameSystem
     {
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::CopyState(component->m_Object2D, state);
-        dmLogInfo("comp_collision_object.cpp -- CopyState: (%i)", state);
     }
     void SetCopyRatio(void* comp, float ratio)
     {

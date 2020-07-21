@@ -1223,7 +1223,7 @@ namespace dmGameSystem
 
         uint16_t state = luaL_checknumber(L, 2);
 
-        dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
+        // dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
         dmGameSystem::CopyState(comp, state);
 
         return 0;
