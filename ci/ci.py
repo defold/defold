@@ -293,8 +293,8 @@ def release(channel = None):
     cmd = ' '.join(args + opts)
     call(cmd)
 
-def release_to_markdown(token = None, repo = None, sha1 = None):
-    args = "python scripts/build.py release_to_markdown".split()
+def release_to_github_markdown(token = None, repo = None, sha1 = None):
+    args = "python scripts/build.py release_to_github_markdown".split()
     opts = []
 
     if token:

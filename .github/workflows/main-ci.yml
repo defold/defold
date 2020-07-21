@@ -346,7 +346,7 @@ jobs:
       {
         name: 'Publish release to releases.md',
         if: "(contains(github.ref, 'switch'))",
-        run: 'ci/ci.sh release_to_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-target-repo=defold-switch-releases'
+        run: 'ci/ci.sh release_to_github_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-target-repo=defold-switch-releases'
       },
       {
        name: 'Notify if build status changed',
