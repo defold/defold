@@ -442,8 +442,8 @@ def main(argv):
                 release(channel = release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
-        elif command == "release_to_markdown":
-            release_to_markdown(token = args.github_token,
+        elif command == "release_to_github_markdown":
+            release_to_github_markdown(token = args.github_token,
                                 repo = args.github_target_repo,
                                 sha1 = args.github_sha1)
         else:
