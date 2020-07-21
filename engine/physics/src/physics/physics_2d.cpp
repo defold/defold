@@ -508,7 +508,7 @@ namespace dmPhysics
                                rotation = Vectormath::Aos::Quat::rotationZ(
                                     body->GetAngle() + body->GetDeltaZ() / world->m_stepIteration);
                                // Set World Transform
-                               (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                            //    (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                            }
                        }
                     }
