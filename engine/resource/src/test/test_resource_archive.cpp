@@ -270,6 +270,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
     free(resource);
     dmResourceArchive::Delete(archive); // fclose on the FILE*
     FreeMutableIndexData((void*&)arci_copy);
+    remove(resource_filename);
 }
 
 TEST(dmResourceArchive, NewArchiveIndexFromCopy)
