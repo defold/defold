@@ -24,6 +24,14 @@
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "Web Monetized game"
+                             :description "This template contains everything you need to start building a game for HTML5 with Web Monetization enabled."
+                             :image "web-monetization.svg"
+                             :duration "Short"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/template-webmonetization/archive/master.zip"
+                             :skip-root? true}
+
                             {:name "Native Extension"
                              :description "This template contains the basic setup if you want to start creating a native extension."
                              :image "extension.svg"
