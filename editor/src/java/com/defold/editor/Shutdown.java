@@ -13,7 +13,6 @@
 package com.defold.editor;
 
 import java.util.ArrayList;
-import org.apache.commons.lang.NullArgumentException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +23,7 @@ public class Shutdown {
     public static synchronized void addShutdownAction(Runnable runnable) {
         // Called from Clojure code to register shutdown callbacks.
         if (runnable == null) {
-            throw new NullArgumentException("runnable");
+            throw new IllegalArgumentException("runnable cannot be null");
         }
 
         shutdownActions.add(runnable);

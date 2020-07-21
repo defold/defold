@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -83,13 +83,7 @@ namespace dmGameSystem
     }
 
     static dmhash_t CheckGroupName(lua_State* L, int index) {
-        if (lua_isstring(L, index)) {
-            return dmHashString64(lua_tostring(L, index));
-        } else if (dmScript::IsHash(L, index)) {
-            return dmScript::CheckHash(L, index);
-        }
-        luaL_argerror(L, index, "hash or string expected");
-        return (dmhash_t) 0;
+        return dmScript::CheckHashOrString(L, index);
     }
 
     /*# get RMS value from mixer group
@@ -274,19 +268,17 @@ namespace dmGameSystem
      */
     static int Sound_GetGroups(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1);
 
-        uint32_t count = dmSound::GetGroupCount();
+        dmhash_t groups[dmSound::MAX_GROUPS];
+        uint32_t count = dmSound::MAX_GROUPS;
+        dmSound::GetGroupHashes(&count, groups);
+
         lua_createtable(L, count, 0);
         for (uint32_t i = 0; i < count; i++) {
-            dmhash_t group_hash;
-            dmSound::GetGroupHash(i, &group_hash);
-            dmScript::PushHash(L, group_hash);
+            dmScript::PushHash(L, groups[i]);
             lua_rawseti(L, -2, i + 1);
         }
-
-        assert(top + 1 == lua_gettop(L));
-
         return 1;
     }
 

@@ -46,14 +46,14 @@ function make_archive() {
 	if [ ! -e "$archive" ]; then
 		echo Packaging ${src} to ${archive}
 
-		local tarflags=czf
+		local tarflags=-czf
 		if [ "${VERBOSE}" != "" ]; then
 			tarflags=${tarflags}v
 		fi
 
 		echo EXTRA ARGS: $@
-		echo tar ${tarflags} ${archive} $@ ${src}
-		tar ${tarflags} ${archive} $@ ${src}
+		echo tar ${tarflags} $@ -f ${archive} ${src}
+		tar ${tarflags} $@ -f ${archive} ${src}
 	else
 		echo "Found existing $archive"
 	fi
@@ -84,10 +84,14 @@ function package_xcode() {
 
 	pushd ${XCODE}
 
-	EXTRA_ARGS="--exclude ${_name}/usr/lib/swift --exclude ${_name}/usr/lib/swift_static --exclude ${_name}/Developer/Platforms --exclude ${_name}/usr/lib/sourcekitd.framework"
+	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework"
+	for f in ${_name}/usr/lib/swift*
+	do
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+	done
 	for f in ${_name}/usr/bin/swift*
 	do
-		EXTRA_ARGS="--exclude ${f} ${EXTRA_ARGS}"
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
 	done
 
 	make_archive ${_name} ${target} ${EXTRA_ARGS}

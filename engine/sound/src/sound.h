@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,10 +63,7 @@ namespace dmSound
     // should signal upon completion.
     const uint32_t INVALID_PLAY_ID = 0xffffffff;
 
-    struct Stats
-    {
-        uint32_t m_BufferUnderflowCount;
-    };
+    const uint32_t MAX_GROUPS = 32;
 
     // TODO:
     // - Music streaming.
@@ -84,6 +81,7 @@ namespace dmSound
         uint32_t m_BufferSize;
         uint32_t m_FrameCount;
         uint32_t m_MaxInstances;
+        bool     m_UseThread;
 
         InitializeParams()
         {
@@ -91,11 +89,14 @@ namespace dmSound
         }
     };
 
+    // Initializes system. Starts thread (if used)
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params);
+    // Shuts down system. Stops thread (if used)
     Result Finalize();
+    // Updates the sound system one tick (if not threaded)
+    Result Update();
 
-    void   GetStats(Stats* stats);
-
+    // Thread safe
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name);
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
     uint32_t GetSoundResourceSize(HSoundData sound_data);
@@ -110,13 +111,10 @@ namespace dmSound
     Result AddGroup(const char* group);
     Result SetGroupGain(dmhash_t group_hash, float gain);
     Result GetGroupGain(dmhash_t group_hash, float* gain);
-    uint32_t GetGroupCount();
-    Result GetGroupHash(uint32_t index, dmhash_t* hash);
+    Result GetGroupHashes(uint32_t* count, dmhash_t* buffer);
 
     Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right);
     Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right);
-
-    Result Update();
 
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
@@ -129,6 +127,7 @@ namespace dmSound
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vectormath::Aos::Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vectormath::Aos::Vector4& value);
 
+    // Platform dependent
     bool IsMusicPlaying();
     bool IsPhoneCallActive();
 
