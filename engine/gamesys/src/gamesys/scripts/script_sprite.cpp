@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -257,7 +257,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# set a shader constant for a sprite
+    /** DEPRECATED! set a shader constant for a sprite
      * Sets a shader constant for a sprite component.
      * The constant must be defined in the material assigned to the sprite.
      * Setting a constant through this function will override the value set for that constant in the material.
@@ -302,7 +302,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# reset a shader constant for a sprite
+    /** DEPRECATED! reset a shader constant for a sprite
      * Resets a shader constant for a sprite component.
      * The constant must be defined in the material assigned to the sprite.
      * Resetting a constant through this function implies that the value defined in the material will be used.

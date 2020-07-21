@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,17 +39,9 @@ enum WindowEvent
 };
 
 
-struct LuaListener
-{
-    LuaListener() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
-    lua_State* m_L;
-    int        m_Callback;
-    int        m_Self;
-};
-
 struct WindowInfo
 {
-    LuaListener m_Listener;
+    dmScript::LuaCallbackInfo* m_Callback;
     int m_Width;
     int m_Height;
 };
@@ -63,20 +55,7 @@ struct CallbackInfo
     CallbackInfo() { memset(this, 0, sizeof(*this)); }
 };
 
-WindowInfo g_Window;
-
-
-static void ClearListener(LuaListener* listener)
-{
-    if( listener->m_Callback != LUA_NOREF )
-        dmScript::Unref(listener->m_L, LUA_REGISTRYINDEX, listener->m_Callback);
-    if( listener->m_Self != LUA_NOREF )
-        dmScript::Unref(listener->m_L, LUA_REGISTRYINDEX, listener->m_Self);
-    listener->m_L = 0;
-    listener->m_Callback = LUA_NOREF;
-    listener->m_Self = LUA_NOREF;
-}
-
+WindowInfo g_Window = {};
 
 static void PushNumberOrNil(lua_State* L, const char* name, bool expression, lua_Number number)
 {
@@ -91,27 +70,15 @@ static void PushNumberOrNil(lua_State* L, const char* name, bool expression, lua
 
 static void RunCallback(CallbackInfo* cbinfo)
 {
-    LuaListener* listener = &cbinfo->m_Info->m_Listener;
-    if (listener->m_Callback == LUA_NOREF)
-    {
+    if (!cbinfo->m_Info->m_Callback) // no callback set
         return;
-    }
 
-    lua_State* L = listener->m_L;
-    int top = lua_gettop(L);
+    dmScript::LuaCallbackInfo* callback = cbinfo->m_Info->m_Callback;
+    lua_State* L = dmScript::GetCallbackLuaContext(callback);
+    DM_LUA_STACK_CHECK(L, 0);
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, listener->m_Callback);
-    // Setup self
-    lua_rawgeti(L, LUA_REGISTRYINDEX, listener->m_Self);
-    lua_pushvalue(L, -1);
-
-    dmScript::SetInstance(L);
-
-    if (!dmScript::IsInstanceValid(L))
+    if (!dmScript::SetupCallback(callback))
     {
-        dmLogError("Could not run Window callback because the instance has been deleted.");
-        lua_pop(L, 2);
-        assert(top == lua_gettop(L));
         return;
     }
 
@@ -122,12 +89,9 @@ static void RunCallback(CallbackInfo* cbinfo)
     PushNumberOrNil(L, "width", cbinfo->m_Event == WINDOW_EVENT_RESIZED, cbinfo->m_Size[0]);
     PushNumberOrNil(L, "height", cbinfo->m_Event == WINDOW_EVENT_RESIZED, cbinfo->m_Size[1]);
 
-    int ret = lua_pcall(L, 3, 0, 0);
-    if (ret != 0) {
-        dmLogError("Error running Window callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
-    }
-    assert(top == lua_gettop(L));
+    dmScript::PCall(L, 3, 0); // self + # user arguments
+
+    dmScript::TeardownCallback(callback);
 }
 
 /*# sets a window event listener
@@ -185,21 +149,20 @@ static int SetListener(lua_State* L)
 
     if (lua_isnil(L, 1))
     {
-        ClearListener(&window_info->m_Listener);
+        if (window_info->m_Callback)
+            dmScript::DestroyCallback(window_info->m_Callback);
+        window_info->m_Callback = 0;
         return 0;
     }
 
-    luaL_checktype(L, 1, LUA_TFUNCTION);
-    lua_pushvalue(L, 1);
-    int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    if (window_info->m_Callback)
+        dmScript::DestroyCallback(window_info->m_Callback);
+    window_info->m_Callback = dmScript::CreateCallback(L, 1);
 
-    ClearListener(&window_info->m_Listener);
+    if (!dmScript::IsCallbackValid(window_info->m_Callback))
+        return luaL_error(L, "Failed to create callback");
 
-    window_info->m_Listener.m_L = dmScript::GetMainThread(L);
-    window_info->m_Listener.m_Callback = cb;
-
-    dmScript::GetInstance(L);
-    window_info->m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    lua_State* cbkL = dmScript::GetCallbackLuaContext(window_info->m_Callback);
     return 0;
 }
 
@@ -391,7 +354,9 @@ void ScriptWindowRegister(const ScriptLibContext& context)
 
 void ScriptWindowFinalize(const ScriptLibContext& context)
 {
-    ClearListener(&g_Window.m_Listener);
+    if (g_Window.m_Callback)
+        dmScript::DestroyCallback(g_Window.m_Callback);
+    g_Window.m_Callback = 0;
 }
 
 void ScriptWindowOnWindowFocus(bool focus)
