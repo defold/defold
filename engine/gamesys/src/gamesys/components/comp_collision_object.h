@@ -67,8 +67,8 @@ namespace dmGameSystem
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration);
     void SetDeltaValue(void* comp, float alphaX, float alphaY, float alphaZ);
     void SetControllable(void* comp, bool flag);
-    void RequireMultipleUpdate(void* comp, bool flag);
-    
+    void SetSleepingAllowed(void* comp, bool flag);
+
     void SetGravityScale(void* comp, float gravityScale);
 
     void CopyState(void* comp, uint16_t state);
