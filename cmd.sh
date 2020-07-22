@@ -15,6 +15,8 @@ BUILD_BOB="sudo ./scripts/build.py build_bob --skip-tests"
 RUN_EDITOR="(cd editor/;lein run)"
 BUILD_EDITOR="(cd editor/;lein init)"
 EDITOR="(cd editor/;lein init;lein run)"
+
+FORCE="sudo chmod -R 777 ./"
 BUILD_MODULE="./scripts/submodule.sh x86_64-darwin $2 $3"
 
 CP_DME_1="cp ./tmp/dynamo_home/bin/x86_64-darwin/dmengine ./editor/tmp/unpack/x86_64-darwin/bin/dmengine"
@@ -41,6 +43,10 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     ;;
   -f | --fast )
     eval $SUB_MODULE
+    exit
+    ;;
+  -fo | --force )
+    eval $FORCE
     exit
     ;;
   -cdm | --cd_mojave )
@@ -96,6 +102,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "sh cmd.sh --misc  | -m : for building bob + builtin"
     echo "sh cmd.sh --full  | -F : to build engine/editor + launch"
     echo "sh cmd.sh --fast  | -f : to fast build part of dmengine at maximum of 4"
+    echo "sh cmd.sh --force | -fo: enable submodule when 'Operation is not permitted'"
     echo "sh cmd.sh --run   | -r : for running editor"
     echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release"
     echo "__________________[SHORTHAND]___________________"
