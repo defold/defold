@@ -37,7 +37,7 @@ namespace dmGameObject
         script_component.m_GetPropertyFunction = &CompScriptGetProperty;
         script_component.m_SetPropertyFunction = &CompScriptSetProperty;
         script_component.m_InstanceHasUserData = true;
-        script_component.m_UpdateOrderPrio = 200;
+        script_component.m_UpdateOrderPrio = 250;  // Modified by dotGears / TheTrung : from 200 -> 250
         script_component.m_ReadsTransforms = 1;
         Result result = RegisterComponentType(regist, script_component);
         if (result != dmGameObject::RESULT_OK)
@@ -51,7 +51,7 @@ namespace dmGameObject
         anim_component.m_AddToUpdateFunction = &CompAnimAddToUpdate;
         anim_component.m_ReadsTransforms = 1;
         anim_component.m_UpdateFunction = &CompAnimUpdate;
-        anim_component.m_UpdateOrderPrio = 250;
+        anim_component.m_UpdateOrderPrio     = 300; // Modified by dotGears / TheTrung : from 250 -> 300
         return RegisterComponentType(regist, anim_component);
     }
 }
