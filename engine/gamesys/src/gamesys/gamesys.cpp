@@ -211,27 +211,27 @@ namespace dmGameSystem
          *
          */
 
+        // Modified by dotGears / TheTrung : from 100 
         REGISTER_COMPONENT_TYPE("collectionproxyc", 100, collection_proxy_context,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
                 &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, &CompCollectionProxyFinal, &CompCollectionProxyAddToUpdate, 0,
                 &CompCollectionProxyUpdate, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0, 0, 0,
                 0);
 
+        // Modified by dotGears / TheTrung : from 400 -> 200
+        REGISTER_COMPONENT_TYPE("collisionobjectc", 200, physics_context, &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld, &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0, &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty, 1);
+        
         // See gameobject_comp.cpp for these two component types:
-        // Priority 200 is reserved for scriptc (read+write transforms)
-        // Priority 250 is reserved for animc (read+write transforms)
+        // Priority 200 is reserved for scriptc (read+write transforms) -> 250
+        // Priority 250 is reserved for animc (read+write transforms) -> 300
 
-        REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
+        // Modified by dotGears / TheTrung : from 300 -> 400
+        REGISTER_COMPONENT_TYPE("guic", 400, gui_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal, CompGuiAddToUpdate, 0,
                 CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload, CompGuiGetProperty, CompGuiSetProperty,
                 0);
 
-        REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
-                &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
-                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0,
-                &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
-                1);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
