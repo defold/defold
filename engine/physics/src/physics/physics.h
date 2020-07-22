@@ -810,6 +810,14 @@ namespace dmPhysics
     void SetCopyRatio(HCollisionObject2D collision_object, float ratio);
 
     /**
+     * Set Copy Disable to an object body.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     */
+    void SetCopyDisable(HCollisionObject2D collision_object);
+    
+    /**
      * Set Controllable Tag to an object body, which make it to be updated more than others.
      *
      * @param context Physics context

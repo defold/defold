@@ -1114,8 +1114,21 @@ namespace dmPhysics
         {
             dmLogInfo("physics_2d.cpp -- Warning: can't set ratio because body is null");
         }
-    } 
-    
+    }
+    void SetCopyDisable(HCollisionObject2D collision_object)
+    {
+        b2Body* b2_body = (b2Body*)collision_object;
+        if (b2_body != NULL)
+        {
+            b2_body->SetCopyDisable();
+            dmLogInfo("physics_2d.cpp -- SetCopyDisable ()");
+        }
+        else
+        {
+            dmLogInfo("physics_2d.cpp -- Warning: can't set disable because body is null");
+        }
+    }
+
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
         ((b2Body*)collision_object)->SetControllable(flag);

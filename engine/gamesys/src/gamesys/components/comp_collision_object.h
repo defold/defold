@@ -71,6 +71,7 @@ namespace dmGameSystem
 
     void CopyState(void* comp, uint16_t state);
     void SetCopyRatio(void* comp, float ratio);
+    void SetCopyDisable(void* comp);
 
     //Added by dotGears / TrungA
     void SetMasterBody(void* comp, void* master_body);

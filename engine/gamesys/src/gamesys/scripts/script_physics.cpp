@@ -1271,6 +1271,45 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# Set copy ratio to body
+     * Added by dotGears/TheTrung
+     *
+     * @name physics.set_copy_disable
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_copy_disable("#body_slave")
+     * end
+     * ```
+     */
+    static int Physics_SetCopyDisable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        dmLogInfo("Physics_SetCopyDisable ()");
+        dmGameSystem::SetCopyDisable(comp);
+
+        return 0;
+    }
+
     /*# Set delta tag to a body, which is by then will be updated more per frame
      * along with the world step.
      * Added by dotGears/TrungB
@@ -1406,6 +1445,7 @@ namespace dmGameSystem
         { "set_master_body", Physics_SetMasterBody },
         { "copy_state", Physics_CopyState },
         { "set_copy_ratio", Physics_SetCopyRatio },
+        { "set_copy_disable", Physics_SetCopyDisable },
 
         // Set delta value during physics step
         { "set_controllable", Physics_SetControllable },

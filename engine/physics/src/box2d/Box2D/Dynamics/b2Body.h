@@ -425,11 +425,11 @@ public:
 	
 	float GetCopyRatio() const;
 	void SetCopyRatio(float ratio);
-	/* End */
+    void SetCopyDisable();
+    /* End */
 
-	private:
-	friend class b2World;
-	friend class b2Island;
+    private : friend class b2World;
+    friend class b2Island;
 	friend class b2ContactManager;
 	friend class b2ContactSolver;
 	friend class b2Contact;
@@ -1017,6 +1017,15 @@ inline float b2Body::GetCopyRatio() const
 inline void b2Body::SetCopyRatio(float ratio)
 {
 	m_copy_ratio = ratio;
+}
+
+inline void b2Body::SetCopyDisable()
+{
+	if(isHavingMasterBody())
+	{
+		m_masterBody = NULL;
+        m_flags &= ~e_haveMasterBody;
+    }
 }
 
 #endif

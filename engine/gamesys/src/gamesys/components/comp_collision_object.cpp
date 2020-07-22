@@ -1488,6 +1488,11 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetCopyRatio(component->m_Object2D, ratio);
     }
+    void SetCopyDisable(void* comp)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetCopyDisable(component->m_Object2D);
+    }
 
     void SetControllable(void* comp, bool flag)
     {
