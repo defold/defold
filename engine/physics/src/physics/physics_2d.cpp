@@ -437,8 +437,9 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
 
-            float inv_scale = world->m_Context->m_InvScale;
+            float inv_scale = world->m_Context->m_InvScale; 
             /// Added by .Gears/TrungB
+
             float deltaStep = dt / world->m_stepIteration;
             for(int i = 0; i < world->m_stepIteration; i++)
             {
@@ -456,7 +457,10 @@ namespace dmPhysics
 
                            if (body->isHavingMasterBody())
                            {
-                            //    dmLogInfo("bodyA m_copy_flags = (%i) & COPY_POSITION_X = (%i)", body->GetCopyState(), COPY_POSITION_X);
+                               // Fetch Position
+                            //    Vectormath::Aos::Quat rotation;
+                            //    Vectormath::Aos::Point3 position;
+                            //    FromB2(body->GetPosition(), position, inv_scale);
 
                                b2Body* masterBody = body->GetMasterBody();
 
@@ -467,34 +471,39 @@ namespace dmPhysics
                                Vectormath::Aos::Point3 positionCopy;
                                FromB2(posb2Copy, positionCopy, inv_scale);
 
-                               if ((body->GetCopyState() & COPY_POSITION_X )== COPY_POSITION_X)
+                               if ((body->GetCopyState() & COPY_POSITION_X) == COPY_POSITION_X)
                                {
                                    positionX = positionCopy.getX() * body->GetCopyRatio();
-                                //    dmLogInfo("Copying PositionX: (%f)", positionX);
+                                   //    dmLogInfo("Copying PositionX: (%f)", positionX);
                                }
-                               if ((body->GetCopyState() & COPY_POSITION_Y )== COPY_POSITION_Y)
+                               if ((body->GetCopyState() & COPY_POSITION_Y) == COPY_POSITION_Y)
                                {
                                    positionY = positionCopy.getY() * body->GetCopyRatio();
-                                //    dmLogInfo("Copying PositionY: (%f)", positionY);
+                                   //    dmLogInfo("Copying PositionY: (%f)", positionY);
                                }
-                               if ((body->GetCopyState() & COPY_ROTATION_Z )== COPY_ROTATION_Z)
+                               // Summary Position
+                               position = Vectormath::Aos::Point3(positionX, positionY, position.getZ());
+                               // b2Vec2 b2pos;
+                               // ToB2(position, b2pos, inv_scale);
+                               // body->SetTransform(b2pos, rotation.getZ());
+
+                               if ((body->GetCopyState() & COPY_ROTATION_Z) == COPY_ROTATION_Z)
                                {
-                                   rotation = Vectormath::Aos::Quat::rotationZ(body->GetMasterBody()->GetAngle() * body->GetCopyRatio());
-                                //    dmLogInfo("Copying RotationZ: (%f)", rotation.getZ());
+                                   Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(
+                                   body->GetMasterBody()->GetAngle() * body->GetCopyRatio());
+                                   dmLogInfo("Copying RotationZ: (%f)", rotation.getZ());
                                }
-                               if ((body->GetCopyState() & COPY_LINEAR_VEC )== COPY_LINEAR_VEC)
+                               if ((body->GetCopyState() & COPY_LINEAR_VEC) == COPY_LINEAR_VEC)
                                {
                                    b2Vec2 cloneV = body->GetMasterBody()->GetLinearVelocity();
                                    body->SetLinearVelocity(b2Vec2(cloneV.x * body->GetCopyRatio(), cloneV.y * body->GetCopyRatio()));
-                                //    dmLogInfo("Copying LinearVelocity");
+                                   //    dmLogInfo("Copying LinearVelocity");
                                }
                                if ((body->GetCopyState() & COPY_ANGULAR_VEC) == COPY_ANGULAR_VEC)
                                {
                                    body->SetAngularVelocity(body->GetMasterBody()->GetAngularVelocity() * body->GetCopyRatio());
-                                //    dmLogInfo("Copying AngularVelocity");
+                                   //    dmLogInfo("Copying AngularVelocity");
                                }
-                               // Summary Position
-                               position = Vectormath::Aos::Point3(positionX, positionY, position.getZ());
                            }
 
                            if (body->IsControllable())
@@ -509,10 +518,7 @@ namespace dmPhysics
                                     body->GetAngle() + body->GetDeltaZ() / world->m_stepIteration);
                            }
 
-                            // Actualize data in box2d
-                        //    b2Vec2 b2pos;
-                        //    ToB2(position, b2pos, inv_scale);
-                        //    body->SetTransform(b2pos, rotation.getZ());
+                            // Commit data >> box2d
                            (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
                        }
                     }
