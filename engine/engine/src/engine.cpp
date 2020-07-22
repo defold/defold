@@ -1567,8 +1567,6 @@ bail:
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
     {
-        dmLogWarning("ENGINE REBOOT");
-
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
