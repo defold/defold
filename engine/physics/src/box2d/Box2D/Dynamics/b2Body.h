@@ -339,11 +339,11 @@ public:
 	/// Added by .Gears
 	/// @param flag set to true to put this body to update layer.
 	void SetControllable(bool flag);
-	/// Set flag for MultipleUpdate to the body, so it get updated more times
-	/// than others, with increment update of alpha value on every world step.
-	/// Added by .Gears
-	/// @param flag set to true to put this body to update layer.
-	void RequireMultipleUpdate(bool flag);
+
+	/// Set flag for Allow Sleeping to the body
+	/// Added by dotGears - Trung Vu
+	/// @param flag set to false to disable sleeping.
+	void SetSleepingAllowed(bool flag);
 
 	/// Set the Alpha Value to the body, so it get updated more times
 	/// than others, with increment update of alpha value on every world step.
@@ -431,7 +431,6 @@ public:
 	float GetCopyRatio() const;
 	void SetCopyRatio(float ratio);
 
-	bool isMultipleUpdate() const;
 	/* End */
 
 	private:
@@ -465,8 +464,7 @@ public:
 		e_activeFlag		= 0x0020,
 		e_toiFlag			= 0x0040,
 		e_updateAlphaFlag   = 0x0080,
-		e_haveMasterBody 	= 0x0100,
-		e_requireMultipleUpdate = 0x0200
+		e_haveMasterBody 	= 0x0100
 	};
 
 	// m_copy_flags
@@ -759,21 +757,6 @@ inline void b2Body::SetControllable(bool flag)
 	}
 }
 
-inline void b2Body::RequireMultipleUpdate(bool flag)
-{
-	if (flag)
-	{
-		if ((m_flags & e_requireMultipleUpdate) == 0)
-		{
-			m_flags |= e_requireMultipleUpdate;
-		}
-	}
-	else
-	{
-		m_flags &= ~e_requireMultipleUpdate;
-	}
-}
-
 inline void b2Body::SetDeltaValue(float32 alphaX, float32 alphaY, float32 alphaZ)
 {
 	// update value
@@ -1021,11 +1004,6 @@ inline bool b2Body::IsControllable() const
 inline bool b2Body::isHavingMasterBody() const
 {
 	return (m_flags & e_haveMasterBody) == e_haveMasterBody;
-}
-
-inline bool b2Body::isMultipleUpdate() const
-{
-	return (m_flags & e_requireMultipleUpdate) == e_requireMultipleUpdate;
 }
 
 inline b2Body* b2Body::GetMasterBody()

@@ -819,13 +819,13 @@ namespace dmPhysics
     void SetControllable(HCollisionObject2D collision_object, bool flag);
 
     /**
-     * Set RequireMultipleUpdate Tag to an object body, which make it to be updated more than others.
-     *
+     * Set Allow Sleeping to an object body.
+     * Added by dotGears / Trung Vu
      * @param context Physics context
-     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
-     * @param flag enable delta Value update or not
+     * @param collision_object Collision object.
+     * @param flag to disable or enable sleeping.
      */
-    void RequireMultipleUpdate(HCollisionObject2D collision_object, bool flag);
+    void SetSleepingAllowed(HCollisionObject2D collision_object, bool flag);
 
     /**
      * Set delta Value to an object body, which will update its transform along with world step.

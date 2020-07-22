@@ -1163,7 +1163,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_RequireMultipleUpdate(lua_State* L)
+    static int Physics_SetSleepingAllowed(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1182,7 +1182,7 @@ namespace dmGameSystem
 
         bool flag = lua_toboolean(L, 2);
 
-        dmGameSystem::RequireMultipleUpdate(comp, flag);
+        dmGameSystem::SetSleepingAllowed(comp, flag);
 
         return 0;
     }
@@ -1448,7 +1448,7 @@ namespace dmGameSystem
 
         // Set delta value during physics step
         { "set_controllable", Physics_SetControllable },
-        { "set_multiple_update", Physics_RequireMultipleUpdate},
+        { "set_allow_sleep", Physics_SetSleepingAllowed},
         { "set_delta_value", Physics_SetDeltaValue },
 
         // Config Body/World
