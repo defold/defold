@@ -48,7 +48,7 @@ namespace dmPhysics
     // Added by dotGears / TheTrung
     //
     // in script_physics.cpp :
-    // SETCONSTANT(COPY_ANGULAR_VEC) 
+    // SETCONSTANT(COPY_ANGULAR_VEC)
     //
     // just for passing correct bit
     // that map with b2Body enum.
@@ -817,6 +817,15 @@ namespace dmPhysics
      * @param flag enable delta Value update or not
      */
     void SetControllable(HCollisionObject2D collision_object, bool flag);
+
+    /**
+     * Set RequireMultipleUpdate Tag to an object body, which make it to be updated more than others.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param flag enable delta Value update or not
+     */
+    void RequireMultipleUpdate(HCollisionObject2D collision_object, bool flag);
 
     /**
      * Set delta Value to an object body, which will update its transform along with world step.

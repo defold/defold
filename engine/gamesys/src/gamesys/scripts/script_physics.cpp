@@ -1147,6 +1147,45 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# Set multiple update tag to a body, which is by then will be updated more per frame
+     * along with the world step.
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_multipe_update
+     * @param  collisionobject [type:string|hash|url] mark a body with alpha tag.
+     * @param  flag [type:boolean] mark a body with alpha tag or disable it.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_multipe_update("#body", true)
+     * end
+     * ```
+     */
+    static int Physics_RequireMultipleUpdate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flag = lua_toboolean(L, 2);
+
+        dmGameSystem::RequireMultipleUpdate(comp, flag);
+
+        return 0;
+    }
     /*# Set Master Body for an collision object
      * Added by dotGears/TrungVu
      *
@@ -1409,6 +1448,7 @@ namespace dmGameSystem
 
         // Set delta value during physics step
         { "set_controllable", Physics_SetControllable },
+        { "set_multiple_update", Physics_RequireMultipleUpdate},
         { "set_delta_value", Physics_SetDeltaValue },
 
         // Config Body/World

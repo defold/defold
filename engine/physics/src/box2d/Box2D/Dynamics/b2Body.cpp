@@ -521,7 +521,6 @@ void b2Body::SetActive(bool flag)
 		{
 			f->DestroyProxies(broadPhase);
 		}
-
 		// Destroy the attached contacts.
 		b2ContactEdge* ce = m_contactList;
 		while (ce)

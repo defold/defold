@@ -1496,6 +1496,12 @@ namespace dmGameSystem
         dmPhysics::SetControllable(component->m_Object2D, flag);
     }
 
+    void RequireMultipleUpdate(void* comp, bool flag)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::RequireMultipleUpdate(component->m_Object2D, flag);
+    }
+
     void SetDeltaValue(void* comp,float alphaX, float alphaY, float alphaZ )
     {
         CollisionComponent* component = (CollisionComponent*)comp;
