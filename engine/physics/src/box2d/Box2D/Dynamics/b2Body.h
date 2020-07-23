@@ -340,11 +340,6 @@ public:
 	/// @param flag set to true to put this body to update layer.
 	void SetControllable(bool flag);
 
-	/// Set flag for Allow Sleeping to the body
-	/// Added by dotGears - Trung Vu
-	/// @param flag set to false to disable sleeping.
-	void SetSleepingAllowed(bool flag);
-
 	/// Set the Alpha Value to the body, so it get updated more times
 	/// than others, with increment update of alpha value on every world step.
 	/// Added by .Gears
