@@ -1147,19 +1147,18 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# Set multiple update tag to a body, which is by then will be updated more per frame
-     * along with the world step.
-     * Added by dotGears/TrungB
+    /*# Set sleep allow for collision object.
+     * Added by dotGears/TrungA
      *
-     * @name physics.set_multipe_update
-     * @param  collisionobject [type:string|hash|url] mark a body with alpha tag.
-     * @param  flag [type:boolean] mark a body with alpha tag or disable it.
+     * @name physics.set_allow_sleep
+     * @param  collisionobject [type:string|hash|url] target body.
+     * @param  flag [type:boolean] mark a body to allow sleeping or not.
      *
      * @examples
      *
      * ```lua
      * function init(self)
-     *     physics.set_multipe_update("#body", true)
+     *     physics.set_allow_sleep("#body", true)
      * end
      * ```
      */
