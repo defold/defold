@@ -445,7 +445,6 @@ namespace dmPhysics
             float inv_scale = world->m_Context->m_InvScale; 
             /// Added by .Gears/TrungB
 
-            dmLogInfo("TrungB version");
             float deltaStep = dt / world->m_stepIteration;
 
             // dmLogInfo("world scale (%f) - invert scale (%f)", scale, inv_scale);
