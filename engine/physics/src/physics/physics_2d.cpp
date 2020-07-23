@@ -1093,8 +1093,6 @@ namespace dmPhysics
             b2_body->SetCopyRatio(ratio);
         }
     }
-<<<<<<< HEAD
-=======
     void SetCopyDisable(HCollisionObject2D collision_object)
     {
         b2Body* b2_body = (b2Body*)collision_object;
@@ -1121,7 +1119,6 @@ namespace dmPhysics
             dmLogInfo("physics_2d.cpp -- Warning: can't set allow_sleep because body is null");
         }
     }
->>>>>>> 0dcc6dc191630021cf33b9b34ccc4605a7b77c90
 
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
