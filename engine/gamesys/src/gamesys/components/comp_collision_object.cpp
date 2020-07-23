@@ -1510,6 +1510,11 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetGravityScale(component->m_Object2D, gravityScale);
     }
+    void SetAllowSleep(void* comp, bool allow_sleep)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetAllowSleep(component->m_Object2D, allow_sleep);
+    } 
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration)
     {
         CollisionWorld* world = (CollisionWorld*)_world;

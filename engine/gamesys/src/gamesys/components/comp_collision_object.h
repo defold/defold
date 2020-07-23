@@ -68,6 +68,7 @@ namespace dmGameSystem
     void SetDeltaValue(void* comp, float alphaX, float alphaY, float alphaZ);
     void SetControllable(void* comp, bool flag);
     void SetGravityScale(void* comp, float gravityScale);
+    void SetAllowSleep(void* comp, bool allow_sleep);
 
     void CopyState(void* comp, uint16_t state);
     void SetCopyRatio(void* comp, float ratio);

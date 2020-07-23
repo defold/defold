@@ -1128,6 +1128,19 @@ namespace dmPhysics
             dmLogInfo("physics_2d.cpp -- Warning: can't set disable because body is null");
         }
     }
+    void SetAllowSleep(HCollisionObject2D collision_object, bool allow_sleep)
+    {
+        b2Body* b2_body = (b2Body*)collision_object;
+        if (b2_body != NULL)
+        {
+            b2_body->SetSleepingAllowed(allow_sleep);
+            dmLogInfo("physics_2d.cpp -- SetSleepingAllowed ()");
+        }
+        else
+        {
+            dmLogInfo("physics_2d.cpp -- Warning: can't set allow_sleep because body is null");
+        }
+    }
 
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {
