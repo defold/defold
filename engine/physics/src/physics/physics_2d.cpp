@@ -440,6 +440,7 @@ namespace dmPhysics
             float inv_scale = world->m_Context->m_InvScale; 
             /// Added by .Gears/TrungB
 
+            dmLogInfo("TrungB version");
             float deltaStep = dt / world->m_stepIteration;
             for(int i = 0; i < world->m_stepIteration; i++)
             {
@@ -491,7 +492,7 @@ namespace dmPhysics
                                {
                                    Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(
                                    body->GetMasterBody()->GetAngle() * body->GetCopyRatio());
-                                   dmLogInfo("Copying RotationZ: (%f)", rotation.getZ());
+                                //    dmLogInfo("Copying RotationZ: (%f)", rotation.getZ());
                                }
                                if ((body->GetCopyState() & COPY_LINEAR_VEC) == COPY_LINEAR_VEC)
                                {
