@@ -442,8 +442,10 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
 
-            float inv_scale = world->m_Context->m_InvScale;
+            float inv_scale = world->m_Context->m_InvScale; 
             /// Added by .Gears/TrungB
+
+            dmLogInfo("TrungB version");
             float deltaStep = dt / world->m_stepIteration;
 
             // dmLogInfo("world scale (%f) - invert scale (%f)", scale, inv_scale);
@@ -1091,6 +1093,35 @@ namespace dmPhysics
             b2_body->SetCopyRatio(ratio);
         }
     }
+<<<<<<< HEAD
+=======
+    void SetCopyDisable(HCollisionObject2D collision_object)
+    {
+        b2Body* b2_body = (b2Body*)collision_object;
+        if (b2_body != NULL)
+        {
+            b2_body->SetCopyDisable();
+            dmLogInfo("physics_2d.cpp -- SetCopyDisable ()");
+        }
+        else
+        {
+            dmLogInfo("physics_2d.cpp -- Warning: can't set disable because body is null");
+        }
+    }
+    void SetAllowSleep(HCollisionObject2D collision_object, bool allow_sleep)
+    {
+        b2Body* b2_body = (b2Body*)collision_object;
+        if (b2_body != NULL)
+        {
+            b2_body->SetSleepingAllowed(allow_sleep);
+            dmLogInfo("physics_2d.cpp -- SetSleepingAllowed ()");
+        }
+        else
+        {
+            dmLogInfo("physics_2d.cpp -- Warning: can't set allow_sleep because body is null");
+        }
+    }
+>>>>>>> 0dcc6dc191630021cf33b9b34ccc4605a7b77c90
 
     void SetControllable(HCollisionObject2D collision_object, bool flag)
     {

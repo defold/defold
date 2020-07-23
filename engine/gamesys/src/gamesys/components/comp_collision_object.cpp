@@ -1482,12 +1482,16 @@ namespace dmGameSystem
     {
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::CopyState(component->m_Object2D, state);
-        dmLogInfo("comp_collision_object.cpp -- CopyState: (%i)", state);
     }
     void SetCopyRatio(void* comp, float ratio)
     {
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetCopyRatio(component->m_Object2D, ratio);
+    }
+    void SetCopyDisable(void* comp)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetCopyDisable(component->m_Object2D);
     }
 
     void SetControllable(void* comp, bool flag)
@@ -1512,6 +1516,11 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetGravityScale(component->m_Object2D, gravityScale);
     }
+    void SetAllowSleep(void* comp, bool allow_sleep)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetAllowSleep(component->m_Object2D, allow_sleep);
+    } 
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration)
     {
         CollisionWorld* world = (CollisionWorld*)_world;

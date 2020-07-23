@@ -5,7 +5,7 @@ SHELL_MOJAVE="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defo
 SHELL_CATALINA="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
 
 SETUP="sh setup_env.sh"
-BUNDLE="sh bundle_editor.sh"
+BUNDLE="sh bundle_editor.sh $2"
 
 SUB_MODULE="sh ./scripts/submodule.sh x86_64-darwin $2 $3 $4 $5"
 BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
@@ -15,6 +15,8 @@ BUILD_BOB="sudo ./scripts/build.py build_bob --skip-tests"
 RUN_EDITOR="(cd editor/;lein run)"
 BUILD_EDITOR="(cd editor/;lein init)"
 EDITOR="(cd editor/;lein init;lein run)"
+
+FORCE="sudo chmod -R 777 ./"
 BUILD_MODULE="./scripts/submodule.sh x86_64-darwin $2 $3"
 
 CP_DME_1="cp ./tmp/dynamo_home/bin/x86_64-darwin/dmengine ./editor/tmp/unpack/x86_64-darwin/bin/dmengine"
@@ -28,9 +30,6 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
   -F | --full )
     start=$SECONDS
     eval $BUILD_ENGINE
-    # eval $CP_DME_1
-    # eval $CP_DME_2
-    # eval $CP_DME_3
     eval $BUILD_EDITOR
     duration=$(( SECONDS - start ))
     echo "====================================================="
@@ -41,6 +40,10 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     ;;
   -f | --fast )
     eval $SUB_MODULE
+    exit
+    ;;
+  -fo | --force )
+    eval $FORCE
     exit
     ;;
   -cdm | --cd_mojave )
@@ -77,7 +80,12 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     exit
     ;;
   -B | --bundle )
+    start=$SECONDS
     eval $BUNDLE
+    duration=$(( SECONDS - start ))
+    echo "====================================================="
+    echo "${GREEN}Finished bundling in ${duration} secs. ${NC}"
+    echo "====================================================="
     exit
     ;;
   -r | --run )
@@ -96,8 +104,9 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "sh cmd.sh --misc  | -m : for building bob + builtin"
     echo "sh cmd.sh --full  | -F : to build engine/editor + launch"
     echo "sh cmd.sh --fast  | -f : to fast build part of dmengine at maximum of 4"
+    echo "sh cmd.sh --force | -fo: enable submodule when 'Operation is not permitted'"
     echo "sh cmd.sh --run   | -r : for running editor"
-    echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release"
+    echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release with given version"
     echo "__________________[SHORTHAND]___________________"
     echo "sh cmd.sh --shell_mojave   | -sm : to run shell_defold on Mojave"
     echo "sh cmd.sh --shell_catalina | -sc : to run shell_defold on Catalina"

@@ -68,7 +68,6 @@ done
     waf install --platform="${1}" \
         --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
 )
-
 # Added by dotGears / TheTrung
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color

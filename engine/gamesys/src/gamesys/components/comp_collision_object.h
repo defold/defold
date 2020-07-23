@@ -70,9 +70,11 @@ namespace dmGameSystem
     void SetSleepingAllowed(void* comp, bool flag);
 
     void SetGravityScale(void* comp, float gravityScale);
+    void SetAllowSleep(void* comp, bool allow_sleep);
 
     void CopyState(void* comp, uint16_t state);
     void SetCopyRatio(void* comp, float ratio);
+    void SetCopyDisable(void* comp);
 
     //Added by dotGears / TrungA
     void SetMasterBody(void* comp, void* master_body);

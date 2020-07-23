@@ -1062,6 +1062,31 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Physics_SetAllowSleep(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool allow_sleep = lua_tonumber(L, 2);
+
+        dmGameSystem::SetAllowSleep(comp, allow_sleep);
+
+        return 0;
+    }
+
     /*# set physics step per frame.
      * Set the amount of steps for physics 2D to update inside Step() function.
      * Added by dotGears/TrungB.
@@ -1080,7 +1105,8 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetStepPerFrame(lua_State* L)
+    static int
+    Physics_SetStepPerFrame(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1261,7 +1287,7 @@ namespace dmGameSystem
 
         uint16_t state = luaL_checknumber(L, 2);
 
-        dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
+        // dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
         dmGameSystem::CopyState(comp, state);
 
         return 0;
@@ -1305,6 +1331,45 @@ namespace dmGameSystem
 
         dmLogInfo("Physics_SetCopyRatio -- (%f)", ratio);
         dmGameSystem::SetCopyRatio(comp, ratio);
+
+        return 0;
+    }
+
+    /*# Set copy ratio to body
+     * Added by dotGears/TheTrung
+     *
+     * @name physics.set_copy_disable
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_copy_disable("#body_slave")
+     * end
+     * ```
+     */
+    static int Physics_SetCopyDisable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        dmLogInfo("Physics_SetCopyDisable ()");
+        dmGameSystem::SetCopyDisable(comp);
 
         return 0;
     }
@@ -1444,6 +1509,7 @@ namespace dmGameSystem
         { "set_master_body", Physics_SetMasterBody },
         { "copy_state", Physics_CopyState },
         { "set_copy_ratio", Physics_SetCopyRatio },
+        { "set_copy_disable", Physics_SetCopyDisable },
 
         // Set delta value during physics step
         { "set_controllable", Physics_SetControllable },
@@ -1451,6 +1517,7 @@ namespace dmGameSystem
         { "set_delta_value", Physics_SetDeltaValue },
 
         // Config Body/World
+        { "set_allow_sleep", Physics_SetAllowSleep },
         { "set_gravity_scale", Physics_SetGravityScale },
         { "set_step_per_frame", Physics_SetStepPerFrame },
 
