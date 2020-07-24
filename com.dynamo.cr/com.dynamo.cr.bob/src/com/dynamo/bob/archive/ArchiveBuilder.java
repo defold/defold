@@ -178,7 +178,7 @@ public class ArchiveBuilder {
 
         int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
 
-        Collections.sort(entries);
+        Collections.sort(entries); // Since it has no hash, it sorts on path
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
@@ -232,6 +232,8 @@ public class ArchiveBuilder {
 
             manifestBuilder.addResourceEntry(normalisedPath, buffer, resourceEntryFlags);
         }
+
+        Collections.sort(entries); // Since it has a hash, it sorts on hash
 
         // Write sorted hashes to index file
         int hashOffset = (int) archiveIndex.getFilePointer();
