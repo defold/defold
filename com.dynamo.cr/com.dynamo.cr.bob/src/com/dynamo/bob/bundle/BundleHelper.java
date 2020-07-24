@@ -189,7 +189,12 @@ public class BundleHelper {
             if (o != null && o instanceof String) {
                 String s = (String)o;
                 if (s != null && s.trim().length() > 0) {
-                    return project.getResource(s);
+                    IResource resource = project.getResource(s);
+                    if (!resource.exists())
+                    {
+                        throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", s, category, key));
+                    }
+                    return resource;
                 }
             }
         }
