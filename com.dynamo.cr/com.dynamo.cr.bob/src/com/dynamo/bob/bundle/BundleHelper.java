@@ -190,15 +190,20 @@ public class BundleHelper {
                 String s = (String)o;
                 if (s != null && s.trim().length() > 0) {
                     IResource resource = project.getResource(s);
-                    if (!resource.exists())
-                    {
-                        throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", s, category, key));
-                    }
                     return resource;
                 }
             }
         }
         throw new IOException(String.format("No resource found for %s.%s", category, key));
+    }
+
+    public IResource getResource(String category, String key, boolean mustExist) throws IOException {
+        IResource resource = this.getResource(category, key);
+        if (mustExist && !resource.exists())
+        {
+            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        }
+        return resource;
     }
 
     public void writeResourceToFile(IResource resource, File out) throws IOException {
