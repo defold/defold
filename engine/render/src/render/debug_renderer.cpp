@@ -401,8 +401,8 @@ namespace dmRender
                 total_render_objects++;
             }
         }
-        if(total_vertex_count > 2000) // As A warning at 2k Render Objects
-            dmLogInfo("debug_renderer.cpp -- v = (%i)", total_vertex_count);
+        // if(total_vertex_count > 2000) // As A warning at 2k Render Objects
+        //     dmLogInfo("debug_renderer.cpp -- v = (%i)", total_vertex_count);
         dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, total_render_objects);

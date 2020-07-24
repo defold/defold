@@ -72,7 +72,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
   -cp| --copy )
     echo "--------------------------------------------------"
     echo "COPY TO EDITOR ..."
-    cp ${ENGINE_PATH} ${EDITOR_PATH}
+    cp "${ENGINE_PATH}" "${EDITOR_PATH}"
     echo "copied \nfrom ${GREEN}${ENGINE_PATH}${NC} \nto ${GREEN}${EDITOR_PATH}${NC}"
     echo "--------------------------------------------------"
     exit

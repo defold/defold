@@ -1211,6 +1211,47 @@ namespace dmGameSystem
 
         return 0;
     }
+
+    /*# Set bullet allow for collision object.
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_bullet
+     * @param  collisionobject [type:string|hash|url] target body.
+     * @param  flag [type:boolean] mark a body to allow sleeping or not.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_bullet("#body", true)
+     * end
+     * ```
+     */
+    static int Physics_SetBullet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flag = lua_toboolean(L, 2);
+
+        dmGameSystem::SetBullet(comp, flag);
+
+        return 0;
+    }
     /*# Set Master Body for an collision object
      * Added by dotGears/TrungVu
      *
@@ -1515,6 +1556,7 @@ namespace dmGameSystem
         { "set_controllable", Physics_SetControllable },
         { "set_allow_sleep", Physics_SetSleepingAllowed},
         { "set_delta_value", Physics_SetDeltaValue },
+        { "set_bullet", Physics_SetBullet },
 
         // Config Body/World
         { "set_allow_sleep", Physics_SetAllowSleep },

@@ -1133,6 +1133,15 @@ namespace dmPhysics
         }
     }
 
+    void SetBullet(HCollisionObject2D collision_object, bool flag)
+    {
+        b2Body* b2_body = (b2Body*)collision_object;
+        if (b2_body != NULL)
+        {
+            b2_body->SetBullet(flag);
+        }
+    }
+
     void SetDeltaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ)
     {
         ((b2Body*)collision_object)->SetDeltaValue(alphaX, alphaY, alphaZ);

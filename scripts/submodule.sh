@@ -76,7 +76,7 @@ NC='\033[0m' # No Color
     EDITOR_PATH="./editor/tmp/unpack/x86_64-darwin/bin/"
     echo "--------------------------------------------------"
     echo "COPY TO EDITOR ..."
-    cp ${ENGINE_PATH} ${EDITOR_PATH}
+    cp "${ENGINE_PATH}" "${EDITOR_PATH}"
     echo "copied \nfrom ${GREEN}${ENGINE_PATH}${NC} \nto ${GREEN}${EDITOR_PATH}${NC}"
     echo "--------------------------------------------------"
 )

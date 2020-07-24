@@ -846,6 +846,15 @@ namespace dmPhysics
     void SetSleepingAllowed(HCollisionObject2D collision_object, bool flag);
 
     /**
+     * Set Bullet  to an object body.
+     * Added by dotGears / TrungB
+     * @param context Physics context
+     * @param collision_object Collision object.
+     * @param flag to disable or enable sleeping.
+     */
+    void SetBullet(HCollisionObject2D collision_object, bool flag);
+
+    /**
      * Set delta Value to an object body, which will update its transform along with world step.
      *
      * @param context Physics context

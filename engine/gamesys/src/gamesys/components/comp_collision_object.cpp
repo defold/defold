@@ -1506,7 +1506,13 @@ namespace dmGameSystem
         dmPhysics::SetSleepingAllowed(component->m_Object2D, flag);
     }
 
-    void SetDeltaValue(void* comp,float alphaX, float alphaY, float alphaZ )
+    void SetBullet(void* comp, bool flag)
+    {
+        CollisionComponent* component = (CollisionComponent*)comp;
+        dmPhysics::SetBullet(component->m_Object2D, flag);
+    }
+
+    void SetDeltaValue(void* comp, float alphaX, float alphaY, float alphaZ)
     {
         CollisionComponent* component = (CollisionComponent*)comp;
         dmPhysics::SetDeltaValue(component->m_Object2D, alphaX, alphaY, alphaZ);
