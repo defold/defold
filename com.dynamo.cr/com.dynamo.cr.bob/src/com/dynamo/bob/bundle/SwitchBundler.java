@@ -161,7 +161,7 @@ public class SwitchBundler implements IBundler {
 
         String legalPath = projectProperties.getStringValue("switch", "legal_path", "");
         if (!legalPath.isEmpty()) {
-            IResource legalResource = helper.getResource("switch", "legal_path");
+            IResource legalResource = helper.getResource("switch", "legal_path", true);
             File legal = new File(tmpResourceDir, "legal.zip");
             helper.writeResourceToFile(legalResource, legal);
         }
@@ -212,7 +212,7 @@ public class SwitchBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Create the .nspd folder + .nspd_root file 
+        // Create the .nspd folder + .nspd_root file
         logger.log(Level.INFO, String.format("Creating nspd: %s", appDir));
 
         res = Exec.execResult(authoringTool, "createnspd"
