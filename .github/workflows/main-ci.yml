@@ -317,7 +317,7 @@ jobs:
 # ---- RELEASE ------------------
 
   release-switch:
-    if: "!contains(github.event.head_commit.message, 'skip-ci') && (github.event_name == 'push') && (endsWith(github.ref == 'platform-switch') || endsWith(github.ref == 'platform-switch-beta') || endsWith(github.ref == 'platform-switch-master'))"
+    if: "!contains(github.event.head_commit.message, 'skip-ci') && (github.event_name == 'push') && (endsWith(github.ref, 'platform-switch')  || endsWith(github.ref, 'platform-switch-beta') || endsWith(github.ref, 'platform-switch-master'))"
     needs: [sign-editor-darwin]
     runs-on: ubuntu-18.04
     steps: [
