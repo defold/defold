@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -60,7 +60,7 @@ public class ArchiveBuilder {
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
     }
-    
+
     private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress, isLiveUpdate);
         if (!contains(e)) {
@@ -81,7 +81,7 @@ public class ArchiveBuilder {
             entries.add(e);
         }
     }
-    
+
     private boolean contains(ArchiveEntry e) {
         return entries.contains(e);
     }
@@ -93,7 +93,7 @@ public class ArchiveBuilder {
     public int getArchiveEntrySize() {
         return this.entries.size();
     }
-    
+
     public byte[] getArchiveIndexHash() {
         return this.archiveIndexMD5;
     }
@@ -125,14 +125,14 @@ public class ArchiveBuilder {
             File fhandle = new File(directory, filename);
             if (!fhandle.exists()) {
                 byte[] padding = new byte[11];
-                byte[] size_bytes = ByteBuffer.allocate(4).putInt(size).array(); 
+                byte[] size_bytes = ByteBuffer.allocate(4).putInt(size).array();
                 Arrays.fill(padding, (byte)0xED);
                 outputStream = new FileOutputStream(fhandle);
                 outputStream.write(size_bytes); // 4 bytes
                 outputStream.write(flags); // 1 byte
                 outputStream.write(padding); // 11 bytes
                 outputStream.write(buffer);
-                
+
             }
         } finally {
             IOUtils.closeQuietly(outputStream);
@@ -175,8 +175,10 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(0); // HashOffset
         archiveIndex.writeInt(0); // HashLength
         archiveIndex.write(new byte[MD5_HASH_DIGEST_BYTE_LENGTH]);
-        
+
         int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
+
+        Collections.sort(entries); // Since it has no hash, it sorts on path
 
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
@@ -231,8 +233,9 @@ public class ArchiveBuilder {
             manifestBuilder.addResourceEntry(normalisedPath, buffer, resourceEntryFlags);
         }
 
+        Collections.sort(entries); // Since it has a hash, it sorts on hash
+
         // Write sorted hashes to index file
-        Collections.sort(entries);
         int hashOffset = (int) archiveIndex.getFilePointer();
         for(ArchiveEntry entry : entries) {
             archiveIndex.write(entry.hash);
@@ -247,19 +250,19 @@ public class ArchiveBuilder {
             archiveIndex.writeInt(entry.compressedSize);
             archiveIndex.writeInt(entry.flags);
         }
-        
+
         try {
             // Calc index file MD5 hash
             archiveIndex.seek(archiveIndexHeaderOffset);
             int num_bytes = (int) archiveIndex.length() - archiveIndexHeaderOffset;
-            byte[] archiveIndexBytes = new byte[num_bytes];            
+            byte[] archiveIndexBytes = new byte[num_bytes];
             archiveIndex.readFully(archiveIndexBytes);
             this.archiveIndexMD5 = ManifestBuilder.CryptographicOperations.hash(archiveIndexBytes, HashAlgorithm.HASH_MD5);
         } catch (NoSuchAlgorithmException e) {
             System.err.println("The algorithm specified is not supported!");
             e.printStackTrace();
         }
-        
+
         // Update index header with offsets
         archiveIndex.seek(0);
         archiveIndex.writeInt(VERSION);
@@ -327,7 +330,7 @@ public class ArchiveBuilder {
                 if (!currentInput.isFile()) {
                     printUsageAndTerminate("file does not exist: " + currentInput.getAbsolutePath());
                 }
-                
+
                 inputs.add(currentInput);
             }
         }

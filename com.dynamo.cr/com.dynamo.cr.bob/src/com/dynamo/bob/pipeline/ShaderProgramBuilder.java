@@ -123,8 +123,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         // Always write the glsl source (for now)
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_GLSL);
-        builder.setSource(ByteString.copyFrom(os.toString(), "UTF-8"));
 
+        String source = os.toString().replace("\r", "");
+        builder.setSource(ByteString.copyFrom(source, "UTF-8"));
         return builder;
     }
 
