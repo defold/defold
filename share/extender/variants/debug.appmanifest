@@ -4,5 +4,24 @@ platforms:
 
   arm64-nx64:
     context:
-        excludeObjectFiles: ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/vulkan.nss"]
-        objectFiles:        ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/vulkanOpenGlDebug.nss"]
+        excludeObjectFiles: ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/rocrt.o",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/nnApplication.o",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/libnn_init_memory.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/libnn_gll.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/libnn_gfx.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/libnn_mii_draw.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/vulkan.nss",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/opengl.nss",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/nnSdkEn.nss",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Release/crtend.o"]
+
+        objectFiles:        ["{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/rocrt.o",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnApplication.o",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_init_memory.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_gll.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_gfx.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/libnn_mii_draw.a",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/vulkanOpenGlDebug.nss",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/opengl.nss",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/nnSdkEn.nss",
+                             "{{env.SDK}}/Libraries/NX-NXFP2-a64/Develop/crtend.o"]
