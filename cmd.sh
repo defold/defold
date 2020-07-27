@@ -19,7 +19,7 @@ EDITOR="(cd editor/;lein init;lein run)"
 FORCE="sudo chmod -R 777 ./"
 BUILD_MODULE="./scripts/submodule.sh x86_64-darwin $2 $3"
 
-ENGINE_PATH="./tmp/dynamo_home/bin/x86_64-darwin/*"
+ENGINE_PATH="./tmp/dynamo_home/bin/x86_64-darwin/"
 EDITOR_PATH="./editor/tmp/unpack/x86_64-darwin/bin/"
 
 GREEN='\033[0;32m'
@@ -72,7 +72,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
   -cp| --copy )
     echo "--------------------------------------------------"
     echo "COPY TO EDITOR ..."
-    cp "${ENGINE_PATH}" "${EDITOR_PATH}"
+    cp -r "${ENGINE_PATH}" "${EDITOR_PATH}"
     echo "copied \nfrom ${GREEN}${ENGINE_PATH}${NC} \nto ${GREEN}${EDITOR_PATH}${NC}"
     echo "--------------------------------------------------"
     exit
