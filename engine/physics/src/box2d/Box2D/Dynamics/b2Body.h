@@ -976,18 +976,18 @@ inline void b2Body::SetMasterBody(b2Body * masterBody)
 }
 inline void b2Body::CopyState(uint16 state)
 {
-	printf("CopyState invoked");
+	// printf("CopyState invoked");
     if((m_copy_flags & state) == 0)
 	{
 		m_copy_flags |= state;
-		printf("b2Body -- added state: (%i) => flags: (%i)", state, m_copy_flags);
+		printf("b2Body -- added state: (%i) => flags: (%i)\n", state, m_copy_flags);
 	}
 	else
 	{
         m_copy_flags &= ~state;
-        printf("b2Body -- removed state: (%i) => flags: (%i)", state, m_copy_flags);
+        printf("b2Body -- removed state: (%i) => flags: (%i)\n", state, m_copy_flags);
     }
-    printf("b2Body -- added state: (%i) => flags: (%i)", state, m_copy_flags);
+    // printf("b2Body -- added state: (%i) => flags: (%i)", state, m_copy_flags);
 }
 
 inline bool b2Body::IsControllable() const

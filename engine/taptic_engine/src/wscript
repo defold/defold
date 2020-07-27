@@ -1,0 +1,22 @@
+#! /usr/bin/env python
+import os, re
+from waf_dynamo import apidoc_extract_task
+
+
+def configure(conf):
+    pass
+
+def build(bld):
+    source = 'tapticengine.cpp'.split()
+
+    platforms = ['arm.*?darwin', 'x86_64-ios']
+    for p in platforms:
+        if re.match(p, bld.env.PLATFORM):
+            source += ['tapticengine.mm']
+            break
+
+    bld.new_task_gen(features = 'cxx cstaticlib',
+                    includes = '.',
+                    source = source,
+                    target = 'TapticEngine')
+
