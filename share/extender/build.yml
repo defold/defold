@@ -300,11 +300,11 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_20}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_20}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_20}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_20}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_20}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
@@ -334,11 +334,11 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_20}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_20}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_20}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_20}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_20}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_1_39_16}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_1_39_16}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_1_39_16}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_1_39_16}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_1_39_16}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs: ["glfw", "sys", "script", "sound"]
