@@ -1,6 +1,7 @@
 CD_DEFOLD_MOJAVE="echo \"#Shorthand for entering defold folder\nalias cd_defold='cd $PWD'\" >> ~/.bash_profile"
 CD_DEFOLD_CATALINA="echo \"#Shorthand for entering defold folder\nalias cd_defold='cd $PWD'\" >> ~/.zshrc"
 
+SHELL="./scripts/build.py shell --platform=$2 --package-path=./local_sdks/"
 SHELL_MOJAVE="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.bash_profile"
 SHELL_CATALINA="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
 
@@ -11,7 +12,8 @@ SUB_MODULE="sh ./scripts/submodule.sh x86_64-darwin $2 $3 $4 $5"
 WAF_CONF="(cd $3;PREFIX=\$DYNAMO_HOME waf configure --platform=$2)"
 
 BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
-BUILD_ENGINE_IOS="sudo ./scripts/build.py build_engine --platform=armv7-darwin --skip-tests -- --skip-build-tests"
+BUILD_ENGINE_IOS_v7="sudo ./scripts/build.py build_engine --platform=armv7-darwin --skip-tests -- --skip-build-tests"
+BUILD_ENGINE_IOS_64="sudo ./scripts/build.py build_engine --platform=arm64-darwin --skip-tests -- --skip-build-tests"
 BUILD_BUILTIN="sudo ./scripts/build.py build_builtins"
 BUILD_BOB="sudo ./scripts/build.py build_bob --skip-tests"
 
@@ -60,16 +62,12 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     eval $CD_DEFOLD_CATALINA
     exit
     ;;
-  -sm | --shell_mojave )
-    eval $SHELL_MOJAVE
-    exit
-    ;;
-  -sc | --shell_catalina )
-    eval $SHELL_CATALINA
-    exit
-    ;;
   -s | --setup )
     eval $SETUP
+    exit
+    ;;
+  -sh | --shell )
+    eval $SHELL
     exit
     ;;
   -b | --editor )
@@ -88,8 +86,12 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     eval $BUILD_ENGINE
     exit
     ;;
-  -ei | --engine_ios )
-    eval $BUILD_ENGINE_IOS
+  -ev7 | --engine_ios_v7 )
+    eval $BUILD_ENGINE_IOS_v7
+    exit
+    ;;
+  -e64 | --engine_ios_64 )
+    eval $BUILD_ENGINE_IOS_64
     exit
     ;;
   -m | --misc )
@@ -117,9 +119,11 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo ""
     echo "__________________[COMMAND]___________________"
     echo "sh cmd.sh --setup | -s : for environment setup"
+    echo "sh cmd.sh --shell | -sh: for shell x86_64-darwin | armv7-darwin | arm64..."
     echo "sh cmd.sh --copy  | -cp: to copy dmengine -> editor"
     echo "sh cmd.sh --engine| -e : for building engine alone"
-    echo "sh cmd.sh --engine_ios | -ei : for building iOS engine alone"
+    echo "sh cmd.sh --engine_ios_v7 | -ev7 : for building iOS armv7 engine"
+    echo "sh cmd.sh --engine_ios_64 | -e64 : for building iOS arm64 engine"
     echo "sh cmd.sh --editor| -e : for building editor + launch"
     echo "sh cmd.sh --misc  | -m : for building bob + builtin"
     echo "sh cmd.sh --full  | -F : to build engine/editor + launch"
@@ -129,15 +133,18 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "sh cmd.sh --run   | -r : for running editor"
     echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release with given version"
     echo "__________________[SHORTHAND]___________________"
-    echo "sh cmd.sh --shell_mojave   | -sm : to run shell_defold on Mojave"
-    echo "sh cmd.sh --shell_catalina | -sc : to run shell_defold on Catalina"
     echo "sh cmd.sh --cd_mojave      | -cdm : add defold path so you can just call: cd_defold"
     echo "sh cmd.sh --cd_catalina    | -cdc : add defold path so you can just call: cd_defold"
     echo "______________________________________________"
     echo "You can also run each script separately as :"
     echo $SETUP
+    echo $SHELL
+    echo $COPY
     echo $SUB_MODULE
     echo $BUILD_ENGINE
+    echo $BUILD_ENGINE_IOS_v7
+    echo $BUILD_ENGINE_IOS_64
+    echo $EDITOR
     echo $BUILD_BOB
     echo $BUILD_BUILTIN
     echo $BUILD_EDITOR
