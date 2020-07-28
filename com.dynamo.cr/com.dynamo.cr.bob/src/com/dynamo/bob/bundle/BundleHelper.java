@@ -891,6 +891,7 @@ public class BundleHelper {
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
     private static Pattern resourceIssueLinkerLLDLINKre = Pattern.compile("^(?:.*lld-link|.*ld):\\s(?:(warning|error)?:\\s)?(?:([\\w-.]+)\\([\\w.]+\\):\\s)?(.*)");
+    private static Pattern resourceIssueLinkerUnresolvedSymbol = Pattern.compile("(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)[\\/\\\\]))?([\\w.\\/\\\\]+)\\s*\\(([0-9]+)\\):?\\s*(error|warning|note|):?\\s*(.+)");
 
     // Some errors/warning have an extra line before or after the the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
@@ -981,12 +982,19 @@ public class BundleHelper {
         parseLogGCC(lines, issues);
 
         for (int count = 0; count < lines.length; ++count) {
+            Matcher m;
             String line = lines[count];
+
+            m = resourceIssueLinkerUnresolvedSymbol.matcher(line);
+            if (m.matches()) {
+                issues.add(new BundleHelper.ResourceInfo(m.group(3), m.group(1), m.group(2), m.group(4)));
+            }
+
             // Compare with some lookahead if it matches
             for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
                 line += "\n" + lines[count+i];
             }
-            Matcher m = linkerPattern.matcher(line);
+            m = linkerPattern.matcher(line);
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
@@ -1070,6 +1078,8 @@ public class BundleHelper {
             parseLogGCC(lines, allIssues);
         } else if (platform.contains("win32")) {
             parseLogWin32(lines, allIssues);
+        } else {
+            parseLogClang(lines, allIssues);
         }
 
         for (int count = 0; count < lines.length; ++count) {
@@ -1145,7 +1155,25 @@ public class BundleHelper {
                     buildError = FileUtils.readFileToString(logFile);
                     parseLog(platform, buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
-                    IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+
+                    IResource appManifestResource = null;
+                    IResource extManifestResource = null;
+
+                    // For now, find the first ext.manifest
+                    // Drawback of just picking one, is that build errors with no obvious "source", will be associated with the wrong ext.manifest
+                    for (ExtenderResource r : allSource) {
+                        if (extManifestResource == null && r.getPath().endsWith(ExtenderClient.extensionFilename)) {
+                            extManifestResource = ExtenderUtil.getResource(r.getPath(), allSource);
+                        }
+                        if (appManifestResource == null && r.getPath().endsWith(".appmanifest")) {
+                            appManifestResource = ExtenderUtil.getResource(r.getPath(), allSource);
+                        }
+                    }
+
+                    IResource fallbackResource = extManifestResource;
+                    if (fallbackResource == null)
+                        fallbackResource = appManifestResource;
+
                     IResource contextResource = null;
 
                     for (ResourceInfo info : issues) {
@@ -1163,12 +1191,11 @@ public class BundleHelper {
                             }
                         }
 
-                        IResource exceptionResource = issueResource == null ? extManifestResource : issueResource;
+                        IResource exceptionResource = issueResource == null ? fallbackResource : issueResource;
                         int severity = info.severity.contains("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
                         exception.addIssue(severity, exceptionResource, info.message, info.lineNumber);
 
                         String msg = String.format("%s(%d): %s", info.resource != null ? info.resource : "<unknown>", info.lineNumber, info.message);
-                        logger.log(severity == Info.SEVERITY_ERROR ? Level.SEVERE : Level.WARNING, msg);
 
                         // The first resource generating errors should be related - we can use it to give context to the raw log.
                         if (contextResource == null && issueResource != null) {
@@ -1176,9 +1203,9 @@ public class BundleHelper {
                         }
                     }
 
-                    // If we do not yet have a context resource - fall back on an ext.manifest (possibly the wrong one!)
+                    // If we do not yet have a context resource - fall back on another resource (possibly the wrong one!)
                     if (contextResource == null) {
-                        contextResource = extManifestResource;
+                        contextResource = fallbackResource;
                     }
 
                     exception.attachLog(contextResource, buildError);
