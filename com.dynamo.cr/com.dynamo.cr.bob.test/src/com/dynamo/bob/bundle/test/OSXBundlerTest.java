@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashSet;
 
-import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
