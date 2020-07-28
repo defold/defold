@@ -9,6 +9,7 @@ BUNDLE="sh bundle_editor.sh $2"
 
 SUB_MODULE="sh ./scripts/submodule.sh x86_64-darwin $2 $3 $4 $5"
 BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
+BUILD_ENGINE_IOS="sudo ./scripts/build.py build_engine --platform=armv7-darwin --skip-tests -- --skip-build-tests"
 BUILD_BUILTIN="sudo ./scripts/build.py build_builtins"
 BUILD_BOB="sudo ./scripts/build.py build_bob --skip-tests"
 
@@ -81,6 +82,10 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     eval $BUILD_ENGINE
     exit
     ;;
+  -ei | --engine_ios )
+    eval $BUILD_ENGINE_IOS
+    exit
+    ;;
   -m | --misc )
     eval $BUILD_BOB
     eval $BUILD_BUILTIN
@@ -108,6 +113,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "sh cmd.sh --setup | -s : for environment setup"
     echo "sh cmd.sh --copy  | -cp: to copy dmengine -> editor"
     echo "sh cmd.sh --engine| -e : for building engine alone"
+    echo "sh cmd.sh --engine_ios | -ei : for building iOS engine alone"
     echo "sh cmd.sh --editor| -e : for building editor + launch"
     echo "sh cmd.sh --misc  | -m : for building bob + builtin"
     echo "sh cmd.sh --full  | -F : to build engine/editor + launch"
