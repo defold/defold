@@ -26,8 +26,8 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="13.5"
-IOS_SIMULATOR_SDK_VERSION="13.5"
+IOS_SDK_VERSION="13.2"
+IOS_SIMULATOR_SDK_VERSION="13.2"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"

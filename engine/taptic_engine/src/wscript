@@ -18,6 +18,6 @@ def build(bld):
     bld.new_task_gen(features = 'cxx cstaticlib',
                     includes = '.',
                     source = source,
-                    target = 'TapticEngine')
+                    target = 'tapticengine')
 
     apidoc_extract_task(bld, ['tapticengine.cpp'])

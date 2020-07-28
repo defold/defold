@@ -2679,8 +2679,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             GL_FUNC_ADD,
             GL_FUNC_SUBTRACT,
             GL_FUNC_REVERSE_SUBTRACT,
-            GL_MIN,
-            GL_MAX
+            0x8007,//GL_MIN,
+            0x8008//GL_MAX
         };
         glBlendEquation(blend_mode_lut[mode]);
         CHECK_GL_ERROR
@@ -2707,8 +2707,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             GL_FUNC_ADD,
             GL_FUNC_SUBTRACT,
             GL_FUNC_REVERSE_SUBTRACT,
-            GL_MIN,
-            GL_MAX
+            0x8007,//GL_MIN,
+            0x8008//GL_MAX
         };
         glBlendEquationSeparate(blend_mode_lut[mode], blend_mode_lut[modeAlpha]);
         CHECK_GL_ERROR

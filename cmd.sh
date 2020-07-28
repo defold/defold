@@ -8,6 +8,8 @@ SETUP="sh setup_env.sh"
 BUNDLE="sh bundle_editor.sh $2"
 
 SUB_MODULE="sh ./scripts/submodule.sh x86_64-darwin $2 $3 $4 $5"
+WAF_CONF="(cd $3;PREFIX=\$DYNAMO_HOME waf configure --platform=$2)"
+
 BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
 BUILD_ENGINE_IOS="sudo ./scripts/build.py build_engine --platform=armv7-darwin --skip-tests -- --skip-build-tests"
 BUILD_BUILTIN="sudo ./scripts/build.py build_builtins"
@@ -40,6 +42,10 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     ;;
   -f | --fast )
     eval $SUB_MODULE
+    exit
+    ;;
+  -w | --waf )
+    eval $WAF_CONF
     exit
     ;;
   -fo | --force )
@@ -118,6 +124,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "sh cmd.sh --misc  | -m : for building bob + builtin"
     echo "sh cmd.sh --full  | -F : to build engine/editor + launch"
     echo "sh cmd.sh --fast  | -f : to fast build part of dmengine at maximum of 4"
+    echo "sh cmd.sh --waf   | -w : to waf configure with (armv7 | arm64 | x86_64)-darwin"
     echo "sh cmd.sh --force | -fo: enable submodule when 'Operation is not permitted'"
     echo "sh cmd.sh --run   | -r : for running editor"
     echo "sh cmd.sh --bundle| -B : for bundling editor into ./editor/release with given version"
