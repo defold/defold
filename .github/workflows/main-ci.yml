@@ -6,6 +6,11 @@ on:
        - '*'
        - '!DEFEDIT-*'
        - '!editor-dev'
+  pull_request:
+     branches:
+       - '*'
+       - '!DEFEDIT-*'
+       - '!editor-dev'
   repository_dispatch: {}
 
 env:
@@ -316,39 +321,16 @@ jobs:
 
 # ---- RELEASE ------------------
 
-  release:
-    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+  release-switch:
+    if: "!contains(github.event.head_commit.message, 'skip-ci') && contains(github.head_ref, 'switch')"
     needs: [sign-editor-darwin]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
       {
-        name: 'Release',
-        run: 'ci/ci.sh release'
-      },
-      {
-        name: 'Publish updated API ref',
-        uses: defold/repository-dispatch@1.2.1,
-        if: (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
-        with: {
-            repo: 'defold/defold.github.io',
-            token: '${{ secrets.GITHUB_TOKEN_READONLY }}',
-            user: 'services@defold.se',
-            action: 'refdoc'
-        }
-      },
-
-      {
         name: 'Publish release to releases.md',
-        # if: (contains(github.head_ref, 'switch')),
-        run: 'ci/ci.sh release_to_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-repo=defold-switch-releases'
-      },
-
-      {
-        name: 'test echo',
-        if: "(contains(github.head_ref, 'dev'))",
-        run: 'echo MAWE TEST DEV ECHO branch: ${{ github.head_ref }}'
+        run: 'ci/ci.sh release_to_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-repo=defold/defold-switch-releases'
       },
       {
        name: 'Notify if build status changed',

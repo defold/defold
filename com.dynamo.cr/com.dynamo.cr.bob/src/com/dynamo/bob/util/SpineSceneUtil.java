@@ -27,7 +27,7 @@ import java.util.Vector;
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
