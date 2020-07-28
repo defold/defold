@@ -1087,6 +1087,11 @@ namespace dmPhysics
         }
     }
 
+    float GetAngle3D(HCollisionObject3D collision_object)
+    {
+        return 0.0f;
+    }
+
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())

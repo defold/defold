@@ -45,12 +45,44 @@ namespace dmPhysics
         JOINT_TYPE_COUNT
     };
 
-    enum JointResult
+    // Added by dotGears / TheTrung
+    //
+    // in script_physics.cpp :
+    // SETCONSTANT(COPY_ANGULAR_VEC)
+    //
+    // just for passing correct bit
+    // that map with b2Body enum.
+    enum CopyState
     {
-        RESULT_OK = 0,
+        COPY_POSITION_X = 1 << 0,
+        COPY_POSITION_Y = 1 << 1,
+        COPY_ROTATION_Z = 1 << 2,
+        COPY_LINEAR_VEC = 1 << 3,
+        COPY_ANGULAR_VEC = 1 << 4
+    };
+
+    // enum CopyState
+    // {
+    //     COPY_POSITION_X,
+    //     COPY_POSITION_Y,
+    //     COPY_ROTATION_Z,
+    //     COPY_LINEAR_VEC,
+    //     COPY_ANGULAR_VEC
+    // };
+    // b2Body.h
+    // e_copy_position_x = 0x0001,
+    // e_copy_position_y = 0x0002,
+    // e_copy_rotation_z = 0x0004,
+    // e_copy_velocity   = 0x0008,
+    // e_copy_angular    = 0x0010
+    //
+    // End of Passion
+
+    enum JointResult {
+        RESULT_OK            = 0,
         RESULT_NOT_SUPPORTED = 1,
-        RESULT_ID_EXISTS = 2,
-        RESULT_ID_NOT_FOUND = 3,
+        RESULT_ID_EXISTS     = 2,
+        RESULT_ID_NOT_FOUND  = 3,
         RESULT_NOT_CONNECTED = 4,
         RESULT_UNKNOWN_ERROR = 5,
     };
@@ -752,6 +784,96 @@ namespace dmPhysics
     void ApplyForce2DImpulse(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
 
     /**
+     * Set Master Body to an object body.
+     *
+     * @param collision_object Collision object which is slave object
+     * @param master_body which is b2Body
+     */
+    void SetMasterBody(HCollisionObject2D collision_object, HCollisionObject2D master_body);
+
+    /**
+     * Add Copy State to an object body, which enable certains copy-state at runtime.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     * @param state enable delta Value update or not
+     */
+    void CopyState(HCollisionObject2D collision_object, uint16_t state);
+
+    /**
+     * Set Copy Ratio to an object body, which enable copying state at a percent.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     * @param ratio in range [0.0 ~ 1.0]
+     */
+    void SetCopyRatio(HCollisionObject2D collision_object, float ratio);
+
+    /**
+     * Set Copy Disable to an object body.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     */
+    void SetCopyDisable(HCollisionObject2D collision_object);
+
+    /**
+     * Set Allow Sleep to an object body.
+     * Added by dotGears / TheTrung
+     *
+     * @param collision_object Collision object that will hold b2Body babe
+     * @param allow_sleep allow the body to sleep or not 
+     */
+    void SetAllowSleep(HCollisionObject2D collision_object, bool allow_sleep);
+
+    /**
+     * Set Controllable Tag to an object body, which make it to be updated more than others.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param flag enable delta Value update or not
+     */
+    void
+    SetControllable(HCollisionObject2D collision_object, bool flag);
+
+    /**
+     * Set Allow Sleeping to an object body.
+     * Added by dotGears / Trung Vu
+     * @param context Physics context
+     * @param collision_object Collision object.
+     * @param flag to disable or enable sleeping.
+     */
+    void SetSleepingAllowed(HCollisionObject2D collision_object, bool flag);
+
+    /**
+     * Set Bullet  to an object body.
+     * Added by dotGears / TrungB
+     * @param context Physics context
+     * @param collision_object Collision object.
+     * @param flag to disable or enable sleeping.
+     */
+    void SetBullet(HCollisionObject2D collision_object, bool flag);
+
+    /**
+     * Set delta Value to an object body, which will update its transform along with world step.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object receiving the force, must be of type COLLISION_OBJECT_TYPE_DYNAMIC
+     * @param deltaX Set deltaX position update
+     * @param deltaY Set deltaY position update
+     * @param deltaZ Set deltaZ position update
+     */
+    void SetDeltaValue(HCollisionObject2D collision_object, float alphaX, float alphaY, float alphaZ );
+
+    /**
+     * Set Alpha Value to an object body, which will update its transform along with world step.
+     *
+     * @param body Physics body
+     * @param gravityScale the scale of gravity in Box2D
+     */
+    void SetGravityScale(HCollisionObject2D collision_object, float gravityScale);
+
+    /**
      * Return the total force currently applied to the specified 3D collision object.
      *
      * @param context Physics context
@@ -787,6 +909,22 @@ namespace dmPhysics
      */
     Vectormath::Aos::Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object);
 
+    /**
+     * Set the world position of the specified 2D collision object.
+     *
+     * @param context Physics context
+     * @param collision_object Collision object handle
+     * @param position object position in vector3
+     */
+    void SetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object, const Vectormath::Aos::Vector3& position);
+
+    /**
+     * Set the world angle of the specified 2D collision object.
+     *
+     * @param collision_object Collision object handle
+     * @param angle object angle in float
+     */
+    void SetBodyAngle2D(HCollisionObject2D collision_object, float angle);
     /**
      * Return the world rotation of the specified 3D collision object.
      *
@@ -1054,6 +1192,24 @@ namespace dmPhysics
     float GetMass2D(HCollisionObject2D collision_object);
 
     /**
+     * Return the angle of the 2D collision object.
+     *
+     * @param collision_object Collision object
+     * @return the angle
+     */
+    float GetBodyAngle2D(HCollisionObject2D collision_object);
+
+    /**
+     * Return the angle of the 2D collision object.
+     *
+     * @param collision_object Collision object
+     * @param angle body angle
+     *
+     */
+    void GetBodyAngle2D(HCollisionObject2D collision_object, float angle);
+
+
+    /**
      * Container of data for ray cast queries.
      */
     struct RayCastRequest
@@ -1167,9 +1323,9 @@ namespace dmPhysics
 
     /**
      * Set Step iteration per frame for 2D physics world.
-     * 
+     *
      * @param world Physics world for which to get the gravity
-     * 
+     *
      * @param stepIteration amount of iteration to run physics step per frame
      */
     void SetWorld2DStepIteration(HWorld2D world, int stepIteration, int velocityIteration, int positionIteration);
@@ -1343,7 +1499,6 @@ namespace dmPhysics
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
-
 }
 
 #endif // PHYSICS_H

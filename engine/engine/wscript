@@ -129,6 +129,7 @@ namespace dmEngineVersion
 
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
+    conf.env['STATICLIB_TAPTICENGINE'] = 'tapticengine'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'

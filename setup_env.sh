@@ -7,7 +7,7 @@ INSTALL_EMS="./scripts/build.py install_ems --package-path=./local_sdks"
     
 COPY_EMS="cp ./tmp/dynamo_home/ext/SDKs/emsdk-1.39.16/.emscripten ~/"
 
-SHELL="./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/"
+# SHELL="./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/"
 
 INSTALL_EXT="./scripts/build.py install_ext --platform=x86_64-darwin --package-path=./local_sdks"
 
@@ -24,4 +24,5 @@ eval $SHELL
 eval $INSTALL_EXT
 
 echo "finished setup environment. ready to build engine/editor."
-echo "run build_editor.sh to continue..."
+echo "run `sh build_editor.sh` to continue..."
+echo "_____________________________________________________"

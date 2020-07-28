@@ -73,6 +73,61 @@ message DrawLine
     required dmMath.Point3 end_point = 2;
     required dmMath.Vector4 color = 3;
 }
+/*# draw a line on the screen
+ * Draw a line on the screen. This should mostly be used for debugging purposes.
+ *
+ * @message
+ * @name draw_circle
+ * @param radius [type:float] radius of the circle
+ * @param segment [type:int] segment amount
+ * @param angle_begin [type:float] begin angle
+ * @param angle_end [type:float] end angle 
+ * @param position [type:vector3] position of the circle
+ * @param color [type:vector4] color of the circle
+ * @examples
+ *
+ * ```lua
+ * -- draw a white line from (200, 200) to (200, 300)
+ * msg.post("@render:", "draw_circle", { 
+     radius = 10, 
+     segment = 32,
+     angle_begin = 180,
+     angle_begin = 360,
+     position = vmath.vector3(200, 200, 0), 
+     color = vmath.vector4(1, 1, 1, 1) } )
+ * ```
+ */
+message DrawCircle
+{
+    required float radius = 1;
+    required uint32 segment = 2;
+    required float angle_begin = 3;
+    required float angle_end = 4;
+    required dmMath.Point3 position= 5;
+    required dmMath.Vector4 color = 6;
+}
+/*# draw a rectangle on the screen
+ * Draw a line on the screen. This should mostly be used for debugging purposes.
+ *
+ * @message
+ * @name draw_rectangle
+ * @param v1 [type:vector3] v1 of the rectangle
+ * @param color [type:vector4] color of the line
+ * @examples
+ *
+ * ```lua
+ * -- draw a white rectangle
+ * msg.post("@render:", "draw_rectangle", { v1 = vmath.vector3(200, 200, 0), v2 = vmath.vector3(200, 300, 0), v3 = vmath.vector3(200, 300, 0) ,v4 = vmath.vector3(200, 300, 0), color = vmath.vector4(1, 1, 1, 1) } )
+ * ```
+ */
+message DrawRectangle
+{
+    required dmMath.Point3 v1 = 1;
+    required dmMath.Point3 v2 = 2;
+    required dmMath.Point3 v3 = 3;
+    required dmMath.Point3 v4 = 4;
+    required dmMath.Vector4 color = 5;
+}
 
 /*# reports a window size change
  * Reports a change in window size. This is initiated on window resize on desktop or by orientation changes

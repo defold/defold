@@ -113,7 +113,11 @@ namespace dmGraphics
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);
+    typedef void (*BlendColorFn)(HContext context, float R, float G, float B, float A);
+    typedef void (*BlendEquationFn)(HContext context, BlendFactor mode);
+    typedef void (*BlendEquationSeparateFn)(HContext context, BlendFactor mode, BlendFactor modeAlpha);
     typedef void (*SetBlendFuncFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+    typedef void (*BlendFuncSeparateFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor, BlendFactor source_alpha, BlendFactor destinaton_alpha);
     typedef void (*SetColorMaskFn)(HContext context, bool red, bool green, bool blue, bool alpha);
     typedef void (*SetDepthMaskFn)(HContext context, bool mask);
     typedef void (*SetDepthFuncFn)(HContext context, CompareFunc func);
@@ -219,6 +223,10 @@ namespace dmGraphics
         EnableStateFn m_EnableState;
         DisableStateFn m_DisableState;
         SetBlendFuncFn m_SetBlendFunc;
+        BlendFuncSeparateFn m_BlendFuncSeparate;
+        BlendColorFn m_BlendColor;
+        BlendEquationFn m_BlendEquation;
+        BlendEquationSeparateFn m_BlendEquationSeparate;
         SetColorMaskFn m_SetColorMask;
         SetDepthMaskFn m_SetDepthMask;
         SetDepthFuncFn m_SetDepthFunc;

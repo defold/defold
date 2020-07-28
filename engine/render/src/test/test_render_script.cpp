@@ -367,6 +367,24 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     ASSERT_EQ(1u, command->m_Operands[0]);
     ASSERT_EQ(2u, command->m_Operands[1]);
 
+     command = &commands[11];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_BLEND_FUNC_SEPARATE, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_COLOR, (int32_t)command->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_ONE, (int32_t)command->m_Operands[2]);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_SRC_COLOR, (int32_t)command->m_Operands[3]);
+    
+    command = &commands[12];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_BLEND_EQUATION, command->m_Type);
+    ASSERT_EQ(dmGraphics::BLEND_FACTOR_FUNC_ADD, (int32_t)command->m_Operands[0]);
+
+    command = &commands[13];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_BLEND_COLOR, command->m_Type);
+    ASSERT_EQ(1.0, (float)command->m_Operands[0]);
+    ASSERT_EQ(1.0, (float)command->m_Operands[1]);
+    ASSERT_EQ(1.0, (float)command->m_Operands[2]);
+    ASSERT_EQ(1.0, (float)command->m_Operands[3]);
+
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);

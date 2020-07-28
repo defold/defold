@@ -118,9 +118,32 @@ namespace dmRender
                     delete matrix;
                     break;
                 }
+                case COMMAND_TYPE_BLEND_COLOR: 
+                {
+                    // dmLogInfo("render_command.cpp -- BlendColor: (%f)-(%f)-(%f)-(%f)", (float)c->m_Operands[0], (float)c->m_Operands[1], (float)c->m_Operands[2], (float)c->m_Operands[3]);
+                    dmGraphics::BlendColor(context, (float)c->m_Operands[0], (float)c->m_Operands[1], (float)c->m_Operands[2], (float)c->m_Operands[3]);
+                    break;
+                }
+                case COMMAND_TYPE_BLEND_EQUATION: {
+                    dmGraphics::BlendEquation(context, (dmGraphics::BlendFactor)c->m_Operands[0]);
+                    break;
+                }
+                case COMMAND_TYPE_BLEND_EQUATION_SEPARATE: {
+                    dmGraphics::BlendEquationSeparate(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
+                    break;
+                }
                 case COMMAND_TYPE_SET_BLEND_FUNC:
                 {
                     dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor)c->m_Operands[0], (dmGraphics::BlendFactor)c->m_Operands[1]);
+                    break;
+                }
+                case COMMAND_TYPE_BLEND_FUNC_SEPARATE:
+                {
+                    dmGraphics::BlendFuncSeparate(context, 
+                    (dmGraphics::BlendFactor)c->m_Operands[0], 
+                    (dmGraphics::BlendFactor)c->m_Operands[1], 
+                    (dmGraphics::BlendFactor)c->m_Operands[2], 
+                    (dmGraphics::BlendFactor)c->m_Operands[3]);
                     break;
                 }
                 case COMMAND_TYPE_SET_COLOR_MASK:

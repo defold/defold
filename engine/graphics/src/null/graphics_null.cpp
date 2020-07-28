@@ -1104,8 +1104,15 @@ namespace dmGraphics
     {
         assert(context);
     }
-
+    static void NullBlendEquation(HContext context, BlendFactor mode)
+    {
+        assert(context);
+    }
     static void NullSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
+    {
+        assert(context);
+    }
+    static void NullBlendFuncSeparate(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor,BlendFactor source_alpha, BlendFactor destinaton_alpha)
     {
         assert(context);
     }
@@ -1277,7 +1284,9 @@ namespace dmGraphics
         fn_table.m_SetViewport = NullSetViewport;
         fn_table.m_EnableState = NullEnableState;
         fn_table.m_DisableState = NullDisableState;
+        fn_table.m_BlendEquation = NullBlendEquation;
         fn_table.m_SetBlendFunc = NullSetBlendFunc;
+        fn_table.m_BlendFuncSeparate = NullBlendFuncSeparate;
         fn_table.m_SetColorMask = NullSetColorMask;
         fn_table.m_SetDepthMask = NullSetDepthMask;
         fn_table.m_SetDepthFunc = NullSetDepthFunc;

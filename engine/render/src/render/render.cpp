@@ -88,7 +88,7 @@ namespace dmRender
     , m_FragmentShaderDescSize(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
-    , m_MaxDebugVertexCount(0)
+    , m_MaxDebugVertexCount(1024)//TrungB: Increase init VertexCount size
     {
 
     }

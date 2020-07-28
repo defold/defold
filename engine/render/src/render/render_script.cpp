@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1508,6 +1508,163 @@ namespace dmRender
       * @variable
       */
 
+     /*#
+     * @name render.BLEND_FUNC_ADD
+     * @variable
+     */
+
+    /*#
+     * @name render.BLEND_FUNC_SUBTRACT
+     * @variable
+     */
+
+
+    /*#
+     * @name render.BLEND_FUNC_REVERSE_SUBTRACT
+     * @variable
+     */
+
+
+    /*#
+     * @name render.BLEND_MIN
+     * @variable
+     */
+
+
+    /*#
+     * @name render.BLEND_MAX
+     * @variable
+     */
+
+    /*# sets the blending color function
+     * Added by .GEARS
+     * Original read from glBlendColor function.
+     * RGBA ranging in [0.0~1.0]
+     * 
+     * @name render.blend_color
+     * @param r [type:number] red 
+     * @param g [type:number] green 
+     * @param b [type:number] blue
+     * @param a [type:number] alpha 
+     * @examples
+     *
+     * Set the blend func to the most common one:
+     *
+     * ```lua
+     * render.blend_color(1.0, 0.0, 0.0, 1.0) -- red
+     * ```
+     */
+    int RenderScript_BlendColor(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[4];
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            factors[i] = luaL_checknumber(L, 1 + i);
+        }
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            if (factors[i] < 0.0 || factors[i] > 1.0)
+            {
+                return luaL_error(L, "Invalid blend types: %s.blend_equation(self, %d, %d, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1], factors[2], factors[3]);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_BLEND_COLOR, factors[0], factors[1], factors[2], factors[3])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+    /*# sets the blending equation function
+     * Added by .GEARS
+     * Specifies the arithmetic used when computing pixel values that are written to the frame
+     * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
+     * pixel values with the destination pixel values already in the frame buffer.
+     * Blending is initially disabled.
+     *
+     * `mode` specifies which mode is used to the source color components.
+     *
+     * Blend Equation function `(render.ADD, render.SUBSTRACT, render.MIN, render.MAX...)` is useful for
+     * drawing with transparency when the drawn objects are sorted from farthest to nearest.
+     * It is also useful for drawing antialiased points and lines in arbitrary order.
+     *
+     * @name render.blend_equation
+     * @param mode [type:constant] blend mode
+     * @examples
+     *
+     * Set the blend func to the most common one:
+     *
+     * ```lua
+     * render.blend_equation(render.BLEND_FUNC_ADD)
+     * ```
+     */
+    int RenderScript_BlendEquation(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factor;
+        factor = luaL_checknumber(L, 1);
+        if (factor != dmGraphics::BLEND_FACTOR_FUNC_ADD &&
+            factor != dmGraphics::BLEND_FACTOR_FUNC_SUBTRACT &&
+            factor != dmGraphics::BLEND_FACTOR_FUNC_REVERSE_SUBTRACT &&
+            factor != dmGraphics::BLEND_FACTOR_MIN &&
+            factor != dmGraphics::BLEND_FACTOR_MAX
+        ){
+            return luaL_error(L, "Invalid blend types: %s.blend_equation(self, %d)", RENDER_SCRIPT_LIB_NAME, factor);
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_BLEND_EQUATION, factor)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*# sets the blending equation function
+     * Added by .GEARS
+     * Specifies the arithmetic used when computing pixel values that are written to the frame
+     * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
+     * pixel values with the destination pixel values already in the frame buffer.
+     * Blending is initially disabled.
+     *
+     * `mode` specifies which mode is used to the source color components.
+     *
+     * Blend Equation function `(render.ADD, render.SUBSTRACT, render.MIN, render.MAX...)` is useful for
+     * drawing with transparency when the drawn objects are sorted from farthest to nearest.
+     * It is also useful for drawing antialiased points and lines in arbitrary order.
+     *
+     * @name render.blend_equation_separate
+     * @param mode [type:constant] blend mode
+     * @param modeAlpha [type:constant] blend mode alpha
+     * @examples
+     *
+     * Set the blend func to the most common one:
+     *
+     * ```lua
+     * render.blend_equation_alpha(render.BLEND_FUNC_ADD, render.BLEND_FUNC_ADD)
+     * ```
+     */
+    int RenderScript_BlendEquationSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            factors[i] = luaL_checknumber(L, 1 + i);
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            if (factors[i] != dmGraphics::BLEND_FACTOR_FUNC_ADD &&
+                factors[i] != dmGraphics::BLEND_FACTOR_FUNC_SUBTRACT &&
+                factors[i] != dmGraphics::BLEND_FACTOR_FUNC_REVERSE_SUBTRACT &&
+                factors[i] != dmGraphics::BLEND_FACTOR_MIN &&
+                factors[i] != dmGraphics::BLEND_FACTOR_MAX)
+            {
+                return luaL_error(L, "Invalid blend types: %s.blend_equation(self, %d, %d)", RENDER_SCRIPT_LIB_NAME, factors[0], factors[1]);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_BLEND_EQUATION_SEPARATE, factors[0], factors[1])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
      /*# sets the blending function
      *
      * Specifies the arithmetic used when computing pixel values that are written to the frame
@@ -1605,6 +1762,109 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+     /*# sets the blending function separately
+     * Added by .GEARS
+     * Specifies the arithmetic used when computing pixel values that are written to the frame
+     * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
+     * pixel values with the destination pixel values already in the frame buffer.
+     * Blending is initially disabled.
+     *
+     * `source_factor` specifies which method is used to scale the source color components.
+     * `destination_factor` specifies which method is used to scale the destination color
+     * components.
+     * `source_alpha` specifies which method is used to scale the source alpha components.
+     * `destination_alpha` specifies which method is used to scale the destination alpha
+     * components.
+     *
+     * Source color components are referred to as (R<sub>s</sub>,G<sub>s</sub>,B<sub>s</sub>,A<sub>s</sub>).
+     * Destination color components are referred to as (R<sub>d</sub>,G<sub>d</sub>,B<sub>d</sub>,A<sub>d</sub>).
+     * The color specified by setting the blendcolor is referred to as (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>).
+     *
+     * The source scale factor is referred to as (s<sub>R</sub>,s<sub>G</sub>,s<sub>B</sub>,s<sub>A</sub>).
+     * The destination scale factor is referred to as (d<sub>R</sub>,d<sub>G</sub>,d<sub>B</sub>,d<sub>A</sub>).
+     *
+     * The color values have integer values between 0 and (k<sub>R</sub>,k<sub>G</sub>,k<sub>B</sub>,k<sub>A</sub>), where k<sub>c</sub> = 2<sup>m<sub>c</sub></sup> - 1 and m<sub>c</sub> is the number of bitplanes for that color. I.e for 8 bit color depth, color values are between `0` and `255`.
+
+     * Available factor constants and corresponding scale factors:
+     *
+     * Factor constant                         | Scale factor (f<sub>R</sub>,f<sub>G</sub>,f<sub>B</sub>,f<sub>A</sub>)
+     * --------------------------------------- | -----------------------
+     * `render.BLEND_ZERO`                     | (0,0,0,0)
+     * `render.BLEND_ONE`                      | (1,1,1,1)
+     * `render.BLEND_SRC_COLOR`                | (R<sub>s</sub>/k<sub>R</sub>,G<sub>s</sub>/k<sub>G</sub>,B<sub>s</sub>/k<sub>B</sub>,A<sub>s</sub>/k<sub>A</sub>)
+     * `render.BLEND_ONE_MINUS_SRC_COLOR`      | (1,1,1,1) - (R<sub>s</sub>/k<sub>R</sub>,G<sub>s</sub>/k<sub>G</sub>,B<sub>s</sub>/k<sub>B</sub>,A<sub>s</sub>/k<sub>A</sub>)
+     * `render.BLEND_DST_COLOR`                | (R<sub>d</sub>/k<sub>R</sub>,G<sub>d</sub>/k<sub>G</sub>,B<sub>d</sub>/k<sub>B</sub>,A<sub>d</sub>/k<sub>A</sub>)
+     * `render.BLEND_ONE_MINUS_DST_COLOR`      | (1,1,1,1) - (R<sub>d</sub>/k<sub>R</sub>,G<sub>d</sub>/k<sub>G</sub>,B<sub>d</sub>/k<sub>B</sub>,A<sub>d</sub>/k<sub>A</sub>)
+     * `render.BLEND_SRC_ALPHA`                | (A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>)
+     * `render.BLEND_ONE_MINUS_SRC_ALPHA`      | (1,1,1,1) - (A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>,A<sub>s</sub>/k<sub>A</sub>)
+     * `render.BLEND_DST_ALPHA`                | (A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>)
+     * `render.BLEND_ONE_MINUS_DST_ALPHA`      | (1,1,1,1) - (A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>,A<sub>d</sub>/k<sub>A</sub>)
+     * `render.BLEND_CONSTANT_COLOR`           | (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>)
+     * `render.BLEND_ONE_MINUS_CONSTANT_COLOR` | (1,1,1,1) - (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>)
+     * `render.BLEND_CONSTANT_ALPHA`           | (A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>)
+     * `render.BLEND_ONE_MINUS_CONSTANT_ALPHA` | (1,1,1,1) - (A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>,A<sub>c</sub>)
+     * `render.BLEND_SRC_ALPHA_SATURATE`       | (i,i,i,1) where i = min(A<sub>s</sub>, k<sub>A</sub> - A<sub>d</sub>) /k<sub>A</sub>
+     *
+     * The blended RGBA values of a pixel comes from the following equations:
+     *
+     * - R<sub>d</sub> = min(k<sub>R</sub>, R<sub>s</sub> * s<sub>R</sub> + R<sub>d</sub> * d<sub>R</sub>)
+     * - G<sub>d</sub> = min(k<sub>G</sub>, G<sub>s</sub> * s<sub>G</sub> + G<sub>d</sub> * d<sub>G</sub>)
+     * - B<sub>d</sub> = min(k<sub>B</sub>, B<sub>s</sub> * s<sub>B</sub> + B<sub>d</sub> * d<sub>B</sub>)
+     * - A<sub>d</sub> = min(k<sub>A</sub>, A<sub>s</sub> * s<sub>A</sub> + A<sub>d</sub> * d<sub>A</sub>)
+     *
+     * Blend Separate function `(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA, render.BLEND_ONE, render.BLEND_ZERO )` is useful for
+     * drawing with transparency when the drawn objects are sorted from farthest to nearest.
+     * It is also useful for drawing antialiased points and lines in arbitrary order.
+     *
+     * @name render.blend_func_separate
+     * @param source_factor [type:constant] source factor
+     * @param destination_factor [type:constant] destination factor
+     * @param source_alpha [type:constant] source alpha
+     * @param destination_alpha [type:constant] destination alpha
+     * @examples
+     *
+     * Set the blend func to the most common one:
+     *
+     * ```lua
+     * render.blend_func_separate(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA, render.BLEND_ONE, render.BLEND_ZERO )
+     * ```
+     */
+    int RenderScript_BlendFuncSeparate(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t factors[4];
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            factors[i] = luaL_checknumber(L, 1+i);
+        }
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            if (factors[i] != dmGraphics::BLEND_FACTOR_ZERO &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE &&
+                factors[i] != dmGraphics::BLEND_FACTOR_SRC_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_DST_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_SRC_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_DST_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_SRC_ALPHA_SATURATE &&
+                factors[i] != dmGraphics::BLEND_FACTOR_CONSTANT_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR &&
+                factors[i] != dmGraphics::BLEND_FACTOR_CONSTANT_ALPHA &&
+                factors[i] != dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA)
+            {
+                return luaL_error(L,
+                "Invalid blend types: %s.set_blend_func(self, %d, %d, %d, %d)",
+                RENDER_SCRIPT_LIB_NAME, factors[0], factors[1], factors[2], factors[3]);
+            }
+        }
+        if (InsertCommand(i, Command(COMMAND_TYPE_BLEND_FUNC_SEPARATE, factors[0], factors[1], factors[2], factors[3])))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
     /*# sets the color mask
      *
      * Specifies whether the individual color components in the frame buffer is enabled for writing (`true`) or disabled (`false`). For example, if `blue` is `false`, nothing is written to the blue component of any pixel in any of the color buffers, regardless of the drawing operation attempted. Note that writing are either enabled or disabled for entire color components, not the individual bits of a component.
@@ -2316,45 +2576,48 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    static const luaL_reg Render_methods[] =
-    {
-        {"enable_state",                    RenderScript_EnableState},
-        {"disable_state",                   RenderScript_DisableState},
-        {"render_target",                   RenderScript_RenderTarget},
-        {"delete_render_target",            RenderScript_DeleteRenderTarget},
-        {"set_render_target",               RenderScript_SetRenderTarget},
-        {"enable_render_target",            RenderScript_EnableRenderTarget},
-        {"disable_render_target",           RenderScript_DisableRenderTarget},
-        {"set_render_target_size",          RenderScript_SetRenderTargetSize},
-        {"enable_texture",                  RenderScript_EnableTexture},
-        {"disable_texture",                 RenderScript_DisableTexture},
-        {"get_render_target_width",         RenderScript_GetRenderTargetWidth},
-        {"get_render_target_height",        RenderScript_GetRenderTargetHeight},
-        {"clear",                           RenderScript_Clear},
-        {"set_viewport",                    RenderScript_SetViewport},
-        {"set_view",                        RenderScript_SetView},
-        {"set_projection",                  RenderScript_SetProjection},
-        {"set_blend_func",                  RenderScript_SetBlendFunc},
-        {"set_color_mask",                  RenderScript_SetColorMask},
-        {"set_depth_mask",                  RenderScript_SetDepthMask},
-        {"set_depth_func",                  RenderScript_SetDepthFunc},
-        {"set_stencil_mask",                RenderScript_SetStencilMask},
-        {"set_stencil_func",                RenderScript_SetStencilFunc},
-        {"set_stencil_op",                  RenderScript_SetStencilOp},
-        {"set_cull_face",                   RenderScript_SetCullFace},
-        {"set_polygon_offset",              RenderScript_SetPolygonOffset},
-        {"draw",                            RenderScript_Draw},
-        {"draw_debug3d",                    RenderScript_DrawDebug3d},
-        {"draw_debug2d",                    RenderScript_DrawDebug2d},
-        {"get_width",                       RenderScript_GetWidth},
-        {"get_height",                      RenderScript_GetHeight},
-        {"get_window_width",                RenderScript_GetWindowWidth},
-        {"get_window_height",               RenderScript_GetWindowHeight},
-        {"predicate",                       RenderScript_Predicate},
-        {"constant_buffer",                 RenderScript_ConstantBuffer},
-        {"enable_material",                 RenderScript_EnableMaterial},
-        {"disable_material",                RenderScript_DisableMaterial},
-        {0, 0}
+    static const luaL_reg Render_methods[] = {
+        { "enable_state", RenderScript_EnableState },
+        { "disable_state", RenderScript_DisableState },
+        { "render_target", RenderScript_RenderTarget },
+        { "delete_render_target", RenderScript_DeleteRenderTarget },
+        { "set_render_target", RenderScript_SetRenderTarget },
+        { "enable_render_target", RenderScript_EnableRenderTarget },
+        { "disable_render_target", RenderScript_DisableRenderTarget },
+        { "set_render_target_size", RenderScript_SetRenderTargetSize },
+        { "enable_texture", RenderScript_EnableTexture },
+        { "disable_texture", RenderScript_DisableTexture },
+        { "get_render_target_width", RenderScript_GetRenderTargetWidth },
+        { "get_render_target_height", RenderScript_GetRenderTargetHeight },
+        { "clear", RenderScript_Clear },
+        { "set_viewport", RenderScript_SetViewport },
+        { "set_view", RenderScript_SetView },
+        { "set_projection", RenderScript_SetProjection },
+        { "blend_color", RenderScript_BlendColor },
+        { "blend_equation", RenderScript_BlendEquation },
+        { "blend_equation_separate", RenderScript_BlendEquationSeparate },
+        { "set_blend_func", RenderScript_SetBlendFunc },
+        { "blend_func_separate", RenderScript_BlendFuncSeparate },
+        { "set_color_mask", RenderScript_SetColorMask },
+        { "set_depth_mask", RenderScript_SetDepthMask },
+        { "set_depth_func", RenderScript_SetDepthFunc },
+        { "set_stencil_mask", RenderScript_SetStencilMask },
+        { "set_stencil_func", RenderScript_SetStencilFunc },
+        { "set_stencil_op", RenderScript_SetStencilOp },
+        { "set_cull_face", RenderScript_SetCullFace },
+        { "set_polygon_offset", RenderScript_SetPolygonOffset },
+        { "draw", RenderScript_Draw },
+        { "draw_debug3d", RenderScript_DrawDebug3d },
+        { "draw_debug2d", RenderScript_DrawDebug2d },
+        { "get_width", RenderScript_GetWidth },
+        { "get_height", RenderScript_GetHeight },
+        { "get_window_width", RenderScript_GetWindowWidth },
+        { "get_window_height", RenderScript_GetWindowHeight },
+        { "predicate", RenderScript_Predicate },
+        { "constant_buffer", RenderScript_ConstantBuffer },
+        { "enable_material", RenderScript_EnableMaterial },
+        { "disable_material", RenderScript_DisableMaterial },
+        { 0, 0 }
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
@@ -2458,6 +2721,12 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_COLOR);
         REGISTER_BLEND_CONSTANT(CONSTANT_ALPHA);
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
+        REGISTER_BLEND_CONSTANT(FUNC_ADD);
+        REGISTER_BLEND_CONSTANT(FUNC_SUBTRACT);
+        REGISTER_BLEND_CONSTANT(FUNC_REVERSE_SUBTRACT);
+        REGISTER_BLEND_CONSTANT(MIN);
+        REGISTER_BLEND_CONSTANT(MAX);
+
 
 #undef REGISTER_BLEND_CONSTANT
 
@@ -2858,6 +3127,18 @@ bail:
             {
                 dmRenderDDF::DrawLine* dl = (dmRenderDDF::DrawLine*)message->m_Data;
                 Line3D(instance->m_RenderContext, dl->m_StartPoint, dl->m_EndPoint, dl->m_Color, dl->m_Color);
+                return;
+            }
+            else if (descriptor == dmRenderDDF::DrawCircle::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawCircle* dl = (dmRenderDDF::DrawCircle*)message->m_Data;
+                Circle2D(instance->m_RenderContext, dl->m_Radius, dl->m_Segment, dl->m_AngleBegin, dl->m_AngleEnd, dl->m_Position, dl->m_Color);
+                return;
+            }
+            else if (descriptor == dmRenderDDF::DrawRectangle::m_DDFDescriptor)
+            {
+                dmRenderDDF::DrawRectangle* dl = (dmRenderDDF::DrawRectangle*)message->m_Data;
+                Rectangle2D(instance->m_RenderContext, dl->m_V1, dl->m_V2, dl->m_V3, dl->m_V4, dl->m_Color);
                 return;
             }
             else if (descriptor == dmRenderDDF::Resize::m_DDFDescriptor)

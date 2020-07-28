@@ -51,6 +51,36 @@ namespace dmGameSystem
      * @namespace physics
      */
 
+    /*# Physics.COPY_POSITION_X
+     *
+     * @name physics.COPY_POSITION_X
+     * @variable
+     */
+
+    /*# Physics.COPY_POSITION_Y
+     *
+     * @name physics.COPY_POSITION_Y
+     * @variable
+     */
+
+    /*# Physics.COPY_ROTATION_Z
+     *
+     * @name physics.COPY_ROTATION_Z
+     * @variable
+     */
+
+    /*# Physics.COPY_LINEAR_VEC
+     *
+     * @name physics.COPY_LINEAR_VEC
+     * @variable
+     */
+
+    /*# Physics.COPY_ANGULAR_VEC
+     *
+     * @name physics.COPY_ANGULAR_VEC
+     * @variable
+     */
+
     /*# spring joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:
@@ -988,16 +1018,85 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# set physics step per frame.
+    /*# set the gravity scale for collection
      *
-     * Set the amount of steps for physics 2D to update inside Step().
+     * Set the gravity in runtime. The gravity change is not global, it will only affect
+     * the collection that the function is called from.
+     *
+     * Note: For 2D physics the z component of the gravity vector will be ignored.
+     *
+     * @name physics.set_gravity_scale
+     * @param body [type:string|hash|url] collision-object-id
+     * @param gravity [type:vector3] the new gravity vector
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     -- Set "upside down" gravity scale for this collection.
+     *     physics.set_gravity_scale("#body", 1.5)
+     * end
+     * ```
+     */
+    static int Physics_SetGravityScale(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        float gravityScale = lua_tonumber(L, 2);
+
+        dmGameSystem::SetGravityScale(comp, gravityScale);
+
+        return 0;
+    }
+
+    static int Physics_SetAllowSleep(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool allow_sleep = lua_tonumber(L, 2);
+
+        dmGameSystem::SetAllowSleep(comp, allow_sleep);
+
+        return 0;
+    }
+
+    /*# set physics step per frame.
+     * Set the amount of steps for physics 2D to update inside Step() function.
+     * Added by dotGears/TrungB.
      *
      * , velocityIteration, positionIteration
-     * @name physics.set_step_per_frame   
+     * @name physics.set_step_per_frame
      * @param  stepIteration [type:integer] steps per frame that Physics2D will update
      * @param  velocityIteration [type:integer] iteration of velocity per step
      * @param  positionIteration [type:integer] iteration of position per step
-     * 
+     *
      * @examples
      *
      * ```lua
@@ -1006,7 +1105,8 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int Physics_SetStepPerFrame(lua_State* L)
+    static int
+    Physics_SetStepPerFrame(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1033,8 +1133,335 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int
-    Physics_SetFlipInternal(lua_State* L, bool horizontal)
+    /*# Set alpha tag to a body, which is by then will be updated more per frame
+     * along with the world step.
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_controllable
+     * @param  collisionobject [type:string|hash|url] mark a body with alpha tag.
+     * @param  flag [type:boolean] mark a body with alpha tag or disable it.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_controllable("#body", true)
+     * end
+     * ```
+     */
+    static int Physics_SetControllable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flag = lua_toboolean(L, 2);
+
+        dmGameSystem::SetControllable(comp, flag);
+
+        return 0;
+    }
+
+    /*# Set sleep allow for collision object.
+     * Added by dotGears/TrungA
+     *
+     * @name physics.set_allow_sleep
+     * @param  collisionobject [type:string|hash|url] target body.
+     * @param  flag [type:boolean] mark a body to allow sleeping or not.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_allow_sleep("#body", true)
+     * end
+     * ```
+     */
+    static int Physics_SetSleepingAllowed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flag = lua_toboolean(L, 2);
+
+        dmGameSystem::SetSleepingAllowed(comp, flag);
+
+        return 0;
+    }
+
+    /*# Set bullet allow for collision object.
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_bullet
+     * @param  collisionobject [type:string|hash|url] target body.
+     * @param  flag [type:boolean] mark a body to allow sleeping or not.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_bullet("#body", true)
+     * end
+     * ```
+     */
+    static int Physics_SetBullet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        bool flag = lua_toboolean(L, 2);
+
+        dmGameSystem::SetBullet(comp, flag);
+
+        return 0;
+    }
+    /*# Set Master Body for an collision object
+     * Added by dotGears/TrungVu
+     *
+     * @name physics.set_master_body
+     * @param  collision_object [type:string|hash|url] current body
+     * @param  master_body [type:string|hash|url]  target body to be copied.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_master_body("#body_slave", "#body_master")
+     * end
+     * ```
+     */
+    static int Physics_SetMasterBody(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        void * master = 0x0;
+        GetCollisionObject(L, 2, collection, &master, &comp_world);
+
+        dmGameSystem::SetMasterBody(comp, master);
+
+        return 0;
+    }
+
+    /*# Add copy State to body
+     * Added by dotGears/TrungVu
+     *
+     * @name physics.copy_state
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     * @param  state [type:constant]  add copy state [0 ~ 4]
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.copy_state("#body_slave", physics.COPY_POSITION_X)
+     * end
+     * ```
+     */
+    static int Physics_CopyState(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        uint16_t state = luaL_checknumber(L, 2);
+
+        // dmLogInfo("Physics_CopyState -- CopyState:(%i)", state);
+        dmGameSystem::CopyState(comp, state);
+
+        return 0;
+    }
+
+    /*# Set copy ratio to body
+     * Added by dotGears/TheTrung
+     *
+     * @name physics.set_copy_ratio
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     * @param  ratio [type:number]  set copy ratio [0.0 ~ 1.0]
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_copy_ratio("#body_slave", 1.0)
+     * end
+     * ```
+     */
+    static int Physics_SetCopyRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        float ratio = luaL_checknumber(L, 2);
+
+        dmLogInfo("Physics_SetCopyRatio -- (%f)", ratio);
+        dmGameSystem::SetCopyRatio(comp, ratio);
+
+        return 0;
+    }
+
+    /*# Set copy ratio to body
+     * Added by dotGears/TheTrung
+     *
+     * @name physics.set_copy_disable
+     * @param  collision_object [type:string|hash|url] body that's cloning state.
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_copy_disable("#body_slave")
+     * end
+     * ```
+     */
+    static int Physics_SetCopyDisable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp                           = 0x0;
+        void* comp_world                     = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world))
+        {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp)
+        {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        dmLogInfo("Physics_SetCopyDisable ()");
+        dmGameSystem::SetCopyDisable(comp);
+
+        return 0;
+    }
+
+    /*# Set delta tag to a body, which is by then will be updated more per frame
+     * along with the world step.
+     * Added by dotGears/TrungB
+     *
+     * @name physics.set_delta_value
+     * @param  collisionobject [type:string|hash|url] string, hash or url of the collision-object
+     * @param  deltaX [type:float] delta value of body position
+     * @param  deltaY [type:float] delta value of body position
+     * @param  deltaZ [type:float] delta value of body position
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     physics.set_delta_value("#body", 1.0 ,2.0 , 0.0)
+     * end
+     * ```
+     */
+    static int Physics_SetDeltaValue(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+        void* comp = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!IsCollision2D(comp_world)) {
+            return DM_LUA_ERROR("function only available in 2D physics");
+        }
+
+        if (!comp) {
+            return DM_LUA_ERROR("couldn't find collision object"); // todo: add url
+        }
+
+        float alphaX = lua_tonumber(L, 2);
+        float alphaY = lua_tonumber(L, 3);
+        float alphaZ = lua_tonumber(L, 4);
+        ///
+        /// Need correct place to cast down pointer :
+        ///
+        dmGameSystem::SetDeltaValue(comp, alphaX, alphaY, alphaZ);
+
+        return 0;
+    }
+
+    static int Physics_SetFlipInternal(lua_State* L, bool horizontal)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1104,26 +1531,41 @@ namespace dmGameSystem
         return Physics_SetFlipInternal(L, false);
     }
 
-    static const luaL_reg PHYSICS_FUNCTIONS[] =
-    {
-        {"ray_cast",        Physics_RayCastAsync}, // Deprecated
-        {"raycast_async",   Physics_RayCastAsync},
-        {"raycast",         Physics_RayCast},
+    static const luaL_reg PHYSICS_FUNCTIONS[] = {
+        { "ray_cast", Physics_RayCastAsync }, // Deprecated
+        { "raycast_async", Physics_RayCastAsync },
+        { "raycast", Physics_RayCast },
 
-        {"create_joint",    Physics_CreateJoint},
-        {"destroy_joint",   Physics_DestroyJoint},
-        {"get_joint_properties", Physics_GetJointProperties},
-        {"set_joint_properties", Physics_SetJointProperties},
-        {"get_joint_reaction_force",  Physics_GetJointReactionForce},
-        {"get_joint_reaction_torque", Physics_GetJointReactionTorque},
+        { "create_joint", Physics_CreateJoint },
+        { "destroy_joint", Physics_DestroyJoint },
+        { "get_joint_properties", Physics_GetJointProperties },
+        { "set_joint_properties", Physics_SetJointProperties },
+        { "get_joint_reaction_force", Physics_GetJointReactionForce },
+        { "get_joint_reaction_torque", Physics_GetJointReactionTorque },
 
-        {"set_gravity",         Physics_SetGravity},
-        {"get_gravity",         Physics_GetGravity},
-        {"set_step_per_frame",  Physics_SetStepPerFrame},
+        { "set_gravity", Physics_SetGravity },
+        { "get_gravity", Physics_GetGravity },
 
-        {"set_hflip",       Physics_SetFlipH},
-        {"set_vflip",       Physics_SetFlipV},
-        {0, 0}
+        // Copying B2Body States
+        { "set_master_body", Physics_SetMasterBody },
+        { "copy_state", Physics_CopyState },
+        { "set_copy_ratio", Physics_SetCopyRatio },
+        { "set_copy_disable", Physics_SetCopyDisable },
+
+        // Set delta value during physics step
+        { "set_controllable", Physics_SetControllable },
+        { "set_allow_sleep", Physics_SetSleepingAllowed},
+        { "set_delta_value", Physics_SetDeltaValue },
+        { "set_bullet", Physics_SetBullet },
+
+        // Config Body/World
+        { "set_allow_sleep", Physics_SetAllowSleep },
+        { "set_gravity_scale", Physics_SetGravityScale },
+        { "set_step_per_frame", Physics_SetStepPerFrame },
+
+        { "set_hflip", Physics_SetFlipH },
+        { "set_vflip", Physics_SetFlipV },
+        { 0, 0 }
     };
 
     void ScriptPhysicsRegister(const ScriptLibContext& context)
@@ -1140,7 +1582,15 @@ namespace dmGameSystem
         SETCONSTANT(JOINT_TYPE_HINGE)
         SETCONSTANT(JOINT_TYPE_SLIDER)
 
- #undef SETCONSTANT
+        // Added by dotGears / TheTrung
+        // This is for CopyState enum as physics.COPY_
+        SETCONSTANT(COPY_POSITION_X)
+        SETCONSTANT(COPY_POSITION_Y)
+        SETCONSTANT(COPY_ROTATION_Z)
+        SETCONSTANT(COPY_LINEAR_VEC)
+        SETCONSTANT(COPY_ANGULAR_VEC)
+
+#undef SETCONSTANT
 
         lua_pop(L, 1);
 

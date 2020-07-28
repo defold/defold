@@ -63,10 +63,26 @@ namespace dmGameSystem
 
     void SetGravity(void* world, const Vectormath::Aos::Vector3& gravity);
     Vectormath::Aos::Vector3 GetGravity(void* _world);
-    // TrungB : custom step iteration
+    /// Added by dotGears/TrungB
     void SetWorld2DStepIteration(void* _world, int stepIteration, int velocityIteration, int positionIteration);
+    void SetDeltaValue(void* comp, float alphaX, float alphaY, float alphaZ);
+    void SetControllable(void* comp, bool flag);
+    void SetSleepingAllowed(void* comp, bool flag);
+    void SetBullet(void* comp, bool flag);
 
-    bool IsCollision2D(void* _world);
+    void SetGravityScale(void* comp, float gravityScale);
+    void SetAllowSleep(void* comp, bool allow_sleep);
+
+    void CopyState(void* comp, uint16_t state);
+    void SetCopyRatio(void* comp, float ratio);
+    void SetCopyDisable(void* comp);
+
+    //Added by dotGears / TrungA
+    void SetMasterBody(void* comp, void* master_body);
+    /// End of Passion
+
+    bool
+    IsCollision2D(void* _world);
     void SetCollisionFlipH(void* _component, bool flip);
     void SetCollisionFlipV(void* _component, bool flip);
 }

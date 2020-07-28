@@ -215,6 +215,11 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12,
         BLEND_FACTOR_CONSTANT_ALPHA           = 13,
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
+        BLEND_FACTOR_FUNC_ADD                 = 15,
+        BLEND_FACTOR_FUNC_SUBTRACT            = 16,
+        BLEND_FACTOR_FUNC_REVERSE_SUBTRACT    = 17,
+        BLEND_FACTOR_MIN                      = 18,
+        BLEND_FACTOR_MAX                      = 19,
     };
 
     // Compare func
@@ -642,7 +647,11 @@ namespace dmGraphics
 
     void EnableState(HContext context, State state);
     void DisableState(HContext context, State state);
+    void BlendColor(HContext context, float r, float g, float b, float a);
+    void BlendEquation(HContext context, BlendFactor mode);
+    void BlendEquationSeparate(HContext context, BlendFactor mode, BlendFactor modeAlpha);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+    void BlendFuncSeparate(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor,BlendFactor source_alpha, BlendFactor destinaton_alpha);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
     void SetDepthFunc(HContext context, CompareFunc func);
