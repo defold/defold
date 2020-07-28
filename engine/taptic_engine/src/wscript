@@ -20,3 +20,4 @@ def build(bld):
                     source = source,
                     target = 'TapticEngine')
 
+    apidoc_extract_task(bld, ['tapticengine.cpp'])
