@@ -60,8 +60,7 @@ DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
-PACKAGES_IOS_SDK="iPhoneOS13.5.sdk"
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.5.sdk"
+
 PACKAGES_MACOS_SDK="MacOSX10.15.sdk"
 
 ## Let's fixed the local SDK into this folder:
@@ -88,6 +87,31 @@ def get_xcode_filename():
 
 
 PACKAGES_XCODE_TOOLCHAIN = get_xcode_filename()
+
+
+def get_ios_version():
+    prefix = "iPhoneOS"
+    extension = ".sdk.tar.gz"
+
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(PACKAGES_FOLDER):
+        for file in f:
+            if prefix and extension in file:
+                # print(file)
+                files.append(file)
+
+    if len(files) > 0:
+        xcode_package = files[0].replace('.tar.gz', '')
+        print("[build.py] -- Found " + xcode_package)
+        return xcode_package
+    else:
+        return "iPhoneOS13.5.sdk"
+
+
+PACKAGES_IOS_SDK=get_ios_version()
+
+PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.2.sdk"
 
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
