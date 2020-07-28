@@ -107,13 +107,10 @@ public class SwitchBundler implements IBundler {
 
         boolean use_renderdoc = projectProperties.getBooleanValue("graphics", "use_renderdoc", false);
 
-        // since this can essentially be controlled in two places (build.yml, and in bob with --variant=debug/release)
-        // we cannot be certain what libraries we linked with.
-        // For now It should suffice to use the release versions of the libraries
-        String libDir = "Release";
-
+        // We need debug version to see the file system access logs
+        String libDir = isDebug ? "Develop" : "Release";
+        // We need debug lib when we use RenderDoc
         String vulkanLib = use_renderdoc ? "vulkanOpenGlDebug.nso" : "vulkan.nso";
-
 
         File mainSrc = platformToExeFileMap.get(targetPlatform);
         File nnrtldSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnrtld.nso"));
