@@ -7,7 +7,7 @@ import os, sys, re
 import waf_dynamo, waf_package
 import Task
 
-PACKAGES='bullet3d'.split()
+PACKAGES='bullet3d cares'.split()
 
 def get_packages():
     return PACKAGES
