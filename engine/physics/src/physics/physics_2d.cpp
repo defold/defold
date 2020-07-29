@@ -44,6 +44,8 @@ namespace dmPhysics
         : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
         , m_Context(context)
         , m_stepIteration(1)
+        , m_velocityIteration(16)
+        , m_positionIteration(8)
         , m_World(context->m_Gravity)
         , m_RayCastRequests()
         , m_DebugDraw(&context->m_DebugCallbacks)
@@ -442,7 +444,7 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
 
-            float inv_scale = world->m_Context->m_InvScale; 
+            float inv_scale = world->m_Context->m_InvScale;
             /// Added by .Gears/TrungB
 
             float deltaStep = dt / world->m_stepIteration;
@@ -1687,4 +1689,4 @@ namespace dmPhysics
         torque         = joint->GetReactionTorque(inv_dt) * inv_scale;
         return true;
     }
-} 
+}
