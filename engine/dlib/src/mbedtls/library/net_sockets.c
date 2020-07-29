@@ -409,7 +409,7 @@ int mbedtls_net_accept( mbedtls_net_context *bind_ctx,
 
             memcpy( client_ip, &addr4->sin_addr.s_addr, *ip_len );
         }
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
         else
         {
             struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) &client_addr;

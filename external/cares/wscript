@@ -28,13 +28,11 @@ def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
     packagedir = 'package/%s' % name
 
+    has_resolv = bld.env.PLATFORM in ('armv7-darwin','arm64-darwin','x86_64-ios')
+
     defines = ['NDEBUG', 'HAVE_CONFIG_H']
-
-    if bld.env.PLATFORM in ('armv7-darwin','arm64-darwin','x86_64-ios'):
-        defines += ['CARES_USE_LIBRESOLV']
-
-    if bld.env.PLATFORM not in ('armv7-android','arm64-android'):
-        defines += ['HAVE_INET_NET_PTON=1']
+    if has_resolv:
+        defines += ['CARES_USE_LIBRESOLV', 'HAVE_INET_NET_PTON=1', 'HAVE_INET_PTON=1']
 
     path = './%s/BulletCollision' % packagedir
     cares = bld.new_task_gen(features = 'cc cstaticlib',
@@ -56,9 +54,6 @@ def build(bld):
             continue
         pruned_source.append(s)
     cares.source = pruned_source
-
-    #cares.env.append_unique('CCFLAGS', '-H')
-
 
     install_dir = '${PREFIX}/%s-%s' % (APPNAME, VERSION)
     lib_dir = '%s/lib/%s' % (install_dir, bld.env.PLATFORM)

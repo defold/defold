@@ -182,7 +182,7 @@ TEST(Socket, IPv4)
     ASSERT_EQ(&instance.m_address[3], dmSocket::IPv4(&instance));
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, IPv6)
 {
     dmSocket::Address instance;
@@ -207,7 +207,7 @@ TEST(Socket, New_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, New_IPv6)
 {
     dmSocket::Socket instance = 0;
@@ -259,7 +259,7 @@ TEST(Socket, SetReuseAddress_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, SetReuseAddress_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -288,7 +288,7 @@ TEST(Socket, AddMembership_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, AddMembership_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -339,7 +339,7 @@ TEST(Socket, SetMulticastIf_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, SetMulticastIf_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -387,7 +387,7 @@ TEST(Socket, Delete_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, Delete_IPv6)
 {
     dmSocket::Result result = dmSocket::RESULT_OK;
@@ -456,7 +456,7 @@ TEST(Socket, Connect_IPv4_ThreadServer)
     dmThread::Join(thread);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, Connect_IPv6_ThreadServer)
 {
     // Setup server thread
@@ -537,7 +537,7 @@ TEST(Socket, Connect_IPv4_ConnectionRefused)
     dmThread::Join(thread);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, Connect_IPv6_ConnectionRefused)
 {
     dmSocket::Socket server = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -621,7 +621,7 @@ TEST(Socket, GetName_IPv4_Connected)
     dmThread::Join(thread);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, GetName_IPv6_Connected)
 {
     // Setup server thread
@@ -689,7 +689,7 @@ TEST(Socket, SetBlocking_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, SetBlocking_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -725,7 +725,7 @@ TEST(Socket, SetNoDelay_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, SetNoDelay_IPv6)
 {
     dmSocket::Socket instance = GetSocket(dmSocket::DOMAIN_IPV6);
@@ -764,7 +764,7 @@ TEST(Socket, SetTimeout_IPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, SetTimeout_IPv6)
 {
     dmSocket::Socket instance = 0;
@@ -800,7 +800,7 @@ TEST(Socket, AddressToIPString_IPv4)
     free(actual);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, AddressToIPString_IPv6_Empty)
 {
     dmSocket::Address address;
@@ -867,7 +867,7 @@ TEST(Socket, GetHostByName_IPv4_Localhost)
     ASSERT_EQ(0x0100007f, *dmSocket::IPv4(&address));
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, GetHostByName_IPv6_Localhost)
 {
     dmSocket::Address address;
@@ -895,7 +895,7 @@ TEST(Socket, GetHostByName_IPv4_External)
     ASSERT_EQ(dmSocket::DOMAIN_IPV4, address.m_family);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, GetHostByName_IPv6_External)
 {
 #if !defined(_WIN32)
@@ -923,7 +923,7 @@ TEST(Socket, GetHostByName_IPv4_Unavailable)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, result);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, GetHostByName_IPv6_Unavailable)
 {
     dmSocket::Address address;
@@ -967,7 +967,7 @@ TEST(Socket, ServerSocketIPv4)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, ServerSocketIPv6)
 {
     dmSocket::Socket socket;
@@ -1024,7 +1024,7 @@ TEST(Socket, ServerSocketIPv4_MultipleBind)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, ServerSocketIPv6_MultipleBind)
 {
     dmSocket::Socket socket1, socket2;
@@ -1088,7 +1088,7 @@ TEST(Socket, ServerSocketIPv4_Accept)
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, ServerSocketIPv6_Accept)
 {
     dmSocket::Socket socket;
@@ -1158,7 +1158,7 @@ TEST(Socket, GetIfAddrs)
     }
 }
 
-#if !defined(DM_NO_IPV6)
+#if !defined(DM_IPV6_UNSUPPORTED)
 TEST(Socket, Timeout)
 {
     const uint64_t timeout = 50 * 1000;
