@@ -16,10 +16,21 @@ def init():
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+    conf.check_tool('java')
+
     conf.sub_config('src')
+
+    conf.env.append_value('CPPPATH', "default/src")
+
+    platform = conf.env['PLATFORM']
+
+    if platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+            conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit'])
+
     conf.env['STATICLIB_TAPTICENGINE'] = 'tapticengine'
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="taptic_engine"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="taptic_engine"')
+
 
 def build(bld):
     bld.add_subdirs('src')
