@@ -89,13 +89,10 @@ def get_xcode_filename():
 PACKAGES_XCODE_TOOLCHAIN = get_xcode_filename()
 
 
-def get_ios_version():
-    prefix = "iPhoneOS"
-    extension = ".tar.gz"
-
+def get_ios_version(prefix, extension, backup):
     files = []
     # r=root, d=directories, f = files
-    for r, d, f in os.walk(PACKAGES_FOLDER):
+    for r, d, f in os.walk("./local_sdks"):
         for file in f:
             if prefix in file:
                 print(file)
@@ -105,13 +102,11 @@ def get_ios_version():
         ret = files[0].replace(extension, '')
         print("[waf_dynamo.py] -- Found iOS " + ret)
         return ret
-    else :
-        return "iPhoneOS13.5.sdk"
+    else:
+        return backup
 
-
-PACKAGES_IOS_SDK=get_ios_version()
-
-PACKAGES_IOS_SIMULATOR_SDK="iPhoneSimulator13.2.sdk"
+PACKAGES_IOS_SDK=get_ios_version("iPhoneOS", ".tar.gz", "iPhoneOS13.5.sdk")
+PACKAGES_IOS_SIMULATOR_SDK=get_ios_version("iPhoneSimulator", ".tar.gz", "iPhoneSimulator13.5.sdk")
 
 WINDOWS_SDK_10_VERSION="10.0.18362.0"
 WINDOWS_MSVC_2019_VERSION="14.25.28610"
