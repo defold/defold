@@ -90,7 +90,7 @@ using namespace Vectormath::Aos;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetImmersiveMode(int);
+    extern void _glfwAndroidSetFullscreenParameters(int, int);
 }
 #endif
 
@@ -1115,7 +1115,8 @@ namespace dmEngine
         }
         {
             int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            _glfwAndroidSetImmersiveMode(immersive_mode);
+            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
+            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 

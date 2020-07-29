@@ -634,6 +634,10 @@
    :default false,
    :path ["android" "immersive_mode"]}
   {:type :boolean,
+   :help "extend to display cutout",
+   :default true,
+   :path ["android" "display_cutout"]}
+  {:type :boolean,
    :help "helps you debug the application and also get files from the application",
    :default false,
    :path ["android" "debuggable"]}
