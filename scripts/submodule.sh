@@ -69,17 +69,17 @@ done
         --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
 )
 # Added by dotGears / TheTrung
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
-(
-    ENGINE_PATH="./tmp/dynamo_home/bin/x86_64-darwin/"
-    EDITOR_PATH="./editor/tmp/unpack/x86_64-darwin/bin/"
-    echo "--------------------------------------------------"
-    echo "COPY TO EDITOR ..."
-    cp -r "${ENGINE_PATH}" "${EDITOR_PATH}"
-    echo "copied \nfrom ${GREEN}${ENGINE_PATH}${NC} \nto ${GREEN}${EDITOR_PATH}${NC}"
-    echo "--------------------------------------------------"
-)
+# GREEN='\033[0;32m'
+# NC='\033[0m' # No Color
+# (
+#     ENGINE_PATH="./tmp/dynamo_home/bin/x86_64-darwin/"
+#     EDITOR_PATH="./editor/tmp/unpack/x86_64-darwin/bin/"
+#     echo "--------------------------------------------------"
+#     echo "COPY TO EDITOR ..."
+#     cp -r "${ENGINE_PATH}" "${EDITOR_PATH}"
+#     echo "copied \nfrom ${GREEN}${ENGINE_PATH}${NC} \nto ${GREEN}${EDITOR_PATH}${NC}"
+#     echo "--------------------------------------------------"
+# )
 
 # ----------------------------------------------------------------------------
 # teardown
