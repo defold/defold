@@ -16,7 +16,7 @@ SHELL_CATALINA__arm64="echo \"alias shell_defold_arm64='./scripts/build.py shell
 SETUP="sh setup_env.sh"
 BUNDLE="sh bundle_editor.sh $2"
 
-SUB_MODULE="sh ./scripts/submodule.sh x86_64-darwin $2 $3 $4 $5"
+SUB_MODULE="sh ./scripts/submodule.sh config_in_waf $2 $3 $4 $5 $6"
 WAF_CONF="(cd $3;PREFIX=\$DYNAMO_HOME waf configure --platform=$2)"
 
 BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
