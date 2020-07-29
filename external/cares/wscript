@@ -30,7 +30,7 @@ def build(bld):
 
     has_resolv = bld.env.PLATFORM in ('armv7-darwin','arm64-darwin','x86_64-ios')
 
-    defines = ['NDEBUG', 'HAVE_CONFIG_H']
+    defines = ['NDEBUG', 'CARES_STATICLIB']
     if has_resolv:
         defines += ['CARES_USE_LIBRESOLV', 'HAVE_INET_NET_PTON=1', 'HAVE_INET_PTON=1']
 
