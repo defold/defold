@@ -2,8 +2,16 @@ CD_DEFOLD_MOJAVE="echo \"#Shorthand for entering defold folder\nalias cd_defold=
 CD_DEFOLD_CATALINA="echo \"#Shorthand for entering defold folder\nalias cd_defold='cd $PWD'\" >> ~/.zshrc"
 
 SHELL="./scripts/build.py shell --platform=$2 --package-path=./local_sdks/"
-SHELL_MOJAVE="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.bash_profile"
-SHELL_CATALINA="echo \"#Shorthand for Defold Build Shell Command\nalias shell_defold='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
+
+SHELL_INTRO="echo \"#Shorthand for Defold Build Shell Command\" >> ~/.bash_profile"
+
+SHELL_MOJAVE_x86_64="echo \"alias shell_defold_x86_64='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.bash_profile"
+SHELL_MOJAVE__armv7="echo \"alias shell_defold_armv7='./scripts/build.py shell --platform=armv7-darwin --package-path=./local_sdks/'\" >> ~/.bash_profile"
+SHELL_MOJAVE__arm64="echo \"alias shell_defold_arm64='./scripts/build.py shell --platform=arm64-darwin --package-path=./local_sdks/'\" >> ~/.bash_profile"
+
+SHELL_CATALINA_x86_64="echo \"alias shell_defold_x86_64='./scripts/build.py shell --platform=x86_64-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
+SHELL_CATALINA__armv7="echo \"alias shell_defold_armv7='./scripts/build.py shell --platform=armv7-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
+SHELL_CATALINA__arm64="echo \"alias shell_defold_arm64='./scripts/build.py shell --platform=arm64-darwin --package-path=./local_sdks/'\" >> ~/.zshrc"
 
 SETUP="sh setup_env.sh"
 BUNDLE="sh bundle_editor.sh $2"
@@ -24,8 +32,8 @@ EDITOR="(cd editor/;lein init;lein run)"
 FORCE="sudo chmod -R 777 ./"
 BUILD_MODULE="./scripts/submodule.sh x86_64-darwin $2 $3"
 
-ENGINE_PATH="./tmp/dynamo_home/bin/x86_64-darwin/"
-EDITOR_PATH="./editor/tmp/unpack/x86_64-darwin/bin/"
+ENGINE_PATH="./tmp/dynamo_home/bin/$2/"
+EDITOR_PATH="./editor/tmp/unpack/$2/bin/"
 
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
@@ -67,7 +75,19 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     exit
     ;;
   -sh | --shell )
-    eval $SHELL
+    eval $SHELL_INTRO
+    case $2 in
+      mojave)
+        eval $SHELL_MOJAVE_x86_64
+        eval $SHELL_MOJAVE__armv7
+        eval $SHELL_MOJAVE__arm64
+        ;;
+      catalina)
+        eval $SHELL_CATALINA_x86_64
+        eval $SHELL_CATALINA__armv7
+        eval $SHELL_CATALINA__arm64
+        ;;
+    esac
     exit
     ;;
   -b | --editor )
@@ -120,7 +140,7 @@ while [[ "$1" =~ ^- && ! "$1" == "--" ]]; do case $1 in
     echo "__________________[COMMAND]___________________"
     echo "sh cmd.sh --setup | -s : for environment setup"
     echo "sh cmd.sh --shell | -sh: for shell x86_64-darwin | armv7-darwin | arm64..."
-    echo "sh cmd.sh --copy  | -cp: to copy dmengine -> editor"
+    echo "sh cmd.sh --copy  | -cp: to copy <platform> dmengine -> editor"
     echo "sh cmd.sh --engine| -e : for building engine alone"
     echo "sh cmd.sh --engine_ios_v7 | -ev7 : for building iOS armv7 engine"
     echo "sh cmd.sh --engine_ios_64 | -e64 : for building iOS arm64 engine"
