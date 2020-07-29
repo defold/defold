@@ -65,7 +65,7 @@
 /* #undef CARES_PULL_WS2TCPIP_H */
 #ifdef CARES_PULL_WS2TCPIP_H
 #  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN 1
+#    define WIN32_LEAN_AND_MEAN
 #  endif
 #  include <windows.h>
 #  include <winsock2.h>
@@ -74,20 +74,20 @@
 
 /* Configure process defines this to 1 when it finds out that system   */
 /* header file sys/types.h must be included by the external interface. */
-/* #undef CARES_PULL_SYS_TYPES_H */
+#define CARES_PULL_SYS_TYPES_H 1
 #ifdef CARES_PULL_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
 
 /* Configure process defines this to 1 when it finds out that system    */
 /* header file sys/socket.h must be included by the external interface. */
-/* #undef CARES_PULL_SYS_SOCKET_H */
+#define CARES_PULL_SYS_SOCKET_H 1
 #ifdef CARES_PULL_SYS_SOCKET_H
 #  include <sys/socket.h>
 #endif
 
 /* Integral data type used for ares_socklen_t. */
-#define CARES_TYPEOF_ARES_SOCKLEN_T int
+#define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
 
 /* Data type definition of ares_socklen_t. */
 typedef CARES_TYPEOF_ARES_SOCKLEN_T ares_socklen_t;
