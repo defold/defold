@@ -26,17 +26,37 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="13.5"
-IOS_SIMULATOR_SDK_VERSION="13.5"
+## Let's fixed the local SDK into this folder:
+PACKAGES_FOLDER="../../../defold/local_sdks"
+
+def get_ios_version():
+    prefix = "iPhoneOS"
+    extension = ".sdk.tar.gz"
+
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(PACKAGES_FOLDER):
+        for file in f:
+            if prefix in file:
+                print(file)
+                files.append(file)
+
+    if len(files) > 0:
+        ret = files[0].replace(extension, '')
+        ret = ret.replace(prefix,'')
+        print("[waf_dynamo.py] -- Found iOS " + ret)
+        return ret
+    else :
+        return "13.5"
+
+IOS_SDK_VERSION=get_ios_version()
+IOS_SIMULATOR_SDK_VERSION=get_ios_version()
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
-
-## Let's fixed the local SDK into this folder:
-PACKAGES_FOLDER="../../../defold/local_sdks"
 
 def get_xcode_name():
     prefix = "XcodeDefault"

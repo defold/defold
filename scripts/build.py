@@ -91,21 +91,21 @@ PACKAGES_XCODE_TOOLCHAIN = get_xcode_filename()
 
 def get_ios_version():
     prefix = "iPhoneOS"
-    extension = ".sdk.tar.gz"
+    extension = ".tar.gz"
 
     files = []
     # r=root, d=directories, f = files
     for r, d, f in os.walk(PACKAGES_FOLDER):
         for file in f:
-            if prefix and extension in file:
-                # print(file)
+            if prefix in file:
+                print(file)
                 files.append(file)
 
     if len(files) > 0:
-        xcode_package = files[0].replace('.tar.gz', '')
-        print("[build.py] -- Found " + xcode_package)
-        return xcode_package
-    else:
+        ret = files[0].replace(extension, '')
+        print("[waf_dynamo.py] -- Found iOS " + ret)
+        return ret
+    else :
         return "iPhoneOS13.5.sdk"
 
 
