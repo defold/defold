@@ -1849,9 +1849,15 @@ class Configuration(object):
         #
         if PACKAGES_IOS_SDK == '':
             env['PACKAGES_IOS_SDK']= self.get_sdk_version("iPhoneOS", ".tar.gz", "iPhoneOS13.5.sdk")
+            env['IOS_SDK_VERSION']= env['PACKAGES_IOS_SDK'].replace("iPhoneOS", '')
+            env['IOS_SDK_VERSION']= env['IOS_SDK_VERSION'].replace(".sdk", '')
+            # print env['IOS_SDK_VERSION']
         
         if PACKAGES_IOS_SIMULATOR_SDK == '':
             env['PACKAGES_IOS_SIMULATOR_SDK']= self.get_sdk_version("iPhoneSimulator", ".tar.gz", "iPhoneSimulator13.5.sdk")
+            env['IOS_SIMULATOR_SDK_VERSION']= env['PACKAGES_IOS_SIMULATOR_SDK'].replace("iPhoneSimulator", '')
+            env['IOS_SIMULATOR_SDK_VERSION']= env['IOS_SIMULATOR_SDK_VERSION'].replace(".sdk", '')
+            # print env['IOS_SIMULATOR_SDK_VERSION']
         
         if PACKAGES_XCODE_TOOLCHAIN == '':
             env['PACKAGES_XCODE_TOOLCHAIN'] = self.get_sdk_version("XcodeDefault", ".tar.gz", "XcodeDefault11.5.xctoolchain")
