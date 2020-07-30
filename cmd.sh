@@ -19,9 +19,9 @@ BUNDLE="sh bundle_editor.sh $2"
 SUB_MODULE="sh ./scripts/submodule.sh config_in_waf $2 $3 $4 $5 $6"
 WAF_CONF="(cd $3;PREFIX=\$DYNAMO_HOME waf configure --platform=$2)"
 
-BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-tests -- --skip-build-tests"
-BUILD_ENGINE_IOS_v7="sudo ./scripts/build.py build_engine --platform=armv7-darwin --skip-tests -- --skip-build-tests"
-BUILD_ENGINE_IOS_64="sudo ./scripts/build.py build_engine --platform=arm64-darwin --skip-tests -- --skip-build-tests"
+BUILD_ENGINE="sudo ./scripts/build.py build_engine --platform=x86_64-darwin --skip-bob-light --skip-docs --skip-tests -- --skip-build-tests"
+BUILD_ENGINE_IOS_v7="sudo ./scripts/build.py build_engine --platform=armv7-darwin --skip-bob-light --skip-docs --skip-tests -- --skip-build-tests"
+BUILD_ENGINE_IOS_64="sudo ./scripts/build.py build_engine --platform=arm64-darwin --skip-bob-light --skip-docs --skip-tests -- --skip-build-tests"
 BUILD_BUILTIN="sudo ./scripts/build.py build_builtins"
 BUILD_BOB="sudo ./scripts/build.py build_bob --skip-tests"
 

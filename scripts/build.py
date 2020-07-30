@@ -206,13 +206,19 @@ class Future(object):
             return self.result
 
 class Configuration(object):
-    def __init__(self, dynamo_home = None,
+    def __init__(self, 
+                 packages_ios_sdk = None,
+                 package_ios_simulator_sdk = None,
+                 packages_xcode_toolchain = None,
+                 ios_sdk_version = None,
+                 ios_simulator_sdk_version = None,
+                 dynamo_home = None,
                  target_platform = None,
-                 skip_tests = False,
+                 skip_tests = True,
                  skip_codesign = False,
-                 skip_docs = False,
-                 skip_builtins = False,
-                 skip_bob_light = False,
+                 skip_docs = True,
+                 skip_builtins = True,
+                 skip_bob_light = True,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -233,6 +239,12 @@ class Configuration(object):
             home = os.environ['USERPROFILE']
         else:
             home = os.environ['HOME']
+
+        self.packages_ios_sdk = None
+        self.packages_ios_simulator_sdk = None
+        self.ios_sdk_version = None
+        self.ios_simulator_sdk_version = None
+        self.packages_xcode_toolchain = None
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
@@ -1847,21 +1859,35 @@ class Configuration(object):
         #
         # Auto detect iOS/XCode version part
         #
-        if PACKAGES_IOS_SDK == '':
-            env['PACKAGES_IOS_SDK']= self.get_sdk_version("iPhoneOS", ".tar.gz", "iPhoneOS13.5.sdk")
-            env['IOS_SDK_VERSION']= env['PACKAGES_IOS_SDK'].replace("iPhoneOS", '')
-            env['IOS_SDK_VERSION']= env['IOS_SDK_VERSION'].replace(".sdk", '')
-            # print env['IOS_SDK_VERSION']
+        if not self.packages_ios_sdk :
+            if PACKAGES_IOS_SDK == '' and not env.__contains__('PACKAGES_IOS_SDK') :
+                env['PACKAGES_IOS_SDK']= self.get_sdk_version("iPhoneOS", ".tar.gz", "iPhoneOS13.5.sdk")
+                env['IOS_SDK_VERSION']= env['PACKAGES_IOS_SDK'].replace("iPhoneOS", '')
+                env['IOS_SDK_VERSION']= env['IOS_SDK_VERSION'].replace(".sdk", '')
+                self.packages_ios_sdk = env['PACKAGES_IOS_SDK']
+                self.ios_sdk_version = env['IOS_SDK_VERSION'] 
+        else:
+             env['PACKAGES_IOS_SDK'] = self.packages_ios_sdk
+             env['IOS_SDK_VERSION'] = self.ios_sdk_version
+
+        if not self.packages_ios_simulator_sdk :
+            if PACKAGES_IOS_SIMULATOR_SDK == '' and not env.__contains__('PACKAGES_IOS_SIMULATOR_SDK') :
+                env['PACKAGES_IOS_SIMULATOR_SDK']= self.get_sdk_version("iPhoneSimulator", ".tar.gz", "iPhoneSimulator13.5.sdk")
+                env['IOS_SIMULATOR_SDK_VERSION']= env['PACKAGES_IOS_SIMULATOR_SDK'].replace("iPhoneSimulator", '')
+                env['IOS_SIMULATOR_SDK_VERSION']= env['IOS_SIMULATOR_SDK_VERSION'].replace(".sdk", '')
+                self.packages_ios_simulator_sdk = env['PACKAGES_IOS_SIMULATOR_SDK']
+                self.ios_simulator_sdk_version = env['IOS_SIMULATOR_SDK_VERSION']
+        else:
+             env['PACKAGES_IOS_SIMULATOR_SDK'] = self.packages_ios_simulator_sdk
+             env['IOS_SIMULATOR_SDK_VERSION'] = self.ios_simulator_sdk_version
         
-        if PACKAGES_IOS_SIMULATOR_SDK == '':
-            env['PACKAGES_IOS_SIMULATOR_SDK']= self.get_sdk_version("iPhoneSimulator", ".tar.gz", "iPhoneSimulator13.5.sdk")
-            env['IOS_SIMULATOR_SDK_VERSION']= env['PACKAGES_IOS_SIMULATOR_SDK'].replace("iPhoneSimulator", '')
-            env['IOS_SIMULATOR_SDK_VERSION']= env['IOS_SIMULATOR_SDK_VERSION'].replace(".sdk", '')
-            # print env['IOS_SIMULATOR_SDK_VERSION']
-        
-        if PACKAGES_XCODE_TOOLCHAIN == '':
-            env['PACKAGES_XCODE_TOOLCHAIN'] = self.get_sdk_version("XcodeDefault", ".tar.gz", "XcodeDefault11.5.xctoolchain")
-        
+        if not self.packages_xcode_toolchain :
+            if PACKAGES_XCODE_TOOLCHAIN == '':
+                env['PACKAGES_XCODE_TOOLCHAIN'] = self.get_sdk_version("XcodeDefault", ".tar.gz", "XcodeDefault11.5.xctoolchain")
+                self.packages_xcode_toolchain = env['PACKAGES_XCODE_TOOLCHAIN']
+        else: 
+            env['PACKAGES_XCODE_TOOLCHAIN'] = self.packages_xcode_toolchain
+
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
                                                   '%s/build_tools' % self.defold,
                                                   '%s/ext/lib/python' % self.dynamo_home])
