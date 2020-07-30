@@ -239,7 +239,7 @@ public class DefoldActivity extends NativeActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            updateImmersiveMode();
+            updateFullscreenMode();
         }
     }
 
@@ -247,7 +247,7 @@ public class DefoldActivity extends NativeActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES) {
-            updateImmersiveMode();
+            updateFullscreenMode();
         }
     }
 
@@ -437,7 +437,7 @@ public class DefoldActivity extends NativeActivity {
             public void run() {
                 IBinder windowToken = getWindow().getDecorView().getWindowToken();
                 imm.hideSoftInputFromWindow(windowToken, 0);
-                updateImmersiveMode();
+                updateFullscreenMode();
             }
         });
     }
@@ -454,7 +454,7 @@ public class DefoldActivity extends NativeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                updateImmersiveMode();
+                updateFullscreenMode();
             }
         });
     }
