@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,11 +34,12 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
+        this.relName = fileName;
     }
-    
+
     public ArchiveEntry(String root, String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
         this(root, fileName, doCompress);
-        
+
         if (isLiveUpdate) {
             this.flags = this.flags | FLAG_LIVEUPDATE;
         }
@@ -69,20 +70,20 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
     }
-    
+
     // For checking duplicate when constructing archive
     @Override
     public boolean equals(Object other){
         boolean result = this.getClass().equals(other.getClass());
         if (result) {
             ArchiveEntry entryOther = (ArchiveEntry)other;
-            result = this.fileName.equals(entryOther.fileName) 
+            result = this.fileName.equals(entryOther.fileName)
                     && this.relName.equals(entryOther.relName)
                     && this.flags == entryOther.flags;
         }
         return result;
     }
-    
+
     public int hashCode()
     {
         return 17 * this.fileName.hashCode() + 31 * this.relName.hashCode();
@@ -102,7 +103,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     // For sorting according to hash when building archive
     @Override
     public int compareTo(ArchiveEntry other) {
-        if (this.hash == null) {
+        if (this.hash == null || other.hash == null) {
             return this.relName.compareTo(other.relName);
         }
 

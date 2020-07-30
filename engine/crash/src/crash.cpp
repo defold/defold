@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,7 @@ namespace dmCrash
 
     // The default path is where the dumps are stored before the application configures a different path.
     static char g_FilePathDefault[AppState::FILEPATH_MAX];
+    static bool g_CrashDumpEnabled = true;
     char g_FilePath[AppState::FILEPATH_MAX];
 
     bool IsInitialized()
@@ -76,7 +77,19 @@ namespace dmCrash
             SetCrashFilename(g_FilePath);
 
             InstallHandler();
+            EnableHandler(g_CrashDumpEnabled);
         }
+    }
+
+    bool IsEnabled()
+    {
+        return g_CrashDumpEnabled;
+    }
+
+    void SetEnabled(bool enable)
+    {
+        g_CrashDumpEnabled = enable;
+        EnableHandler(enable);
     }
 
     void SetFilePath(const char *filepath)

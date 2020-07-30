@@ -26,17 +26,37 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="13.5"
-IOS_SIMULATOR_SDK_VERSION="13.5"
+## Let's fixed the local SDK into this folder:
+PACKAGES_FOLDER="../../../defold/local_sdks"
+
+def get_ios_version():
+    prefix = "iPhoneOS"
+    extension = ".sdk.tar.gz"
+
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(PACKAGES_FOLDER):
+        for file in f:
+            if prefix in file:
+                print(file)
+                files.append(file)
+
+    if len(files) > 0:
+        ret = files[0].replace(extension, '')
+        ret = ret.replace(prefix,'')
+        print("[waf_dynamo.py] -- Found iOS " + ret)
+        return ret
+    else :
+        return "13.5"
+
+IOS_SDK_VERSION=get_ios_version()
+IOS_SIMULATOR_SDK_VERSION=get_ios_version()
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
-
-## Let's fixed the local SDK into this folder:
-PACKAGES_FOLDER="../../../defold/local_sdks"
 
 def get_xcode_name():
     prefix = "XcodeDefault"
@@ -377,7 +397,7 @@ def default_flags(self):
             legacy_vm_support = 0
 
         emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
-                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_main"]',
+                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
                    'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456', 'LLD_REPORT_UNDEFINED']
         emflags = zip(['-s'] * len(emflags), emflags)
         emflags =[j for i in emflags for j in i]
@@ -423,6 +443,29 @@ def remove_flags_fn(self):
     for name, values in lookup.iteritems():
         for flag, argcount in values:
             remove_flag(self.env[name], flag, argcount)
+
+@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@before('apply_core')
+@after('cc')
+@after('cxx')
+def web_exported_functions(self):
+
+    if 'web' not in self.env.PLATFORM:
+        return
+
+    use_crash = 'CRASH' in self.uselib or self.name in ('crashext', 'crashext_null')
+
+    for name in ('CCFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
+        arr = self.env[name]
+
+        for i, v in enumerate(arr):
+            if v.startswith('EXPORTED_FUNCTIONS'):
+                remove_flag_at_index(arr, i-1, 2) # "_main" is exported by default
+                break
+
+        if use_crash:
+            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
+
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1354,13 +1397,15 @@ def get_msvc_version(conf, platform):
 
     return msvc_path, includes, libdirs
 
+def remove_flag_at_index(arr, index, count):
+    for i in range(count):
+        del arr[index]
+
 def remove_flag(arr, flag, nargs):
     if not flag in arr:
         return
     index = arr.index(flag)
-    del arr[index]
-    for i in range(nargs):
-        del arr[index]
+    remove_flag_at_index(arr, index, nargs+1)
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)

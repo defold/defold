@@ -44,6 +44,8 @@ namespace dmPhysics
         : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
         , m_Context(context)
         , m_stepIteration(1)
+        , m_velocityIteration(16)
+        , m_positionIteration(8)
         , m_World(context->m_Gravity)
         , m_RayCastRequests()
         , m_DebugDraw(&context->m_DebugCallbacks)
@@ -342,12 +344,18 @@ namespace dmPhysics
         FlipBody(collision_object, 1, -1);
     }
 
+    static inline float GetUniformScale2D(dmTransform::Transform& transform)
+    {
+        const float* v = transform.GetScalePtr();
+        return dmMath::Min(v[0], v[1]);
+    }
+
     static void UpdateScale(HWorld2D world, b2Body* body)
     {
         dmTransform::Transform world_transform;
         (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
 
-        float object_scale = world_transform.GetUniformScale();
+        float object_scale = GetUniformScale2D(world_transform);
 
         b2Fixture* fix   = body->GetFixtureList();
         bool allow_sleep = true;
@@ -442,7 +450,7 @@ namespace dmPhysics
             DM_PROFILE(Physics, "StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
 
-            float inv_scale = world->m_Context->m_InvScale; 
+            float inv_scale = world->m_Context->m_InvScale;
             /// Added by .Gears/TrungB
 
             float deltaStep = dt / world->m_stepIteration;
@@ -949,7 +957,7 @@ namespace dmPhysics
                 Vectormath::Aos::Quat rotation   = Vectormath::Aos::Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                scale     = world_transform.GetUniformScale();
+                scale = GetUniformScale2D(world_transform);
             }
             else
             {
@@ -1687,4 +1695,4 @@ namespace dmPhysics
         torque         = joint->GetReactionTorque(inv_dt) * inv_scale;
         return true;
     }
-} 
+}

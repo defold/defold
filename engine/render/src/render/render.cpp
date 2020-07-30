@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -103,8 +103,6 @@ namespace dmRender
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
         RenderContext* context = new RenderContext;
-
-        context->m_RenderTargets.SetCapacity(params.m_MaxRenderTargets);
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -253,32 +251,6 @@ namespace dmRender
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
     {
         render_context->m_SystemFontMap = font_map;
-    }
-
-    Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash)
-    {
-        if (render_context == 0x0)
-            return RESULT_INVALID_CONTEXT;
-        if (render_context->m_RenderTargets.Full())
-            return RESULT_BUFFER_IS_FULL;
-
-        RenderTargetSetup setup;
-        setup.m_RenderTarget = rendertarget;
-        setup.m_Hash = hash;
-        render_context->m_RenderTargets.Push(setup);
-
-        return RESULT_OK;
-    }
-
-    dmGraphics::HRenderTarget GetRenderTarget(HRenderContext render_context, dmhash_t hash)
-    {
-        for (uint32_t i=0; i < render_context->m_RenderTargets.Size(); i++)
-        {
-            if (render_context->m_RenderTargets[i].m_Hash == hash)
-                return render_context->m_RenderTargets[i].m_RenderTarget;
-        }
-
-        return 0x0;
     }
 
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context)

@@ -7,17 +7,19 @@ def configure(conf):
     pass
 
 def build(bld):
+    # default function for editor test
     source = 'tapticengine.cpp'.split()
 
-    platforms = ['arm.*?darwin', 'x86_64-ios']
+    # define for iOS 
+    platforms = ['armv7-darwin', 'arm64-darwin', 'x86_64-ios']
     for p in platforms:
         if re.match(p, bld.env.PLATFORM):
-            source += ['tapticengine.mm']
+            source = ['tapticengine_ios.cpp', 'tapticengine.mm']
             break
 
     bld.new_task_gen(features = 'cxx cstaticlib',
                     includes = '.',
                     source = source,
-                    target = 'TapticEngine')
+                    target = 'tapticengine')
 
-    apidoc_extract_task(bld, ['tapticengine.cpp'])
+    apidoc_extract_task(bld, ['tapticengine_doc.h'])

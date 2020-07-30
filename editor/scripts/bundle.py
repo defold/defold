@@ -2,10 +2,10 @@
 # Copyright 2020 The Defold Foundation
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -140,18 +140,16 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
-def mac_certificate():
-    # This certificate must be installed on the computer performing the operation
-    certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
-    if exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0:
-        return certificate
+def mac_certificate(codesigning_identity):
+    if exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
+        return codesigning_identity
     else:
         return None
 
-def sign_files(bundle_dir):
-    certificate = mac_certificate()
+def sign_files(codesigning_identity, bundle_dir):
+    certificate = mac_certificate(codesigning_identity)
     if certificate == None:
-        print("Warning: Codesigning certificate not found, files will not be signed")
+        print("Warning: Codesigning certificate not found for signing identity %s, files will not be signed" % (codesigning_identity))
     else:
         exec_command([
             'codesign',
@@ -370,11 +368,11 @@ def create_dmg(options):
     # the *.app will not process files in Resources
     jdk_path = os.path.join(dmg_dir, "Defold.app", "Contents", "Resources", "packages", "jdk11.0.1")
     for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-        sign_files(exe)
+        sign_files(options.codesigning_identity, exe)
     for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-        sign_files(lib)
-    sign_files(os.path.join(jdk_path, "lib", "jspawnhelper"))
-    sign_files(os.path.join(dmg_dir, "Defold.app"))
+        sign_files(options.codesigning_identity, lib)
+    sign_files(options.codesigning_identity, os.path.join(jdk_path, "lib", "jspawnhelper"))
+    sign_files(options.codesigning_identity, os.path.join(dmg_dir, "Defold.app"))
 
     # create dmg
     dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")
@@ -383,7 +381,7 @@ def create_dmg(options):
     exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    certificate = mac_certificate()
+    certificate = mac_certificate(options.codesigning_identity)
     if certificate == None:
         print("Warning: Codesigning certificate not found, DMG will not be signed")
     else:
@@ -436,6 +434,10 @@ Commands:
                       action = 'store_true',
                       default = False,
                       help = 'Skip tests when building')
+
+    parser.add_option('--codesigning-identity', dest='codesigning_identity',
+                      default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
+                      help = 'Codesigning identity for macOS')
 
     parser.add_option('--bundle-dir', dest='bundle_dir',
                       default = "/release",

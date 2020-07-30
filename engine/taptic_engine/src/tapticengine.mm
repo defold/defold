@@ -1,6 +1,4 @@
 #include <dmsdk/sdk.h>
-
-#if defined(DM_PLATFORM_IOS)
 #include "tapticengine.h"
 #include "UIKit/UIKit.h"
 
@@ -33,6 +31,7 @@ static TapticEnginePlugin * _shared;
 }
 
 - (id) init {
+    NSLog(@"taptic_engine -- init");
     if (self = [super init])
     {        
         self.notificationGenerator = [UINotificationFeedbackGenerator new];
@@ -68,6 +67,7 @@ static TapticEnginePlugin * _shared;
 }
 
 - (void) impact:(UIImpactFeedbackStyle)style {
+    NSLog(@"taptic_engine -- impact invoked");
     [self.impactGenerators[(int) style] impactOccurred];
 }
 
@@ -101,5 +101,3 @@ void TapticEngine_Selection() {
         [[TapticEnginePlugin shared] selection];
     }
 }
-
-#endif

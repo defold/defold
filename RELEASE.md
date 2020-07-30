@@ -9,10 +9,23 @@
 The alpha channel is automatically released for every successful push to dev.
 
 ## Beta
-Beta beta channel is automatically released for e very successful push to beta.
 
 * If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
 * Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+
+1. Merge `editor-dev` into `dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git checkout dev
+        $ git pull
+        $ git merge editor-dev
+        $ git push
+
+    Beta beta channel is automatically released for every successful push to beta.
+
+1. Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+and add the "BETA" tag to the headline
 
 ## Stable
 
@@ -93,10 +106,6 @@ Beta beta channel is automatically released for e very successful push to beta.
         $ git pull
         $ git merge master
 
-1. Merge `editor-dev` into `dev`
-
-        $ git merge editor-dev
-
 1. Bump version:
 
         $ ./scripts/build.py bump
@@ -106,4 +115,4 @@ Beta beta channel is automatically released for e very successful push to beta.
         > Message: "Bumped version to 1.2.xx"
         $ git push
 
-1. Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline

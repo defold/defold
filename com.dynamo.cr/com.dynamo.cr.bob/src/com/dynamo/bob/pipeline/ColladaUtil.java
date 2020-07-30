@@ -30,7 +30,7 @@ import java.util.Vector;
 import java.util.Map.Entry;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
 import javax.vecmath.Matrix4d;
