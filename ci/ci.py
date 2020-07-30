@@ -144,7 +144,7 @@ def install(args):
             setup_keychain(args)
 
 
-def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
+def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False, channel = None):
     args = 'python scripts/build.py distclean install_ext'.split()
     opts = []
     waf_opts = []
@@ -155,6 +155,9 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
         args.append('install_ems')
 
     args.append('build_engine')
+
+    if channel:
+        opts.append('--channel=%s' % channel)
 
     if archive:
         args.append('archive_engine')
@@ -281,8 +284,15 @@ def release(channel = None):
     call(cmd)
 
 
-def build_sdk():
-    call('python scripts/build.py build_sdk')
+def build_sdk(channel = None):
+    args = "python scripts/build.py build_sdk".split()
+    opts = []
+
+    if channel:
+        opts.append("--channel=%s" % channel)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
 
 
 def smoke_test():
@@ -341,7 +351,7 @@ def main(argv):
         make_release = True
         engine_artifacts = args.engine_artifacts or "archived"
     elif branch == "editor-dev":
-        engine_channel = "stable"
+        engine_channel = None
         editor_channel = "editor-alpha"
         release_channel = editor_channel
         make_release = True
@@ -352,7 +362,7 @@ def main(argv):
         make_release = False
         engine_artifacts = args.engine_artifacts or "archived-stable"
     else: # engine dev branch
-        engine_channel = None
+        engine_channel = "dev"
         editor_channel = None
         make_release = False
         skip_editor_tests = True
@@ -373,7 +383,8 @@ def main(argv):
                 archive = args.archive,
                 skip_tests = args.skip_tests,
                 skip_builtins = args.skip_builtins,
-                skip_docs = args.skip_docs)
+                skip_docs = args.skip_docs,
+                channel = engine_channel)
         elif command == "build-editor":
             build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
         elif command == "download-editor":
@@ -388,7 +399,7 @@ def main(argv):
         elif command == "bob":
             build_bob(channel = engine_channel)
         elif command == "sdk":
-            build_sdk()
+            build_sdk(channel = engine_channel)
         elif command == "smoke":
             smoke_test()
         elif command == "install":

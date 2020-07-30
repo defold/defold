@@ -597,7 +597,7 @@ namespace dmRender
      *                            height = render.get_window_height(),
      *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
-     *     self.my_render_target = render.render_target("my_target", {[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
+     *     self.my_render_target = render.render_target({[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
      * end
      *
      * function update(self, dt)
@@ -617,16 +617,21 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
+        // Legacy support
+        int table_index = 2;
+        if (lua_istable(L, 1))
+        {
+            table_index = 1;
+        }
 
         const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
-        luaL_checktype(L, 2, LUA_TTABLE);
+        luaL_checktype(L, table_index, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         lua_pushnil(L);
-        while (lua_next(L, 2))
+        while (lua_next(L, table_index))
         {
             bool required_found[] = { false, false, false };
             uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
@@ -739,7 +744,6 @@ namespace dmRender
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
-        RegisterRenderTarget(i->m_RenderContext, render_target, namehash);
 
         lua_pushlightuserdata(L, (void*)render_target);
 
@@ -1273,7 +1277,7 @@ namespace dmRender
      * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
      * system constants buffer is used containing constants as defined in materials and set through
-     * `*.set_constant()` and `*.reset_constant()` on visual components.
+     * [ref:go.set] (or [ref:particlefx.set_constant]) on visual components.
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for

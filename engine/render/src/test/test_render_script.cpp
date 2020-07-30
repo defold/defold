@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -404,7 +404,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[render.BUFFER_COLOR_BIT] = params_color})\n"
     "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -445,7 +445,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color, [render.BUFFER_DEPTH_BIT] = params_depth, [render.BUFFER_STENCIL_BIT] = params_stencil})\n"
+    "    self.rt = render.render_target({[render.BUFFER_COLOR_BIT] = params_color, [render.BUFFER_DEPTH_BIT] = params_depth, [render.BUFFER_STENCIL_BIT] = params_stencil})\n"
     "    render.set_render_target(self.rt, {transient = {render.BUFFER_DEPTH_BIT, render.BUFFER_STENCIL_BIT}})\n"
     "    render.set_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
@@ -537,7 +537,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color, [render.BUFFER_DEPTH_BIT] = params_depth, [render.BUFFER_STENCIL_BIT] = params_stencil})\n"
+    "    self.rt = render.render_target({[render.BUFFER_COLOR_BIT] = params_color, [render.BUFFER_DEPTH_BIT] = params_depth, [render.BUFFER_STENCIL_BIT] = params_stencil})\n"
     "    render.enable_render_target(self.rt)\n"
     "    render.disable_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
@@ -591,7 +591,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[render.BUFFER_COLOR_BIT] = params_color})\n"
     "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -611,7 +611,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[render.BUFFER_COLOR_BIT] = params_color})\n"
     "end\n";
 
     render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -631,7 +631,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[render.BUFFER_COLOR_BIT] = params_color})\n"
     "end\n";
 
     render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));

@@ -6,19 +6,20 @@ from BuildUtility import create_build_utility
 def configure(conf):
     build_util = create_build_utility(conf.env)
     target = build_util.get_target_os()
-    if 'ios' == target:
-        return
+    if not target in ('win32', 'osx', 'linux'):
+      return
     if 'osx' == target:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa'])
     if 'win32' in target:
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
 def build(bld):
+    # if not desktop
+    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux'):
+        return
+
     build_util = create_build_utility(bld.env)
     target = build_util.get_target_os()
-
-    if 'ios' == target:
-        return
 
     exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
                            includes = ['.'],

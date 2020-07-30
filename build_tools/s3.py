@@ -89,6 +89,8 @@ def get_tagged_releases(archive_path):
         if not line:
             continue
         m = re.match('(.*?) refs/tags/(.*?)$', line)
+        if not m:
+            continue
         sha1, tag = m.groups()
         epoch = run.shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
         date = datetime.fromtimestamp(float(epoch))

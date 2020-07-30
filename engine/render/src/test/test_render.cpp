@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -135,10 +135,6 @@ TEST_F(dmRenderTest, TestRenderTarget)
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, flags, creation_params, params);
     dmGraphics::DeleteRenderTarget(target);
-    dmhash_t hash = dmHashString64("rt");
-    ASSERT_EQ(0x0, dmRender::GetRenderTarget(m_Context, hash));
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::RegisterRenderTarget(m_Context, target, hash));
-    ASSERT_NE((void*)0x0, dmRender::GetRenderTarget(m_Context, hash));
 }
 
 TEST_F(dmRenderTest, TestGraphicsContext)
