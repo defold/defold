@@ -152,6 +152,7 @@ namespace dmGraphics
                 func_ptr(*vkInstance, g_vk_debug_callback_handle, 0);
             }
         }
+        g_vk_debug_callback_handle = 0;
 
         vkDestroyInstance(*vkInstance, 0);
         *vkInstance = VK_NULL_HANDLE;
