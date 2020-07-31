@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -236,10 +236,12 @@ static int SetProfilerUIViewMode(lua_State* L)
 
     if (!gRenderProfile)
     {
+        dmLogInfo("No render profile!");
         return 0;
     }
 
     uint32_t mode = luaL_checknumber(L, 1);
+    dmLogInfo("SetProfilerUIViewMode %d", mode);
 
     dmProfileRender::SetViewMode(gRenderProfile, (dmProfileRender::ProfilerViewMode)mode);
 
@@ -425,6 +427,8 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         dmProfiler::g_TrackCpuUsage = true;
     }
 
+    dmLogInfo("InitializeProfiler");
+
     static const luaL_reg Module_methods[] =
     {
         {"get_memory_usage", dmProfiler::MemoryUsage},
@@ -453,6 +457,12 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
     lua_setfield(params->m_L, -2, "VIEW_MODE_FULL");
     lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_VIEW_MODE_MINIMIZED);
     lua_setfield(params->m_L, -2, "VIEW_MODE_MINIMIZED");
+    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_VIEW_MODE_SCOPES);
+    lua_setfield(params->m_L, -2, "VIEW_MODE_SCOPES");
+    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_VIEW_MODE_COUNTERS);
+    lua_setfield(params->m_L, -2, "VIEW_MODE_COUNTERS");
+    lua_pushnumber(params->m_L, (lua_Number) dmProfileRender::PROFILER_VIEW_MODE_SAMPLES);
+    lua_setfield(params->m_L, -2, "VIEW_MODE_SAMPLES");
 
     lua_pop(params->m_L, 1);
 

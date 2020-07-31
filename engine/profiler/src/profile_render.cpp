@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1347,7 +1347,8 @@ namespace dmProfileRender
         params.m_WorldTransform.setElem(3, 1, header_area.p.y + CHARACTER_HEIGHT);
         dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
-        if (render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED)
+        const int view_mode = render_profile->m_ViewMode;
+        if (view_mode == PROFILER_VIEW_MODE_MINIMIZED)
         {
             return;
         }
@@ -1361,8 +1362,10 @@ namespace dmProfileRender
         const Area samples_area       = GetSamplesArea(display_mode, details_area, scopes_area, counters_area);
         const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area);
 
-        FillArea(render_context, sample_frames_area, SAMPLES_BG_COLOR);
-
+        const int draw_scopes = (view_mode == PROFILER_VIEW_MODE_MINIMIZED) || (view_mode == PROFILER_VIEW_MODE_FULL) || (view_mode == PROFILER_VIEW_MODE_SCOPES);
+        const int draw_counters = (view_mode == PROFILER_VIEW_MODE_MINIMIZED) || (view_mode == PROFILER_VIEW_MODE_FULL) || (view_mode == PROFILER_VIEW_MODE_COUNTERS);
+        const int draw_samples = (view_mode == PROFILER_VIEW_MODE_MINIMIZED) || (view_mode == PROFILER_VIEW_MODE_FULL) || (view_mode == PROFILER_VIEW_MODE_SAMPLES);
+        if (draw_scopes)
         {
             // Scopes
             int y = scopes_area.p.y + scopes_area.s.h;
@@ -1418,6 +1421,7 @@ namespace dmProfileRender
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
         }
+        if (draw_counters)
         {
             // Counters
             int y = counters_area.p.y + counters_area.s.h;
@@ -1455,7 +1459,10 @@ namespace dmProfileRender
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
         }
+        if (draw_samples)
         {
+            FillArea(render_context, sample_frames_area, SAMPLES_BG_COLOR);
+
             // Samples
             int y = samples_area.p.y + samples_area.s.h;
 
