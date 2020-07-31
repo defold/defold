@@ -101,8 +101,6 @@ def setup_vars_nx(conf, build_util):
     BUILDTARGET = 'NX-NXFP2-a64'
     BUILDTYPE = opt_level == 0 and "Debug" or "Release"
 
-    print "MAWE", BUILDTYPE
-
     CCFLAGS ="-g -O%s" % opt_level
     CCFLAGS+=" -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
     CXXFLAGS="-fno-rtti -std=gnu++14 "
@@ -111,7 +109,7 @@ def setup_vars_nx(conf, build_util):
     _set_cxxflags(conf, CXXFLAGS)
 
     DEFINES ="DM_NO_SYSTEM_FUNCTION LUA_NO_SYSTEM LUA_NO_TMPFILE LUA_NO_TMPNAM"
-    DEFINES+=" DM_NO_IPV6"
+    DEFINES+=" DM_IPV6_UNSUPPORTED"
     DEFINES+=" GOOGLE_PROTOBUF_NO_RTTI DDF_EXPOSE_DESCRIPTORS"
     DEFINES+=" JC_TEST_NO_DEATH_TEST JC_TEST_USE_COLORS=1"
     DEFINES+=" NN_SDK_BUILD_%s" % BUILDTYPE.upper()
@@ -139,8 +137,8 @@ def setup_vars_nx(conf, build_util):
 
     LIBPATHS = ' '.join(get_lib_paths(BUILDTYPE, BUILDTARGET))
     _set_libpath(conf, LIBPATHS)
-
     CPPPATH ="%s/Include" % (NINTENDO_SDK_ROOT,)
+    CPPPATH+=" %s/Include/nn/socket" % (NINTENDO_SDK_ROOT,)
     CPPPATH+=" %s/Common/Configs/Targets/%s/Include" % (NINTENDO_SDK_ROOT, BUILDTARGET)
     _set_includes(conf, CPPPATH)
 
@@ -153,7 +151,6 @@ def setup_vars_nx(conf, build_util):
 
     # Until we support cares
     conf.env['STATICLIB_CARES'] = []
-
     # Until we've implemented the crash module
     conf.env['STATICLIB_CRASH'] = ['crashext_null']
 

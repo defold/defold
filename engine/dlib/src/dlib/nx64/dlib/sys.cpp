@@ -15,6 +15,7 @@
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <dlib/uri.h>
 
 //#include <nn/htc.h> // For host getenv
 #include <nn/fs.h>
@@ -125,6 +126,17 @@ namespace dmSys
 
     bool ResourceExists(const char* path)
     {
+        dmURI::Parts parts;
+        dmURI::Result uri_result = dmURI::Parse(path, &parts);
+        if (uri_result != dmURI::RESULT_OK)
+        {
+            // on this platform we must have a file system mount
+            return 0;
+        }
+
+        if (strcmp(parts.m_Scheme, "data")!=0 && strcmp(parts.m_Scheme, "save")!=0 && strcmp(parts.m_Scheme, "cache")!=0)
+            return 0;
+
         struct stat file_stat;
         return stat(path, &file_stat) == 0;
     }
