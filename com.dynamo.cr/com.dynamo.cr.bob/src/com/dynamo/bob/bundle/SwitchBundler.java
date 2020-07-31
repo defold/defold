@@ -112,6 +112,8 @@ public class SwitchBundler implements IBundler {
         // We need debug lib when we use RenderDoc
         String vulkanLib = use_renderdoc ? "vulkanOpenGlDebug.nso" : "vulkan.nso";
 
+        logger.log(Level.INFO, String.format("Using %s versions of the libraries",libDir));
+
         File mainSrc = platformToExeFileMap.get(targetPlatform);
         File nnrtldSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnrtld.nso"));
         File nnSdkEnSrc = new File(Bob.getLibExecPath(targetPlatform.getPair() + "/" + libDir + "/nnSdkEn.nso"));

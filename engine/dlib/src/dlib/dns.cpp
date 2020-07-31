@@ -14,6 +14,7 @@
 #include "dns_private.h"
 #include "socket.h"
 #include "dstrings.h"
+#include <dlib/endian.h>
 
 #include "time.h"
 #include "atomic.h"
@@ -219,7 +220,7 @@ namespace dmDNS
             // These options are specified in init_by_defaults(..) in ares_init.c
             if (server_count      == 1 &&
                 servers->family   == AF_INET &&
-                ch_addr.s_addr    == htonl(INADDR_LOOPBACK) &&
+                ch_addr.s_addr    == dmEndian::ToNetwork((uint32_t)INADDR_LOOPBACK) &&
                 servers->udp_port == 0 &&
                 servers->tcp_port == 0)
             {

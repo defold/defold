@@ -390,7 +390,7 @@ namespace dmHttpService
             worker->m_Request = 0;
             worker->m_Status = 0;
             worker->m_Service = service;
-            worker->m_CacheFlusher = i == 0;
+            worker->m_CacheFlusher = i == 0 && worker->m_Service->m_HttpCache != 0;
             worker->m_Run = true;
             service->m_Workers.Push(worker);
 
@@ -436,7 +436,8 @@ namespace dmHttpService
         }
         dmThread::Join(http_service->m_Balancer);
         dmMessage::DeleteSocket(http_service->m_Socket);
-        dmHttpCache::Close(http_service->m_HttpCache);
+        if (http_service->m_HttpCache)
+            dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;
     }
 
