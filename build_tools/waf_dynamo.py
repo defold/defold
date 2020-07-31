@@ -26,58 +26,19 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-## Let's fixed the local SDK into this folder:
-PACKAGES_FOLDER="../../../defold/local_sdks"
+# NOTE: Added by dotGears/TrungB, to auto-detect version fast.
+# 
+env = dict(os.environ)
+IOS_SDK_VERSION           = env['IOS_SDK_VERSION'] if env.__contains__('IOS_SDK_VERSION') else ''
+IOS_SIMULATOR_SDK_VERSION = env['IOS_SIMULATOR_SDK_VERSION'] if env.__contains__('IOS_SIMULATOR_SDK_VERSION') else ''
+PACKAGES_XCODE_TOOLCHAIN   = env['PACKAGES_XCODE_TOOLCHAIN'] if env.__contains__('PACKAGES_XCODE_TOOLCHAIN') else ''
 
-def get_ios_version():
-    prefix = "iPhoneOS"
-    extension = ".sdk.tar.gz"
-
-    files = []
-    # r=root, d=directories, f = files
-    for r, d, f in os.walk(PACKAGES_FOLDER):
-        for file in f:
-            if prefix in file:
-                print(file)
-                files.append(file)
-
-    if len(files) > 0:
-        ret = files[0].replace(extension, '')
-        ret = ret.replace(prefix,'')
-        print("[waf_dynamo.py] -- Found iOS " + ret)
-        return ret
-    else :
-        return "13.5"
-
-IOS_SDK_VERSION=get_ios_version()
-IOS_SIMULATOR_SDK_VERSION=get_ios_version()
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
 
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
-
-def get_xcode_name():
-    prefix = "XcodeDefault"
-    extension = ".xctoolchain.tar.gz"
-
-    files = []
-    # r=root, d=directories, f = files
-    for r, d, f in os.walk(PACKAGES_FOLDER):
-        for file in f:
-            if prefix and extension in file:
-                # print(file)
-                files.append(file)
-
-    if len(files) > 0:
-        ret = files[0].replace(".tar.gz", '')
-        print("[waf_dynamo.py] -- Found " + ret)
-        return ret
-    else :
-        return "XcodeDefault11.5.xctoolchain"
-
-PACKAGES_XCODE_TOOLCHAIN = get_xcode_name()
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs', PACKAGES_XCODE_TOOLCHAIN)#'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
 
