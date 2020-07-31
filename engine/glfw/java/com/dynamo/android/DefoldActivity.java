@@ -71,13 +71,14 @@ public class DefoldActivity extends NativeActivity {
     private boolean mUseHiddenInputField = false;
 
     private boolean mImmersiveMode = false;
+    private boolean mDisplayCutout = false;
 
     /**
      * Update immersive sticky mode based on current setting. This will only
      * be done if Android OS version is equal to or above KitKat
      * https://developer.android.com/training/system-ui/immersive.html
      */
-    private void updateImmersiveMode() {
+    private void updateFullscreenMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             if (mImmersiveMode) {
                 getWindow().getDecorView().setSystemUiVisibility(
@@ -90,7 +91,7 @@ public class DefoldActivity extends NativeActivity {
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (mImmersiveMode) {
+            if (mDisplayCutout) {
                 WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
                 layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                 getWindow().setAttributes(layoutParams);
@@ -238,7 +239,7 @@ public class DefoldActivity extends NativeActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            updateImmersiveMode();
+            updateFullscreenMode();
         }
     }
 
@@ -246,7 +247,7 @@ public class DefoldActivity extends NativeActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES) {
-            updateImmersiveMode();
+            updateFullscreenMode();
         }
     }
 
@@ -436,22 +437,24 @@ public class DefoldActivity extends NativeActivity {
             public void run() {
                 IBinder windowToken = getWindow().getDecorView().getWindowToken();
                 imm.hideSoftInputFromWindow(windowToken, 0);
-                updateImmersiveMode();
+                updateFullscreenMode();
             }
         });
     }
 
     /**
-     * Method to enable/disable immersive mode
+     * Method to enable/disable immersive mode and display/hide cutout
      * Called from C (android_window.c)
      * @param immersiveMode
+     * @param displayCutout
      */
-    public void setImmersiveMode(final boolean immersiveMode) {
+    public void setFullscreenParameters(final boolean immersiveMode, final boolean displayCutout) {
         mImmersiveMode = immersiveMode;
+        mDisplayCutout = displayCutout;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                updateImmersiveMode();
+                updateFullscreenMode();
             }
         });
     }
