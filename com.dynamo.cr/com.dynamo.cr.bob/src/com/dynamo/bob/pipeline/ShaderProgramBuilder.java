@@ -334,8 +334,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
 
             ShaderDesc.ShaderDataType type = stringTypeToShaderType(tex.type);
-            if (type != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D) {
-                shaderIssues.add("Unsupported type for texture sampler '" + tex.name + "'");
+            if (!isShaderTypeTexture(type)) {
+                shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
                 resource_list.add(tex);
             }
