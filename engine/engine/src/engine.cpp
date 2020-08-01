@@ -461,6 +461,7 @@ namespace dmEngine
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
 
         dmSys::EngineInfoParam engine_info;
+        engine_info.m_Platform = dmEngineVersion::PLATFORM;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
         engine_info.m_IsDebug = dLib::IsDebugMode();
