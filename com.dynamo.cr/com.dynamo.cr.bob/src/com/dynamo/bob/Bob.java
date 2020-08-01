@@ -438,7 +438,7 @@ public class Bob {
         return project;
     }
 
-    private static String logExceptionToString(int severity, IResource res, int line, String message)
+    public static String logExceptionToString(int severity, IResource res, int line, String message)
     {
         String resourceString = "unspecified";
         if (res != null) {
