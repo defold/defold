@@ -430,20 +430,6 @@ public class Project {
         return propertyFiles;
     }
 
-    private void logExceptionToStdErr(int severity, IResource res, int line, String message)
-    {
-        String resourceString = "unspecified";
-        if (res != null) {
-            resourceString = res.toString();
-        }
-        String strSeverity = "ERROR";
-        if (severity == MultipleCompileException.Info.SEVERITY_INFO)
-            strSeverity = "INFO";
-        else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
-            strSeverity = "WARNING";
-        System.err.printf("%s: %s:%s: '%s'\n", strSeverity, resourceString, line, message);
-    }
-
     /**
      * Build the project
      * @param monitor
@@ -456,7 +442,8 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
-            logExceptionToStdErr(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            System.err.println(s);
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
