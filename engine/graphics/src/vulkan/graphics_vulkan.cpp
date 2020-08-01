@@ -3254,10 +3254,16 @@ bail:
         return offset;
     }
 
+    static inline uint8_t GetLayerCount(Texture* texture)
+    {
+        return texture->m_Type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+    }
+
     static void CopyToTexture(HContext context, const TextureParams& params,
         bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
+        uint8_t layer_count = GetLayerCount(textureOut);
 
         // TODO There is potentially a bunch of redundancy here.
         //      * Can we use a single command buffer for these updates,
@@ -3294,27 +3300,34 @@ bail:
 
             // Transition image to transfer dst for the mipmap level we are uploading
             res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, params.m_MipMap);
+                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
 
-            VkBufferImageCopy vk_copy_region;
-            vk_copy_region.bufferOffset                    = 0;
-            vk_copy_region.bufferRowLength                 = 0;
-            vk_copy_region.bufferImageHeight               = 0;
-            vk_copy_region.imageOffset.x                   = params.m_X;
-            vk_copy_region.imageOffset.y                   = params.m_Y;
-            vk_copy_region.imageOffset.z                   = 0;
-            vk_copy_region.imageExtent.width               = params.m_Width;
-            vk_copy_region.imageExtent.height              = params.m_Height;
-            vk_copy_region.imageExtent.depth               = 1;
-            vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-            vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
-            vk_copy_region.imageSubresource.baseArrayLayer = 0;
-            vk_copy_region.imageSubresource.layerCount     = 1;
+            uint32_t slice_size = texDataSize / layer_count;
+
+            VkBufferImageCopy vk_copy_regions[6];
+            for (int i = 0; i < layer_count; ++i)
+            {
+                VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
+                vk_copy_region.bufferOffset                    = i * slice_size;
+                vk_copy_region.bufferRowLength                 = 0;
+                vk_copy_region.bufferImageHeight               = 0;
+                vk_copy_region.imageOffset.x                   = params.m_X;
+                vk_copy_region.imageOffset.y                   = params.m_Y;
+                vk_copy_region.imageOffset.z                   = 0;
+                vk_copy_region.imageExtent.width               = params.m_Width;
+                vk_copy_region.imageExtent.height              = params.m_Height;
+                vk_copy_region.imageExtent.depth               = 1;
+                vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+                vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
+                vk_copy_region.imageSubresource.baseArrayLayer = i;
+                vk_copy_region.imageSubresource.layerCount     = 1;
+            }
 
             vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
                 textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1, &vk_copy_region);
+                layer_count, vk_copy_regions);
 
             res = vkEndCommandBuffer(vk_command_buffer);
             CHECK_VK_ERROR(res);
@@ -3325,7 +3338,8 @@ bail:
             vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
 
             res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
+                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
 
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
@@ -3340,7 +3354,7 @@ bail:
             CHECK_VK_ERROR(res);
 
             res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Handle.m_Image,
-                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap);
+                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
         }
     }
@@ -3380,6 +3394,7 @@ bail:
 
         TextureFormat format_orig   = params.m_Format;
         uint8_t tex_bpp             = GetTextureFormatBPP(params.m_Format);
+        uint8_t tex_layer_count     = GetLayerCount(texture);
         size_t tex_data_size        = 0;
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
@@ -3397,7 +3412,7 @@ bail:
         // TODO: Can we use R11G11B10 somehow?
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
-            uint32_t data_pixel_count = params.m_Width * params.m_Height;
+            uint32_t data_pixel_count = params.m_Width * params.m_Height * tex_layer_count;
             uint8_t bpp_new           = 32;
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
@@ -3407,14 +3422,14 @@ bail:
             tex_bpp       = bpp_new;
         }
 
-        tex_data_size             = tex_bpp * params.m_Width * params.m_Height;
+        tex_data_size             = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         if (params.m_SubUpdate)
         {
             // data size might be different if we have generated a new image
-            tex_data_size = params.m_Width * params.m_Height * tex_bpp;
+            tex_data_size = params.m_Width * params.m_Height * tex_bpp * tex_layer_count;
         }
         else if (params.m_MipMap == 0)
         {
