@@ -145,6 +145,8 @@ namespace dmGraphics
         return g_extension_names;
     }
 
+    static bool g_VulkanUseRenderdoc = false; // Used to avoid a crash during reboot when using renderdoc validation layers
+
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc)
     {
         uint16_t count = 0;
@@ -154,6 +156,8 @@ namespace dmGraphics
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
         }
+
+        g_VulkanUseRenderdoc = use_renderdoc;
         if (use_renderdoc)
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_RENDERDOC;
@@ -286,7 +290,15 @@ namespace dmGraphics
             DestroyLogicalDevice(&context->m_LogicalDevice);
             DestroyPhysicalDevice(&context->m_PhysicalDevice);
 
-            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+            if (!g_VulkanUseRenderdoc)
+            {
+                vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+            }
+            else
+            {
+                dmLogWarning("WARNING: Currently leaving the memory of context->m_WindowSurface dangling,");
+                dmLogWarning("WARNING: due to an issue with 'vkDestroySurfaceKHR' when using Renderdoc validation layers.");
+            }
 
             DestroyInstance(&context->m_Instance);
 
