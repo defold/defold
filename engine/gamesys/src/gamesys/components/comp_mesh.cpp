@@ -215,7 +215,7 @@ namespace dmGameSystem
         {
             component->m_World = dmTransform::MulNoScaleZ(go_world, component->m_Local);
         }
-        
+
         ReHash(component);
 
         *params.m_UserData = (uintptr_t)index;
@@ -345,7 +345,7 @@ namespace dmGameSystem
         dst_data_ptr = (T*)((uint8_t*)dst_data_ptr + ptr_offset);
 
         Vector4 v(0.0f);
-        float w = !is_point;
+        float w = is_point ? 1.0f : 0.0f;
 
         if (component_count == 2) {
             for (int pi = 0; pi < count; ++pi)
