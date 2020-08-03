@@ -3,14 +3,19 @@
 # Links are specified using markdown syntax: [example](https://example.com)
 # Note: there is no unescaping for square brackets, they are always get parsed as links
 
+# News
+
+Did you know? [Defold now supports Nintendo Switch](https://defold.com/manuals/nintendo-switch/)!
+The Defold Foundation relies on [community donations](https://defold.com/community-donations/) and [corporate partnerships](https://defold.com/corporate-partnerships/) to ensure the long term sustainability of Defold.
+
 # Useful links
 
 Did you know? There are lots of [great examples with demos](https://britzl.github.io/publicexamples/) made by Björn Ritzl!
 Have you seen our [Youtube channel](https://www.youtube.com/user/defoldvideos/videos)?
 [Follow us](https://twitter.com/defold) on Twitter!
 Check out [open source games](https://github.com/benjames-171/defold-games) made by Ben James!
-Did you know? You can tweak your game [without stopping it](https://www.defold.com/manuals/hot-reload/) — even on device!
 Having issues? Write us on [forum](http://forum.defold.com/) or check out the [FAQ](https://www.defold.com/faq/)!
+Don't forget to sign up for the [Defold newsletter](https://defold.com/newsletter/) to stay up to date on new releases, extensions, games and more!
 
 # Hidden gems
 
@@ -24,6 +29,7 @@ To move an object along its rotated axis, select Local Space from the Edit menu.
 
 To avoid breaking changes in [Library dependencies](https://www.defold.com/manuals/libraries/#_library_url) it is recommended to always depend on a versioned release instead of the latest code from the master branch.
 You can open the [Web Profiler](https://www.defold.com/manuals/profiling/#_the_web_profiler) from the Open Web Profiler menu option in the Debug menu.
+Did you know? You can tweak your game [without stopping it](https://www.defold.com/manuals/hot-reload/) — even on device!
 
 # Inspirational quotes
 
