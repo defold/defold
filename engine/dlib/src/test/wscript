@@ -16,8 +16,8 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     req_libs = ['CARES']
     req_defines = []
 
-    if 'DM_NO_IPV6' in os.environ:
-        req_defines += ['DM_NO_IPV6']
+    if 'DM_IPV6_UNSUPPORTED' in os.environ:
+        req_defines += ['DM_IPV6_UNSUPPORTED']
 
     req_features = ['cxx', 'cprogram']
     req_includes = ['../../src']

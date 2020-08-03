@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -463,17 +463,20 @@ public class GameProjectBuilder extends Builder<Void> {
         // If manifest signing keys are specified, use them instead of generating them.
         if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
             if (!Files.exists(Paths.get(privateKeyFilepath))) {
-                privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
-                if (!Files.exists(Paths.get(privateKeyFilepath))) {
-                    privateKeyFilepath = "";
+                String altPrivateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
+                if (!Files.exists(Paths.get(altPrivateKeyFilepath))) {
+                    throw new IOException(String.format("Couldn't find private key at either: '%s' or '%s'", privateKeyFilepath, altPrivateKeyFilepath));
                 }
+                privateKeyFilepath = altPrivateKeyFilepath;
             }
 
             if (!Files.exists(Paths.get(publicKeyFilepath))) {
-                publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
-                if (!Files.exists(Paths.get(publicKeyFilepath))) {
-                    publicKeyFilepath = "";
+                String altPublicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
+                if (!Files.exists(Paths.get(altPublicKeyFilepath))) {
+                    throw new IOException(String.format("Couldn't find public key at either: '%s' or '%s'", publicKeyFilepath, altPublicKeyFilepath));
                 }
+                publicKeyFilepath = altPublicKeyFilepath;
+
             }
         }
 
@@ -567,14 +570,18 @@ public class GameProjectBuilder extends Builder<Void> {
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system
+                // game.arci
                 archiveIndexInputStream = new FileInputStream(archiveIndexHandle);
                 task.getOutputs().get(1).setContent(archiveIndexInputStream);
 
+                // game.arcd
                 archiveDataInputStream = new FileInputStream(archiveDataHandle);
                 task.getOutputs().get(2).setContent(archiveDataInputStream);
 
+                // game.dmanifest
                 task.getOutputs().get(3).setContent(manifestFile);
 
+                // game.public.der
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
