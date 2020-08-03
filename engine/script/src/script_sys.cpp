@@ -809,24 +809,24 @@ union SaveLoadBuffer
 
             lua_newtable(L);
 
-            lua_pushliteral(L, "name");
             lua_pushstring(L, ifa->m_Name);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "address");
+            lua_setfield(L, -2, "name");
+            
             if (ifa->m_Flags & dmSocket::FLAGS_INET)
             {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
-                lua_pushstring(L, ip);
+                if (ip)
+                    lua_pushstring(L, ip);
+                else
+                    lua_pushnil(L);
                 free(ip);
             }
             else
             {
                 lua_pushnil(L);
             }
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "address");
 
-            lua_pushliteral(L, "family");
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
                 lua_pushstring(L, "ipv4");
@@ -839,9 +839,8 @@ union SaveLoadBuffer
             {
                 lua_pushnil(L);
             }
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "family");
 
-            lua_pushliteral(L, "mac");
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
                 char tmp[64];
@@ -862,15 +861,13 @@ union SaveLoadBuffer
             {
                 lua_pushnil(L);
             }
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "mac");
 
-            lua_pushliteral(L, "up");
             lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_UP) != 0);
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "up");
 
-            lua_pushliteral(L, "running");
             lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_RUNNING) != 0);
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "running");
 
             lua_rawseti(L, -2, i + 1);
         }
