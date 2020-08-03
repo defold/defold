@@ -1442,7 +1442,6 @@ class Configuration(object):
 
         u = urlparse.urlparse(self.get_archive_path())
         hostname = u.hostname
-        path = u.path
         bucket = s3.get_bucket(hostname)
 
         model = {'releases': [],
@@ -1486,7 +1485,9 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
-        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, path, release_sha1, editor_channel)
+        editor_archive_path = urlparse.urlparse(self.get_archive_path(editor_channel)).path
+
+        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
         model['release'] = {'editor': [ dict(name='macOS 10.11+', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
                                         dict(name='macOS 10.7-10.10', url=editor_download_url + 'Defold-x86_64-darwin.zip'),
                                         dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
@@ -1518,8 +1519,8 @@ class Configuration(object):
         # For example;
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
         for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
-            redirect = '%s/%s/%s/editor2/%s' % (path, release_sha1, self.channel, name)
+            key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
+            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
@@ -1731,8 +1732,8 @@ class Configuration(object):
 #
 # END: SMOKE TEST
 # ------------------------------------------------------------
-    def get_archive_path(self):
-        return join(self.archive_path, self.channel)
+    def get_archive_path(self, channel=None):
+        return join(self.archive_path, channel or self.channel)
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
