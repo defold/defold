@@ -478,7 +478,7 @@ void _glfwAndroidSetInputMethod(int use_hidden_input)
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
 
-void _glfwAndroidSetImmersiveMode(int immersive_mode)
+void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
 {
     jint result;
 
@@ -498,8 +498,8 @@ void _glfwAndroidSetImmersiveMode(int immersive_mode)
     jobject native_activity = g_AndroidApp->activity->clazz;
     jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
 
-    jmethodID set_immersive_mode = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setImmersiveMode", "(Z)V");
-    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, set_immersive_mode, immersive_mode);
+    jmethodID set_immersive_mode = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "setFullscreenParameters", "(ZZ)V");
+    (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, set_immersive_mode, immersive_mode, display_cutout);
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }

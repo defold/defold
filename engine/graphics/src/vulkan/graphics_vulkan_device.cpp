@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -260,7 +260,8 @@ namespace dmGraphics
     }
 
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel, uint32_t levelCount)
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
+        uint32_t baseMipLevel, uint32_t layer_count)
     {
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
@@ -285,9 +286,9 @@ namespace dmGraphics
         vk_memory_barrier.image                           = vk_image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
         vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
-        vk_memory_barrier.subresourceRange.levelCount     = levelCount;
+        vk_memory_barrier.subresourceRange.levelCount     = 1;
         vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = 1;
+        vk_memory_barrier.subresourceRange.layerCount     = layer_count;
 
         VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
         VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -583,6 +584,7 @@ bail:
         Texture*              textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
+        TextureType tex_type = textureOut->m_Type;
 
         VkImageCreateInfo vk_image_create_info;
         memset(&vk_image_create_info, 0, sizeof(vk_image_create_info));
@@ -602,10 +604,25 @@ bail:
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         vk_image_create_info.flags         = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
+        if (tex_type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            vk_image_create_info.arrayLayers = 6;
+            vk_image_create_info.flags      |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+        }
+
         VkResult res = vkCreateImage(vk_device, &vk_image_create_info, 0, &textureOut->m_Handle.m_Image);
         if (res != VK_SUCCESS)
         {
             return res;
+        }
+
+        // Handle cubemap vs 2D
+        VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
+        uint8_t vk_layer_count       = 1;
+        if (tex_type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            vk_view_type   = VK_IMAGE_VIEW_TYPE_CUBE;
+            vk_layer_count = 6;
         }
 
         // Allocate GPU memory to hold texture
@@ -647,13 +664,13 @@ bail:
 
         vk_view_create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         vk_view_create_info.image                           = textureOut->m_Handle.m_Image;
-        vk_view_create_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+        vk_view_create_info.viewType                        = vk_view_type;
         vk_view_create_info.format                          = vk_format;
         vk_view_create_info.subresourceRange.aspectMask     = vk_aspect;
         vk_view_create_info.subresourceRange.baseMipLevel   = 0;
         vk_view_create_info.subresourceRange.levelCount     = imageMips;
         vk_view_create_info.subresourceRange.baseArrayLayer = 0;
-        vk_view_create_info.subresourceRange.layerCount     = 1;
+        vk_view_create_info.subresourceRange.layerCount     = vk_layer_count;
 
         textureOut->m_Format                   = vk_format;
         textureOut->m_Destroyed                = 0;
