@@ -109,8 +109,10 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
     "${SECURITY}" cms -D -i "${PROFILE}" > "${PROVISION}"
     "${PLISTBUDDY}" -x -c 'Print :Entitlements' "${PROVISION}" > "${ENTITLEMENT}"
 
-    cp -v "${ENGINE}" "Payload/${APPLICATION}.app/${APPLICATION}"
-    chmod +x "Payload/${APPLICATION}.app/${APPLICATION}"
+    EXENAME=$(defaults read ${BUILD}/Payload/${APPLICATION}.app/Info.plist CFBundleExecutable)
+
+    cp -v "${ENGINE}" "Payload/${APPLICATION}.app/${EXENAME}"
+    chmod +x "Payload/${APPLICATION}.app/${EXENAME}"
 
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"
     cp "${PROFILE}" "Payload/${APPLICATION}.app/embedded.mobileprovision"

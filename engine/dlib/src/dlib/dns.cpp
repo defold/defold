@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,7 @@
 #include "atomic.h"
 
 #define CARES_STATICLIB
-#include <ares.h>
+#include <c-ares/ares.h>
 #include <assert.h>
 
 #if defined(__linux__) || defined(__MACH__)
@@ -148,7 +148,7 @@ namespace dmDNS
         //       candidate here. IPV6 seems to fail sometimes when setting up the socket connection
         //       (apparently google.com but likely others aswell), so we try to prioritize selecting an IPV4 address first
         //       if we have both protocols available.
-        struct ares_addrinfo* iterator = info, *selected = 0x0;
+        struct ares_addrinfo_node* iterator = info->nodes, *selected = 0x0;
         bool prefer_ipv4               = req->m_Ipv4 && req->m_Ipv6;
         while (iterator)
         {
@@ -362,7 +362,7 @@ namespace dmDNS
 
             // Note: SOCK_STREAM TCP hint doesn't do anything. To force TCP transport, set the ARES_FLAG_USEVC
             //       in the flags for ares when initializing the channel.
-            ares_addrinfo hints;
+            ares_addrinfo_hints hints;
             memset(&hints, 0x0, sizeof(hints));
             hints.ai_family   = want_family;
             hints.ai_socktype = SOCK_STREAM;

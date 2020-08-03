@@ -534,7 +534,7 @@ namespace dmGraphics
     // Misc functions
     VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
         VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
-        uint32_t baseMipLevel = 0, uint32_t levelCount = 1);
+        uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
 
     void DestroyPipelineCacheCb(HContext context, const uint64_t* key, Pipeline* value);

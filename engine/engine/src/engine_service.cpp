@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,7 +52,7 @@ namespace dmEngineService
     "</root>\n";
 
     static const char INFO_TEMPLATE[] =
-    "{\"version\": \"${ENGINE_VERSION}\"}";
+    "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\"}";
 
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
     const char* const FOURCC_RESOURCES = "RESS";
@@ -282,6 +282,14 @@ namespace dmEngineService
             else if (strcmp(key, "ENGINE_VERSION") == 0)
             {
                 return dmEngineVersion::VERSION;
+            }
+            else if (strcmp(key, "ENGINE_SHA1") == 0)
+            {
+                return dmEngineVersion::VERSION_SHA1;
+            }
+            else if (strcmp(key, "ENGINE_PLATFORM") == 0)
+            {
+                return dmEngineVersion::PLATFORM;
             }
             else
             {

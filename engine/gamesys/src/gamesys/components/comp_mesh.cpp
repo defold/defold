@@ -206,6 +206,15 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_World = Matrix4::identity();
+        const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+        if (dmGameObject::ScaleAlongZ(component->m_Instance))
+        {
+            component->m_World = go_world * component->m_Local;
+        }
+        else
+        {
+            component->m_World = dmTransform::MulNoScaleZ(go_world, component->m_Local);
+        }
 
         ReHash(component);
 
@@ -336,7 +345,7 @@ namespace dmGameSystem
         dst_data_ptr = (T*)((uint8_t*)dst_data_ptr + ptr_offset);
 
         Vector4 v(0.0f);
-        float w = !is_point;
+        float w = is_point ? 1.0f : 0.0f;
 
         if (component_count == 2) {
             for (int pi = 0; pi < count; ++pi)
