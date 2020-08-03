@@ -13,6 +13,9 @@
 #include <nn/nifm/nifm_ApiIpAddress.h>
 #include <nn/nifm/nifm_ApiNetworkConnection.h>
 #include <nn/socket/socket_Api.h>
+#include <sys/types.h> 
+#include <ifaddrs.h> // getifaddrs
+#include <net/if_dl.h>
 
 // Helper and utility functions
 namespace dmSocket
@@ -313,13 +316,10 @@ namespace dmSocket
             nn::socket::SockAddrIn sa = { 0 };
             nn::socket::SockLenT saLen = sizeof(sa);
             result = nn::socket::Accept(socket, (nn::socket::SockAddr*)&sa, &saLen);
-
             if (result < 0)
             {
                 dmLogError("Accept failed (error %d)\n", NATIVETORESULT(DM_SOCKET_ERRNO));
             }
-
-            dmLogInfo("Connection accepted from %s\n", nn::socket::InetNtoa(sa.sin_addr));
 
             address->m_family = DOMAIN_IPV4;
             *IPv4(address) = sa.sin_addr.S_addr;
@@ -523,14 +523,18 @@ namespace dmSocket
 
     Result GetHostname(char* hostname, int hostname_length)
     {
-        // TODO: what about other tools that use this function? Do we need to expose our own version of gethostname()
-        return RESULT_HOSTUNREACH;
-        /*
-        int r = gethostname(hostname, hostname_length);
-        if (hostname_length > 0)
-            hostname[hostname_length - 1] = '\0';
-        return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
-        */
+        dmSocket::Address local_address;
+        dmSocket::Result sockr = dmSocket::GetLocalAddress(&local_address);
+        if (sockr != dmSocket::RESULT_OK)
+        {
+            return RESULT_NETUNREACH;
+        }
+
+        const char* addr = dmSocket::AddressToIPString(local_address);
+        dmStrlCpy(hostname, addr, hostname_length);
+        free((void*)addr);
+
+        return RESULT_OK;
     }
 
     Result GetLocalAddress(Address* address)
@@ -541,7 +545,7 @@ namespace dmSocket
             return RESULT_UNKNOWN;
         }
         address->m_family = DOMAIN_IPV4;
-        address->m_address[0] = ipaddr.S_addr;
+        *IPv4(address) = ipaddr.S_addr;
         return RESULT_OK;
     }
 
@@ -658,12 +662,61 @@ namespace dmSocket
         return result;
     }
 
+    static int ProcessAddrInfo(IfAddr* a, nn::socket::AddrInfo* pAddrinfo)
+    {
+        nn::socket::Family family = pAddrinfo->ai_family;
+        if (!(family == nn::socket::Family::Af_Inet || family == nn::socket::Family::Af_Inet6 || family == nn::socket::Family::Af_Link)) {
+            return 0;
+        }
+
+        memset(a, 0, sizeof(IfAddr));
+        a->m_Address.m_family = DOMAIN_MISSING;
+
+        /*
+        if (ifa->ifa_flags & IFF_UP) {
+            a->m_Flags |= FLAGS_UP;
+        }
+
+        if (ifa->ifa_flags & IFF_RUNNING) {
+            a->m_Flags |= FLAGS_RUNNING;
+        }
+        */
+        a->m_Flags |= FLAGS_UP;
+        a->m_Flags |= FLAGS_RUNNING;
+
+        nn::socket::SockAddrIn* pSin = (nn::socket::SockAddrIn*)pAddrinfo->ai_addr;
+
+        const char* name = pAddrinfo->ai_canonname;
+        if (!name && pSin != 0)
+            name = nn::socket::InetNtoa(pSin->sin_addr);
+        dmStrlCpy(a->m_Name, name, sizeof(a->m_Name));
+
+        // only nn::socket::Family::Af_Inet (IPv4) addresses are supported
+        if (nn::socket::Family::Af_Inet == family)
+        {
+            if (pSin)
+            {
+                a->m_Flags |= FLAGS_INET;
+                a->m_Address.m_family = DOMAIN_IPV4;
+                *IPv4(&a->m_Address) = pSin->sin_addr.S_addr;
+            }
+        } else if (family == nn::socket::Family::Af_Inet6) {
+            a->m_Flags |= FLAGS_INET; // as opposed to "link"
+            a->m_Address.m_family = DOMAIN_IPV6;
+            //memcpy(IPv6(&a->m_Address), &sock_addr->sin6_addr, sizeof(struct in6_addr));
+        } else if (family == nn::socket::Family::Af_Link) {
+            a->m_Flags |= FLAGS_LINK;
+            // copy mac address
+        }
+        return 1;
+    }
+
     // See SocketResolver.cpp example: https://developer.nintendo.com/html/online-docs/nx-en/g1kr9vj6-en/Packages/SDK/NintendoSDK/Documents/Api/HtmlNX/_socket_resolver_8cpp-example.html#a28
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
 
-        if (addresses == 0 || addresses_count)
+        if (addresses == 0 || addresses_count == 0)
             return;
 
         const char* ip = "localhost";
@@ -672,8 +725,7 @@ namespace dmSocket
         nn::socket::AddrInfo* pAddressInfoResult = 0;
         nn::socket::AddrInfo hints;
         memset(&hints, 0, sizeof(hints));
-        hints.ai_family = nn::socket::Family::Af_Inet;
-        hints.ai_socktype = nn::socket::Type::Sock_Stream;
+        hints.ai_family = nn::socket::Family::Af_Unspec;
 
         if (nn::socket::AiErrno::EAi_Success != (rc = nn::socket::GetAddrInfo(ip, 0, &hints, &pAddressInfoResult)))
         {
@@ -687,30 +739,25 @@ namespace dmSocket
             return;
         }
 
-        nn::socket::SockAddrIn* pSin = 0;
+        nn::socket::InAddr primary_ip;
+        nn::Result result = nn::nifm::GetCurrentPrimaryIpAddress(&primary_ip);
+        if( result.IsSuccess() )
+        {
+            IfAddr* a = &addresses[*count];
+            a->m_Flags |= FLAGS_INET;
+            a->m_Address.m_family = DOMAIN_IPV4;
+            a->m_Flags |= FLAGS_UP;
+            a->m_Flags |= FLAGS_RUNNING;
+            *IPv4(&a->m_Address) = primary_ip.S_addr;
+            a->m_Name[0] = 0;
+            *count += 1;
+        }
+
         for (nn::socket::AddrInfo* pAddrinfo = pAddressInfoResult; pAddrinfo != 0; pAddrinfo = pAddrinfo->ai_next)
         {
-            // only nn::socket::Family::Af_Inet (IPv4) addresses are supported
-            if (nn::socket::Family::Af_Inet == pAddrinfo->ai_family)
-            {
-                pSin = (nn::socket::SockAddrIn*)pAddrinfo->ai_addr;
-                if (pSin)
-                {
-                    IfAddr* a = &addresses[*count];
-                    memset(a, 0, sizeof(IfAddr));
-                    a->m_Address.m_family = DOMAIN_IPV4;
-                    *IPv4(&a->m_Address) = pSin->sin_addr.S_addr;
-
-                    if (pAddrinfo->ai_canonname)
-                    {
-                        size_t namesize = strlen(pAddrinfo->ai_canonname);
-                        if (namesize > sizeof(a->m_Name))
-                            namesize = sizeof(a->m_Name);
-                        dmStrlCpy(a->m_Name, pAddrinfo->ai_canonname, namesize);
-                    }
-                    (*count)++;
-                }
-            }
+            IfAddr* a = &addresses[*count];
+            int added = ProcessAddrInfo(a, pAddrinfo);
+            *count += added ? 1 : 0;
         }
 
         if (pAddressInfoResult)
