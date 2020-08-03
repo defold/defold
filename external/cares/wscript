@@ -1,0 +1,88 @@
+#! /usr/bin/env python
+
+srcdir = '.'
+blddir = 'build'
+
+APPNAME='c-ares'
+VERSION='1.16.1'
+
+import os, sys, re
+import waf_dynamo
+
+sys.path.append("..")
+import waf_package
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+
+    conf.env.append_unique('CXXDEFINES', 'NDEBUG')
+
+def build(bld):
+
+    name = '%s-%s' % (APPNAME, VERSION)
+    packagedir = 'package/%s' % name
+
+    has_resolv = bld.env.PLATFORM in ('armv7-darwin','arm64-darwin','x86_64-ios')
+
+    defines = ['NDEBUG', 'CARES_STATICLIB']
+    if has_resolv:
+        defines += ['CARES_USE_LIBRESOLV', 'HAVE_INET_NET_PTON=1', 'HAVE_INET_PTON=1']
+
+    path = './%s/BulletCollision' % packagedir
+    cares = bld.new_task_gen(features = 'cc cstaticlib',
+                                        defines = defines,
+                                        includes = '. .. %s' % packagedir,
+                                        target = 'cares')
+
+    cares.install_path = None
+    cares.find_sources_in_dirs([packagedir], exts = ['.c'])
+
+    pruned_source = []
+    for s in cares.source:
+        skip = False
+        for x in ('adig.c', 'acountry.c', 'ahost.c'):
+            if s.endswith(x):
+                skip = True
+                break
+        if skip:
+            continue
+        pruned_source.append(s)
+    cares.source = pruned_source
+
+    install_dir = '${PREFIX}/%s-%s' % (APPNAME, VERSION)
+    lib_dir = '%s/lib/%s' % (install_dir, bld.env.PLATFORM)
+    include_dir = '%s/include/%s' % (install_dir, APPNAME)
+
+    bld.install_files(lib_dir, bld.env.staticlib_PATTERN % 'cares')
+    bld.install_files(include_dir, '%s/ares.h' % packagedir)
+    bld.install_files(include_dir, '%s/ares_build.h' % packagedir)
+    bld.install_files(include_dir, '%s/ares_rules.h' % packagedir)
+    bld.install_files(include_dir, '%s/ares_version.h' % packagedir)
+
+
+def package(conf):
+    # TODO: Check how much of this can be moved to waf_package.py
+
+    env = waf_package.load_build_context(blddir)
+
+    cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION))
+
+    files = waf_package.glob_files("include/**/*", cwd=cwd)
+    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
+    waf_package.create_tar(files, cwd, target=target)
+
+    files = waf_package.glob_files(["bin/%s/*" % env.PLATFORM,
+                                    "bin/%s/**/*" % env.PLATFORM,
+                                    "lib/%s/*" % env.PLATFORM,
+                                    "lib/%s/**/*" % env.PLATFORM],
+                                    cwd=cwd)
+
+    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, env.PLATFORM))
+    waf_package.create_tar(files, cwd, target=target)
+

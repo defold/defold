@@ -34,6 +34,7 @@ def configure(conf):
     engine_version = """
 namespace dmEngineVersion
 {
+    static const char* PLATFORM = "%(platform)s";
     static const char* VERSION = "%(version)s";
     static const char* VERSION_SHA1 = "%(sha1)s";
 }
@@ -48,7 +49,7 @@ namespace dmEngineVersion
         version = f.readline().strip()
     sha1 = build_util.git_sha1()
     with open(full, 'w') as f:
-        f.write(engine_version % {"version": version, "sha1": sha1})
+        f.write(engine_version % {"version": version, "sha1": sha1, "platform": build_util.get_target_platform()})
 
     waf_graphics.configure(conf)
     waf_ddf.configure(conf)
