@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include <crash/crash.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -48,6 +49,10 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
+
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -85,7 +90,7 @@ using namespace Vectormath::Aos;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetImmersiveMode(int);
+    extern void _glfwAndroidSetFullscreenParameters(int, int);
 }
 #endif
 
@@ -463,6 +468,7 @@ namespace dmEngine
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
 
         dmSys::EngineInfoParam engine_info;
+        engine_info.m_Platform = dmEngineVersion::PLATFORM;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
         engine_info.m_IsDebug = dLib::IsDebugMode();
@@ -1146,7 +1152,8 @@ namespace dmEngine
         }
         {
             int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            _glfwAndroidSetImmersiveMode(immersive_mode);
+            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
+            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 
@@ -1531,9 +1538,62 @@ bail:
         return engine->m_Alive;
     }
 
+// #if defined(__EMSCRIPTEN__)
+//     static void PreStepEmscripten(HEngine engine)
+//     {
+//         dmEngine::RunResult run_result = engine->m_RunResult;
+//         if (run_result.m_Action == dmEngine::RunResult::REBOOT)
+//         {
+//             dmEngineService::HEngineService engine_service = engine->m_EngineService;
+//             PreRun pre_run = engine->m_PreRun;
+//             PostRun post_run = engine->m_PostRun;
+//             void* context = engine->m_PrePostRunContext;
+
+//             dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
+
+//             emscripten_pause_main_loop(); // stop further callbacks
+//             emscripten_cancel_main_loop(); // Causes an exception
+
+//             if (engine->m_PostRun)
+//             {
+//                 engine->m_PostRun(engine, context);
+//             }
+
+//             dmEngine::Delete(engine);
+
+//             // enters the main loop again (i.e. calls emscripten_set_main_loop_arg(PerformStep, engine))
+//             dmEngine::InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
+//             return;
+//         }
+//         else if (run_result.m_Action == dmEngine::RunResult::EXIT)
+//         {
+//             dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
+
+//             emscripten_pause_main_loop();
+//             emscripten_cancel_main_loop();
+
+//             if (engine->m_PostRun)
+//             {
+//                 engine->m_PostRun(engine, engine->m_PrePostRunContext);
+//             }
+
+//             dmEngine::Delete(engine);
+//         }
+
+//         if (!dmCrash::IsEnabled()) {
+//             dmCrash::SetEnabled(true);
+//         }
+//     }
+// #endif // __EMSCRIPTEN__
+
     static void PerformStep(void* context)
     {
         HEngine engine = (HEngine)context;
+
+// #if defined(__EMSCRIPTEN__)
+//         PreStepEmscripten(engine);
+// #endif
+
         Step(engine);
     }
 

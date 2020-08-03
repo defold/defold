@@ -144,7 +144,6 @@ namespace dmSys
             return NativeToResult(errno);
     }
 
-
     void GetEngineInfo(EngineInfo* info)
     {
         *info = g_EngineInfo;
@@ -156,9 +155,10 @@ namespace dmSys
         assert(copied < sizeof(g_EngineInfo.m_Version));
         copied = dmStrlCpy(g_EngineInfo.m_VersionSHA1, info.m_VersionSHA1, sizeof(g_EngineInfo.m_VersionSHA1));
         assert(copied < sizeof(g_EngineInfo.m_VersionSHA1));
+        copied = dmStrlCpy(g_EngineInfo.m_Platform, info.m_Platform, sizeof(g_EngineInfo.m_Platform));
+        assert(copied < sizeof(g_EngineInfo.m_Platform));
         g_EngineInfo.m_IsDebug = info.m_IsDebug;
     }
-
 
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {

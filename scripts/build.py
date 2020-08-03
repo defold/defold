@@ -66,19 +66,19 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.6 c-ares-1.16.1 vulkan-1.1.108".split()
 PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 webp-0.5.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
+PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
+PACKAGES_IOS="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1".split()
+PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 c-ares-1.16.1 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 MoltenVK-1.0.41".split()
-PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 cares-602aaec984f862a5d59c9eb022f4317954c53917 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 cares-602aaec984f862a5d59c9eb022f4317954c53917".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 MoltenVK-1.0.41".split()
+PACKAGES_WIN32="webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 c-ares-1.16.1 vulkan-1.1.108".split()
+PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.16.1".split()
+PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex android-28 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2 c-ares-1.16.1".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -1443,7 +1443,6 @@ class Configuration(object):
 
         u = urlparse.urlparse(self.get_archive_path())
         hostname = u.hostname
-        path = u.path
         bucket = s3.get_bucket(hostname)
 
         model = {'releases': [],
@@ -1487,7 +1486,9 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
-        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, path, release_sha1, editor_channel)
+        editor_archive_path = urlparse.urlparse(self.get_archive_path(editor_channel)).path
+
+        editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
         model['release'] = {'editor': [ dict(name='macOS 10.11+', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
                                         dict(name='macOS 10.7-10.10', url=editor_download_url + 'Defold-x86_64-darwin.zip'),
                                         dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
@@ -1519,8 +1520,8 @@ class Configuration(object):
         # For example;
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
         for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
-            key_name = 'editor2/channels/%s/%s' % (self.channel, name)
-            redirect = '%s/%s/%s/editor2/%s' % (path, release_sha1, self.channel, name)
+            key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
+            redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
             key = bucket.new_key(key_name)
             key.set_redirect(redirect)
@@ -1732,8 +1733,8 @@ class Configuration(object):
 #
 # END: SMOKE TEST
 # ------------------------------------------------------------
-    def get_archive_path(self):
-        return join(self.archive_path, self.channel)
+    def get_archive_path(self, channel=None):
+        return join(self.archive_path, channel or self.channel)
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
