@@ -430,19 +430,6 @@ public class Project {
         return propertyFiles;
     }
 
-    private void logExceptionToStdErr(IResource res, int line)
-    {
-        String resourceString = "unspecified";
-        String resourceLineString = "";
-        if (res != null) {
-            resourceString = res.toString();
-        }
-        if (line > 0) {
-            resourceLineString = String.format(" at line %d", line);
-        }
-        System.err.println("Error in resource: " + resourceString + resourceLineString);
-    }
-
     /**
      * Build the project
      * @param monitor
@@ -455,11 +442,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
-            logExceptionToStdErr(e.getResource(), e.getLineNumber());
+            String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            System.err.println(s);
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
-            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {

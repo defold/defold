@@ -1,14 +1,12 @@
 #! /usr/bin/env python
 
+import waf_dynamo
+
 VERSION = '0.1'
-APPNAME = 'app'
+APPNAME = 'testmain'
 
 srcdir = '.'
 blddir = 'build'
-
-import Options
-import os, sys
-import waf_dynamo
 
 def init():
     pass
@@ -19,7 +17,6 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
     conf.recurse('src')
 
 def build(bld):
