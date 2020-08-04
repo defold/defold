@@ -23,7 +23,7 @@ namespace dmGraphics
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority)
     {
-        adapter->m_Next          = g_adapter_list;
+        adapter->m_Next          = g_adapter_list;  
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_Priority      = priority;
@@ -74,8 +74,10 @@ namespace dmGraphics
     ContextParams::ContextParams()
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
-    , m_VerifyGraphicsCalls(false)
     , m_GraphicsMemorySize(0)
+    , m_VerifyGraphicsCalls(false)
+    , m_RenderDocSupport(0)
+    , m_UseValidationLayers(0)
     {
 
     }

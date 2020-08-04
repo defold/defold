@@ -293,18 +293,18 @@ def release(channel = None):
     cmd = ' '.join(args + opts)
     call(cmd)
 
-def release_to_markdown(token = None, repo = None, sha1 = None):
-    args = "python scripts/build.py release_to_markdown".split()
+def release_to_github_markdown(token = None, repo = None, sha1 = None):
+    args = "python scripts/build.py release_to_github_markdown".split()
     opts = []
 
     if token:
-        opts.append("--github_token=%s" % token)
+        opts.append("--github-token=%s" % token)
 
     if repo:
-        opts.append("--github_target_repo=%s" % repo)
+        opts.append("--github-target-repo=%s" % repo)
 
     if sha1:
-        opts.append("--github_sha1=%s" % sha1)
+        opts.append("--github-sha1=%s" % sha1)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -442,8 +442,8 @@ def main(argv):
                 release(channel = release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
-        elif command == "release_to_markdown":
-            release_to_markdown(token = args.github_token,
+        elif command == "release_to_github_markdown":
+            release_to_github_markdown(token = args.github_token,
                                 repo = args.github_target_repo,
                                 sha1 = args.github_sha1)
         else:

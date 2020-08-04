@@ -10,7 +10,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <app/app.h>
 #include <dlib/dlib.h>
 #include <dlib/socket.h>
 #include <dlib/dns.h>
@@ -23,6 +22,7 @@
 
 #include "engine.h"
 #include "engine_version.h"
+#include "engine_private.h"
 
 static void AppCreate(void* _ctx)
 {
@@ -57,15 +57,15 @@ static void AppDestroy(void* _ctx)
 
 int engine_main(int argc, char *argv[])
 {
-    dmApp::Params params;
+    dmEngine::RunLoopParams params;
     params.m_Argc = argc;
     params.m_Argv = argv;
     params.m_AppCtx = 0;
     params.m_AppCreate = AppCreate;
     params.m_AppDestroy = AppDestroy;
-    params.m_EngineCreate = (dmApp::EngineCreate)dmEngineCreate;
-    params.m_EngineDestroy = (dmApp::EngineDestroy)dmEngineDestroy;
-    params.m_EngineUpdate = (dmApp::EngineUpdate)dmEngineUpdate;
-    params.m_EngineGetResult = (dmApp::EngineGetResult)dmEngineGetResult;
-    return dmApp::Run(&params);
+    params.m_EngineCreate = (dmEngine::EngineCreate)dmEngineCreate;
+    params.m_EngineDestroy = (dmEngine::EngineDestroy)dmEngineDestroy;
+    params.m_EngineUpdate = (dmEngine::EngineUpdate)dmEngineUpdate;
+    params.m_EngineGetResult = (dmEngine::EngineGetResult)dmEngineGetResult;
+    return dmEngine::RunLoop(&params);
 }

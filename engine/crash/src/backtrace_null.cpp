@@ -33,6 +33,10 @@ namespace dmCrash
     {
     }
 
+    void EnableHandler(bool)
+    {
+    }
+
 }
 
 #if defined(__EMSCRIPTEN__)

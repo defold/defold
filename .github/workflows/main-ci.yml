@@ -6,11 +6,6 @@ on:
        - '*'
        - '!DEFEDIT-*'
        - '!editor-dev'
-  pull_request:
-     branches:
-       - '*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
   repository_dispatch: {}
 
 env:
@@ -29,7 +24,7 @@ env:
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-switch:
-    if: "!contains(github.event.head_commit.message, 'skip-ci') && contains(github.head_ref, 'switch')"
+    if: "!contains(github.event.head_commit.message, 'skip-ci') && contains(github.ref, 'switch')"
     strategy:
       matrix:
         platform: [arm64-nx64]
@@ -214,7 +209,7 @@ jobs:
       },
       {
         name: 'Install private platform packages',
-        if: "(contains(github.head_ref, 'switch')) && ((github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)))",
+        if: "(contains(github.ref, 'switch')) && ((github.event_name == 'push') || (github.event_name == 'pull_request') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)))",
         run: 'ci/ci.sh install_ext --platform=arm64-nx64'
       },
       {
@@ -322,15 +317,18 @@ jobs:
 # ---- RELEASE ------------------
 
   release-switch:
-    if: "!contains(github.event.head_commit.message, 'skip-ci') && contains(github.head_ref, 'switch')"
+    if: "!contains(github.event.head_commit.message, 'skip-ci') && (github.event_name == 'push') && (endsWith(github.ref, 'platform-switch')  || endsWith(github.ref, 'platform-switch-beta') || endsWith(github.ref, 'platform-switch-master'))"
     needs: [sign-editor-darwin]
     runs-on: ubuntu-18.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v1, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Pip',
+        run: 'python -m pip install --upgrade pip && pip install -r ci/pip_requirements.txt'
+      },
       {
         name: 'Publish release to releases.md',
-        run: 'ci/ci.sh release_to_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-repo=defold/defold-switch-releases'
+        run: 'ci/ci.sh release_to_github_markdown --github-token=${{ secrets.GITHUB_TOKEN_READONLY }} --github-sha1=${GITHUB_SHA} --github-target-repo=defold/defold-switch-releases'
       },
       {
        name: 'Notify if build status changed',

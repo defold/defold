@@ -22,7 +22,7 @@ def build(bld):
 
     bld.new_task_gen(features = 'cxx cprogram embed test',
                       includes = '.',
-                      uselib = 'APP EXTENSION DLIB LUA',
+                      uselib = 'TESTMAIN EXTENSION DLIB LUA',
                       uselib_local = 'test_sdk_lib',
                       exported_symbols = ["TestSdk"],
                       target = 'test_sdk',

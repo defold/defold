@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 def build(bld):
-    libs = 'APP PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA CARES'
+    libs = 'TESTMAIN PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA CARES'
     exported_symbols = ['GraphicsAdapterNull']
 
     bld.new_task_gen(features = 'cxx cprogram test',
