@@ -1,3 +1,5 @@
+import Options
+
 def configure(conf):
     pass
 
@@ -34,4 +36,5 @@ def build(bld):
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_physics.py')
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

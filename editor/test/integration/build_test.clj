@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;; 
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;; 
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns integration.build-test
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
@@ -778,12 +790,17 @@
                               ["root.stuff" "root.stuff"]
                               ["more_assets/some_more.stuff" "some_more.stuff"]
                               ["more_assets/some_more2.stuff" "some_more2.stuff"]]))
-      (with-setting "project/custom_resources" "nonexistent_path"
+      (with-setting "project/custom_resources" ""
         (project-build project game-project (g/make-evaluation-context))
         (doseq [path ["assets/some.stuff" "assets/some2.stuff"
                       "root.stuff"
                       "more_assets/some_more.stuff" "more_assets/some_more2.stuff"]]
-          (is (false? (.exists (build-path workspace path)))))))))))
+          (is (false? (.exists (build-path workspace path))))))
+      (with-setting "project/custom_resources" "nonexistent_path"
+        (let [build-error (:error (project-build project game-project (g/make-evaluation-context)))
+              error-message (some :message (tree-seq :causes :causes build-error))]
+          (is (g/error? build-error))
+          (is (= "Custom resource not found: '/nonexistent_path'" error-message)))))))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"

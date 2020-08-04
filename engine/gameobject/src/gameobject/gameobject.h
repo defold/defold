@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #ifndef GAMEOBJECT_H
 #define GAMEOBJECT_H
 
@@ -25,12 +37,18 @@ namespace dmGameObject
     /// Default max instances in collection
     const uint32_t DEFAULT_MAX_COLLECTION_CAPACITY = 1024;
 
+    /// Default max instances in input stack
+    const uint32_t DEFAULT_MAX_INPUT_STACK_CAPACITY = 16;
+
     // Value for an invalid instance index, this must be the same as defined in
     // gamesys_ddf.proto for Create#index.
     const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
 
     /// Config key to use for tweaking maximum number of instances in a collection
     extern const char* COLLECTION_MAX_INSTANCES_KEY;
+
+    /// Config key to use for tweaking the maximum capacity of the input stack
+    extern const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY;
 
     /// Instance handle
     typedef struct Instance* HInstance;
@@ -159,6 +177,7 @@ namespace dmGameObject
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
@@ -703,6 +722,13 @@ namespace dmGameObject
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
+
+    /**
+     * Set default input stack capacity of collections in this register. This does not affect existing collections.
+     * @param regist Register
+     * @param capacity Default capacity of collections in this register.
+     */
+    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
      * Delete a component type register

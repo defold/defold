@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <new>
 #include <algorithm>
 #include <stdio.h>
@@ -30,6 +42,7 @@
 namespace dmGameObject
 {
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
+    const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
@@ -146,6 +159,7 @@ namespace dmGameObject
     {
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
+        m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
         m_Mutex = dmMutex::New();
         m_SocketToCollection.SetCapacity(15, 17);
     }
@@ -170,7 +184,7 @@ namespace dmGameObject
         return new Register();
     }
 
-    Collection::Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
+    Collection::Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_input_stack_entries)
     {
         m_Factory = factory;
         m_Register = regist;
@@ -181,8 +195,7 @@ namespace dmGameObject
         m_WorldTransforms.SetCapacity(max_instances);
         m_WorldTransforms.SetSize(max_instances);
         m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
-        // TODO: Un-hard-code
-        m_InputFocusStack.SetCapacity(16);
+        m_InputFocusStack.SetCapacity(max_input_stack_entries);
         m_NameHash = 0;
         m_ComponentSocket = 0;
         m_FrameSocket = 0;
@@ -225,6 +238,18 @@ namespace dmGameObject
         return regist->m_DefaultCollectionCapacity;
     }
 
+    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity)
+    {
+        assert(regist != 0x0);
+        regist->m_DefaultInputStackCapacity = capacity;
+    }
+
+    static uint32_t GetInputStackDefaultCapacity(HRegister regist)
+    {
+        assert(regist != 0x0);
+        return regist->m_DefaultInputStackCapacity;
+    }
+
     void DeleteRegister(HRegister regist)
     {
         uint32_t collection_count = regist->m_Collections.Size();
@@ -241,7 +266,7 @@ namespace dmGameObject
 
     Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances)
     {
-        Collection* collection = new Collection(0, 0, max_instances);
+        Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)

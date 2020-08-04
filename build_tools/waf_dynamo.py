@@ -1,16 +1,18 @@
 import os, sys, subprocess, shutil, re, stat, glob, zipfile
 import Build, Options, Utils, Task, Logs
 import Configure
+import cc # for supporting LIBDIR
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
-import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 if not 'DYNAMO_HOME' in os.environ:
     print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
     sys.exit(1)
+
+# Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 
 SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
 ANDROID_ROOT=SDK_ROOT
@@ -24,8 +26,8 @@ ANDROID_GCC_VERSION='4.9'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-IOS_SDK_VERSION="13.1"
-IOS_SIMULATOR_SDK_VERSION="13.1"
+IOS_SDK_VERSION="13.5"
+IOS_SIMULATOR_SDK_VERSION="13.5"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="8.0"
@@ -33,9 +35,11 @@ MIN_IOS_SDK_VERSION="8.0"
 OSX_SDK_VERSION="10.15"
 MIN_OSX_SDK_VERSION="10.7"
 
-XCODE_VERSION="11.1"
+XCODE_VERSION="11.5"
 
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault%s.xctoolchain' % XCODE_VERSION)
+SDK_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs')
+DARWIN_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT,'XcodeDefault%s.xctoolchain' % XCODE_VERSION)
+LINUX_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT, 'linux')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
@@ -231,7 +235,7 @@ def default_flags(self):
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
 
-    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
     if Options.options.with_asan and opt_level != '0':
         opt_level = 1
 
@@ -277,13 +281,30 @@ def default_flags(self):
                 self.env.append_value(f, ['-stdlib=libc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
                 self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
+                if 'linux' in self.env['BUILD_PLATFORM']:
+                    self.env.append_value(f, ['-target', 'x86_64-apple-darwin14'])
+
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+            if 'linux' in self.env['BUILD_PLATFORM']:
+                self.env.append_value('LINKFLAGS', ['-target', 'x86_64-apple-darwin14'])
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
+
+        extra_ccflags = []
+        extra_linkflags = []
+        if 'linux' in self.env['BUILD_PLATFORM']:
+            target_triplet='arm-apple-darwin14'
+            extra_ccflags += ['-target', target_triplet, '-fclang-abi-compat=6']
+            extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT,'usr/lib/clang/11.0.3/lib/darwin'),
+                                '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/lib/arc/libarclite_iphoneos.a')]
+        else:
+            extra_linkflags += ['-fobjc-link-runtime']
+
+
         if Options.options.with_asan:
             MIN_IOS_SDK_VERSION="8.0" # embedded dylibs/frameworks are only supported on iOS 8.0 and later
 
@@ -293,15 +314,14 @@ def default_flags(self):
             sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-
-            self.env.append_value(f, ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+            self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
-                                            '-isysroot', sys_root])
+                                            '-isysroot', sys_root, '-isysroot', sys_root])
 
             if 'x86_64' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-fobjc-link-runtime', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+        self.env.append_value('LINKFLAGS', ['-arch', build_util.get_target_architecture(), '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION] + extra_linkflags)
 
     elif 'android' == build_util.get_target_os():
         target_arch = build_util.get_target_architecture()
@@ -330,19 +350,23 @@ def default_flags(self):
         # Default to asmjs output
         wasm_enabled = 0
         legacy_vm_support = 1
-        binaryen_method = "asmjs"
         if 'wasm' == build_util.get_target_architecture():
             wasm_enabled = 1
             legacy_vm_support = 0
-            binaryen_method = "native-wasm"
+
+        emflags = ['WASM=%d' % wasm_enabled, 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, 'DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
+                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]', 'EXPORTED_FUNCTIONS=["_main"]',
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'TOTAL_MEMORY=268435456', 'LLD_REPORT_UNDEFINED']
+        emflags = zip(['-s'] * len(emflags), emflags)
+        emflags =[j for i in emflags for j in i]
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
-                                      '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
+            self.env.append_value(f, ['-O%s' % opt_level, '-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
+                                        '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
+            self.env.append_value(f, emflags)
 
-        # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]', '-s','ERROR_ON_UNDEFINED_SYMBOLS=1'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', emflags)
 
     else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -447,24 +471,6 @@ def default_install_shlib(self):
     # Force installation dir to LIBDIR.
     # Default on windows is BINDIR
     self.default_install_path = self.env.LIBDIR
-
-# objective-c++ support
-if sys.platform == "darwin":
-    EXT_OBJCXX = ['.mm']
-    @extension(EXT_OBJCXX)
-    def objc_hook(self, node):
-        tsk = cxx.cxx_hook(self, node)
-        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCXX'])
-        tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
-
-# objective-c support
-if sys.platform == "darwin":
-    EXT_OBJC = ['.m']
-    @extension(EXT_OBJC)
-    def objc_hook(self, node):
-        tsk = cc.c_hook(self, node)
-        tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCC'])
-        tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
 
 # iPhone bundle and signing support
 RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
@@ -769,7 +775,7 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    if not Options.options.skip_codesign:
+    if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
         signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign', self.env)
@@ -1204,7 +1210,7 @@ def linux_link_flags(self):
 @after('apply_obj_vars')
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if 'web' in platform:
+    if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
@@ -1284,100 +1290,17 @@ def create_clang_wrapper(conf, exe):
     os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     return clang_wrapper_path
 
-# Capture vcvarsall.bat environment variables for MSVC binaries, INCLUDE and LIB dir
-# Adapted from msvc.py in waf 1.5.9
-def _capture_vcvars_env(conf,target,vcvars):
-    batfile=os.path.join(conf.blddir,'waf-print-msvc.bat')
-    f=open(batfile,'w')
-    f.write("""@echo off
-set INCLUDE=
-set LIB=
-call "%s" %s
-echo PATH=%%PATH%%
-echo INCLUDE=%%INCLUDE%%
-echo LIB=%%LIB%%
-"""%(vcvars,target))
-    f.close()
-    sout=Utils.cmd_output(['cmd','/E:on','/V:on','/C',batfile])
-    lines=sout.splitlines()
-    for line in lines[0:]:
-        if line.startswith('PATH='):
-            path=line[5:]
-            paths=[p for p in path.split(';') if "MinGW" not in p]
-            MSVC_PATH=paths
-        elif line.startswith('INCLUDE='):
-            MSVC_INCDIR=[i for i in line[8:].split(';')if i]
-        elif line.startswith('LIB='):
-            MSVC_LIBDIR=[i for i in line[4:].split(';')if i]
-    return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
-
-# Given path to msvc installation, capture target platform settings
-def _get_msvc_target_support(conf, product_dir, version):
-    targets=[]
-    vcvarsall_path = os.path.join(product_dir, 'VC', 'vcvarsall.bat')
-
-    if os.path.isfile(vcvarsall_path):
-        if os.path.isfile(os.path.join(product_dir, 'Common7', 'Tools', 'vsvars32.bat')):
-            try:
-                targets.append(('x86', ('x86', _capture_vcvars_env(conf, 'x86', vcvarsall_path))))
-            except Configure.ConfigurationError:
-                pass
-        if os.path.isfile(os.path.join(product_dir, 'VC', 'bin', 'amd64', 'vcvars64.bat')):
-            try:
-                targets.append(('x64', ('amd64', _capture_vcvars_env(conf, 'x64', vcvarsall_path))))
-            except:
-                pass
-
-    return targets
-
-def _find_msvc_installs():
-    import _winreg
-    version_pattern = re.compile('^..?\...?')
-    installs = []
-    for vcver in ['VCExpress', 'VisualStudio']:
-        try:
-            all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Wow6432node\\Microsoft\\' + vcver)
-        except WindowsError:
-            try:
-                all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\' + vcver)
-            except WindowsError:
-                continue
-        index = 0
-        while 1:
-            try:
-                version = _winreg.EnumKey(all_versions, index)
-            except WindowsError:
-                break
-            index = index + 1
-            if not version_pattern.match(version):
-                continue
-            try:
-                msvc_version = _winreg.OpenKey(all_versions, version + "\\Setup\\VS")
-                path, type = _winreg.QueryValueEx(msvc_version, 'ProductDir')
-                path = str(path)
-                installs.append((version, path))
-            except WindowsError:
-                continue
-    return list(set(installs))
-
 def get_msvc_version(conf, platform):
+    # We return these mappings in a format that the waf tools would have returned (if they worked, and weren't very very slow)
     dynamo_home = conf.env['DYNAMO_HOME']
     msvcdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'MicrosoftVisualStudio14.0')
     windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
 
-    if not os.path.exists(msvcdir):
-        msvcdir = os.path.normpath(os.path.join(os.environ['VS140COMNTOOLS'], '..', '..'))
-        windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
+    arch = 'x64'
+    if platform == 'win32':
+        arch = 'x86'
 
-    target_map = {'win32': 'x86',
-                   'x86_64-win32': 'x64'}
-    platform_map = {'win32': '',
-                    'x86_64-win32': 'amd64'}
-
-    msvc_path = (os.path.join(msvcdir,'VC','bin', platform_map[platform]),
-                os.path.join(windowskitsdir,'8.1','bin',target_map[platform]))
-
-    # Since the programs(Windows!) can update, we do this dynamically
+    # Since the programs(Windows!) can update, we do this dynamically to find the correct version
     ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
     ucrt_dirs = [ x for x in ucrt_dirs if x.startswith('10.0')]
     ucrt_dirs.sort(key=lambda x: int((x.split('.'))[2]))
@@ -1385,21 +1308,27 @@ def get_msvc_version(conf, platform):
     if not ucrt_version.startswith('10.0'):
         conf.fatal("Unable to determine ucrt version: '%s'" % ucrt_version)
 
-    includes = [os.path.join(msvcdir,'VC','include'),
-                os.path.join(msvcdir,'VC','atlmfc','include'),
+    msvc_version = [x for x in os.listdir(os.path.join(msvcdir,'VC','Tools','MSVC'))]
+    msvc_version = [x for x in msvc_version if x.startswith('14.')]
+    msvc_version.sort(key=lambda x: map(int, x.split('.')))
+    msvc_version = msvc_version[-1]
+    if not msvc_version.startswith('14.'):
+        conf.fatal("Unable to determine msvc version: '%s'" % msvc_version)
+
+    msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
+                os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
+
+    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
+                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
                 os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'8.1','Include','winrt'),
-                os.path.join(windowskitsdir,'8.1','Include','um'),
-                os.path.join(windowskitsdir,'8.1','Include','shared')]
-    libdirs = [ os.path.join(msvcdir,'VC','lib','amd64'),
-                os.path.join(msvcdir,'VC','atlmfc','lib','amd64'),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x64'),
-                os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x64')]
-    if platform == 'win32':
-        libdirs = [os.path.join(msvcdir,'VC','lib'),
-                    os.path.join(msvcdir,'VC','atlmfc','lib'),
-                    os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt','x86'),
-                    os.path.join(windowskitsdir,'8.1','Lib','winv6.3','um','x86')]
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
+                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
+
+    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
+                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
+                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
 
     return msvc_path, includes, libdirs
 
@@ -1415,8 +1344,6 @@ def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
     conf.find_program('nodejs', var='NODEJS', mandatory = False)
-    if not conf.env['NODEJS']:
-        conf.find_program('node', var='NODEJS', mandatory = False)
 
     platform = None
     if getattr(Options.options, 'platform', None):
@@ -1447,6 +1374,9 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
 
+    if build_platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
+        conf.find_program('node', var='NODEJS', mandatory = False)
+
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -1455,24 +1385,33 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        conf.env['TESTS_UNSUPPORTED'] = True
+        print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
+
+        conf.env['CODESIGN_UNSUPPORTED'] = True
+        print "Codesign disabled", Options.options.skip_codesign
+
     # Vulkan support
     if Options.options.with_vulkan and build_util.get_target_platform() in ('armv7-darwin','x86_64-ios','js-web','wasm-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if 'win32' in platform:
-        if platform == 'x86_64-win32':
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', get_msvc_version(conf, 'x86_64-win32')))])]
-        else:
-            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', get_msvc_version(conf, 'win32')))])]
+        msvc_path, includes, libdirs = get_msvc_version(conf, platform)
 
-        target_map = {'win32': 'x86', 'x86_64-win32': 'x64'}
-        windowskitsdir = os.path.join(dynamo_home, 'ext', 'SDKs', 'Win32', 'WindowsKits')
-        if not os.path.exists(windowskitsdir):
-            windowskitsdir = os.path.join(os.environ['ProgramFiles(x86)'], 'Windows Kits')
-        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = [os.path.join(windowskitsdir, '8.1','bin', target_map[platform] )])
+        if platform == 'x86_64-win32':
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x64', ('amd64', (msvc_path, includes, libdirs)))])]
+        else:
+            conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (msvc_path, includes, libdirs)))])]
+
+        if not Options.options.skip_codesign:
+            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = msvc_path)
 
     if  build_util.get_target_os() in ('osx', 'ios'):
-        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True) # or possibly llvm-dsymutil
+        path_list = None
+        if 'linux' in build_platform:
+            path_list=[os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')]
+        conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
     if 'osx' == build_util.get_target_os():
@@ -1481,33 +1420,56 @@ def detect(conf):
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
 
-        conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['CPP']     = '%s/usr/bin/clang -E' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['AR']      = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
+        llvm_prefix = ''
+        bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
+        if 'linux' in build_platform:
+            llvm_prefix = 'llvm-'
+            bin_dir = os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+
+        conf.env['CC']      = '%s/clang' % bin_dir
+        conf.env['CXX']     = '%s/clang++' % bin_dir
+        conf.env['LINK_CC'] = '%s/clang' % bin_dir
+        conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+        conf.env['CPP']     = '%s/clang -E' % bin_dir
+        conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
+        conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
-        # Wrap clang in a bash-script due to a bug in clang related to cwd
-        # waf change directory from ROOT to ROOT/build when building.
-        # clang "thinks" however that cwd is ROOT instead of ROOT/build
-        # This bug is at least prevalent in "Apple clang version 3.0 (tags/Apple/clang-211.12) (based on LLVM 3.0svn)"
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
-        clang_wrapper = create_clang_wrapper(conf, 'clang')
-        clangxx_wrapper = create_clang_wrapper(conf, 'clang++')
+        if 'linux' in build_platform:
+            bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+
+            conf.env['CC']      = '%s/clang' % bin_dir
+            conf.env['CXX']     = '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = '%s/clang' % bin_dir
+            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['CPP']     = '%s/clang -E' % bin_dir
+            conf.env['AR']      = '%s/llvm-ar' % bin_dir
+            conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
+
+        else:
+            # # Wrap clang in a bash-script due to a bug in clang related to cwd
+            # # waf change directory from ROOT to ROOT/build when building.
+            # # clang "thinks" however that cwd is ROOT instead of ROOT/build
+            # # This bug is at least prevalent in "Apple clang version 3.0 (tags/Apple/clang-211.12) (based on LLVM 3.0svn)"
+            # clang_wrapper = create_clang_wrapper(conf, 'clang')
+            # clangxx_wrapper = create_clang_wrapper(conf, 'clang++')
+            bin_dir = '%s/usr/bin' % (DARWIN_TOOLCHAIN_ROOT)
+
+            conf.env['CC']      = '%s/clang' % bin_dir
+            conf.env['CXX']     = '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = '%s/clang' % bin_dir
+            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['CPP']     = '%s/clang -E' % bin_dir
+            conf.env['AR']      = '%s/ar' % bin_dir
+            conf.env['RANLIB']  = '%s/ranlib' % bin_dir
+            conf.env['LD']      = '%s/ld' % bin_dir
 
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
-        conf.env['CC'] = clang_wrapper
-        conf.env['CXX'] = clangxx_wrapper
-        conf.env['LINK_CXX'] = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['CPP'] = '%s/usr/bin/clang -E' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
-        conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
+
+
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch        = 'x86_64'
@@ -1525,18 +1487,25 @@ def detect(conf):
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
         conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+
     elif 'linux' == build_util.get_target_os():
-        conf.find_program('gcc-5', var='GCC5', mandatory = False)
-        if conf.env.GCC5 and "gcc-5" in conf.env.GCC5:
-            conf.env.CXX = "g++-5"
-            conf.env.CC = "gcc-5"
-            conf.env.CPP = "cpp-5"
-            conf.env.AR = "gcc-ar-5"
-            conf.env.RANLIB = "gcc-ranlib-5"
+        bin_dir=os.path.join(LINUX_TOOLCHAIN_ROOT,'clang-9.0.0','bin')
+        conf.find_program('clang-9', var='CLANG9', mandatory = False, path_list=[bin_dir])
+
+        if conf.env.CLANG9 and "clang-9" in conf.env.CLANG9:
+            conf.env['CC']      = '%s/clang' % bin_dir
+            conf.env['CXX']     = '%s/clang++' % bin_dir
+            conf.env['CPP']     = '%s/clang -E' % bin_dir
+            conf.env['LINK_CC'] = '%s/clang' % bin_dir
+            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['AR']      = '%s/llvm-ar' % bin_dir
+            conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
+
         else:
-            conf.env.CXX = "g++"
-            conf.env.CC = "gcc"
-            conf.env.CPP = "cpp"
+            # Fallback to default compiler
+            conf.env.CXX = "clang++"
+            conf.env.CC = "clang++"
+            conf.env.CPP = "clang -E"
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
@@ -1548,19 +1517,24 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and ('js' == build_util.get_target_architecture() or 'wasm' == build_util.get_target_architecture()):
+    if platform in ('js-web', 'wasm-web'):
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
         conf.env['EMSCRIPTEN'] = bin
         conf.env['CC'] = '%s/emcc' % (bin)
         conf.env['CXX'] = '%s/em++' % (bin)
+        conf.env['LINK_CC'] = '%s/emcc' % (bin)
         conf.env['LINK_CXX'] = '%s/em++' % (bin)
         conf.env['CPP'] = '%s/em++' % (bin)
         conf.env['AR'] = '%s/emar' % (bin)
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
+
+        # Unknown argument: -Bstatic, -Bdynamic
+        conf.env['STATICLIB_MARKER']=''
+        conf.env['SHLIB_MARKER']=''
 
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
@@ -1586,6 +1560,13 @@ def detect(conf):
 
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
+
+    if platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
+        conf.check_tool('waf_objectivec')
+
+        # Unknown argument: -Bstatic, -Bdynamic
+        conf.env['STATICLIB_MARKER']=''
+        conf.env['SHLIB_MARKER']=''
 
     if re.match('.*?linux', platform):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
@@ -1616,7 +1597,7 @@ def detect(conf):
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
     conf.env['STATICLIB_CARES'] = []
-    if platform != 'web':
+    if platform not in ['js-web', 'wasm-web']:
         conf.env['STATICLIB_CARES'].append('cares')
     if platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_CARES'].append('resolv')

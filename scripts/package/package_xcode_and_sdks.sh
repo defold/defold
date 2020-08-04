@@ -1,4 +1,17 @@
 #! /usr/bin/env bash
+# Copyright 2020 The Defold Foundation
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
+
+
 
 # Note: I wasn't able to rename the top folder when packaging, since it messed up symlinks (also the packages became unnecessarily bloated)
 
@@ -11,7 +24,7 @@
 
 set -e
 
-TARGET_DIR="$(pwd)/new_packages"
+TARGET_DIR="$(pwd)/local_sdks"
 
 PLATFORMS="/Applications/Xcode.app/Contents/Developer/Platforms"
 XCODE="/Applications/Xcode.app/Contents/Developer/Toolchains"
@@ -33,14 +46,14 @@ function make_archive() {
 	if [ ! -e "$archive" ]; then
 		echo Packaging ${src} to ${archive}
 
-		local tarflags=czf
+		local tarflags=-czf
 		if [ "${VERBOSE}" != "" ]; then
 			tarflags=${tarflags}v
 		fi
 
 		echo EXTRA ARGS: $@
-		echo tar ${tarflags} ${archive} $@ ${src}
-		tar ${tarflags} ${archive} $@ ${src}
+		echo tar ${tarflags} $@ -f ${archive} ${src}
+		tar ${tarflags} $@ -f ${archive} ${src}
 	else
 		echo "Found existing $archive"
 	fi
@@ -71,10 +84,14 @@ function package_xcode() {
 
 	pushd ${XCODE}
 
-	EXTRA_ARGS="--exclude ${_name}/usr/lib/swift --exclude ${_name}/usr/lib/swift_static --exclude ${_name}/Developer/Platforms --exclude ${_name}/usr/lib/sourcekitd.framework"
+	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework"
+	for f in ${_name}/usr/lib/swift*
+	do
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
+	done
 	for f in ${_name}/usr/bin/swift*
 	do
-		EXTRA_ARGS="--exclude ${f} ${EXTRA_ARGS}"
+		EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
 	done
 
 	make_archive ${_name} ${target} ${EXTRA_ARGS}

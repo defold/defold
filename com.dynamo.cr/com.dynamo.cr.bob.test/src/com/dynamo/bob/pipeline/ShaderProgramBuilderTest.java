@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
@@ -33,8 +45,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "gl_FragColor = fragColor; \n" +
             "}\n";
 
-    @Test
-    public void testShaderPrograms() throws Exception {
+    private void doTest(boolean expectSpirv) throws Exception {
         // Test GL vp
         List<Message> outputs = build("/test_shader.vp", vp);
         ShaderDesc shader = (ShaderDesc)outputs.get(0);
@@ -46,10 +57,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             case X86_64Darwin:
             case X86_64Linux:
             case X86_64Win32:
+            if (expectSpirv)
+            {
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
+            }
             default:
                 assertEquals(1, shader.getShadersCount());
         }
@@ -66,11 +80,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             case X86_64Darwin:
             case X86_64Linux:
             case X86_64Win32:
+            if (expectSpirv)
+            {
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
-
+            }
             default:
                 assertEquals(1, shader.getShadersCount());
         }
@@ -84,11 +100,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             case X86_64Darwin:
             case X86_64Linux:
             case X86_64Win32:
+            if (expectSpirv)
+            {
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
-
+            }
             default:
                 assertEquals(1, shader.getShadersCount());
         }
@@ -102,13 +120,22 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             case X86_64Darwin:
             case X86_64Linux:
             case X86_64Win32:
+            if (expectSpirv)
+            {
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
                 break;
-
+            }
             default:
                 assertEquals(1, shader.getShadersCount());
         }
+    }
+
+    @Test
+    public void testShaderPrograms() throws Exception {
+        doTest(false);
+        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+        doTest(true);
     }
 }

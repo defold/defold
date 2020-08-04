@@ -1,0 +1,104 @@
+#! /usr/bin/env python
+
+srcdir = '.'
+blddir = 'build'
+
+APPNAME='bullet'
+VERSION='2.77'
+
+import os, sys, re
+import waf_dynamo
+
+sys.path.append("..")
+import waf_package
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+
+    conf.env.append_unique('CXXDEFINES', 'NDEBUG')
+
+def build(bld):
+
+    name = '%s-%s' % (APPNAME, VERSION)
+    packagedir = 'package/%s/src' % name
+
+    path = './%s/BulletCollision' % packagedir
+    bullet_collision = bld.new_task_gen(features = 'cxx cstaticlib',
+                                        defines = ['NDEBUG'],
+                                        includes = '. .. ./package/%s/src' % name,
+                                        target = 'BulletCollision')
+
+    bullet_collision.find_sources_in_dirs(['%s/BroadphaseCollision' % path,
+                                           '%s/CollisionShapes' % path,
+                                           '%s/CollisionDispatch' % path,
+                                           '%s/Gimpact' % path,
+                                           '%s/NarrowPhaseCollision' % path])
+    bullet_collision.install_path = None
+
+    path = './%s/BulletDynamics' % packagedir
+    bullet_dynamics = bld.new_task_gen(features = 'cxx cstaticlib',
+                                        defines = ['NDEBUG'],
+                                       includes = '. .. ./package/%s/src' % name,
+                                       target = 'BulletDynamics')
+
+    bullet_dynamics.find_sources_in_dirs([  '%s/Character' % path,
+                                            '%s/ConstraintSolver' % path,
+                                            '%s/Dynamics' % path,
+                                            '%s/Vehicle' % path])
+    bullet_dynamics.install_path = None
+
+    path = './%s/LinearMath' % packagedir
+    linear_math = bld.new_task_gen(features = 'cxx cstaticlib',
+                                   defines = ['NDEBUG'],
+                                   includes = '. .. ./package/%s/src' % name,
+                                   target = 'LinearMath')
+    linear_math.find_sources_in_dirs(path)
+    linear_math.install_path = None
+
+    # for android
+    linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
+
+    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletCollision')
+    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletDynamics')
+    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'LinearMath')
+
+    waf_package.package_install_files(bld,
+                        '${PREFIX}/%s-%s/include' % (APPNAME, VERSION),
+                        bld.path.ant_glob('**/*.h'),
+                        cwd=bld.path.find_dir(packagedir), relative_trick=True)
+
+def package(conf):
+    # TODO: Check how much of this can be moved to waf_package.py
+
+    env = waf_package.load_build_context(blddir)
+
+    cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION))
+
+    files = waf_package.glob_files("include/**/*", cwd=cwd)
+    files.extend(waf_package.glob_files("include/*", cwd=cwd))
+    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
+    waf_package.create_tar(files, cwd, target=target)
+
+    files = waf_package.glob_files(["bin/%s/*" % env.PLATFORM,
+                                    "bin/%s/**/*" % env.PLATFORM,
+                                    "lib/%s/*" % env.PLATFORM,
+                                    "lib/%s/**/*" % env.PLATFORM],
+                                    cwd=cwd)
+
+    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, env.PLATFORM))
+    waf_package.create_tar(files, cwd, target=target)
+
+
+
+
+
+
+
+
+

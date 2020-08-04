@@ -1,3 +1,15 @@
+;; Copyright 2020 The Defold Foundation
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.pipeline.bob
   (:require
     [clojure.java.io :as io]
@@ -180,7 +192,7 @@
   {:architecture-32bit? "armv7-android"
    :architecture-64bit? "arm64-android"})
 
-(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as bundle-options}]
+(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key bundle-format] :as bundle-options}]
   (let [bob-architectures
         (for [[option-key bob-architecture] android-architecture-option->bob-architecture-string
               :when (bundle-options option-key)]
@@ -191,6 +203,7 @@
                 (and (.isFile certificate)
                      (.isFile private-key))))
     (cond-> bob-args
+            bundle-format (assoc "bundle-format" bundle-format)
             certificate (assoc "certificate" (.getAbsolutePath certificate))
             private-key (assoc "private-key" (.getAbsolutePath private-key)))))
 

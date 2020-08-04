@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.bundle;
 
 import java.io.BufferedOutputStream;
@@ -28,7 +40,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -320,7 +331,7 @@ public class BundleHelper {
     }
 
     // either copies the merged manifest or writes a new resolved manifest from single source file
-    public void copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
+    public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
         boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
@@ -344,6 +355,7 @@ public class BundleHelper {
             manifestFile = new File(extenderPlatformDir, mainManifestName); // the merged manifest
         }
         FileUtils.copyFile(manifestFile, targetManifest);
+        return targetManifest;
     }
 
     private static Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
@@ -438,22 +450,20 @@ public class BundleHelper {
         return new File(appDir, "res");
     }
 
-    public void copyAndroidResources(Platform platform, File appDir) throws IOException {
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
-
-        File targetResDir = getAndroidResourceDir(appDir);
-        if (hasExtensions) {
-            // pass
-        } else {
-            File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
-            packagesDir.mkdir();
-
-            File resDir = new File(packagesDir, "com.defold.android/res");
-            resDir.mkdirs();
-
-            BundleHelper.createAndroidResourceFolders(resDir);
-            copyAndroidIcons(resDir);
+    public File copyAndroidResources(Platform platform) throws IOException {
+        if (ExtenderUtil.hasNativeExtensions(project)) {
+            return null;
         }
+
+        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+        packagesDir.mkdir();
+
+        File resDir = new File(packagesDir, "com.defold.android/res");
+        resDir.mkdirs();
+
+        BundleHelper.createAndroidResourceFolders(resDir);
+        copyAndroidIcons(resDir);
+        return resDir;
     }
 
     public void aaptMakePackage(Platform platform, File appDir, File apk) throws CompileExceptionError {
@@ -689,6 +699,11 @@ public class BundleHelper {
         return properties;
     }
 
+    private String derivedBundleName() {
+        String title = projectProperties.getStringValue("project", "title", "dmengine");
+        return title.substring(0, Math.min(title.length(), 15));
+    }
+
     public Map<String, Object> createOSXManifestProperties(String exeName) throws IOException {
         Map<String, Object> properties = new HashMap<>();
         properties.put("exe-name", exeName);
@@ -696,6 +711,8 @@ public class BundleHelper {
         String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
         List<String> applicationLocalizations = createArrayFromString(applicationLocalizationsStr);
         properties.put("application-localizations", applicationLocalizations);
+
+        properties.put("bundle-name", projectProperties.getStringValue("osx", "bundle_name", derivedBundleName()));
 
         return properties;
     }
@@ -713,6 +730,10 @@ public class BundleHelper {
         properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
+        properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName()));
+
+        String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
+        properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
@@ -1166,5 +1187,21 @@ public class BundleHelper {
             bos.write(bytesIn, 0, read);
         }
         bos.close();
+    }
+
+    public static List<IResource> listFilesRecursive(Project project, String path) {
+        List<IResource> resources = new ArrayList<>();
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths(path, paths);
+        for (String p : paths) {
+            IResource r = project.getResource(p);
+
+            // Note: findResourcePaths will return the supplied path even if it's not a file.
+            // We need to check if the resource is not a directory before adding it to the list of paths found.
+            if (r.isFile()) {
+                resources.add(r);
+            }
+        }
+        return resources;
     }
 }

@@ -41,7 +41,7 @@ var LibraryDmSys = {
         },
 
         dmSysGetUserPreferredLanguage: function(defaultlang) {
-            var jsdefault = Pointer_stringify(defaultlang);
+            var jsdefault = UTF8ToString(defaultlang);
             var preferred = navigator == undefined ? jsdefault : (navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
             var buffer = _malloc(preferred.length + 1);
             Module.stringToUTF8(preferred, buffer, preferred.length + 1);
@@ -66,8 +66,8 @@ var LibraryDmSys = {
 
         dmSysOpenURL__deps: ['$JSEvents'],
         dmSysOpenURL: function(url, target) {
-            var jsurl = Pointer_stringify(url);
-            var jstarget = Pointer_stringify(target);
+            var jsurl = UTF8ToString(url);
+            var jstarget = UTF8ToString(target);
             if (jstarget == 0)
             {
                 jstarget = "_self";

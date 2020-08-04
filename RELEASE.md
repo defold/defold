@@ -9,7 +9,7 @@
 The alpha channel is automatically released for every successful push to dev.
 
 ## Beta
-Beta beta channel is automatically released for e very successful push to beta.
+Beta beta channel is automatically released for every successful push to beta.
 
 * If there is a pending Native Extension server change, [publish the stage server](https://github.com/defold/extender/blob/dev/README.md#releasing-stage-server), which updates https://build-stage.defold.com.
 * Collect release notes using `sripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
@@ -28,17 +28,6 @@ Beta beta channel is automatically released for e very successful push to beta.
 
     This will trigger a build of the engines and editors for stable.
     Make a note of the release sha1 (the latest commit to the master branch on GitHub)
-
- 1. Merge `master` into `editor-dev`
-
-        $ git checkout editor-dev
-        $ git pull
-        $ git merge master
-        $ git push
-
-    This will trigger a build of the engines and editors for editor-alpha.
-
- 1. When the `editor-dev` is built, all channels have been updated
 
  1. Fetch editor via:
 
@@ -59,6 +48,17 @@ Beta beta channel is automatically released for e very successful push to beta.
         $ git push origin --tags
 
     This will push the tags to GitHub, which is then used later in the release step. Add `-f` to force update the tags.
+
+ 1. Merge `master` into `editor-dev`
+
+        $ git checkout editor-dev
+        $ git pull
+        $ git merge master
+        $ git push
+
+    This will trigger a build of the engines and editors for editor-alpha.
+
+ 1. When the `editor-dev` is built, all channels have been updated
 
 ### Publishing Stable Release
 

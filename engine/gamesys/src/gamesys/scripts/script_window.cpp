@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <string.h>
 #include <dlib/log.h>
 #include "../gamesys.h"
@@ -123,7 +135,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function if you no longer wish to receive callbacks.
+ * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function or nil if you no longer wish to receive callbacks.
  *
  * `self`
  * : [type:object] The calling script
@@ -167,7 +179,16 @@ static void RunCallback(CallbackInfo* cbinfo)
  */
 static int SetListener(lua_State* L)
 {
+    luaL_checkany(L, 1);
+
     WindowInfo* window_info = &g_Window;
+
+    if (lua_isnil(L, 1))
+    {
+        ClearListener(&window_info->m_Listener);
+        return 0;
+    }
+
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
     int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);

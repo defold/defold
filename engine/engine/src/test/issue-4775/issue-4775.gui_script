@@ -1,0 +1,16 @@
+function init(self)
+	local ok, err = pcall(function()
+		local node1 = gui.new_box_node(vmath.vector3(0), vmath.vector3(0))
+		gui.set_texture(node1, "texture1")
+		gui.play_flipbook(node1, hash("image"))
+
+		local node2 = gui.new_box_node(vmath.vector3(0), vmath.vector3(0))
+		gui.set_texture(node2, "texture1")
+	end)
+	if not ok then
+		print(err)
+		msg.post("@system:", "exit", { code = 1 })
+	else
+		msg.post("@system:", "exit", { code = 0 })
+	end
+end

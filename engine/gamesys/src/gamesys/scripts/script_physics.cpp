@@ -1,3 +1,15 @@
+// Copyright 2020 The Defold Foundation
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 #include <float.h>
 #include <stdio.h>
 #include <assert.h>
@@ -310,6 +322,24 @@ namespace dmGameSystem
         return 0;
     }
 
+    static void PushRayCastResponse(lua_State* L, void* world, const dmPhysics::RayCastResponse& response)
+    {
+        lua_pushnumber(L, response.m_Fraction);
+        lua_setfield(L, -2, "fraction");
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
+        lua_setfield(L, -2, "position");
+        dmScript::PushVector3(L, response.m_Normal);
+        lua_setfield(L, -2, "normal");
+
+        dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+        dmScript::PushHash(L, group);
+        lua_setfield(L, -2, "group");
+
+        dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);
+        dmScript::PushHash(L, id);
+        lua_setfield(L, -2, "id");
+    }
+
     /*# requests a ray cast to be performed
      *
      * Ray casts are used to test for intersections against collision objects in the physics world.
@@ -322,21 +352,29 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @return result [type:table] It returns a table. If missed it returns nil. See `ray_cast_response` for details on the returned values.
+     * @param options [type:table] a lua table containing options for the raycast.
+     *
+     * `all`
+     * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
+     *
+     * @return result [type:table] It returns a list. If missed it returns nil. See `ray_cast_response` for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
      *
      * ```lua
      * function init(self)
-     *     self.my_groups = {hash("my_group1"), hash("my_group2")}
+     *     self.groups = {hash("world"), hash("enemy")}
      * end
      *
      * function update(self, dt)
      *     -- request ray cast
-     *     local result = physics.raycast(my_start, my_end, self.my_groups)
+     *     local result = physics.raycast(from, to, self.groups, {all=true})
      *     if result ~= nil then
      *         -- act on the hit (see 'ray_cast_response')
+     *         for _,result in ipairs(results) do
+     *             handle_result(result)
+     *         end
      *     end
      * end
      * ```
@@ -370,32 +408,60 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
+        bool list_format = false;
+        bool return_all_results = false;
+        if (lua_istable(L, 4))
+        {
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "all");
+            return_all_results = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+
+            list_format = true;
+        }
+
+        dmArray<dmPhysics::RayCastResponse> hits;
+        hits.SetCapacity(32);
+
         dmPhysics::RayCastRequest request;
-        dmPhysics::RayCastResponse response;
         request.m_From = from;
         request.m_To = to;
         request.m_Mask = mask;
-        dmGameSystem::RayCast(world, request, response);
+        request.m_ReturnAllResults = return_all_results ? 1 : 0;
 
-        if (response.m_Hit) {
-            lua_newtable(L);
-            lua_pushnumber(L, response.m_Fraction);
-            lua_setfield(L, -2, "fraction");
-            dmScript::PushVector3(L, Vectormath::Aos::Vector3(response.m_Position));
-            lua_setfield(L, -2, "position");
-            dmScript::PushVector3(L, response.m_Normal);
-            lua_setfield(L, -2, "normal");
+        dmGameSystem::RayCast(world, request, hits);
 
-            dmhash_t group = dmGameSystem::GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            dmScript::PushHash(L, group);
-            lua_setfield(L, -2, "group");
-
-            dmhash_t id = dmGameSystem::CompCollisionObjectGetIdentifier(response.m_CollisionObjectUserData);
-            dmScript::PushHash(L, id);
-            lua_setfield(L, -2, "id");
-        } else {
+        if (hits.Empty())
+        {
             lua_pushnil(L);
+            return 1;
         }
+
+        uint32_t count = hits.Size();
+
+        if (!return_all_results)
+            count = 1;
+
+        lua_newtable(L);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if(list_format)
+            {
+                lua_newtable(L);
+            }
+
+            PushRayCastResponse(L, world, hits[i]);
+
+            if (list_format)
+            {
+                lua_rawseti(L, -2, i+1);
+            }
+        }
+
         return 1;
     }
 
