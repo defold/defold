@@ -781,7 +781,7 @@
                               parent (core/scope node-id)
                               children (vec (g/node-value parent :nodes))
                               node-child-index (.indexOf ^java.util.List children node-id)]
-                          (> node-child-index 0)))
+                          (pos? node-child-index)))
   (run [selection] (move-node! (selection->image selection) -1)))
 
 (handler/defhandler :move-down :workbench
@@ -790,5 +790,5 @@
                               parent (core/scope node-id)
                               children (vec (g/node-value parent :nodes))
                               node-child-index (.indexOf ^java.util.List children node-id)]
-                          (< node-child-index (- (.size children) 1))))
+                          (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
