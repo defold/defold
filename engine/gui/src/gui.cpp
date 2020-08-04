@@ -1526,13 +1526,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     static inline uint32_t InsertAnimation(dmArray<Animation>& animations, Animation* anim)
     {
         Animation* begin = animations.Begin();
-        Animation* end = animations.End();
         // We use the fact that the actual end pointer is actually valid here (it's just uninitialized)
-        Animation* current = std::lower_bound(begin, end-1, anim->m_Value, AnimCompare);
-        if (current != end && current->m_Value != anim->m_Value) // anim.m_Value >= value
+        Animation* last = animations.End()-1;
+        Animation* current = std::lower_bound(begin, last, anim->m_Value, AnimCompare);
+        if (current != last && current->m_Value != anim->m_Value) // anim.m_Value >= value
         {
             // Move all one step to the "right"
-            memmove(current+1, current, sizeof(Animation) * (end-current));
+            memmove(current+1, current, sizeof(Animation) * (last-current));
         }
         *current = *anim;
         return (uint32_t)(current - begin);
