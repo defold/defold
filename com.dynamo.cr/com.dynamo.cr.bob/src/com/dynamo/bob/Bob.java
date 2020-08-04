@@ -49,6 +49,7 @@ import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
@@ -437,6 +438,20 @@ public class Bob {
         return project;
     }
 
+    public static String logExceptionToString(int severity, IResource res, int line, String message)
+    {
+        String resourceString = "unspecified";
+        if (res != null) {
+            resourceString = res.toString();
+        }
+        String strSeverity = "ERROR";
+        if (severity == MultipleCompileException.Info.SEVERITY_INFO)
+            strSeverity = "INFO";
+        else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
+            strSeverity = "WARNING";
+        return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
+    }
+
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
         ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
@@ -456,7 +471,7 @@ public class Bob {
         project.findSources(sourceDirectory, skipDirs);
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileException, URISyntaxException, LibraryException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
         String cwd = new File(".").getAbsolutePath();
@@ -595,9 +610,21 @@ public class Bob {
             project.setOption("bundle-format", cmd.getOptionValue("bundle-format"));
         }
 
-        List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
         StringBuilder errors = new StringBuilder();
+
+        List<TaskResult> result = new ArrayList<>();
+        try {
+            result = project.build(new ConsoleProgress(), commands);
+        } catch(MultipleCompileException e) {
+            ret = false;
+            errors.append("\n");
+            for (MultipleCompileException.Info info : e.issues)
+            {
+                errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+            }
+            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+        }
         for (TaskResult taskResult : result) {
             if (!taskResult.isOk()) {
                 ret = false;
@@ -628,7 +655,7 @@ public class Bob {
             }
         }
         if (!ret) {
-            System.out.println("The build failed for the following reasons:");
+            System.out.println("\nThe build failed for the following reasons:");
             System.out.println(errors.toString());
         }
         project.dispose();

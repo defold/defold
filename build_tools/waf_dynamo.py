@@ -32,7 +32,7 @@ except:
             pass
         @classmethod
         def supports_feature(cls, platform, feature, data):
-            if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'armv7-android', 'arm64-android', 'x86_64-linux'):
+            if feature == 'vulkan' and platform in ('win32', 'x86_64-win32', 'js-web', 'wasm-web', 'x86_64-linux'):
                 return False
             return True
         @classmethod
@@ -1443,10 +1443,9 @@ def remove_flag_at_index(arr, index, count):
         del arr[index]
 
 def remove_flag(arr, flag, nargs):
-    if not flag in arr:
-        return
-    index = arr.index(flag)
-    remove_flag_at_index(arr, index, nargs+1)
+    while flag in arr:
+        index = arr.index(flag)
+        remove_flag_at_index(arr, index, nargs+1)
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1705,16 +1704,7 @@ def detect(conf):
         else:
             conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
 
-    conf.env['STATICLIB_APP'] = ['app_test'] # we'll use this for all internal tests/tools except for dmengine
-    if platform in ('x86_64-darwin',):
-        conf.env['FRAMEWORK_APP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo', 'QuartzCore']
-    elif platform in ('armv7-android', 'arm64-android'):
-        conf.env['STATICLIB_APP'] += ['android']
-    elif platform in ('x86_64-linux',):
-        conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
-    elif platform in ('win32', 'x86_64-win32'):
-        conf.env['LINKFLAGS_APP'] = ['user32.lib', 'shell32.lib']
-
+    conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
@@ -1760,13 +1750,20 @@ def detect(conf):
             conf.env['STATICLIB_RECORD'] = 'record_null'
     conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
+    conf.env['STATICLIB_GRAPHICS']          = 'graphics'
+    conf.env['STATICLIB_GRAPHICS_VULKAN']   = 'graphics_vulkan'
+
+    conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
+
     if platform in ('x86_64-darwin'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('armv7-darwin','arm64-darwin','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('x86_64-linux',):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):
@@ -1774,10 +1771,19 @@ def detect(conf):
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
+    if platform in ('x86_64-darwin',):
+        conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
+    elif platform in ('armv7-android', 'arm64-android'):
+        conf.env['STATICLIB_TESTAPP'] += ['android']
+    elif platform in ('x86_64-linux',):
+        conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
+    elif platform in ('win32', 'x86_64-win32'):
+        conf.env['LINKFLAGS_TESTAPP'] = ['user32.lib', 'shell32.lib']
+
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_PLATFORM'] = ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
 
 
 def configure(conf):

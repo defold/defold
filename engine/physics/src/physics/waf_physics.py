@@ -20,13 +20,4 @@ def configure(conf):
         Logs.info("physics disabled")
         conf.env['STATICLIB_PHYSICS'] = ['physics_null']
     else:
-
-        box2d = platform_supports_feature(conf.env['PLATFORM'], 'box2d', {})
-        bullet3d = platform_supports_feature(conf.env['PLATFORM'], 'bullet3d', {})
-
-        if bullet3d and box2d:
-            conf.env['STATICLIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'Box2D']
-        elif box2d:
-            conf.env['STATICLIB_PHYSICS'] = ['physics_2d', 'Box2D']
-        else:
-            conf.env['STATICLIB_PHYSICS'] = ['physics_3d', 'BulletDynamics', 'BulletCollision', 'LinearMath']
+        conf.env['STATICLIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'Box2D']

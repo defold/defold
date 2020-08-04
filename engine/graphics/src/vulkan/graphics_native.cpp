@@ -2,7 +2,6 @@
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/log.h>
-#include <dlib/sys.h>
 #include "../graphics.h"
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
@@ -39,10 +38,10 @@ namespace dmGraphics
         return g_extension_names;
     }
 
-    const char** GetValidationLayers(uint16_t* num_layers)
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_randerdoc)
     {
         uint16_t count = 0;
-        if (dmSys::GetEnv("DM_VULKAN_VALIDATION"))
+        if (use_validation)
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
         }
@@ -78,6 +77,23 @@ namespace dmGraphics
         glfwTerminate();
     }
 
+    void NativeBeginFrame(HContext context)
+    {
+    }
+
+    void OnWindowResize(int width, int height)
+    {
+        assert(g_Context);
+        g_Context->m_WindowWidth  = (uint32_t)width;
+        g_Context->m_WindowHeight = (uint32_t)height;
+
+        SwapChainChanged(g_Context, &g_Context->m_WindowWidth, &g_Context->m_WindowHeight, 0, 0);
+
+        if (g_Context->m_WindowResizeCallback != 0x0)
+        {
+            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+        }
+    }
 
     int OnWindowClose()
     {
@@ -291,7 +307,7 @@ namespace dmGraphics
             context->m_WindowWidth  = window_width;
             context->m_WindowHeight = window_height;
 
-            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight);
+            SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
 
             // The callback is not called from glfw when the size is set manually
             if (context->m_WindowResizeCallback)
@@ -305,7 +321,7 @@ namespace dmGraphics
     {
         if (context->m_WindowOpened)
         {
-            glfwSetWindowSize((int)width, (int)height);
+            VulkanSetWindowSize(context, width, height);
         }
     }
 

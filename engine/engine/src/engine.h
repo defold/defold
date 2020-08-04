@@ -13,7 +13,6 @@
 #ifndef DM_ENGINE_H
 #define DM_ENGINE_H
 
-#include <app/app.h>
 #include <stdint.h>
 
 namespace dmEngine
@@ -22,6 +21,14 @@ namespace dmEngine
 
     uint16_t GetHttpPort(HEngine engine);
     uint32_t GetFrameCount(HEngine engine);
+
+
+	enum UpdateResult
+	{
+	    RESULT_OK       =  0,
+	    RESULT_REBOOT   =  1,
+	    RESULT_EXIT     = -1,
+	};
 };
 
 // For better granularity
@@ -34,7 +41,7 @@ void                dmEngineDestroy(dmEngine::HEngine engine);
  *   0: Valid for more updates
  * !=0: Engine want to exit or reboot
  */
-dmApp::Result      dmEngineUpdate(dmEngine::HEngine engine);
+dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine);
 
 /* Gets the result from the engine
  *      run_action: 0 == update, 1 == reboot, -1 == exit
