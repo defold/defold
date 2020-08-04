@@ -3,7 +3,7 @@
 def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                                     source = 'test_profilerext_null.cpp',
-                                    uselib = 'APP DLIB',
+                                    uselib = 'TESTMAIN DLIB',
                                     uselib_local = 'profilerext_null',
                                     includes = ['../../../src'],
                                     target = 'test_profilerext_null')

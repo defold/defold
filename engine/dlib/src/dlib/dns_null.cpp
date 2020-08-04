@@ -43,6 +43,7 @@ namespace dmDNS
     }
     Result NewChannel(HChannel* channel)
     {
+        *channel = 0; // so it evaluates to false
         return RESULT_OK;
     }
     Result RefreshChannel(HChannel channel)

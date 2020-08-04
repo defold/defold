@@ -127,14 +127,11 @@ def build(bld):
         # We patch CC, CXX, etc
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
-    if bld.env.PLATFORM in ['js-web', 'wasm-web']:
+    # This "null" version uses dmSocket::GetHostByName()
+    if bld.env.PLATFORM in ['js-web', 'wasm-web', 'arm64-nx64']:
         lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
 
     if is_platform_private(bld.env.PLATFORM):
-        # Until implemented
-        #lib_features['SOCKET'] = os.path.join('dlib', 'socket_null.cpp')
-        lib_features['DNS'] = os.path.join('dlib', 'dns_null.cpp')
-
         # Replace with any specialized sources that the private platform uses
         _dir = 'dlib/%s' % build_util.get_target_os()
         for feature, source in lib_features.iteritems():

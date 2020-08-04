@@ -147,7 +147,7 @@ def build(bld):
     if 'TREMOLO' in soundlibs:
         bld.new_task_gen(features = 'cxx cprogram embed test',
                           includes = '../../../src .',
-                          uselib = 'APP DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
+                          uselib = 'TESTMAIN DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
                           uselib_local = 'sound embedded_wavs embedded_oggs',
                           web_libs = ['library_sound.js'],
                           exported_symbols = exported_symbols,
@@ -156,7 +156,7 @@ def build(bld):
 
     bld.new_task_gen(features = 'cxx cprogram embed test',
                     includes = '../../../src .',
-                    uselib = 'APP DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
+                    uselib = 'TESTMAIN DLIB PLATFORM_SOCKET CARES'.split() + soundlibs,
                     uselib_local = 'sound embedded_wavs embedded_oggs',
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
@@ -167,7 +167,7 @@ def build(bld):
     exported_symbols = 'NullSoundDevice TestNullDevice'
     bld.new_task_gen(features = 'cxx cprogram embed test',
                     includes = '../../../src .',
-                    uselib = 'APP DLIB PLATFORM_SOCKET CARES',
+                    uselib = 'TESTMAIN DLIB PLATFORM_SOCKET CARES',
                     uselib_local = 'sound_null embedded_wavs embedded_oggs',
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,

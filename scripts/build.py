@@ -58,8 +58,6 @@ except Exception, e:
             pass
         @classmethod
         def is_library_supported(cls, platform, library):
-            if library in ["switch"]:
-                return False;
             return True
 finally:
     sys.dont_write_bytecode = False
@@ -110,7 +108,7 @@ EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
 
-ENGINE_LIBS = "app ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate gamesys tools record iap push iac webview profiler facebook crash engine sdk".split()
+ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -587,18 +585,18 @@ class Configuration(object):
         target_platform = self.target_platform
         if target_platform in ('x86_64-darwin', 'armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # macOS SDK
-            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
-            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_MACOS_SDK), join(sdkfolder, PACKAGES_MACOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, PACKAGES_XCODE_TOOLCHAIN))
 
         if target_platform in ('armv7-darwin', 'arm64-darwin', 'x86_64-ios'):
             # iOS SDK
-            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
-            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SDK), join(sdkfolder, PACKAGES_IOS_SDK))
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host2):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
-            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
-            download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            download_sdk(self,'%s/%s.tar.gz' % (self.package_path, PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
@@ -1114,6 +1112,7 @@ class Configuration(object):
         android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (self.host2, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
+        switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
@@ -1125,14 +1124,16 @@ class Configuration(object):
                      'js-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': osx_files,
-                     'linux-bundling': linux_files}
+                     'linux-bundling': linux_files,
+                     'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
                            'ios-bundling': [['armv7-darwin', 'armv7-darwin'], ['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
-                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']]}.iteritems():
+                           'linux-bundling': [['x86_64-linux', 'x86_64-linux']],
+                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.iteritems():
             # plfs is pairs of src-platform -> dst-platform
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])

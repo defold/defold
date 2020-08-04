@@ -379,6 +379,8 @@ namespace dmGraphics
             m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
             m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
             m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
+            m_UseValidationLayers     = params.m_UseValidationLayers;
+            m_RenderDocSupport        = params.m_RenderDocSupport;
             m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE;
             m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
             m_TextureFormatSupport   |= 1 << TEXTURE_FORMAT_RGB;
@@ -449,7 +451,9 @@ namespace dmGraphics
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
-        uint32_t                                               : 26;
+        uint32_t                        m_UseValidationLayers  : 1;
+        uint32_t                        m_RenderDocSupport     : 1;
+        uint32_t                                               : 24;
     };
 
     // Implemented in graphics_vulkan_context.cpp
@@ -462,12 +466,18 @@ namespace dmGraphics
         const char** validationLayerExtensions, uint16_t validationLayerExtensionCount);
     void     DestroyInstance(VkInstance* vkInstance);
 
+    // Implemented in graphics_vulkan.cpp
+    VkResult CreateMainFrameBuffers(HContext context);
+    VkResult DestroyMainFrameBuffers(HContext context);
+    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
     VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass,
         uint32_t width, uint32_t height,
         VkImageView* vk_attachments, uint8_t attachmentCount, // Color & depth/stencil attachments
         VkFramebuffer* vk_framebuffer_out);
+    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool,
         uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
     VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes,
@@ -492,6 +502,7 @@ namespace dmGraphics
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
         RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
+    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
     VkResult CreateShaderModule(VkDevice vk_device,
@@ -504,7 +515,6 @@ namespace dmGraphics
     // Destroy funcions
     void           DestroyPhysicalDevice(PhysicalDevice* device);
     void           DestroyLogicalDevice(LogicalDevice* device);
-    void           DestroyRenderTarget(LogicalDevice* logicalDevice, RenderTarget* renderTarget);
     void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
     void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
     void           DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
@@ -534,7 +544,7 @@ namespace dmGraphics
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight, const bool wantVSync,
+        uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync,
         SwapChainCapabilities& capabilities, SwapChain* swapChain);
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
@@ -551,17 +561,39 @@ namespace dmGraphics
         vkDeviceWaitIdle(vk_device);
     }
 
-    void SwapChainChanged(HContext context, uint32_t* width, uint32_t* height);
-
     // Implemented per supported platform
 
     const char** GetExtensionNames(uint16_t* num_extensions);
-    const char** GetValidationLayers(uint16_t* num_layers);
+    const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 
     bool     LoadVulkanLibrary();
     void     LoadVulkanFunctions(VkInstance vk_instance);
+
+
+    void SwapBuffers();
+
+
+    bool NativeInit(const struct ContextParams& params);
+    void NativeExit();
+    
+    void NativeBeginFrame(HContext context);
+
+    WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
+    void VulkanCloseWindow(HContext context);
+    uint32_t VulkanGetDisplayDpi(HContext context);
+    uint32_t VulkanGetWidth(HContext context);
+    uint32_t VulkanGetHeight(HContext context);
+    uint32_t VulkanGetWindowWidth(HContext context);
+    uint32_t VulkanGetWindowHeight(HContext context);
+    uint32_t VulkanGetWindowRefreshRate(HContext context);
+    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
+    void VulkanIconifyWindow(HContext context);
+    uint32_t VulkanGetWindowState(HContext context, WindowState state);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

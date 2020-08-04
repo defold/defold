@@ -5,10 +5,86 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <app/app.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <hid.h>
+
+// From engine_private.h
+
+enum UpdateResult
+{
+    RESULT_OK       =  0,
+    RESULT_REBOOT   =  1,
+    RESULT_EXIT     = -1,
+};
+
+typedef void* (*EngineCreateFn)(int argc, char** argv);
+typedef void (*EngineDestroyFn)(void* engine);
+typedef UpdateResult (*EngineUpdateFn)(void* engine);
+typedef void (*EngineGetResultFn)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+struct RunLoopParams
+{
+    int     m_Argc;
+    char**  m_Argv;
+
+    void*   m_AppCtx;
+    void    (*m_AppCreate)(void* ctx);
+    void    (*m_AppDestroy)(void* ctx);
+
+    EngineCreateFn      m_EngineCreate;
+    EngineDestroyFn     m_EngineDestroy;
+    EngineUpdateFn      m_EngineUpdate;
+    EngineGetResultFn   m_EngineGetResult;
+};
+
+// From engine_loop.cpp
+
+static int RunLoop(const RunLoopParams* params)
+{
+    if (params->m_AppCreate)
+        params->m_AppCreate(params->m_AppCtx);
+
+    int argc = params->m_Argc;
+    char** argv = params->m_Argv;
+    int exit_code = 0;
+    void* engine = 0;
+    UpdateResult result = RESULT_OK;
+    while (RESULT_OK == result)
+    {
+        if (engine == 0)
+        {
+            engine = params->m_EngineCreate(argc, argv);
+            if (!engine)
+            {
+                exit_code = 1;
+                break;
+            }
+        }
+
+        result = params->m_EngineUpdate(engine);
+
+        if (RESULT_OK != result)
+        {
+            int run_action = 0;
+            params->m_EngineGetResult(engine, &run_action, &exit_code, &argc, &argv);
+
+            params->m_EngineDestroy(engine);
+            engine = 0;
+
+            if (RESULT_REBOOT == result)
+            {
+                // allows us to reboot
+                result = RESULT_OK;
+            }
+        }
+    }
+
+    if (params->m_AppDestroy)
+        params->m_AppDestroy(params->m_AppCtx);
+
+    return exit_code;
+}
 
 
 static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata);
@@ -57,7 +133,7 @@ static void EngineDestroy(void* _engine)
     dmHID::DeleteContext(engine->m_HidContext);
 }
 
-static dmApp::Result EngineUpdate(void* _engine)
+static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
 
@@ -114,7 +190,7 @@ static dmApp::Result EngineUpdate(void* _engine)
 
     dmTime::Sleep(100000);
 
-    return dmApp::RESULT_OK;
+    return RESULT_OK;
 
 #undef LOG
 }
@@ -142,7 +218,7 @@ int main(int argc, char **argv)
 {
     memset(&g_EngineCtx, 0, sizeof(g_EngineCtx));
 
-    dmApp::Params params;
+    RunLoopParams params;
     params.m_AppCtx = 0;
     params.m_AppCreate = AppCreate;
     params.m_AppDestroy = AppDestroy;
@@ -151,5 +227,5 @@ int main(int argc, char **argv)
     params.m_EngineUpdate = EngineUpdate;
     params.m_EngineGetResult = EngineGetResult;
 
-    return dmApp::Run(&params);
+    return RunLoop(&params);
 }
