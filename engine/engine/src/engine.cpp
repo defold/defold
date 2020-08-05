@@ -1256,6 +1256,11 @@ bail:
                 if (!engine->m_WasIconified)
                 {
                     engine->m_WasIconified = true;
+
+                    if (!engine->m_RunWhileIconified)
+                    {
+                        dmSound::Pause(true);
+                    }
                 }
 
                 if (!engine->m_RunWhileIconified) {
@@ -1281,6 +1286,8 @@ bail:
                 if (engine->m_WasIconified)
                 {
                     engine->m_WasIconified = false;
+
+                    dmSound::Pause(false);
                 }
             }
 
