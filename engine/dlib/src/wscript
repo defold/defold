@@ -105,7 +105,6 @@ def build(bld):
                     'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
                     'SYS':                  os.path.join('dlib', 'sys.cpp'),
                     'SOCKET':               os.path.join('dlib', 'socket.cpp'),
-                    'THREAD':               os.path.join('dlib', 'thread.cpp'),
                     'TIME':                 os.path.join('dlib', 'time.cpp'),
                     }
 
@@ -275,7 +274,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
-    bld.install_as('${PREFIX}/include/dlib/threadtypes.h', _get_native_file(build_util.get_target_os(), 'threadtypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
@@ -299,4 +297,3 @@ def build(bld):
         bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/mutex.h')
         bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/sockettypes.h')
         bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/spinlocktypes.h')
-        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/threadtypes.h')
