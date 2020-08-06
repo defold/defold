@@ -4,7 +4,7 @@ from TaskGen import extension
 from Options import options
 
 def build(bld):
-    if options.skip_tests:
+    if options.skip_build_tests:
         return
 
     sys.path.insert(0, "default/proto")

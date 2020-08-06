@@ -76,6 +76,7 @@ import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.bundle.OSXBundler;
 import com.dynamo.bob.bundle.Win32Bundler;
 import com.dynamo.bob.bundle.Win64Bundler;
+import com.dynamo.bob.bundle.SwitchBundler;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
@@ -429,19 +430,6 @@ public class Project {
         return propertyFiles;
     }
 
-    private void logExceptionToStdErr(IResource res, int line)
-    {
-        String resourceString = "unspecified";
-        String resourceLineString = "";
-        if (res != null) {
-            resourceString = res.toString();
-        }
-        if (line > 0) {
-            resourceLineString = String.format(" at line %d", line);
-        }
-        System.err.println("Error in resource: " + resourceString + resourceLineString);
-    }
-
     /**
      * Build the project
      * @param monitor
@@ -454,11 +442,11 @@ public class Project {
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
-            logExceptionToStdErr(e.getResource(), e.getLineNumber());
+            String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            System.err.println(s);
             // Pass on unmodified
             throw e;
         } catch (MultipleCompileException e) {
-            logExceptionToStdErr(e.getContextResource(), -1);
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -567,6 +555,7 @@ public class Project {
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
         bundlers.put(Platform.X86_64Ios, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
+        bundlers.put(Platform.Arm64NX64, SwitchBundler.class);
     }
 
     private void bundle(IProgress monitor) throws IOException, CompileExceptionError {

@@ -350,14 +350,14 @@ namespace dmGameSystem
         if (component_count == 2) {
             for (int pi = 0; pi < count; ++pi)
             {
-                v[0] = src_stream_data[0];
-                v[1] = src_stream_data[1];
+                v[0] = (float)src_stream_data[0];
+                v[1] = (float)src_stream_data[1];
                 v[2] = 0.0f;
                 v[3] = w;
                 v = matrix * v;
-                dst_data_ptr[0] = v[0];
-                dst_data_ptr[1] = v[1];
-                dst_data_ptr[2] = v[2];
+                dst_data_ptr[0] = (T)v[0];
+                dst_data_ptr[1] = (T)v[1];
+                dst_data_ptr[2] = (T)v[2];
 
                 // Update in/out-ptrs with stride (they will point to next entry in T "list").
                 src_stream_data += stride;
@@ -366,14 +366,14 @@ namespace dmGameSystem
         } else {
             for (int pi = 0; pi < count; ++pi)
             {
-                v[0] = src_stream_data[0];
-                v[1] = src_stream_data[1];
-                v[2] = src_stream_data[2];
+                v[0] = (float)src_stream_data[0];
+                v[1] = (float)src_stream_data[1];
+                v[2] = (float)src_stream_data[2];
                 v[3] = w;
                 v = matrix * v;
-                dst_data_ptr[0] = v[0];
-                dst_data_ptr[1] = v[1];
-                dst_data_ptr[2] = v[2];
+                dst_data_ptr[0] = (T)v[0];
+                dst_data_ptr[1] = (T)v[1];
+                dst_data_ptr[2] = (T)v[2];
 
                 // Update in/out-ptrs with stride (they will point to next entry in T "list").
                 src_stream_data += stride;
