@@ -322,24 +322,6 @@ static void LogFrameBufferError(GLenum status)
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
-    // Jhonny: I don't think BufferAccess is used for anything
-    static GLenum GetOpenGLBufferAccess(BufferAccess access)
-    {
-        const GLenum buffer_access_lut[] = {
-        #if !defined (GL_ARB_vertex_buffer_object)
-            0x88B8,
-            0x88B9,
-            0x88BA,
-        #else
-            GL_READ_ONLY,
-            GL_WRITE_ONLY,
-            GL_READ_WRITE,
-        #endif
-        };
-
-        return buffer_access_lut[access];
-    }
-
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
     {
         const GLenum primitive_type_lut[] = {
@@ -475,6 +457,9 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLInitialize()
     {
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwSetViewType(GLFW_OPENGL_API);
+#endif
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
         return (glfwInit() == GL_TRUE);
     }
@@ -576,7 +561,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         }
     }
-#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+#if !defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
     if(func == 0 && core_name)
     {
         // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
@@ -985,14 +970,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             glfwIconifyWindow();
         }
-    }
-
-    static void OpenGLAppBootstrap(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
-    {
-#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-        glfwSetViewType(GLFW_OPENGL_API);
-        glfwAppBootstrap(argc, argv, create_fn, destroy_fn, update_fn, result_fn);
-#endif
     }
 
     static void OpenGLRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
@@ -2756,7 +2733,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_DeleteContext = OpenGLDeleteContext;
         fn_table.m_Initialize = OpenGLInitialize;
         fn_table.m_Finalize = OpenGLFinalize;
-        fn_table.m_AppBootstrap = OpenGLAppBootstrap;
         fn_table.m_GetWindowRefreshRate = OpenGLGetWindowRefreshRate;
         fn_table.m_OpenWindow = OpenGLOpenWindow;
         fn_table.m_CloseWindow = OpenGLCloseWindow;

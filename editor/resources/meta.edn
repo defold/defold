@@ -7,6 +7,10 @@
    :help "application version",
    :default "1.0",
    :path ["project" "version"]}
+  {:type :string,
+   :help "publisher name",
+   :default "",
+   :path ["project" "publisher"]}
   {:type :boolean,
    :help "Write log file to disk",
    :default false,

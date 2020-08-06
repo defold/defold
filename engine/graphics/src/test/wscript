@@ -1,21 +1,27 @@
 #! /usr/bin/env python
 
+from waf_dynamo import platform_supports_feature
+
 def build(bld):
-    test_graphics = bld.new_task_gen(features = 'cxx cprogram test',
-                                 includes = ['../../src', '../../proto'],
-                                 exported_symbols = ['GraphicsAdapterNull'],
-                                 source = 'test_graphics.cpp',
-                                 uselib = 'DDF DLIB',
-                                 uselib_local = "graphics_null",
-                                 target = 'test_graphics')
+    for name in ['test_graphics', 'test_glsl_uniform_parser']:
+        bld.new_task_gen(features = 'cxx cprogram test',
+                         includes = ['../../src', '../../proto'],
+                         exported_symbols = ['GraphicsAdapterNull'],
+                         source = name + '.cpp',
+                         uselib = 'TESTMAIN DDF DLIB',
+                         uselib_local = 'graphics_null',
+                         target = name)
 
-    test_graphics.install_path = None
+    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and bld.env.PLATFORM not in ('x86_64-linux',):
 
-    test_glsl_uniform_parser = bld.new_task_gen(features = 'cxx cprogram test',
-                                 includes = ['../../src', '../../proto'],
-                                 source = 'test_glsl_uniform_parser.cpp',
-                                 uselib = 'DDF DLIB',
-                                 uselib_local = "graphics_null",
-                                 target = 'test_glsl_uniform_parser')
+        extra_libs = []
+        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+            extra_libs += ['CARES', 'OPENGL']
 
-    test_glsl_uniform_parser.install_path = None
+        bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                         includes = ['../../src', '../../proto'],
+                         exported_symbols = ['GraphicsAdapterVulkan'],
+                         source = 'test_app_vulkan.cpp',
+                         uselib = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
+                         uselib_local = 'graphics_vulkan',
+                         target = 'test_app_vulkan')

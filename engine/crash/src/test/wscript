@@ -8,7 +8,7 @@ new_copy_task('luascript', '.lua', '.luac')
 def build(bld):
     if options.skip_tests:
        return
-    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'
+    libs = 'TESTMAIN SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT CARES'
     if 'android' in bld.env['PLATFORM']:
         libs += ' UNWIND'
     test_crash = bld.new_task_gen(features = 'cxx cprogram test',
