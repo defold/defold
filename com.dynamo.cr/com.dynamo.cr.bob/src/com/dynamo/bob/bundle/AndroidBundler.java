@@ -15,20 +15,27 @@ package com.dynamo.bob.bundle;
 import java.io.File;
 import java.io.IOException;
 import java.util.logging.Logger;
+
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Bob;
 
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
+
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        Bob.initAndroid(); // extract resources
+
         String bundleFormat = project.option("bundle-format", "apk");
         if (bundleFormat.equals("aab")) {
             AndroidAAB.create(project, bundleDir, canceled);
         }
         else if (bundleFormat.equals("apk")) {
-            AndroidAPK.create(project, bundleDir, canceled);
+            File aab = AndroidAAB.create(project, bundleDir, canceled);
+            File apk = AndroidAPK.create(aab, project, bundleDir, canceled);
+            aab.delete();
         }
         else {
             throw new CompileExceptionError(null, -1, "Unknown bundle format: " + bundleFormat);

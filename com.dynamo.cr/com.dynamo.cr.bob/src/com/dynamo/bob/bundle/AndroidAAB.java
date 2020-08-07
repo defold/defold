@@ -495,9 +495,7 @@ public class AndroidAAB {
 		FileUtils.deleteDirectory(new File(bundleDir, "aab"));
 	}
 
-	public static void create(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-		Bob.initAndroid(); // extract resources
-
+	public static File create(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
 		String title = getProjectTitle(project);
 		File appDir = createDir(bundleDir, title);
 
@@ -529,5 +527,7 @@ public class AndroidAAB {
 
 		// STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
 		cleanupBundleFolder(project, appDir, androidResDir, canceled);
+
+		return baseAab;
 	}
 }
