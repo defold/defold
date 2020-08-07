@@ -1,8 +1,23 @@
 #include "engine_private.h"
 #include "engine.h"
+#include <crash/crash.h>
+
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
 
 namespace dmEngine
 {
+#ifdef __EMSCRIPTEN__
+    struct StepContext
+    {
+        const RunLoopParams*    m_Params;
+        void*                   m_Engine;
+    };
+
+    static void PerformStep(void* context);
+#endif
+
     int RunLoop(const RunLoopParams* params)
     {
         if (params->m_AppCreate)
@@ -25,7 +40,15 @@ namespace dmEngine
                 }
             }
 
+#ifdef __EMSCRIPTEN__
+            StepContext ctx;
+            ctx.m_Params = params;
+            ctx.m_Engine = engine;
+            // Won't return from this call
+            emscripten_set_main_loop_arg(PerformStep, &ctx, 0, 1);
+#else
             result = params->m_EngineUpdate(engine);
+#endif
 
             if (RESULT_OK != result)
             {
@@ -48,5 +71,61 @@ namespace dmEngine
 
         return exit_code;
     }
+
+#if defined(__EMSCRIPTEN__)
+    static void PreStepEmscripten(void* _ctx)
+    {
+        StepContext* ctx = (StepContext*)_ctx;
+        const RunLoopParams* params = ctx->m_Params;
+        HEngine engine = (HEngine)ctx->m_Engine;
+
+        int argc = params->m_Argc;
+        char** argv = params->m_Argv;
+        int exit_code = 0;
+        int result = 0;
+        params->m_EngineGetResult(engine, &result, &exit_code, &argc, &argv);
+
+        if (RESULT_OK != result)
+        {
+            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception (emscripten issue #11682)
+            emscripten_pause_main_loop(); // stop further callbacks
+            emscripten_cancel_main_loop(); // Causes an exception (emscripten issue #11682)
+
+            params->m_EngineDestroy(engine);
+            engine = 0;
+
+            if (RESULT_REBOOT == result)
+            {
+                ctx->m_Engine = params->m_EngineCreate(argc, argv);
+                if (ctx->m_Engine)
+                {
+                    // Won't return from this
+                    emscripten_set_main_loop_arg(PerformStep, ctx, 0, 1);
+                }
+                else {
+                    dmLogError("Engine failed to reboot");
+                    exit_code = 1;
+                }
+            }
+
+            dmLogInfo("Engine exited with code %d", exit_code);
+        }
+
+        if (!dmCrash::IsEnabled()) {
+            dmCrash::SetEnabled(true);
+        }
+    }
+
+    static void PerformStep(void* _ctx)
+    {
+        StepContext* ctx = (StepContext*)_ctx;
+        HEngine engine = (HEngine)ctx->m_Engine;
+
+        // check if we want to reboot
+        PreStepEmscripten(_ctx);
+
+        ctx->m_Params->m_EngineUpdate(engine);
+    }
+#endif // emscripten
 
 } // namespace
