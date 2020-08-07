@@ -1538,65 +1538,6 @@ bail:
         return engine->m_Alive;
     }
 
-// #if defined(__EMSCRIPTEN__)
-//     static void PreStepEmscripten(HEngine engine)
-//     {
-//         dmEngine::RunResult run_result = engine->m_RunResult;
-//         if (run_result.m_Action == dmEngine::RunResult::REBOOT)
-//         {
-//             dmEngineService::HEngineService engine_service = engine->m_EngineService;
-//             PreRun pre_run = engine->m_PreRun;
-//             PostRun post_run = engine->m_PostRun;
-//             void* context = engine->m_PrePostRunContext;
-
-//             dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
-
-//             emscripten_pause_main_loop(); // stop further callbacks
-//             emscripten_cancel_main_loop(); // Causes an exception
-
-//             if (engine->m_PostRun)
-//             {
-//                 engine->m_PostRun(engine, context);
-//             }
-
-//             dmEngine::Delete(engine);
-
-//             // enters the main loop again (i.e. calls emscripten_set_main_loop_arg(PerformStep, engine))
-//             dmEngine::InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
-//             return;
-//         }
-//         else if (run_result.m_Action == dmEngine::RunResult::EXIT)
-//         {
-//             dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
-
-//             emscripten_pause_main_loop();
-//             emscripten_cancel_main_loop();
-
-//             if (engine->m_PostRun)
-//             {
-//                 engine->m_PostRun(engine, engine->m_PrePostRunContext);
-//             }
-
-//             dmEngine::Delete(engine);
-//         }
-
-//         if (!dmCrash::IsEnabled()) {
-//             dmCrash::SetEnabled(true);
-//         }
-//     }
-// #endif // __EMSCRIPTEN__
-
-    static void PerformStep(void* context)
-    {
-        HEngine engine = (HEngine)context;
-
-// #if defined(__EMSCRIPTEN__)
-//         PreStepEmscripten(engine);
-// #endif
-
-        Step(engine);
-    }
-
     static void Exit(HEngine engine, int32_t code)
     {
         engine->m_Alive = false;
@@ -1891,7 +1832,7 @@ dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine)
 {
     if (dmEngine::IsRunning(engine))
     {
-        dmEngine::PerformStep(engine);
+        dmEngine::Step(engine);
     }
 
     return GetAppResultFromAction(engine->m_RunResult.m_Action);
