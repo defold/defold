@@ -103,7 +103,7 @@ def setup_vars_nx(conf, build_util):
 
     CCFLAGS ="-g -O%s" % opt_level
     CCFLAGS+=" -mcpu=cortex-a57+fp+simd+crypto+crc -fno-common -fno-short-enums -ffunction-sections -fdata-sections -fPIC -fdiagnostics-format=msvc"
-    CXXFLAGS="-fno-rtti -std=gnu++14 "
+    CXXFLAGS="-fno-rtti -std=gnu++14"
 
     _set_ccflags(conf, CCFLAGS)
     _set_cxxflags(conf, CXXFLAGS)
@@ -138,7 +138,6 @@ def setup_vars_nx(conf, build_util):
     LIBPATHS = ' '.join(get_lib_paths(BUILDTYPE, BUILDTARGET))
     _set_libpath(conf, LIBPATHS)
     CPPPATH ="%s/Include" % (NINTENDO_SDK_ROOT,)
-    CPPPATH+=" %s/Include/nn/socket" % (NINTENDO_SDK_ROOT,)
     CPPPATH+=" %s/Common/Configs/Targets/%s/Include" % (NINTENDO_SDK_ROOT, BUILDTARGET)
     _set_includes(conf, CPPPATH)
 
