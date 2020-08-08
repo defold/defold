@@ -421,33 +421,24 @@ public class AndroidAAB {
 		log("Sign " + signFile);
 		BundleHelper.throwIfCanceled(canceled);
 
-		String certificate = project.option("certificate", "");
-		String key = project.option("private-key", "");
+		String keystore = project.option("keystore", "");
+		String keystoreAlias = project.option("keystore-alias", "");
+		String keystorePassword = project.option("keystore-pass", "");
 
-		File unsignedFile = new File(bundleDir, "unsigned.aab");
-		Files.move(signFile.toPath(), unsignedFile.toPath());
-		signFile.delete();
-
-		if (certificate.length() > 0 && key.length() > 0) {
-			Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
-					"--in=" + unsignedFile.getAbsolutePath(),
-					"--out=" + signFile.getAbsolutePath(),
-					"-cert=" + certificate,
-					"-key=" + key);
-			if (r.ret != 0 ) {
+		if (keystore.length() > 0 && keystoreAlias.length() > 0 && keystorePassword.length() > 0) {
+			Result r = Exec.execResult("jarsigner",
+					"-verbose",
+					"-keystore", keystore,
+					"-storepass", keystorePassword,
+					signFile.getAbsolutePath(),
+					keystoreAlias);
+			if (r.ret != 0) {
 				throw new IOException(new String(r.stdOutErr));
 			}
-		} else {
-			Result r = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "apkc"),
-					"--in=" + unsignedFile.getAbsolutePath(),
-					"--out=" + signFile.getAbsolutePath());
-			if (r.ret != 0) {
-				if (r.ret != 0 ) {
-					throw new IOException(new String(r.stdOutErr));
-				}
-			}
 		}
-		unsignedFile.delete();
+		else {
+			log("No keystore settings provided. AAB file will not be signed.");
+		}
 	}
 
 	/**

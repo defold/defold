@@ -48,8 +48,12 @@ public class AndroidAPK {
 	}
 
 
-    public static File createUniversalApks(File aab, File bundleDir, ICanceled canceled) throws CompileExceptionError {
+    public static File createUniversalApks(Project project, File aab, File bundleDir, ICanceled canceled) throws CompileExceptionError {
         log("Creating universal APK Set");
+        String keystore = project.option("keystore", "");
+        String keystorePassword = project.option("keystore-pass", "");
+        String keystoreAlias = project.option("keystore-alias", "");
+
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
 
@@ -65,6 +69,11 @@ public class AndroidAPK {
             args.add("--mode"); args.add("universal");
             args.add("--bundle"); args.add(aabPath);
             args.add("--output"); args.add(apksPath);
+            if (keystore.length() > 0 && keystorePassword.length() > 0 && keystoreAlias.length() > 0) {
+                args.add("--ks"); args.add(keystore);
+                args.add("--ks-pass"); args.add("pass:" + keystorePassword);
+                args.add("--ks-key-alias"); args.add(keystoreAlias);
+            }
 
             Result res = exec(args);
             if (res.ret != 0) {
@@ -97,7 +106,7 @@ public class AndroidAPK {
 
     public static File create(File aab, Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         // STEP 1. Create universal APK set
-        File apks = createUniversalApks(aab, bundleDir, canceled);
+        File apks = createUniversalApks(project, aab, bundleDir, canceled);
 
         // STEP 2. Extract universal.apk from APK set
         File apk = extractUniversalApk(apks, bundleDir);
