@@ -10,7 +10,7 @@ from Queue import Queue
 from ConfigParser import ConfigParser
 from build import download_sdk
 
-PACKAGES_NX64="protobuf-2.3.0 bullet-2.77".split()
+PACKAGES_NX64="protobuf-2.3.0 bullet-2.77 luajit-2.1.0-beta3".split()
 PACKAGE_NX64_SDK="nx64-sdk-10.4.1"
 
 

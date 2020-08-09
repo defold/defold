@@ -411,10 +411,6 @@ def supports_feature_nx(platform, feature, data):
     if feature in ['test_webserver']:
         return False
 
-    # until implemented
-    if feature in ['luajit']:
-        return False
-
     # we're not featuring these
     if feature in ['openal', 'opengl']:
         return False
