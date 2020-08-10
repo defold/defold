@@ -1693,16 +1693,14 @@ def detect(conf):
     if build_util.get_target_os() == 'web' or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
         use_vanilla = True
 
-    conf.env['LUA_BYTECODE_ENABLE_32'] = 'no'
-    conf.env['LUA_BYTECODE_ENABLE_64'] = 'no'
     if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        if build_util.get_target_platform() in ['x86_64-linux', 'x86_64-win32', 'x86_64-darwin', 'arm64-android', 'arm64-darwin']:
-            conf.env['LUA_BYTECODE_ENABLE_64'] = 'yes'
+        if '64' in build_util.get_target_platform():
+            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
         else:
-            conf.env['LUA_BYTECODE_ENABLE_32'] = 'yes'
+            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
 
     conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
