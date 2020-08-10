@@ -240,11 +240,11 @@ public class AndroidBundler implements IBundler {
     /**
     * Copy Android resources per package
     */
-    private static File copyResources(Project project, File bundleDir, BundleHelper helper, ICanceled canceled) throws IOException {
+    private static File copyResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException {
         Platform platform = Platform.Armv7Android;
         File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
 
-        File androidResDir = createDir(bundleDir, "res");
+        File androidResDir = createDir(outDir, "res");
 
         // create a list of resource directories, per package
         List<File> directories = new ArrayList<>();
@@ -295,7 +295,7 @@ public class AndroidBundler implements IBundler {
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File aapt2CompileResources(Project project, File bundleDir, File androidResDir, ICanceled canceled) throws CompileExceptionError {
+    private static File aapt2CompileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
         log("Compiling resources from " + androidResDir.getAbsolutePath());
         try {
             // compile the resources using aapt2 to flat format files
@@ -331,10 +331,10 @@ public class AndroidBundler implements IBundler {
     * Create apk from compiled resources and manifest file.
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File aapt2LinkResources(Project project, File bundleDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
+    private static File aapt2LinkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
         log("Linking resources from " + compiledResourcesDir.getAbsolutePath());
         try {
-            File aabDir = new File(bundleDir, "aab");
+            File aabDir = new File(outDir, "aab");
             File apkDir = createDir(aabDir, "aapt2/apk");
             File outApk = new File(apkDir, "output.apk");
 
@@ -379,10 +379,10 @@ public class AndroidBundler implements IBundler {
     * Package pre-compiled code and resources
     * https://developer.android.com/studio/build/building-cmdline#package_pre-compiled_code_and_resources
     */
-    private static File createAppBundleBaseZip(Project project, File bundleDir, File apk, ICanceled canceled) throws CompileExceptionError {
+    private static File createAppBundleBaseZip(Project project, File outDir, File apk, ICanceled canceled) throws CompileExceptionError {
         log("Creating AAB base.zip");
         try {
-            File aabDir = new File(bundleDir, "aab");
+            File aabDir = new File(outDir, "aab");
 
             // unzip the generated apk
             File apkUnzipDir = createDir(aabDir, "apk");
@@ -450,12 +450,12 @@ public class AndroidBundler implements IBundler {
     * Build the app bundle using bundletool
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
     */
-    private static File createBundle(Project project, File bundleDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
+    private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
         log("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
 
-            File baseAab = new File(bundleDir, getProjectTitle(project) + ".aab");
+            File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
 
             List<String> args = new ArrayList<String>();
             args.add("java"); args.add("-jar");
@@ -479,7 +479,7 @@ public class AndroidBundler implements IBundler {
     /**
     * Sign file using jarsigner and keystore
     */
-    private static void signFile(Project project, File bundleDir, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static void signFile(Project project, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
         log("Sign " + signFile);
         BundleHelper.throwIfCanceled(canceled);
 
@@ -506,12 +506,12 @@ public class AndroidBundler implements IBundler {
     /**
     * Copy debug symbols
     */
-    private static void copySymbols(Project project, File bundleDir, String title, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         final boolean has_symbols = project.hasOption("with-symbols");
         if (!has_symbols) {
             return;
         }
-        File symbolsDir = new File(bundleDir, title + ".apk.symbols");
+        File symbolsDir = new File(outDir, getProjectTitle(project) + ".apk.symbols");
         symbolsDir.mkdirs();
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = getExtenderExeDir(project);
@@ -541,45 +541,40 @@ public class AndroidBundler implements IBundler {
     /**
     * Cleanup bundle folder from intermediate folders and artifacts.
     */
-    private static void cleanupBundleFolder(Project project, File bundleDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static void cleanupBundleFolder(Project project, File outDir, File androidResDir, ICanceled canceled) throws IOException, CompileExceptionError {
         log("Cleanup bundle folder");
         BundleHelper.throwIfCanceled(canceled);
         FileUtils.deleteDirectory(androidResDir);
-        FileUtils.deleteDirectory(new File(bundleDir, "aab"));
+        FileUtils.deleteDirectory(new File(outDir, "aab"));
     }
 
-    private static File createAAB(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        String title = getProjectTitle(project);
-        File appDir = createDir(bundleDir, title);
-
+    private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         BundleHelper.throwIfCanceled(canceled);
 
         // STEP 1. copy android resources (icons, extension resources and manifest)
-        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
-        File manifestFile = helper.copyOrWriteManifestFile(Platform.Armv7Android, appDir);
-        File androidResDir = copyResources(project, appDir, helper, canceled);
+        File manifestFile = helper.copyOrWriteManifestFile(Platform.Armv7Android, outDir);
+        File androidResDir = copyResources(project, outDir, helper, canceled);
 
         // STEP 2. Use aapt2 to compile resources (to *.flat files)
-        File compiledResDir = aapt2CompileResources(project, appDir, androidResDir, canceled);
+        File compiledResDir = aapt2CompileResources(project, androidResDir, canceled);
 
         // STEP 3. Use aapt2 to create an APK containing resource files in protobuf format
-        File apk = aapt2LinkResources(project, appDir, compiledResDir, manifestFile, canceled);
+        File apk = aapt2LinkResources(project, outDir, compiledResDir, manifestFile, canceled);
 
         // STEP 4. Extract protobuf files from the APK and create base.zip (manifest, assets, dex, res, lib, *.pb etc)
-        File baseZip = createAppBundleBaseZip(project, appDir, apk, canceled);
+        File baseZip = createAppBundleBaseZip(project, outDir, apk, canceled);
 
         // STEP 5. Use bundletool to create AAB from base.zip
-        File baseAab = createBundle(project, appDir, baseZip, canceled);
+        File baseAab = createBundle(project, outDir, baseZip, canceled);
 
         //STEP 6. Sign AAB file
-        signFile(project, appDir, baseAab, canceled);
+        signFile(project, baseAab, canceled);
 
         // STEP 7. Copy debug symbols
-        copySymbols(project, appDir, title, canceled);
+        copySymbols(project, outDir, canceled);
 
         // STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
-        cleanupBundleFolder(project, appDir, androidResDir, canceled);
+        cleanupBundleFolder(project, outDir, androidResDir, canceled);
 
         return baseAab;
     }
@@ -591,8 +586,8 @@ public class AndroidBundler implements IBundler {
      * code and resources such that the APK is compatible with all device
      * configurations the app supports.
      */
-    private static File createUniversalApks(Project project, File aab, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        log("Creating universal APK Set");
+    private static File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        log("Creating universal APK set");
         String keystore = project.option("keystore", "");
         String keystorePassword = getKeystorePassword(project);
         String keystoreAlias = getKeystoreAlias(project);
@@ -602,7 +597,7 @@ public class AndroidBundler implements IBundler {
 
             String aabPath = aab.getAbsolutePath();
             String name = FilenameUtils.getBaseName(aabPath);
-            String apksPath = bundleDir.getAbsolutePath() + File.separator + name + ".apks";
+            String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
 
             List<String> args = new ArrayList<String>();
             args.add("java"); args.add("-jar");
@@ -633,13 +628,13 @@ public class AndroidBundler implements IBundler {
     /**
      * Extract the universal APK from an APK set
      */
-    private static File extractUniversalApk(File apks, File bundleDir, ICanceled canceled) throws IOException {
+    private static File extractUniversalApk(File apks, File outDir, ICanceled canceled) throws IOException {
         log("Extracting universal APK from APK set");
-        File apksDir = createDir(bundleDir, "apks");
+        File apksDir = createDir(outDir, "apks");
         BundleHelper.unzip(new FileInputStream(apks), apksDir.toPath());
 
         File universalApk = new File(apksDir.getAbsolutePath() + File.separator + "universal.apk");
-        File apk = new File(bundleDir.getAbsolutePath() + File.separator + FilenameUtils.getBaseName(apks.getPath()) + ".apk");
+        File apk = new File(outDir.getAbsolutePath() + File.separator + FilenameUtils.getBaseName(apks.getPath()) + ".apk");
         universalApk.renameTo(apk);
 
         // cleanup
@@ -650,12 +645,12 @@ public class AndroidBundler implements IBundler {
     }
 
 
-    private static File createAPK(File aab, Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private static File createAPK(File aab, Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         // STEP 1. Create universal APK set
-        File apks = createUniversalApks(project, aab, bundleDir, canceled);
+        File apks = createUniversalApks(project, aab, outDir, canceled);
 
         // STEP 2. Extract universal.apk from APK set
-        File apk = extractUniversalApk(apks, bundleDir, canceled);
+        File apk = extractUniversalApk(apks, outDir, canceled);
 
         // cleanup
         apks.delete();
@@ -668,13 +663,18 @@ public class AndroidBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         Bob.initAndroid(); // extract resources
 
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
+
+        File outDir = createDir(bundleDir, getProjectTitle(project));
+
         String bundleFormat = project.option("bundle-format", "apk");
         if (bundleFormat.equals("aab")) {
-            createAAB(project, bundleDir, canceled);
+            createAAB(project, outDir, helper, canceled);
         }
         else if (bundleFormat.equals("apk")) {
-            File aab = createAAB(project, bundleDir, canceled);
-            File apk = createAPK(aab, project, bundleDir, canceled);
+            File aab = createAAB(project, outDir, helper, canceled);
+            File apk = createAPK(aab, project, outDir, canceled);
             aab.delete();
         }
         else {
