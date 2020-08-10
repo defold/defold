@@ -78,6 +78,19 @@ public class BundlerTest {
     private String contentRootUnused;
     private Platform platform;
 
+    private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+    	+ "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+    	+ "  <application android:label=\"Minimal Android Application\">"
+    	+ "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+    	+ "      <intent-filter>"
+    	+ "        <action android:name=\"android.intent.action.MAIN\" />"
+    	+ "        <category android:name=\"android.intent.category.DEFAULT\" />"
+    	+ "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+    	+ "      </intent-filter>"
+    	+ "    </activity>"
+    	+ "  </application>"
+    	+ "</manifest>";
+
     @Parameters
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
@@ -89,7 +102,7 @@ public class BundlerTest {
         data.add(new Platform[]{Platform.Armv7Android});
         data.add(new Platform[]{Platform.JsWeb});
 
-            // Can only do this on OSX machines currently
+        // Can only do this on OSX machines currently
         if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
             data.add(new Platform[]{Platform.Armv7Darwin});
             data.add(new Platform[]{Platform.Arm64Darwin});
@@ -361,7 +374,7 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
-        createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
+        createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", ANDROID_MANIFEST);
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;
     }
@@ -532,8 +545,8 @@ public class BundlerTest {
                 expectedFiles.add("assets/game.dmanifest");
                 expectedFiles.add("assets/game.projectc");
                 expectedFiles.add("assets/game.public.der");
-                expectedFiles.add("META-INF/CERT.RSA");
-                expectedFiles.add("META-INF/CERT.SF");
+                expectedFiles.add("META-INF/BNDLTOOL.SF");
+                expectedFiles.add("META-INF/BNDLTOOL.RSA");
                 expectedFiles.add("META-INF/MANIFEST.MF");
                 expectedFiles.add("res/drawable-hdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-ldpi-v4/icon.png");
@@ -541,6 +554,7 @@ public class BundlerTest {
                 expectedFiles.add("res/drawable-xhdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-xxhdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-xxxhdpi-v4/icon.png");
+                expectedFiles.add("res/xml/splits0.xml");
                 expectedFiles.add("resources.arsc");
                 break;
             case Armv7Darwin:
@@ -587,6 +601,16 @@ public class BundlerTest {
         }
 
         return expectedFiles;
+    }
+
+    private String getPathForBundleResource(Platform platform, String resource) {
+        // On Android we put anything that isn't in the res/ folder in the assets/ folder
+        if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
+            if (!resource.startsWith("res/")) {
+                resource = "assets/" + resource;
+            }
+        }
+        return getBundleAppFolder("unnamed") + resource;
     }
 
     @Test
@@ -638,8 +662,6 @@ public class BundlerTest {
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
-        String appFolder = getBundleAppFolder("unnamed");
-
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
         files = getBundleFiles();
@@ -649,8 +671,8 @@ public class BundlerTest {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add(appFolder + "s1-1.txt");
-        expectedFiles.add(appFolder + "s1-2.txt");
+        expectedFiles.add(getPathForBundleResource(platform, "s1-1.txt"));
+        expectedFiles.add(getPathForBundleResource(platform, "s1-2.txt"));
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
@@ -664,11 +686,10 @@ public class BundlerTest {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add(appFolder + "s1-1.txt");
-        expectedFiles.add(appFolder + "s1-2.txt");
-        expectedFiles.add(appFolder + "s2-1.txt");
-        expectedFiles.add(appFolder + "s2-2.txt");
-
+        expectedFiles.add(getPathForBundleResource(platform, "s1-1.txt"));
+        expectedFiles.add(getPathForBundleResource(platform, "s1-2.txt"));
+        expectedFiles.add(getPathForBundleResource(platform, "s2-1.txt"));
+        expectedFiles.add(getPathForBundleResource(platform, "s2-2.txt"));
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
     }
