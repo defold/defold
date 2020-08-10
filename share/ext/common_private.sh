@@ -60,7 +60,11 @@ function cmi_private()  {
             BUILDTYPE="Debug"
             TRIPLET="aarch64-nintendo-nx-elf"
 
-            NINTENDOSDKROOT=$(windows_path_to_posix $NINTENDO_SDK_ROOT)
+            if [ "${NINTENDO_SDK_ROOT:0:1}" == "/" ]; then
+                NINTENDOSDKROOT=$NINTENDO_SDK_ROOT
+            else
+                NINTENDOSDKROOT=$(windows_path_to_posix $NINTENDO_SDK_ROOT)
+            fi
 
             export INCLUDES="-I$NINTENDOSDKROOT/Common/Configs/Targets/$BUILDTARGET/Include -I$NINTENDOSDKROOT/Include"
             export PATH=$PATH:$NINTENDOSDKROOT/Tools/CommandLineTools:$NINTENDOSDKROOT/Compilers/NX/nx/aarch64/bin:
