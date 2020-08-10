@@ -105,12 +105,6 @@ namespace dmScript
         const char *buf;
         uint32_t size;
         GetLuaSource(source, &buf, &size);
-        if (buf == 0 || size == 0)
-        {
-            dmLogError("Failed to load lua source: %s", source->m_Filename);
-            return 1;
-        }
-
         char tmp[DMPATH_MAX_PATH];
         return luaL_loadbuffer(L, buf, size, PrefixFilename(FindSuitableChunkname(source->m_Filename), '=', tmp, sizeof(tmp)));
     }
