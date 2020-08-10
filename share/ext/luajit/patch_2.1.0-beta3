@@ -162,24 +162,95 @@ diff -u -r -w LuaJIT-2.1.0-beta3/src/jit/bcsave.lua LuaJIT-2.1.0-beta3b/src/jit/
 +    bcsave(ctx, arg[1], arg[2], filename or arg[1])
    end
  end
- 
-diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_alloc.c LuaJIT-2.1.0-beta3b/src/lj_alloc.c
---- LuaJIT-2.1.0-beta3/src/lj_alloc.c	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/lj_alloc.c	2019-01-25 11:51:55.000000000 +0100
+
+diff --git LuaJIT-2.1.0-beta3_a/src/lib_io.c LuaJIT-2.1.0-beta3_b/src/lib_io.c
+index 9763ed466..e302194b7 100644
+--- LuaJIT-2.1.0-beta3_a/src/lib_io.c
++++ LuaJIT-2.1.0-beta3_b/src/lib_io.c
+@@ -427,7 +427,7 @@ LJLIB_CF(io_popen)
+ LJLIB_CF(io_tmpfile)
+ {
+   IOFileUD *iof = io_file_new(L);
+-#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA
++#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA || LJ_TARGET_NX
+   iof->fp = NULL; errno = ENOSYS;
+ #else
+   iof->fp = tmpfile();
+diff --git LuaJIT-2.1.0-beta3_a/src/lib_os.c LuaJIT-2.1.0-beta3_b/src/lib_os.c
+index 9e78d49ac..959dff883 100644
+--- LuaJIT-2.1.0-beta3_a/src/lib_os.c
++++ LuaJIT-2.1.0-beta3_b/src/lib_os.c
+@@ -76,7 +76,7 @@ LJLIB_CF(os_rename)
+
+ LJLIB_CF(os_tmpname)
+ {
+-#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA
++#if LJ_TARGET_PS3 || LJ_TARGET_PS4 || LJ_TARGET_PSVITA || LJ_TARGET_NX
+   lj_err_caller(L, LJ_ERR_OSUNIQF);
+   return 0;
+ #else
+diff --git a/LuaJIT-2.1.0-beta3_b/src/libluajit-5.1.a LuaJIT-2.1.0-beta3_b/src/libluajit-5.1.a
+new file mode 100644
+index 000000000..27f160136
+Binary files /dev/null and LuaJIT-2.1.0-beta3_b/src/libluajit-5.1.a differ
+diff --git LuaJIT-2.1.0-beta3_a/src/lj_alloc.c LuaJIT-2.1.0-beta3_b/src/lj_alloc.c
+index 95d15d046..3eb388c55 100644
+--- LuaJIT-2.1.0-beta3_a/src/lj_alloc.c
++++ LuaJIT-2.1.0-beta3_b/src/lj_alloc.c
 @@ -35,7 +35,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
- 
+
  #define MAX_SIZE_T		(~(size_t)0)
 -#define MALLOC_ALIGNMENT	((size_t)8U)
 +#define MALLOC_ALIGNMENT  ((size_t)16U)
- 
+
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
-diff -u -r -w LuaJIT-2.1.0-beta3/src/lj_obj.h LuaJIT-2.1.0-beta3b/src/lj_obj.h
---- LuaJIT-2.1.0-beta3/src/lj_obj.h	2017-05-01 21:05:00.000000000 +0200
-+++ LuaJIT-2.1.0-beta3b/src/lj_obj.h	2019-02-22 13:50:27.000000000 +0100
-@@ -304,15 +304,24 @@
- 
+diff --git LuaJIT-2.1.0-beta3_a/src/lj_arch.h LuaJIT-2.1.0-beta3_b/src/lj_arch.h
+index c8d7138e0..713d489cf 100644
+--- LuaJIT-2.1.0-beta3_a/src/lj_arch.h
++++ LuaJIT-2.1.0-beta3_b/src/lj_arch.h
+@@ -55,6 +55,9 @@
+ #define LUAJIT_TARGET	LUAJIT_ARCH_MIPS64
+ #elif defined(__mips__) || defined(__mips) || defined(__MIPS__) || defined(__MIPS)
+ #define LUAJIT_TARGET	LUAJIT_ARCH_MIPS32
++#elif defined(__NX__)
++#define LJ_TARGET_NX 1
++#define LJ_TARGET_CONSOLE 1
+ #else
+ #error "No support for this architecture (yet)"
+ #endif
+@@ -501,6 +505,9 @@
+ #elif LJ_TARGET_WINDOWS || LJ_TARGET_XBOX360
+ #define LJ_HASPROFILE		1
+ #define LJ_PROFILE_WTHREAD	1
++#elif LJ_TARGET_NX
++#define LJ_HASPROFILE       1
++#define LJ_PROFILE_PTHREAD  1
+ #else
+ #define LJ_HASPROFILE		0
+ #endif
+diff --git LuaJIT-2.1.0-beta3_a/src/lj_jit.h LuaJIT-2.1.0-beta3_b/src/lj_jit.h
+index 92054e3df..1ec937e23 100644
+--- LuaJIT-2.1.0-beta3_a/src/lj_jit.h
++++ LuaJIT-2.1.0-beta3_b/src/lj_jit.h
+@@ -417,8 +417,8 @@ typedef struct jit_State {
+   int32_t retdepth;	/* Return frame depth (count of RETF). */
+
+   TValue ksimd[LJ_KSIMD__MAX*2+1];  /* 16 byte aligned SIMD constants. */
+-  TValue k64[LJ_K64__MAX];  /* Common 8 byte constants used by backends. */
+-  uint32_t k32[LJ_K32__MAX];  /* Ditto for 4 byte constants. */
++  TValue k64[LJ_K64__MAX+1];  /* Common 8 byte constants used by backends. */
++  uint32_t k32[LJ_K32__MAX+1];  /* Ditto for 4 byte constants. */
+
+   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
+   IRRef irtoplim;	/* Upper limit of instuction buffer (biased). */
+diff --git LuaJIT-2.1.0-beta3_a/src/lj_obj.h LuaJIT-2.1.0-beta3_b/src/lj_obj.h
+index 52372c3e7..928e83936 100644
+--- LuaJIT-2.1.0-beta3_a/src/lj_obj.h
++++ LuaJIT-2.1.0-beta3_b/src/lj_obj.h
+@@ -304,15 +304,24 @@ typedef struct GCstr {
+
  /* -- Userdata object ----------------------------------------------------- */
  
 +#if defined(__GNUC__)

@@ -46,6 +46,8 @@ def build(bld):
         source_dirs.append('dlib/linux')
     elif 'web' in bld.env.PLATFORM:
         source_dirs.append('dlib/js')
+    elif 'nx64' in bld.env.PLATFORM:
+        source_dirs.append('dlib/nx64')
 
     private_source_dir = ''
     private_include_dir = ''
@@ -104,8 +106,6 @@ def build(bld):
                     'DNS':                  os.path.join('dlib', 'dns.cpp'),
                     'MUTEX':                os.path.join('dlib', 'mutex.cpp'),
                     'SYS':                  os.path.join('dlib', 'sys.cpp'),
-                    'SOCKET':               os.path.join('dlib', 'socket.cpp'),
-                    'THREAD':               os.path.join('dlib', 'thread.cpp'),
                     'TIME':                 os.path.join('dlib', 'time.cpp'),
                     }
 
@@ -265,7 +265,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
-    bld.install_as('${PREFIX}/include/dlib/sockettypes.h', _get_native_file(build_util.get_target_os(), 'sockettypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/spinlock.h')
     bld.install_as('${PREFIX}/include/dlib/spinlocktypes.h', _get_native_file(build_util.get_target_os(), 'spinlocktypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/ssdp.h')
@@ -275,7 +274,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
-    bld.install_as('${PREFIX}/include/dlib/threadtypes.h', _get_native_file(build_util.get_target_os(), 'threadtypes.h'))
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
@@ -297,6 +295,4 @@ def build(bld):
         # TODO, make this generic for loop
         bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/endian.h')
         bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/mutex.h')
-        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/sockettypes.h')
         bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/spinlocktypes.h')
-        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/threadtypes.h')
