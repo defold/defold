@@ -12,11 +12,34 @@
 
 #if defined(_MSC_VER)
 
-#ifndef DM_SAFE_WINDOWS_H
-#define DM_SAFE_WINDOWS_H
+#ifndef DMSDK_SAFE_WINDOWS_H
+#define DMSDK_SAFE_WINDOWS_H
 
-#include <dmsdk/dlib/safe_windows.h>
+#define WIN32_LEAN_AND_MEAN 1
+#include <windows.h>
 
-#endif // DM_SAFE_WINDOWS_H
+#ifdef PlaySound
+#undef PlaySound
+#endif
+
+#ifdef DrawText
+#undef DrawText
+#endif
+
+#ifdef DispatchMessage
+#undef DispatchMessage
+#endif
+
+#ifdef FreeModule
+#undef FreeModule
+#endif
+
+#ifdef GetTextMetrics
+#undef GetTextMetrics
+#endif
+
+#undef MAX_TOUCH_COUNT
+
+#endif // DMSDK_SAFE_WINDOWS_H
 
 #endif // defined(_MSC_VER)
