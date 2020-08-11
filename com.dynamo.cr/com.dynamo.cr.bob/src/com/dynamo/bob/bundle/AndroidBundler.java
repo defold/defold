@@ -237,57 +237,83 @@ public class AndroidBundler implements IBundler {
         return classesDex;
     }
 
-    /**
-    * Copy Android resources per package
-    */
-    private static File copyResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException {
-        Platform platform = Platform.Armv7Android;
-        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+    private static List<String> trim(List<String> strings) {
+        strings.replaceAll(String::trim);
+        return strings;
+    }
 
-        File androidResDir = createDir(outDir, "res");
+    private static void copyBundleResources(Project project, File outDir) throws CompileExceptionError {
+        List<String> bundleResourcesPaths = trim(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_resources", "").split(",")));
+        List<String> bundleExcludeList = trim(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
 
-        // create a list of resource directories, per package
-        List<File> directories = new ArrayList<>();
-        // Native extension build
-        // Include all Android resources received from extender server
-        if(packagesDir.exists()) {
-            File packagesList = new File(packagesDir, "packages.txt");
-            if (packagesList.exists()) {
-                List<String> allLines = Files.readAllLines(packagesList.toPath());
-                for (String line : allLines) {
-                    File resDir = new File(packagesDir, line);
-                    if (resDir.isDirectory()) {
-                        directories.add(resDir);
+        Set<String> set = new HashSet<>();
+        set.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
+        set.addAll(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        List<String> platformFolders = new ArrayList<String>(set);
+
+        for (String bundleResourcesPath : bundleResourcesPaths) {
+            if (bundleResourcesPath.length() > 0) {
+                for (String platformFolder : platformFolders) {
+                    String platformPath = FilenameUtils.concat(bundleResourcesPath, platformFolder + "/res/");
+                    if (ExtenderUtil.isAndroidAssetDirectory(project, platformPath)) {
+                        Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, platformPath, bundleExcludeList);
+                        ExtenderUtil.storeResources(outDir, projectBundleResources);
                     }
                 }
             }
-            else {
-                for (File dir : packagesDir.listFiles(File::isDirectory)) {
-                    File resDir = new File(dir, "res");
-                    if (resDir.isDirectory()) {
-                        directories.add(resDir);
-                    }
+        }
+    }
+
+    /**
+    * Copy Android resources per package
+    */
+    private static File copyResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
+        Platform platform = Platform.Armv7Android;
+
+        File androidResDir = createDir(outDir, "res");
+
+        // Native extension build
+        // Include all Android resources received from extender server
+        File packagesDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/packages");
+        File packagesList = new File(packagesDir, "packages.txt");
+        if(packagesList.exists()) {
+            // create a list of resource directories, per package
+            List<File> directories = new ArrayList<>();
+            List<String> allLines = Files.readAllLines(packagesList.toPath());
+            for (String line : allLines) {
+                File resDir = new File(packagesDir, line);
+                if (resDir.isDirectory()) {
+                    directories.add(resDir);
+                }
+            }
+
+            // copy all resources per package
+            // packages/com.foo.bar/res/* -> res/com.foo.bar/*
+            for (File src : directories) {
+                Path srcPath = Path.of(src.getAbsolutePath());
+                String packageName = srcPath.getName(srcPath.getNameCount() - 2).toString();
+                File dest = createDir(androidResDir, packageName);
+                for(File f : src.listFiles(File::isDirectory)) {
+                    FileUtils.copyDirectoryToDirectory(f, dest);
+                    BundleHelper.throwIfCanceled(canceled);
                 }
             }
         }
         // Non-native extension build
-        // Include local Android resources (icons)
+        // Include local Android resources (icons and bundle resources)
         else {
-            File resDir = helper.copyAndroidResources(platform);
-            directories.add(resDir);
+            File resDir = new File(androidResDir, "com.defold.android");
+            resDir.mkdirs();
+            BundleHelper.createAndroidResourceFolders(resDir);
+            helper.copyAndroidIcons(resDir);
+            helper.copyAndroidPushIcons(resDir);
+
+            File bundleResourceDestDir = new File(androidResDir, project.getProjectProperties().getStringValue("android", "package"));
+            bundleResourceDestDir.mkdirs();
+            copyBundleResources(project, bundleResourceDestDir);
         }
 
-        // copy all resources per package
-        // packages/com.foo.bar/res/* -> res/com.foo.bar/*
-        for (File src : directories) {
-            Path srcPath = Path.of(src.getAbsolutePath());
-            String packageName = srcPath.getName(srcPath.getNameCount() - 2).toString();
-            File dest = createDir(androidResDir, packageName);
-            for(File f : src.listFiles(File::isDirectory)) {
-                FileUtils.copyDirectoryToDirectory(f, dest);
-                BundleHelper.throwIfCanceled(canceled);
-            }
-        }
+
         return androidResDir;
     }
 

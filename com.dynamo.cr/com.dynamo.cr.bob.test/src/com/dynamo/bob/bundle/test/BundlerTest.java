@@ -603,14 +603,8 @@ public class BundlerTest {
         return expectedFiles;
     }
 
-    private String getPathForBundleResource(Platform platform, String resource) {
-        // On Android we put anything that isn't in the res/ folder in the assets/ folder
-        if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
-            if (!resource.startsWith("res/")) {
-                resource = "assets/" + resource;
-            }
-        }
-        return getBundleAppFolder("unnamed") + resource;
+    private boolean isAndroid(Platform platform) {
+        return (platform == Platform.Armv7Android || platform == Platform.Arm64Android);
     }
 
     @Test
@@ -632,6 +626,11 @@ public class BundlerTest {
          *    +-[current-platform-arch]/
          *      +-s2-1.txt
          *      +-s2-2.txt
+         *      +-res/
+         *        +-raw/
+         *          +-s2-raw.txt
+         *        +-values/
+         *          +-s2-values.xml
          */
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
@@ -650,6 +649,19 @@ public class BundlerTest {
         createFile(sub_platform2.getAbsolutePath(), "s2-1.txt", "dummy");
         createFile(sub_platform2.getAbsolutePath(), "s2-2.txt", "dummy");
 
+        // some additional files and folders which will only be included on Android
+        // (sub-folders are ignored on all other platforms)
+        File sub_platform2_res = new File(sub_platform2, "res");
+        sub_platform2_res.mkdir();
+        File sub_platform2_res_raw = new File(sub_platform2_res, "raw");
+        File sub_platform2_res_values = new File(sub_platform2_res, "values");
+        sub_platform2_res_raw.mkdir();
+        sub_platform2_res_values.mkdir();
+        // this is a "raw" file and it will be included as-is in the res folder of the APK
+        createFile(sub_platform2_res_raw.getAbsolutePath(), "s2-raw.txt", "dummy");
+        // this is a resource file and it will get included in the resources.arsc file
+        createFile(sub_platform2_res_values.getAbsolutePath(), "s2-values.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><resources></resources>");
+
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
         HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform);
@@ -662,6 +674,8 @@ public class BundlerTest {
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
+        String appFolder = getBundleAppFolder("unnamed");
+
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
         files = getBundleFiles();
@@ -671,11 +685,16 @@ public class BundlerTest {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add(getPathForBundleResource(platform, "s1-1.txt"));
-        expectedFiles.add(getPathForBundleResource(platform, "s1-2.txt"));
+        if (isAndroid(platform)) {
+            expectedFiles.add("assets/s1-1.txt");
+            expectedFiles.add("assets/s1-2.txt");
+        }
+        else {
+            expectedFiles.add(appFolder + "s1-1.txt");
+            expectedFiles.add(appFolder + "s1-2.txt");
+        }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
-
 
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
@@ -686,10 +705,19 @@ public class BundlerTest {
             System.out.println(file);
             actualFiles.add(file);
         }
-        expectedFiles.add(getPathForBundleResource(platform, "s1-1.txt"));
-        expectedFiles.add(getPathForBundleResource(platform, "s1-2.txt"));
-        expectedFiles.add(getPathForBundleResource(platform, "s2-1.txt"));
-        expectedFiles.add(getPathForBundleResource(platform, "s2-2.txt"));
+        if (isAndroid(platform)) {
+            expectedFiles.add("res/raw/s2-raw.txt");
+            expectedFiles.add("assets/s1-1.txt");
+            expectedFiles.add("assets/s1-2.txt");
+            expectedFiles.add("assets/s2-1.txt");
+            expectedFiles.add("assets/s2-2.txt");
+        }
+        else {
+            expectedFiles.add(appFolder + "s1-1.txt");
+            expectedFiles.add(appFolder + "s1-2.txt");
+            expectedFiles.add(appFolder + "s2-1.txt");
+            expectedFiles.add(appFolder + "s2-2.txt");
+        }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
     }
