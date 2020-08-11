@@ -172,6 +172,12 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result Pause(bool pause)
+    {
+        (void)pause;
+        return RESULT_OK;
+    }
+
     Result Play(HSoundInstance sound_instance)
     {
         sound_instance->m_Playing = 1;
