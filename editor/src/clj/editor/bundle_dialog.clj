@@ -408,10 +408,11 @@
     (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))))
 
 (defn- get-android-options [view]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field bundle-format-choice-box]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field bundle-format-choice-box]
     {:architecture-32bit? (ui/value architecture-32bit-check-box)
      :architecture-64bit? (ui/value architecture-64bit-check-box)
      :keystore (get-file keystore-text-field)
+     :keystore-pass (get-file keystore-pass-text-field)
      :bundle-format (ui/value bundle-format-choice-box)}))
 
 (defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? keystore keystore-pass bundle-format] :as _options} issues]
@@ -447,14 +448,17 @@
                   (and (some? keystore) (not (existing-file-of-type? "jks" keystore)))
                   [:fatal "Invalid keystore."]
 
-                  (and (some? keystore-pass) (nil? keystore))
-                  [:fatal "Keystore password must be set if keystore is specified."])
+                  (and (nil? keystore) (some? keystore-pass))
+                  [:fatal "Keystore must be set if keystore password is specified."])
    :keystore-pass (cond
                   (and (some? keystore-pass) (not (fs/existing-file? keystore-pass)))
-                  [:fatal "Keystore file not found."]
+                  [:fatal "Keystore password file not found."]
+
+                  (and (some? keystore-pass) (not (existing-file-of-type? "txt" keystore-pass)))
+                  [:fatal "Invalid keystore password file."]
 
                   (and (some? keystore) (nil? keystore-pass))
-                  [:fatal "Keystore must be set if keystore password is specified."])
+                  [:fatal "Keystore password must be set if keystore is specified."])
    :architecture (when-not (or architecture-32bit? architecture-64bit?)
                    [:fatal "At least one architecture must be selected."])
    :bundle-format (when-not bundle-format
