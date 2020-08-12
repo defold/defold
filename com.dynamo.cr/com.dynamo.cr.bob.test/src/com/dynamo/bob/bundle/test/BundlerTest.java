@@ -609,7 +609,7 @@ public class BundlerTest {
 
     @Test
     public void testBundleResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-
+        System.out.println("Platform:" + platform.toString());
         /*
          * Project structure:
          *
@@ -665,10 +665,13 @@ public class BundlerTest {
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
         HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform);
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
+        }
         HashSet<String> actualFiles = new HashSet<String>();
         List<String> files = getBundleFiles();
         for (String file : files) {
-            System.out.println(file);
+            System.out.println("Actual file:" + file);
             actualFiles.add(file);
         }
         assertEquals(expectedFiles.size(), files.size());
@@ -680,9 +683,12 @@ public class BundlerTest {
         build();
         files = getBundleFiles();
         expectedFiles = getExpectedFilesForPlatform(platform);
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
+        }
         actualFiles = new HashSet<String>();
         for (String file : files) {
-            System.out.println(file);
+            System.out.println("Actual file:" + file);
             actualFiles.add(file);
         }
         if (isAndroid(platform)) {
@@ -700,9 +706,12 @@ public class BundlerTest {
         build();
         files = getBundleFiles();
         expectedFiles = getExpectedFilesForPlatform(platform);
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
+        }
         actualFiles = new HashSet<String>();
         for (String file : files) {
-            System.out.println(file);
+            System.out.println("Actual file:" + file);
             actualFiles.add(file);
         }
         if (isAndroid(platform)) {
