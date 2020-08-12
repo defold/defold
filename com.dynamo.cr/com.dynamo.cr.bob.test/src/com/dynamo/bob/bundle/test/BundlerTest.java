@@ -545,8 +545,6 @@ public class BundlerTest {
                 expectedFiles.add("assets/game.dmanifest");
                 expectedFiles.add("assets/game.projectc");
                 expectedFiles.add("assets/game.public.der");
-                expectedFiles.add("META-INF/BNDLTOOL.SF");
-                expectedFiles.add("META-INF/BNDLTOOL.RSA");
                 expectedFiles.add("META-INF/MANIFEST.MF");
                 expectedFiles.add("res/drawable-hdpi-v4/icon.png");
                 expectedFiles.add("res/drawable-ldpi-v4/icon.png");
@@ -692,6 +690,14 @@ public class BundlerTest {
             actualFiles.add(file);
         }
         if (isAndroid(platform)) {
+            // the APK may or may not be signed, depending on if bundletool was able
+            // to find a debug keystore on the system or not
+            if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
+                expectedFiles.add("META-INF/BNDLTOOL.SF");
+            }
+            if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
+                expectedFiles.add("META-INF/BNDLTOOL.RSA");
+            }
             expectedFiles.add("assets/s1-1.txt");
             expectedFiles.add("assets/s1-2.txt");
         }
@@ -715,6 +721,14 @@ public class BundlerTest {
             actualFiles.add(file);
         }
         if (isAndroid(platform)) {
+            // the APK may or may not be signed, depending on if bundletool was able
+            // to find a debug keystore on the system or not
+            if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
+                expectedFiles.add("META-INF/BNDLTOOL.SF");
+            }
+            if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
+                expectedFiles.add("META-INF/BNDLTOOL.RSA");
+            }
             expectedFiles.add("res/raw/s2-raw.txt");
             expectedFiles.add("assets/s1-1.txt");
             expectedFiles.add("assets/s1-2.txt");
