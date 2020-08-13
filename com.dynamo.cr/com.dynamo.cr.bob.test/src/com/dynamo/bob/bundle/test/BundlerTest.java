@@ -506,7 +506,7 @@ public class BundlerTest {
         assertTrue(found);
     }
 
-    static HashSet<String> getExpectedFilesForPlatform(Platform platform)
+    static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
         HashSet<String> expectedFiles = new HashSet<String>();
         switch (platform)
@@ -554,6 +554,14 @@ public class BundlerTest {
                 expectedFiles.add("res/drawable-xxxhdpi-v4/icon.png");
                 expectedFiles.add("res/xml/splits0.xml");
                 expectedFiles.add("resources.arsc");
+                // the APK may or may not be signed, depending on if bundletool was able
+                // to find a debug keystore on the system or not
+                if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
+                    expectedFiles.add("META-INF/BNDLTOOL.SF");
+                }
+                if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
+                    expectedFiles.add("META-INF/BNDLTOOL.RSA");
+                }
                 break;
             case Armv7Darwin:
             case Arm64Darwin:
@@ -601,13 +609,11 @@ public class BundlerTest {
         return expectedFiles;
     }
 
-    private boolean isAndroid(Platform platform) {
-        return (platform == Platform.Armv7Android || platform == Platform.Arm64Android);
-    }
-
     @Test
     public void testBundleResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         System.out.println("Platform:" + platform.toString());
+        final boolean isAndroid = (platform == Platform.Armv7Android || platform == Platform.Arm64Android);
+        final String appFolder = getBundleAppFolder("unnamed");
         /*
          * Project structure:
          *
@@ -660,86 +666,60 @@ public class BundlerTest {
         // this is a resource file and it will get included in the resources.arsc file
         createFile(sub_platform2_res_values.getAbsolutePath(), "s2-values.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><resources></resources>");
 
+
+        // first test - no bundle resources
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
-        HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform);
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
         HashSet<String> actualFiles = new HashSet<String>();
         List<String> files = getBundleFiles();
         for (String file : files) {
-            System.out.println("Actual file:" + file);
+            System.out.println(file);
             actualFiles.add(file);
+        }
+        HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
         }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
-        String appFolder = getBundleAppFolder("unnamed");
 
+        // second test - /sub1
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
         files = getBundleFiles();
-        expectedFiles = getExpectedFilesForPlatform(platform);
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
         actualFiles = new HashSet<String>();
         for (String file : files) {
-            System.out.println("Actual file:" + file);
+            System.out.println(file);
             actualFiles.add(file);
         }
-        if (isAndroid(platform)) {
-            // the APK may or may not be signed, depending on if bundletool was able
-            // to find a debug keystore on the system or not
-            if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
-                expectedFiles.add("META-INF/BNDLTOOL.SF");
-            }
-            if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
-                expectedFiles.add("META-INF/BNDLTOOL.RSA");
-            }
-            expectedFiles.add("assets/s1-1.txt");
-            expectedFiles.add("assets/s1-2.txt");
-        }
-        else {
-            expectedFiles.add(appFolder + "s1-1.txt");
-            expectedFiles.add(appFolder + "s1-2.txt");
+        expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
+        expectedFiles.add(isAndroid ? "assets/s1-1.txt" : appFolder + "s1-1.txt");
+        expectedFiles.add(isAndroid ? "assets/s1-2.txt" : appFolder + "s1-2.txt");
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
         }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
 
+
+        // third test - /sub1 and /sub2
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
         files = getBundleFiles();
-        expectedFiles = getExpectedFilesForPlatform(platform);
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
         actualFiles = new HashSet<String>();
         for (String file : files) {
-            System.out.println("Actual file:" + file);
+            System.out.println(file);
             actualFiles.add(file);
         }
-        if (isAndroid(platform)) {
-            // the APK may or may not be signed, depending on if bundletool was able
-            // to find a debug keystore on the system or not
-            if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
-                expectedFiles.add("META-INF/BNDLTOOL.SF");
-            }
-            if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
-                expectedFiles.add("META-INF/BNDLTOOL.RSA");
-            }
-            expectedFiles.add("res/raw/s2-raw.txt");
-            expectedFiles.add("assets/s1-1.txt");
-            expectedFiles.add("assets/s1-2.txt");
-            expectedFiles.add("assets/s2-1.txt");
-            expectedFiles.add("assets/s2-2.txt");
-        }
-        else {
-            expectedFiles.add(appFolder + "s1-1.txt");
-            expectedFiles.add(appFolder + "s1-2.txt");
-            expectedFiles.add(appFolder + "s2-1.txt");
-            expectedFiles.add(appFolder + "s2-2.txt");
+        expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
+        expectedFiles.add(isAndroid ? "assets/s1-1.txt" : appFolder + "s1-1.txt");
+        expectedFiles.add(isAndroid ? "assets/s1-2.txt" : appFolder + "s1-2.txt");
+        expectedFiles.add(isAndroid ? "assets/s2-1.txt" : appFolder + "s2-1.txt");
+        expectedFiles.add(isAndroid ? "assets/s2-2.txt" : appFolder + "s2-2.txt");
+        if (isAndroid) expectedFiles.add("res/raw/s2-raw.txt");
+        for (String file : expectedFiles) {
+            System.out.println("Expected file:" + file);
         }
         assertEquals(expectedFiles.size(), files.size());
         assertEquals(expectedFiles, actualFiles);
