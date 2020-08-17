@@ -198,7 +198,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor2(channel = None, engine_artifacts = None, skip_tests = False, windows_cert = None, windows_cert_pass = None):
+def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
     host_platform = platform_from_host()
     if not host_platform in PLATFORMS_DESKTOP:
         return
