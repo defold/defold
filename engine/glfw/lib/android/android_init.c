@@ -59,6 +59,9 @@ static ASensorRef g_accelerometer = 0;
 static int g_accelerometerEnabled = 0;
 static uint32_t g_accelerometerFrequency = 1000000/60;
 static GLFWTouch* g_MouseEmulationTouch = 0;
+uint32_t g_EventLock = 0;
+int g_AppCommands[MAX_APP_COMMANDS];
+int g_NumAppCommands = 0;
 
 static void initThreads( void )
 {
@@ -78,6 +81,8 @@ static void initThreads( void )
 #ifdef _GLFW_HAS_PTHREAD
     _glfwThrd.First.PosixID  = pthread_self();
 #endif
+
+    g_EventLock = 0;
 }
 
 
@@ -170,7 +175,7 @@ static const char* GetCmdName(int32_t cmd)
 
 #undef CASE_RETURN
 
-static void computeIconifiedState()
+void computeIconifiedState()
 {
     // We do not cancel iconified status when RESUME is received, as we can
     // see the following order of commands when returning from a locked state:
@@ -182,10 +187,15 @@ static void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWin.paused && _glfwWin.hasSurface);
+    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWinAndroid.paused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
 }
 
-static void handleCommand(struct android_app* app, int32_t cmd) {
+GLFWAPI int32_t glfwAndroidWindowOpened()
+{
+    return _glfwWin.opened;
+}
+
+void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
     LOGV("handleCommand: %s", GetCmdName(cmd));
 
     switch (cmd)
@@ -193,11 +203,6 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_SAVE_STATE:
         break;
     case APP_CMD_INIT_WINDOW:
-        if (_glfwWin.opened)
-        {
-            create_gl_surface(&_glfwWin);
-            _glfwWin.hasSurface = 1;
-        }
         _glfwWin.opened = 1;
         computeIconifiedState();
         break;
@@ -211,9 +216,13 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             // application will attempt to open the GL window before it has regained focus.
             g_appLaunchInterrupted = 1;
         }
-        destroy_gl_surface(&_glfwWin);
-        _glfwWin.hasSurface = 0;
+
+        spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+
+        destroy_gl_surface(&_glfwWinAndroid);
         computeIconifiedState();
+
+        spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
         break;
     case APP_CMD_GAINED_FOCUS:
         computeIconifiedState();
@@ -230,7 +239,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_RESUME:
         _glfwWin.active = 1;
-        _glfwWin.paused = 0;
+        _glfwWinAndroid.paused = 0;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
@@ -243,7 +252,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         // See _glfwPlatformSwapBuffers for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
-        _glfwWin.paused = 1;
+        _glfwWinAndroid.paused = 1;
         _glfwWin.active = 0;
         if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
@@ -254,10 +263,30 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
-        final_gl(&_glfwWin);
+        final_gl(&_glfwWinAndroid);
         computeIconifiedState();
         break;
     }
+}
+
+void glfwAndroidHandleCommand(struct android_app* app, int32_t cmd)
+{
+    spinlock_lock(&g_EventLock);
+
+    if (g_NumAppCommands < MAX_APP_COMMANDS)
+    {
+        // this is handled on the current thread (looper_main)
+        _glfwAndroidHandleCommand(app, cmd);
+
+        // This will let the engine thread know (engine_main)
+        g_AppCommands[g_NumAppCommands++] = cmd;
+    }
+    else
+    {
+        LOGE("glfwAndroidHandleCommand: max num app commands per frame reached");
+    }
+
+    spinlock_unlock(&g_EventLock);
 }
 
 static GLFWTouch* touchById(void *ref)
@@ -367,7 +396,7 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
 
 void *pointerIdToRef(int32_t id)
 {
-    return (void*)(0x1 + id);
+    return (void*)(uintptr_t)(0x1 + id);
 }
 
 static void updateGlfwMousePos(int32_t x, int32_t y)
@@ -377,7 +406,7 @@ static void updateGlfwMousePos(int32_t x, int32_t y)
 }
 
 // return 1 to handle the event, 0 for default handling
-static int32_t handleInput(struct android_app* app, AInputEvent* event)
+int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
 {
     int32_t event_type = AInputEvent_getType(event);
 
@@ -634,30 +663,9 @@ void _glfwPreMain(struct android_app* state)
 
     g_AndroidApp = state;
 
-    state->onAppCmd = handleCommand;
-    state->onInputEvent = handleInput;
-
     _glfwWin.opened = 0;
-    _glfwWin.hasSurface = 0;
 
-    JavaVM* vm = g_AndroidApp->activity->vm;
     ares_library_init_jvm(g_AndroidApp->activity->vm);
-
-    // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
-    while (_glfwWin.opened == 0)
-    {
-        int ident;
-        int events;
-        struct android_poll_source* source;
-
-        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
-        {
-            // Process this event.
-            if (source != NULL) {
-                source->process(state, source);
-            }
-        }
-    }
 
     char* argv[] = {0};
     argv[0] = strdup("defold-app");
@@ -670,7 +678,7 @@ void _glfwPreMain(struct android_app* state)
 static int LooperCallback(int fd, int events, void* data)
 {
     struct Command cmd;
-    if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
+    if (read(_glfwWinAndroid.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
         if (cmd.m_Command == CMD_INPUT_CHAR) {
             // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
             _glfwInputChar( (int)cmd.m_Data, GLFW_RELEASE );
@@ -723,18 +731,19 @@ int _glfwPlatformInit( void )
         return GL_FALSE;
     }
 
-    _glfwWin.display = EGL_NO_DISPLAY;
-    _glfwWin.context = EGL_NO_CONTEXT;
-    _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
-    _glfwWin.paused = 0;
-    _glfwWin.app = g_AndroidApp;
 
-    int result = pipe(_glfwWin.m_Pipefd);
+    memset(&_glfwWinAndroid, 0, sizeof(_glfwWinAndroid));
+    _glfwWinAndroid.app = g_AndroidApp;
+    _glfwWinAndroid.display = EGL_NO_DISPLAY;
+    _glfwWinAndroid.context = EGL_NO_CONTEXT;
+    _glfwWinAndroid.surface = EGL_NO_SURFACE;
+
+    int result = pipe(_glfwWinAndroid.m_Pipefd);
     if (result != 0) {
         LOGF("Could not open pipe for communication: %d", result);
     }
-    result = ALooper_addFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
+    result = ALooper_addFd(g_AndroidApp->looper, _glfwWinAndroid.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
     if (result != 1) {
         LOGF("Could not add file descriptor to looper: %d", result);
     }
@@ -758,13 +767,6 @@ int _glfwPlatformInit( void )
     // Start the timer
     _glfwInitTimer();
 
-    // Initialize display
-    if (init_gl(&_glfwWin) == 0)
-    {
-        return GL_FALSE;
-    }
-    SaveWin(&_glfwWin);
-
     return GL_TRUE;
 }
 
@@ -787,12 +789,12 @@ int _glfwPlatformTerminate( void )
     glfwCloseWindow();
 
 
-    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
+    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWinAndroid.m_Pipefd[0]);
     if (result != 1) {
         LOGF("Could not remove fd from looper: %d", result);
     }
 
-    close(_glfwWin.m_Pipefd[0]);
+    close(_glfwWinAndroid.m_Pipefd[0]);
 
     ASensorManager* sensorManager = ASensorManager_getInstance();
     ASensorManager_destroyEventQueue(sensorManager, g_sensorEventQueue);
@@ -801,14 +803,14 @@ int _glfwPlatformTerminate( void )
     JNIEnv* env = g_AndroidApp->activity->env;
     JavaVM* vm = g_AndroidApp->activity->vm;
     (*vm)->AttachCurrentThread(vm, &env, NULL);
-    close(_glfwWin.m_Pipefd[1]);
+    close(_glfwWinAndroid.m_Pipefd[1]);
     (*vm)->DetachCurrentThread(vm);
 
     // Call finish and let Android life cycle take care of the termination
     ANativeActivity_finish(g_AndroidApp->activity);
 
      // Wait for gl context destruction
-    while (_glfwWin.display != EGL_NO_DISPLAY)
+    while (_glfwWinAndroid.display != EGL_NO_DISPLAY)
     {
         int ident;
         int events;
