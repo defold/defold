@@ -110,7 +110,6 @@ def setup_windows_cert(args):
     cert_path = os.path.join("ci", "windows_cert.pfx")
     with open(cert_path, "wb") as file:
         file.write(base64.decodestring(args.windows_cert))
-    return
 
 
 def install(args):
