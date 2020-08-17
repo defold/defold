@@ -242,10 +242,10 @@ def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
     opts.append('--platform=%s' % platform)
 
     if windows_cert:
-        opts.append('--windows-cert=%s' % windows_cert)
+        opts.append('--windows-cert="%s"' % windows_cert)
 
     if windows_cert_pass:
-        opts.append('--windows-cert-pass=%s' % windows_cert_pass)
+        opts.append('--windows-cert-pass="%s"' % windows_cert_pass)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -262,11 +262,11 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
 
     opts.append('--platform=x86_64-darwin')
 
-    opts.append('--notarization-username=%s' % notarization_username)
-    opts.append('--notarization-password=%s' % notarization_password)
+    opts.append('--notarization-username="%s"' % notarization_username)
+    opts.append('--notarization-password="%s"' % notarization_password)
 
     if notarization_itc_provider:
-        opts.append('--notarization-itc-provider=%s' % notarization_itc_provider)
+        opts.append('--notarization-itc-provider="%s"' % notarization_itc_provider)
 
     cmd = ' '.join(args + opts)
     call(cmd)

@@ -1235,11 +1235,11 @@ class Configuration(object):
                '--bundle-dir=%s' % editor_bundle_dir,
                'sign']
         if self.windows_cert:
-            cmd.append('--windows-cert=%s' % self.windows_cert)
+            cmd.append('--windows-cert="%s"' % self.windows_cert)
         if self.windows_cert_pass:
-            cmd.append('--windows-cert-pass=%s' % self.windows_cert_pass)
+            cmd.append('--windows-cert-pass="%s"' % self.windows_cert_pass)
         if self.codesigning_identity:
-            cmd.append('--codesigning-identity=%s' % self.codesigning_identity)
+            cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
@@ -1253,16 +1253,16 @@ class Configuration(object):
                '--bundle-dir=%s' % editor_bundle_dir,
                'installer']
         if self.codesigning_identity:
-            cmd.append('--codesigning-identity=%s' % self.codesigning_identity)
+            cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
         # notarize dmg
         editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
         cmd = ['./scripts/notarize.py',
                editor_dmg,
-               self.notarization_username,
-               self.notarization_password,
-               self.notarization_itc_provider]
+               '"%s"' % self.notarization_username,
+               '"%s"' % self.notarization_password,
+               '"%s"' % self.notarization_itc_provider]
         self.run_editor_script(cmd)
 #
 # END: EDITOR 2
