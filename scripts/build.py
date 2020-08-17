@@ -1260,9 +1260,9 @@ class Configuration(object):
         editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
         cmd = ['./scripts/notarize.py',
                editor_dmg,
-               '"%s"' % self.notarization_username,
-               '"%s"' % self.notarization_password,
-               '"%s"' % self.notarization_itc_provider]
+               self.notarization_username,
+               self.notarization_password,
+               self.notarization_itc_provider]
         self.run_editor_script(cmd)
 #
 # END: EDITOR 2
