@@ -215,12 +215,6 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False, w
     if skip_tests:
         opts.append('--skip-tests')
 
-    if windows_cert:
-        opts.append('--windows-cert=%s' % windows_cert)
-
-    if windows_cert_pass:
-        opts.append('--windows-cert-pass=%s' % windows_cert_pass)
-
     opts_string = ' '.join(opts)
 
     call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (host_platform, opts_string))
@@ -239,6 +233,23 @@ def download_editor2(channel = None, platform = None):
 
     for platform in platforms:
         call('python scripts/build.py download_editor2 --platform=%s %s' % (platform, ' '.join(opts)))
+
+
+def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
+    args = 'python scripts/build.py sign_editor2'.split()
+    opts = []
+
+    opts.append('--platform=%s' % platform)
+
+    if windows_cert:
+        opts.append('--windows-cert=%s' % windows_cert)
+
+    if windows_cert_pass:
+        opts.append('--windows-cert-pass=%s' % windows_cert_pass)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
 
 def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
     if not notarization_username or not notarization_password:
@@ -408,9 +419,7 @@ def main(argv):
             build_editor2(
                 channel = editor_channel,
                 engine_artifacts = engine_artifacts,
-                skip_tests = skip_editor_tests,
-                windows_cert = args.windows_cert,
-                windows_cert_pass = args.windows_cert_pass)
+                skip_tests = skip_editor_tests)
         elif command == "download-editor":
             download_editor2(channel = editor_channel, platform = platform)
         elif command == "notarize-editor":
@@ -418,6 +427,10 @@ def main(argv):
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
                 notarization_itc_provider = args.notarization_itc_provider)
+        elif command == "sign-editor":
+            if not platform:
+                raise Exception("No --platform specified.")
+            sign_editor2(platform, windows_cert = args.windows_cert, windows_cert_pass = args.windows_cert_pass)
         elif command == "archive-editor":
             archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":

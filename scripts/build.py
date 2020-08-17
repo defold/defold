@@ -1225,26 +1225,41 @@ class Configuration(object):
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
-               '--codesigning-identity=%s' % self.codesigning_identity,
-               '--windows-cert=%s' % self.windows_cert,
-               '--windows-cert-pass=%s' % self.windows_cert_pass,
                'bundle']
+        self.run_editor_script(cmd)
+
+    def sign_editor2(self):
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
+        cmd = ['./scripts/bundle.py',
+               '--platform=%s' % self.target_platform,
+               '--bundle-dir=%s' % editor_bundle_dir,
+               'sign']
+        if self.windows_cert:
+            cmd.append('--windows-cert=%s' % self.windows_cert)
+        if self.windows_cert_pass:
+            cmd.append('--windows-cert-pass=%s' % self.windows_cert_pass)
+        if self.codesigning_identity:
+            cmd.append('--codesigning-identity=%s' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
         if self.target_platform != "x86_64-darwin":
             return
 
+        editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
         # create dmg installer
         cmd = ['./scripts/bundle.py',
                '--platform=x86_64-darwin',
-               '--bundle-dir=%s' % join(self.defold_root, 'editor', 'target', 'editor'),
+               '--bundle-dir=%s' % editor_bundle_dir,
                'installer']
+        if self.codesigning_identity:
+            cmd.append('--codesigning-identity=%s' % self.codesigning_identity)
         self.run_editor_script(cmd)
 
         # notarize dmg
+        editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
         cmd = ['./scripts/notarize.py',
-               join(self.defold_root, 'editor', 'target', 'editor', 'Defold-x86_64-darwin.dmg'),
+               editor_dmg,
                self.notarization_username,
                self.notarization_password,
                self.notarization_itc_provider]
@@ -1894,6 +1909,7 @@ install_go       - Install go dev tools
 build_go         - Build go code
 archive_go       - Archive go binaries
 build_editor2    - Build editor
+sign_editor2     - Sign editor
 bundle_editor2   - Bundle editor (zip)
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)

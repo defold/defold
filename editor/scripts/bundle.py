@@ -327,8 +327,6 @@ def create_bundle(options):
         shutil.copy(launcher, defold_exe)
         if not 'win32' in platform:
             exec_command(['chmod', '+x', defold_exe])
-        if 'win32' in platform:
-            sign_files('win32', options, defold_exe)
 
         extract(jdk, tmp_dir, is_mac)
 
@@ -348,7 +346,52 @@ def create_bundle(options):
             os.remove(zipfile)
 
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
-        ziptree(bundle_dir, zipfile, 'tmp')
+        ziptree(bundle_dir, zipfile, tmp_dir)
+
+
+def sign(options):
+    for platform in options.target_platform:
+        # check that we have an editor bundle to sign
+        if 'win32' in platform:
+            bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-win32.zip")
+        elif 'darwin' in platform:
+            bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.zip")
+        else:
+            print("No signing support for platform %s" % platform)
+            continue
+
+        if not os.path.exists(bundle_file):
+            print('Editor bundle %s does not exist' % bundle_file)
+            exec_command(['ls', '-la', options.bundle_dir])
+            sys.exit(1)
+
+        # setup
+        sign_dir = os.path.join("build", "sign")
+        rmtree(sign_dir)
+        mkdirs(sign_dir)
+
+        # unzip
+        exec_command(['unzip', bundle_file, '-d', sign_dir])
+
+        # sign files
+        if 'darwin' in platform:
+            # we need to sign the binaries in Resources folder manually as codesign of
+            # the *.app will not process files in Resources
+            jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", "jdk11.0.1")
+            for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
+                sign_files('darwin', options, exe)
+            for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
+                sign_files('darwin', options, lib)
+            sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+            sign_files('darwin', options, os.path.join(sign_dir, "Defold.app"))
+        elif 'win32' in platform:
+            sign_files('win32', options,  os.path.join(sign_dir, "Defold.exe"))
+
+        # create editor bundle with signed files
+        os.remove(bundle_file)
+        ziptree(sign_dir, bundle_file, sign_dir)
+
+
 
 def find_files(root_dir, file_pattern):
     matches = []
@@ -382,17 +425,6 @@ def create_dmg(options):
     shutil.copytree('bundle-resources/dmg_background', '%s/.background' % dmg_dir)
     exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
 
-    # sign files
-    # we need to sign the binaries in Resources folder manually as codesign of
-    # the *.app will not process files in Resources
-    jdk_path = os.path.join(dmg_dir, "Defold.app", "Contents", "Resources", "packages", "jdk11.0.1")
-    for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-        sign_files('darwin', options, exe)
-    for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-        sign_files('darwin', options, lib)
-    sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-    sign_files('darwin', options, os.path.join(dmg_dir, "Defold.app"))
-
     # create dmg
     dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")
     if os.path.exists(dmg_file):
@@ -422,8 +454,9 @@ if __name__ == '__main__':
 
 Commands:
   build                 Build editor
-  bundle                Create editor bundle from built files
-  installer             Create editor installer from bundle'''
+  bundle                Create editor bundle (zip) from built files
+  sign                  Sign editor bundle (zip)
+  installer             Create editor installer from bundle (zip)'''
 
     parser = optparse.OptionParser(usage)
 
@@ -472,7 +505,7 @@ Commands:
 
     options, commands = parser.parse_args()
 
-    if (("bundle" in commands) or ("installer" in commands)) and not options.target_platform:
+    if (("bundle" in commands) or ("installer" in commands) or ("sign" in commands)) and not options.target_platform:
         parser.error('No platform specified')
 
     if "bundle" in commands and not options.version:
@@ -502,6 +535,8 @@ Commands:
     for command in commands:
         if command == "build":
             build(options)
+        elif command == "sign":
+            sign(options)
         elif command == "bundle":
             create_bundle(options)
         elif command == "installer":
