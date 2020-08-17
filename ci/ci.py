@@ -105,6 +105,14 @@ def setup_keychain(args):
     print("Done with keychain setup")
 
 
+def setup_windows_cert(args):
+    print("Setting up certificate")
+    cert_path = os.path.join("ci", "windows_cert.pfx")
+    with open(cert_path, "wb") as file:
+        file.write(base64.decodestring(args.windows_cert))
+    return
+
+
 def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
@@ -142,6 +150,9 @@ def install(args):
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
+    elif system == "Windows":
+        if args.windows_cert:
+            setup_windows_cert(args)
 
 
 def build_engine(platform, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False, channel = None):
@@ -188,7 +199,7 @@ def build_engine(platform, with_valgrind = False, with_asan = False, with_vanill
     call(cmd)
 
 
-def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
+def build_editor2(channel = None, engine_artifacts = None, skip_tests = False, windows_cert = None, windows_cert_pass = None):
     host_platform = platform_from_host()
     if not host_platform in PLATFORMS_DESKTOP:
         return
@@ -203,6 +214,12 @@ def build_editor2(channel = None, engine_artifacts = None, skip_tests = False):
 
     if skip_tests:
         opts.append('--skip-tests')
+
+    if windows_cert:
+        opts.append('--windows-cert=%s' % windows_cert)
+
+    if windows_cert_pass:
+        opts.append('--windows-cert-pass=%s' % windows_cert_pass)
 
     opts_string = ' '.join(opts)
 
@@ -320,6 +337,8 @@ def main(argv):
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
+    parser.add_argument("--windows-cert", dest="windows_cert", help="Base 64 encoded Windows certificate (pfx)")
+    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="Password for the Windows certificate")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
@@ -386,7 +405,12 @@ def main(argv):
                 skip_docs = args.skip_docs,
                 channel = engine_channel)
         elif command == "build-editor":
-            build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
+            build_editor2(
+                channel = editor_channel,
+                engine_artifacts = engine_artifacts,
+                skip_tests = skip_editor_tests,
+                windows_cert = args.windows_cert,
+                windows_cert_pass = args.windows_cert_pass)
         elif command == "download-editor":
             download_editor2(channel = editor_channel, platform = platform)
         elif command == "notarize-editor":

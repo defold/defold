@@ -146,19 +146,36 @@ def mac_certificate(codesigning_identity):
     else:
         return None
 
-def sign_files(codesigning_identity, bundle_dir):
-    certificate = mac_certificate(codesigning_identity)
-    if certificate == None:
-        print("Warning: Codesigning certificate not found for signing identity %s, files will not be signed" % (codesigning_identity))
-    else:
-        exec_command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
-            bundle_dir])
+def sign_files(platform, options, dir):
+    if 'win32' in platform:
+        certificate = options.windows_cert
+        certificate_pass = options.windows_cert_pass
+        if certificate == None:
+            print("Warning: Codesigning certificate not found, files will not be signed")
+        else:
+            exec_command([
+                'SignTool',
+                'sign',
+                '/fd', 'sha256',
+                '/a',
+                '/f', certificate,
+                '/p', certificate_pass,
+                '/tr', 'http://timestamp.comodoca.com',
+                dir])
+    elif 'darwin' in platform:
+        codesigning_identity = options.codesigning_identity
+        certificate = mac_certificate(codesigning_identity)
+        if certificate == None:
+            print("Warning: Codesigning certificate not found for signing identity %s, files will not be signed" % (codesigning_identity))
+        else:
+            exec_command([
+                'codesign',
+                '--deep',
+                '--force',
+                '--options', 'runtime',
+                '--entitlements', './scripts/entitlements.plist',
+                '-s', certificate,
+                dir])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
@@ -241,6 +258,9 @@ def build(options):
     exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
 
+def get_exe_suffix(platform):
+    return ".exe" if 'win32' in platform else ""
+
 
 def create_bundle(options):
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
@@ -256,12 +276,6 @@ def create_bundle(options):
         if not jdk:
             print('Failed to download %s' % jdk_url)
             sys.exit(5)
-
-        exe_suffix = ''
-        if 'win32' in platform:
-            exe_suffix = '.exe'
-
-        launcher = launcher_path(options, platform, exe_suffix)
 
         tmp_dir = "tmp"
 
@@ -306,11 +320,17 @@ def create_bundle(options):
             config.write(f)
 
         shutil.copy(jar_file, '%s/defold-%s.jar' % (packages_dir, options.editor_sha1))
-        shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
-        if not 'win32' in platform:
-            exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 
-        extract(jdk, 'tmp', is_mac)
+        # copy editor executable (the launcher)
+        launcher = launcher_path(options, platform, get_exe_suffix(platform))
+        defold_exe = '%s/Defold%s' % (exe_dir, get_exe_suffix(platform))
+        shutil.copy(launcher, defold_exe)
+        if not 'win32' in platform:
+            exec_command(['chmod', '+x', defold_exe])
+        if 'win32' in platform:
+            sign_files('win32', options, defold_exe)
+
+        extract(jdk, tmp_dir, is_mac)
 
         if is_mac:
             platform_jdk = 'tmp/jdk-%s.jdk/Contents/Home' % java_version
@@ -367,11 +387,11 @@ def create_dmg(options):
     # the *.app will not process files in Resources
     jdk_path = os.path.join(dmg_dir, "Defold.app", "Contents", "Resources", "packages", "jdk11.0.1")
     for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-        sign_files(options.codesigning_identity, exe)
+        sign_files('darwin', options, exe)
     for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-        sign_files(options.codesigning_identity, lib)
-    sign_files(options.codesigning_identity, os.path.join(jdk_path, "lib", "jspawnhelper"))
-    sign_files(options.codesigning_identity, os.path.join(dmg_dir, "Defold.app"))
+        sign_files('darwin', options, lib)
+    sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+    sign_files('darwin', options, os.path.join(dmg_dir, "Defold.app"))
 
     # create dmg
     dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")
@@ -402,7 +422,7 @@ if __name__ == '__main__':
 
 Commands:
   build                 Build editor
-  bundle                Create editor bundle form built files
+  bundle                Create editor bundle from built files
   installer             Create editor installer from bundle'''
 
     parser = optparse.OptionParser(usage)
@@ -437,6 +457,14 @@ Commands:
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS')
+
+    parser.add_option('--windows-cert', dest='windows_cert',
+                      default = None,
+                      help = 'Path to Windows certificate (pfx)')
+
+    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+                      default = None,
+                      help = 'Windows certificate password')
 
     parser.add_option('--bundle-dir', dest='bundle_dir',
                       default = "target/editor",

@@ -221,7 +221,9 @@ class Configuration(object):
                  notarization_itc_provider = None,
                  github_token = None,
                  version = None,
-                 codesigning_identity = None):
+                 codesigning_identity = None,
+                 windows_cert = None,
+                 windows_cert_pass = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -259,6 +261,8 @@ class Configuration(object):
         self.github_token = github_token
         self.version = version
         self.codesigning_identity = codesigning_identity
+        self.windows_cert = windows_cert
+        self.windows_cert_pass = windows_cert_pass
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -1222,6 +1226,8 @@ class Configuration(object):
                '--channel=%s' % self.channel,
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--codesigning-identity=%s' % self.codesigning_identity,
+               '--windows-cert=%s' % self.windows_cert,
+               '--windows-cert-pass=%s' % self.windows_cert_pass,
                'bundle']
         self.run_editor_script(cmd)
 
@@ -1998,6 +2004,14 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
 
+    parser.add_option('--windows-cert', dest='windows_cert',
+                      default = None,
+                      help = 'Path to codesigning certificate for Windows version of the editor')
+
+    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+                      default = None,
+                      help = 'Password to codesigning certificate for Windows version of the editor')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -2033,7 +2047,9 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       notarization_itc_provider = options.notarization_itc_provider,
                       github_token = options.github_token,
                       version = options.version,
-                      codesigning_identity = options.codesigning_identity)
+                      codesigning_identity = options.codesigning_identity,
+                      windows_cert = options.windows_cert,
+                      windows_cert_pass = options.windows_cert_pass)
 
     for cmd in args:
         f = getattr(c, cmd, None)
