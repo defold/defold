@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,6 +24,8 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
+static bool g_CrashDumpEnabled = true;
+
 void dmCrash::WriteDump()
 {
     // WriteDump is void for js-web, see JSWriteDump.
@@ -42,7 +44,14 @@ void dmCrash::InstallHandler()
     // window.onerror is set in dmloader.js.
 }
 
+void dmCrash::EnableHandler(bool enable)
+{
+    g_CrashDumpEnabled = enable;
+}
+
 extern "C" void JSWriteDump(char* json_stacktrace) {
+    if (!g_CrashDumpEnabled)
+        return;
     dmCrash::g_AppState.m_PtrCount = 0;
     dmCrash::g_AppState.m_Signum = 0xDEAD;
     dmJson::Document doc = { 0 };

@@ -676,7 +676,7 @@ var LibraryGLFW = {
   glfwCloseWindow__deps: ['$Browser'],
   glfwCloseWindow: function() {
     if (GLFW.closeFunc) {
-      dynCall('v', GLFW.closeFunc, []);
+      dynCall('i', GLFW.closeFunc, []);
     }
     Module.ctx = Browser.destroyContext(Module['canvas'], true, true);
   },

@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include <crash/crash.h>
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -48,6 +49,10 @@
 #include "engine_service.h"
 #include "engine_version.h"
 #include "physics_debug_render.h"
+
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
 
 // Embedded resources
 // Unfortunately, the draw_line et. al are used in production code
@@ -85,7 +90,7 @@ using namespace Vectormath::Aos;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
-    extern void _glfwAndroidSetImmersiveMode(int);
+    extern void _glfwAndroidSetFullscreenParameters(int, int);
 }
 #endif
 
@@ -456,6 +461,7 @@ namespace dmEngine
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
 
         dmSys::EngineInfoParam engine_info;
+        engine_info.m_Platform = dmEngineVersion::PLATFORM;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
         engine_info.m_IsDebug = dLib::IsDebugMode();
@@ -764,24 +770,16 @@ namespace dmEngine
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
-        // The attempt to fallback to other audio devices only has meaning if:
-        // - sound is being used
-        // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
-        static const char* audio_devices[] = {
-                "default",
-                "null",
-                NULL
-        };
-        int deviceIndex = 0;
-        while (NULL != audio_devices[deviceIndex]) {
-            sound_params.m_OutputDevice = audio_devices[deviceIndex];
-            dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
-            if (dmSound::RESULT_OK == soundInit) {
-                dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
-                break;
-            }
-            ++deviceIndex;
+        sound_params.m_OutputDevice = "default";
+#if defined(__EMSCRIPTEN__)
+        sound_params.m_UseThread = false;
+#else
+        sound_params.m_UseThread = true;
+#endif
+        dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
+        if (dmSound::RESULT_OK == soundInit) {
+            dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
         }
 
         dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
@@ -1118,7 +1116,8 @@ namespace dmEngine
         }
         {
             int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
-            _glfwAndroidSetImmersiveMode(immersive_mode);
+            int display_cutout = dmConfigFile::GetInt(engine->m_Config, "android.display_cutout", 1);
+            _glfwAndroidSetFullscreenParameters(immersive_mode, display_cutout);
         }
 #endif
 
@@ -1257,6 +1256,11 @@ bail:
                 if (!engine->m_WasIconified)
                 {
                     engine->m_WasIconified = true;
+
+                    if (!engine->m_RunWhileIconified)
+                    {
+                        dmSound::Pause(true);
+                    }
                 }
 
                 if (!engine->m_RunWhileIconified) {
@@ -1282,6 +1286,8 @@ bail:
                 if (engine->m_WasIconified)
                 {
                     engine->m_WasIconified = false;
+
+                    dmSound::Pause(false);
                 }
             }
 
@@ -1502,9 +1508,62 @@ bail:
         return engine->m_Alive;
     }
 
+#if defined(__EMSCRIPTEN__)
+    static void PreStepEmscripten(HEngine engine)
+    {
+        dmEngine::RunResult run_result = engine->m_RunResult;
+        if (run_result.m_Action == dmEngine::RunResult::REBOOT)
+        {
+            dmEngineService::HEngineService engine_service = engine->m_EngineService;
+            PreRun pre_run = engine->m_PreRun;
+            PostRun post_run = engine->m_PostRun;
+            void* context = engine->m_PrePostRunContext;
+
+            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
+
+            emscripten_pause_main_loop(); // stop further callbacks
+            emscripten_cancel_main_loop(); // Causes an exception
+
+            if (engine->m_PostRun)
+            {
+                engine->m_PostRun(engine, context);
+            }
+
+            dmEngine::Delete(engine);
+
+            // enters the main loop again (i.e. calls emscripten_set_main_loop_arg(PerformStep, engine))
+            dmEngine::InitRun(engine_service, run_result.m_Argc, run_result.m_Argv, pre_run, post_run, context);
+            return;
+        }
+        else if (run_result.m_Action == dmEngine::RunResult::EXIT)
+        {
+            dmCrash::SetEnabled(false); // because emscripten_cancel_main_loop throws an 'unwind' exception
+
+            emscripten_pause_main_loop();
+            emscripten_cancel_main_loop();
+
+            if (engine->m_PostRun)
+            {
+                engine->m_PostRun(engine, engine->m_PrePostRunContext);
+            }
+
+            dmEngine::Delete(engine);
+        }
+
+        if (!dmCrash::IsEnabled()) {
+            dmCrash::SetEnabled(true);
+        }
+    }
+#endif // __EMSCRIPTEN__
+
     static void PerformStep(void* context)
     {
         HEngine engine = (HEngine)context;
+
+#if defined(__EMSCRIPTEN__)
+        PreStepEmscripten(engine);
+#endif
+
         Step(engine);
     }
 
@@ -1550,23 +1609,28 @@ bail:
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
 
-    static RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+    RunResult InitRun(dmEngineService::HEngineService engine_service, int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
         if (dmEngine::Init(engine, argc, argv))
         {
-            if (pre_run)
+            engine->m_PreRun = pre_run;
+            engine->m_PostRun = post_run;
+            engine->m_PrePostRunContext = context;
+
+            if (engine->m_PreRun)
             {
-                pre_run(engine, context);
+                engine->m_PreRun(engine, engine->m_PrePostRunContext);
             }
 
+            // Note that this will not return on certain platforms (currently HTML5)
             dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
             run_result = engine->m_RunResult;
 
-            if (post_run)
+            if (engine->m_PostRun)
             {
-                post_run(engine, context);
+                engine->m_PostRun(engine, engine->m_PrePostRunContext);
             }
         }
         else

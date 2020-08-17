@@ -123,8 +123,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         // Always write the glsl source (for now)
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(ShaderDesc.Language.LANGUAGE_GLSL);
-        builder.setSource(ByteString.copyFrom(os.toString(), "UTF-8"));
 
+        String source = os.toString().replace("\r", "");
+        builder.setSource(ByteString.copyFrom(source, "UTF-8"));
         return builder;
     }
 
@@ -333,8 +334,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
 
             ShaderDesc.ShaderDataType type = stringTypeToShaderType(tex.type);
-            if (type != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D) {
-                shaderIssues.add("Unsupported type for texture sampler '" + tex.name + "'");
+            if (!isShaderTypeTexture(type)) {
+                shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
                 resource_list.add(tex);
             }
