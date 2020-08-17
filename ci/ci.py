@@ -415,10 +415,7 @@ def main(argv):
                 skip_docs = args.skip_docs,
                 channel = engine_channel)
         elif command == "build-editor":
-            build_editor2(
-                channel = editor_channel,
-                engine_artifacts = engine_artifacts,
-                skip_tests = skip_editor_tests)
+            build_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, skip_tests = skip_editor_tests)
         elif command == "download-editor":
             download_editor2(channel = editor_channel, platform = platform)
         elif command == "notarize-editor":
