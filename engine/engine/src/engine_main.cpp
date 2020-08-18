@@ -16,13 +16,13 @@
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <dlib/thread.h>
 #include <graphics/graphics.h>
 #include <crash/crash.h>
 
 #if defined(ANDROID)
 #include <android_native_app_glue.h>
 
-#include <dlib/thread.h>
 #include <dlib/time.h>
 #include <graphics/glfw/glfw.h>
 #endif
