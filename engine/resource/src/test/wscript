@@ -50,7 +50,7 @@ def build(bld):
 
     test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
                                      includes = '../../../src ../../proto',
-                                     uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
+                                     uselib = 'TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
                                      uselib_local = 'resource',
                                      web_libs = ['library_sys.js'],
                                      proto_gen_py = True,
@@ -62,7 +62,7 @@ def build(bld):
 
     test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src ../../proto',
-                                             uselib = 'DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
+                                             uselib = 'TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA CARES',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
@@ -73,7 +73,7 @@ def build(bld):
 
     test_block_allocator = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src',
-                                     uselib = 'GTEST DLIB THREAD',
+                                     uselib = 'TESTMAIN DLIB THREAD',
                                      uselib_local = 'resource',
                                      target = 'test_block_allocator',
                                      source = 'test_block_allocator.cpp')

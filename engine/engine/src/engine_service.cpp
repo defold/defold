@@ -313,6 +313,16 @@ namespace dmEngineService
 
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
+
+            dmSocket::Address local_address;
+            dmSocket::Result sockr = dmSocket::GetLocalAddress(&local_address);
+            if (sockr != dmSocket::RESULT_OK)
+            {
+                return false;
+            }
+
+            m_Name[0] = 0;
+
             /*
              * NOTE: On Android localhost is returned for dmSocket::GetHostname.
              * Therefore we use MANUFACTURER-DEVICEMODEL instead for display-name
@@ -323,19 +333,19 @@ namespace dmEngineService
                 dmStrlCat(m_Name, "-", sizeof(m_Name));
                 dmStrlCat(m_Name, info.m_DeviceModel, sizeof(m_Name));
             } else {
-                dmSocket::Result sockr = dmSocket::GetHostname(m_Name, sizeof(m_Name));
-                if (sockr != dmSocket::RESULT_OK)
-                {
-                    return false;
-                }
+                dmSocket::GetHostname(m_Name, sizeof(m_Name));
             }
 
-            dmSocket::Address local_address;
-            dmSocket::Result sockr = dmSocket::GetLocalAddress(&local_address);
-            if (sockr != dmSocket::RESULT_OK)
+            const char* addr = dmSocket::AddressToIPString(local_address);
+            if (strstr(m_Name, addr) == 0)
             {
-                return false;
+                dmStrlCat(m_Name, " - ", sizeof(m_Name));
+                dmStrlCat(m_Name, addr, sizeof(m_Name));
             }
+            free((void*)addr);
+
+            dmStrlCat(m_Name, " - ", sizeof(m_Name));
+            dmStrlCat(m_Name, info.m_SystemName, sizeof(m_Name));
 
             dmWebServer::NewParams params;
             params.m_Port = port;
@@ -453,6 +463,9 @@ namespace dmEngineService
             m_WebServerRedirect = web_server_redirect;
             m_SSDP = ssdp;
             m_Profile = 0; // Set during the update
+
+            dmLogInfo("Target listening with name: %s", m_Name);
+
             return true;
         }
 

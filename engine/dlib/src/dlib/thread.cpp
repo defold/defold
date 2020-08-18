@@ -20,7 +20,7 @@
 
 namespace dmThread
 {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
     struct ThreadData
     {
         ThreadStart m_Start;
@@ -46,7 +46,11 @@ namespace dmThread
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
         pthread_attr_t attr;
+#if defined(__NX__)
+        long page_size = -1;
+#else
         long page_size = sysconf(_SC_PAGESIZE);
+#endif
         int ret = pthread_attr_init(&attr);
         assert(ret == 0);
 
