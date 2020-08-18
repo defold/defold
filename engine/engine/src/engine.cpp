@@ -1841,6 +1841,10 @@ dmEngine::UpdateResult dmEngineUpdate(dmEngine::HEngine engine)
     {
         dmEngine::Step(engine);
     }
+    else {
+        if (engine->m_RunResult.m_Action == dmEngine::RunResult::NONE)
+            return dmEngine::RESULT_EXIT;
+    }
 
     return GetAppResultFromAction(engine->m_RunResult.m_Action);
 }
