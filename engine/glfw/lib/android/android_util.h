@@ -48,9 +48,6 @@ struct InputEvent
     int64_t m_EventTime;
 };
 
-void SaveWin(_GLFWwin_android* win);
-void RestoreWin(_GLFWwin_android* win);
-
 int init_gl(_GLFWwin_android* win);
 
 void final_gl(_GLFWwin_android* win);
@@ -73,6 +70,9 @@ void computeIconifiedState();
 
 void    _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
 int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct InputEvent* event);
+
+
+// From spinlock.h (we really should keep a C interface there as well!)
 
 #if !defined(__aarch64__)
 
