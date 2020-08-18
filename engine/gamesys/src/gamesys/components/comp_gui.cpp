@@ -329,7 +329,7 @@ namespace dmGameSystem
 
     void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
-        dmLogWarning("OnWindowResizeCallback");
+        dmLogWarning("OnWindowResizeCallback width: %d height: %d", width, height);
         dmArray<dmhash_t> scene_layouts;
         uint16_t layout_count = dmGui::GetLayoutCount(scene);
         dmLogWarning("OnWindowResizeCallback layout_count %d", layout_count);
