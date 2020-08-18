@@ -1,12 +1,42 @@
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+#!/usr/bin/env python
+import os
+from waf_dynamo import platform_supports_feature
+from BuildUtility import create_build_utility
+import Options
 
 def build(bld):
-    test_hid = bld.new_task_gen(features = 'cxx cprogram test',
-                                includes = '../../../src .',
-                                uselib = 'DLIB PLATFORM_SOCKET LUA SCRIPT',
-                                uselib_local = 'hid_null',
-                                target = 'test_hid',
-                                source = 'test_hid.cpp')
+    build_util = create_build_utility(bld.env)
 
-    test_hid.install_path = None
+    bld.new_task_gen(features = 'cxx cprogram test',
+                    includes = ['../%s' % build_util.get_target_os(), '..', '.'],
+                    uselib = 'TESTMAIN DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT',
+                    uselib_local = 'hid_null',
+                    target = 'test_hid',
+                    source = 'test_hid.cpp')
+
+    graphics_lib = ['GRAPHICS', 'DMGLFW']
+    graphics_lib_symbols = 'GraphicsAdapterOpenGL'
+    if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+        graphics_lib += ['OPENGL']
+
+    elif platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) or Options.options.with_vulkan:
+        graphics_lib_symbols = 'GraphicsAdapterVulkan'
+        graphics_lib = ['GRAPHICS_VULKAN', 'VULKAN']
+
+    if bld.env.PLATFORM in ('arm64-nx64') and 'DMGLFW' in graphics_lib:
+        graphics_lib.remove('DMGLFW')
+
+    if 'DMGLFW' in graphics_lib:
+        graphics_lib.append('CARES')
+
+    exported_symbols = [graphics_lib_symbols]
+
+    web_libs = ['library_glfw.js', 'library_sys.js']
+    bld.new_task_gen(features = 'cxx cprogram test skip_test',
+                    includes = ['../%s' % build_util.get_target_os(), '..', '.'],
+                    uselib = 'TESTMAIN TESTAPP DLIB PLATFORM PLATFORM_SOCKET LUA SCRIPT'.split() + graphics_lib,
+                    uselib_local = 'hid',
+                    web_libs = web_libs,
+                    exported_symbols = exported_symbols,
+                    target = 'test_app_hid',
+                    source = 'test_app_hid.cpp')

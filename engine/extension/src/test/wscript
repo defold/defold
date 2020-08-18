@@ -1,7 +1,4 @@
 #! /usr/bin/env python
-import re
-import Task, TaskGen
-from TaskGen import extension, declare_extension
 
 def build(bld):
     test_extension_lib = bld.new_task_gen(features = 'cxx cstaticlib ddf test',
@@ -11,11 +8,8 @@ def build(bld):
 
     test_extension = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
-                                      uselib = 'DLIB LUA',
+                                      uselib = 'TESTMAIN DLIB LUA',
                                       uselib_local = 'extension test_extension_lib',
                                       exported_symbols = ["TestExt"],
                                       target = 'test_extension',
                                       source = 'test_extension.cpp')
-
-    test_extension.install_path = None
-

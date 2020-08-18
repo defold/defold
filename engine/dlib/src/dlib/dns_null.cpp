@@ -43,6 +43,7 @@ namespace dmDNS
     }
     Result NewChannel(HChannel* channel)
     {
+        *channel = 0; // so it evaluates to false
         return RESULT_OK;
     }
     Result RefreshChannel(HChannel channel)
@@ -54,5 +55,9 @@ namespace dmDNS
     Result GetHostByName(const char* name, dmSocket::Address* address, HChannel channel, bool ipv4, bool ipv6)
     {
         return SocketToDNSResult(dmSocket::GetHostByName(name, address, ipv4, ipv6));
+    }
+
+    const char* ResultToString(Result result){
+        return "";
     }
 } // namespace dmDNS

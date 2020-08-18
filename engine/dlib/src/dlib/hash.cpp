@@ -15,11 +15,11 @@
 #include <string.h>
 #include "dlib.h"
 #include "hash.h"
-#include "mutex.h"
 #include "hashtable.h"
 #include "array.h"
 #include "index_pool.h"
 #include "align.h"
+#include <dlib/mutex.h>
 
 struct ReverseHashEntry
 {

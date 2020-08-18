@@ -5,14 +5,14 @@ def configure(conf):
     pass
 
 def build(bld):
-    record = bld.new_task_gen(features = 'cxx cstaticlib',
-                              includes = '.',
-                              source = 'record.cpp record_common.cpp',
-                              target = 'record')
+    bld.new_task_gen(features = 'cxx cstaticlib',
+                    includes = '.',
+                    source = 'record.cpp record_common.cpp',
+                    target = 'record')
 
-    record_null = bld.new_task_gen(features = 'cxx cstaticlib',
-                                   includes = '.',
-                                   source = 'record_null.cpp record_common.cpp',
-                                   target = 'record_null')
+    bld.new_task_gen(features = 'cxx cstaticlib',
+                     includes = '.',
+                     source = 'record_null.cpp record_common.cpp',
+                     target = 'record_null')
 
     bld.install_files('${PREFIX}/include/record', 'record.h')

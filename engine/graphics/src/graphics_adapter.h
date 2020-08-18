@@ -154,7 +154,6 @@ namespace dmGraphics
         DeleteContextFn m_DeleteContext;
         InitializeFn m_Initialize;
         FinalizeFn m_Finalize;
-        AppBootstrapFn m_AppBootstrap;
         GetWindowRefreshRateFn m_GetWindowRefreshRate;
         OpenWindowFn m_OpenWindow;
         CloseWindowFn m_CloseWindow;
