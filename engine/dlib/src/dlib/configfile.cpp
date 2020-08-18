@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -544,6 +544,41 @@ namespace dmConfigFile
 
         *config = 0;
 
+        dmURI::Parts uri_parts;
+        dmURI::Result r = dmURI::Parse(url, &uri_parts);
+        if (r == dmURI::RESULT_OK)
+        {
+            if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
+            {
+                return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
+            }
+            else if (strcmp(uri_parts.m_Scheme, "file") == 0)
+            {
+                return LoadFromFileInternal(uri_parts.m_Path, argc, argv, config);
+            }
+            else if (strcmp(uri_parts.m_Scheme, "data") == 0 || strcmp(uri_parts.m_Scheme, "host") == 0)
+            {
+                return LoadFromFileInternal(url, argc, argv, config);
+            }
+            else
+            {
+#if defined(_WIN32)
+                // any drive letter is ok
+                if (strlen(uri_parts.m_Scheme) == 1)
+                {
+                    struct stat stat_buf;
+                    if (stat(url, &stat_buf) == 0)
+                    {
+                        // In order to support windows paths with drive letter we
+                        // first test if the url is a valid file
+                        return LoadFromFileInternal(url, argc, argv, config);
+                    }
+                }
+#endif
+                return RESULT_INVALID_URI;
+            }
+        }
+
         struct stat stat_buf;
         if (stat(url, &stat_buf) == 0)
         {
@@ -552,23 +587,7 @@ namespace dmConfigFile
             return LoadFromFileInternal(url, argc, argv, config);
         }
 
-        dmURI::Parts uri_parts;
-        dmURI::Result r = dmURI::Parse(url, &uri_parts);
-        if (r != dmURI::RESULT_OK)
-            return RESULT_INVALID_URI;
-
-        if (strcmp(uri_parts.m_Scheme, "http") == 0 || strcmp(uri_parts.m_Scheme, "https") == 0)
-        {
-            return LoadFromHttpInternal(url, uri_parts, argc, argv, config);
-        }
-        else if (strcmp(uri_parts.m_Scheme, "file") == 0)
-        {
-            return LoadFromFileInternal(uri_parts.m_Path, argc, argv, config);
-        }
-        else
-        {
-            return RESULT_INVALID_URI;
-        }
+        return RESULT_INVALID_URI;
     }
 
     void Delete(HConfig config)

@@ -14,7 +14,6 @@
 
 #include <string.h>
 
-#include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 
 #include "hid_private.h"

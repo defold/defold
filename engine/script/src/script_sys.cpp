@@ -115,27 +115,26 @@ union SaveLoadBuffer
         }
 
         FILE* file = fopen(tmp_filename, "wb");
-        if (file != 0x0)
+        if (!file)
         {
-            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
-#if defined(_WIN32)
-                bool rename_result = MoveFileEx(tmp_filename, filename, MOVEFILE_REPLACE_EXISTING) != 0;
-#else
-                bool rename_result = rename(tmp_filename, filename) != -1;
-#endif
-                if (rename_result)
-                {
-                    lua_pushboolean(L, result);
-                    return 1;
-                }
-            }
-
-            dmSys::Unlink(tmp_filename);
+            return luaL_error(L, "Could not open the file %s.", tmp_filename);
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
+
+        bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
+        result = (fclose(file) == 0) && result;
+
+        if (!result)
+        {
+            dmSys::Unlink(tmp_filename);
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+
+        if (dmSys::RenameFile(filename, tmp_filename) == dmSys::RESULT_OK)
+        {
+            lua_pushboolean(L, result);
+            return 1;
+        }
+        return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
     }
 
 #else // __EMSCRIPTEN__
@@ -231,7 +230,7 @@ union SaveLoadBuffer
         const char* application_id = luaL_checkstring(L, 1);
 
         char app_support_path[1024];
-        dmSys::Result r = dmSys::GetApplicationSupportPath(application_id, app_support_path, sizeof(app_support_path));
+        dmSys::Result r = dmSys::GetApplicationSavePath(application_id, app_support_path, sizeof(app_support_path));
         if (r != dmSys::RESULT_OK)
         {
             return luaL_error(L, "Unable to locate application support path for \"%s\": (%d)", application_id, r);
@@ -771,24 +770,24 @@ union SaveLoadBuffer
 
             lua_newtable(L);
 
-            lua_pushliteral(L, "name");
             lua_pushstring(L, ifa->m_Name);
-            lua_rawset(L, -3);
-
-            lua_pushliteral(L, "address");
+            lua_setfield(L, -2, "name");
+            
             if (ifa->m_Flags & dmSocket::FLAGS_INET)
             {
                 char* ip = dmSocket::AddressToIPString(ifa->m_Address);
-                lua_pushstring(L, ip);
+                if (ip)
+                    lua_pushstring(L, ip);
+                else
+                    lua_pushnil(L);
                 free(ip);
             }
             else
             {
                 lua_pushnil(L);
             }
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "address");
 
-            lua_pushliteral(L, "family");
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
                 lua_pushstring(L, "ipv4");
@@ -801,9 +800,8 @@ union SaveLoadBuffer
             {
                 lua_pushnil(L);
             }
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "family");
 
-            lua_pushliteral(L, "mac");
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
                 char tmp[64];
@@ -824,15 +822,13 @@ union SaveLoadBuffer
             {
                 lua_pushnil(L);
             }
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "mac");
 
-            lua_pushliteral(L, "up");
             lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_UP) != 0);
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "up");
 
-            lua_pushliteral(L, "running");
             lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_RUNNING) != 0);
-            lua_rawset(L, -3);
+            lua_setfield(L, -2, "running");
 
             lua_rawseti(L, -2, i + 1);
         }

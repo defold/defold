@@ -28,6 +28,12 @@
 
 using namespace Vectormath::Aos;
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS ""
+#endif
+
 class ParticleTest : public jc_test_base_class
 {
 protected:
@@ -165,7 +171,7 @@ uint32_t ParticleCount(dmParticle::Emitter* emitter)
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[128];
-    dmSnPrintf(path, 128, "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 128, MOUNTFS "build/default/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -188,7 +194,8 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
+
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -218,7 +225,8 @@ bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototyp
 bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
+
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;

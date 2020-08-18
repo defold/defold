@@ -21,10 +21,6 @@ namespace dmGraphics
 {
     static VkSurfaceFormatKHR SwapChainFindSurfaceFormat(const SwapChainCapabilities& capabilities)
     {
-        VkSurfaceFormatKHR vk_swap_chain_format;
-        vk_swap_chain_format.format     = VK_FORMAT_B8G8R8A8_UNORM;
-        vk_swap_chain_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-
         // We expect to have one or more formats here, otherwise this function wouldn't be called.
         VkSurfaceFormatKHR vk_format_head = capabilities.m_SurfaceFormats[0];
 
@@ -33,24 +29,28 @@ namespace dmGraphics
         // is the one that we want. Otherwise, we just select the first one.
         if (vk_format_head.format != VK_FORMAT_UNDEFINED)
         {
-            bool found_wanted_format = false;
             for (uint32_t i=0; i < capabilities.m_SurfaceFormats.Size(); ++i)
             {
-                if (capabilities.m_SurfaceFormats[i].colorSpace == vk_swap_chain_format.colorSpace &&
-                    capabilities.m_SurfaceFormats[i].format == vk_swap_chain_format.format)
+                const VkSurfaceFormatKHR& candidate = capabilities.m_SurfaceFormats[i];
+
+                if (candidate.colorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                    continue;
+
+                switch (candidate.format)
                 {
-                    found_wanted_format = true;
-                    break;
+                case VK_FORMAT_R8G8B8A8_UNORM:
+                case VK_FORMAT_B8G8R8A8_UNORM:
+                case VK_FORMAT_A8B8G8R8_UNORM_PACK32:   return candidate; break;
+                default: break;
                 }
             }
-
-            if (!found_wanted_format)
-            {
-                vk_swap_chain_format = vk_format_head;
-            }
+        }
+        else
+        {
+            vk_format_head.format = VK_FORMAT_B8G8R8A8_UNORM;
         }
 
-        return vk_swap_chain_format;
+        return vk_format_head;
     }
 
     static void DestroyVkSwapChain(const VkDevice vk_device, const VkSwapchainKHR vk_swap_chain, const dmArray<VkImageView>& vk_image_views)
@@ -90,7 +90,7 @@ namespace dmGraphics
 
     VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
         uint32_t* wantedWidth, uint32_t* wantedHeight,
-        const bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
+        bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain)
     {
         VkSwapchainKHR vk_old_swap_chain    = swapChain->m_SwapChain;
         VkDevice vk_device                  = logicalDevice->m_Device;

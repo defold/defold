@@ -18,9 +18,9 @@
 #include "time.h"
 #include "log.h"
 #include "math.h"
-#include "mutex.h"
 #include "hash.h"
 
+#include <dlib/mutex.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/debug.h>
 #include <mbedtls/ssl.h>
