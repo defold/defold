@@ -159,7 +159,7 @@ namespace dmRender
         float height_f = (float) height;
         dmLogWarning("GetOptimalDisplayProfile() width_f: %f height_f: %f", width_f, height_f);
         float match_area = width_f * height_f;
-        float match_ratio = width_f / height_f;
+        float match_ratio = height_f > 0.0f ? (width_f / height_f) : 0.0f;
         dmLogWarning("GetOptimalDisplayProfile() match_area: %f match_ratio: %f", match_area, match_ratio);
         float match_dpi = (float)dpi;
         double match_distance[2] = { DBL_MAX, DBL_MAX };
