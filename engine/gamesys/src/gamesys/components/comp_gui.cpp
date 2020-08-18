@@ -348,8 +348,8 @@ namespace dmGameSystem
 
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
         dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
-        dmLogWarning("OnWindowResizeCallback optimal layout %ju", layout_id);
-        if(layout_id != GetLayout(scene))
+        dmLogWarning("OnWindowResizeCallback optimal layout %ju dmGui::DEFAULT_LAYOUT: %ju", layout_id, dmGui::DEFAULT_LAYOUT);
+        if(layout_id != 0 && layout_id != GetLayout(scene))
         {
             dmhash_t current_layout_id = GetLayout(scene);
             dmLogWarning("OnWindowResizeCallback optimal layout %ju not same as current layout %ju", layout_id, current_layout_id);
@@ -550,7 +550,7 @@ namespace dmGameSystem
             dmLogWarning("SetupGuiScene optimal layout %ju", layout_id);
             if(layout_id != dmGui::DEFAULT_LAYOUT)
             {
-                dmLogWarning("SetupGuiScene optimal layout %ju not equal to dmGui::DEFAULT_LAYOUT", layout_id);
+                dmLogWarning("SetupGuiScene optimal layout %ju not equal to dmGui::DEFAULT_LAYOUT %ju", layout_id, dmGui::DEFAULT_LAYOUT);
                 dmRender::DisplayProfileDesc profile_desc;
                 GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
                 dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
