@@ -143,7 +143,9 @@ struct _GLFWwin_android_struct {
     struct android_app* app;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
-    int paused;
+    int paused:1;
+    int has_window:1;
+    int :30;
     uint32_t m_RenderLock; // Set if we are between "frame begin" and "swap buffers"
 };
 

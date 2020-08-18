@@ -189,7 +189,7 @@ void computeIconifiedState()
     //
     // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
     // Iconified unless opened, resumed (not paused)
-    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWinAndroid.paused && _glfwWinAndroid.surface != EGL_NO_SURFACE);
+    _glfwWin.iconified = !(_glfwWin.opened && !_glfwWinAndroid.paused && _glfwWinAndroid.has_window != 0);
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()
@@ -219,12 +219,16 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
             g_appLaunchInterrupted = 1;
         }
 
-        spinlock_lock(&_glfwWinAndroid.m_RenderLock);
+        if (_glfwWin.clientAPI != GLFW_NO_API)
+        {
+            spinlock_lock(&_glfwWinAndroid.m_RenderLock);
 
-        destroy_gl_surface(&_glfwWinAndroid);
+            destroy_gl_surface(&_glfwWinAndroid);
+
+            spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
+        }
+        _glfwWinAndroid.has_window = 0;
         computeIconifiedState();
-
-        spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
         break;
     case APP_CMD_GAINED_FOCUS:
         computeIconifiedState();
