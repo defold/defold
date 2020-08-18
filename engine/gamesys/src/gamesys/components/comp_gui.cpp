@@ -352,7 +352,7 @@ namespace dmGameSystem
         if(layout_id != GetLayout(scene))
         {
             dmhash_t current_layout_id = GetLayout(scene);
-            dmLogWarning("OnWindowResizeCallback optimal layout %s not same as current layout %ju", layout_id, current_layout_id);
+            dmLogWarning("OnWindowResizeCallback optimal layout %ju not same as current layout %ju", layout_id, current_layout_id);
 
             dmRender::DisplayProfileDesc profile_desc;
             GetDisplayProfileDesc(display_profiles, layout_id, profile_desc);
