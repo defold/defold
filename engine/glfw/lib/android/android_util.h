@@ -20,11 +20,32 @@
 #define CMD_INPUT_MARKED_TEXT (1)
 
 #define MAX_APP_COMMANDS (16)
+#define MAX_APP_INPUT_EVENTS (64)
 
 struct Command
 {
     int m_Command;
     void* m_Data;
+};
+
+struct InputEvent
+{
+    void*   m_Ref; // reference to a finger
+    int32_t m_Type;
+    int32_t m_Action;
+    // touch
+    int32_t m_X;
+    int32_t m_Y;
+    // keycode
+    int32_t m_Code;
+    int32_t m_Flags;
+    int32_t m_Meta;
+    int32_t m_ScanCode;
+    int32_t m_Repeat;
+    int32_t m_DeviceId;
+    int32_t m_Source;
+    int64_t m_DownTime;
+    int64_t m_EventTime;
 };
 
 void SaveWin(_GLFWwin_android* win);
@@ -51,7 +72,7 @@ void unacquire_gl_aux_context(_GLFWwin_android* win);
 void computeIconifiedState();
 
 void    _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
-int32_t _glfwAndroidHandleInput(struct android_app* app, struct AInputEvent* event);
+int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct InputEvent* event);
 
 #if !defined(__aarch64__)
 

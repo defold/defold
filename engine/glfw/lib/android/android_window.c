@@ -48,6 +48,8 @@
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
 extern int g_NumAppCommands;
+extern struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
+extern int g_NumAppInputEvents;
 extern uint32_t g_EventLock;
 
 int g_KeyboardActive = 0;
@@ -344,6 +346,27 @@ void glfwAndroidFlushEvents()
         }
     }
     g_NumAppCommands = 0;
+
+    JNIEnv* env = 0;
+    JavaVM* vm = 0;
+    if (g_NumAppInputEvents > 0)
+    {
+        env = g_AndroidApp->activity->env;
+        vm = g_AndroidApp->activity->vm;
+        (*vm)->AttachCurrentThread(vm, &env, NULL);
+    }
+
+    for (int i = 0; i < g_NumAppInputEvents; ++i)
+    {
+        struct InputEvent* event = &g_AppInputEvents[i];
+        _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
+    }
+    g_NumAppInputEvents = 0;
+
+    if (vm != 0)
+    {
+        (*vm)->DetachCurrentThread(vm);
+    }
 
     spinlock_unlock(&g_EventLock);
 }
