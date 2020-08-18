@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/sys.h>
 #include <resource/resource.h>
 
 extern "C"
@@ -29,12 +30,18 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
+#if defined(__NX__)
+    #define MOUNTFS "host:/"
+#else
+    #define MOUNTFS
+#endif
+
 class ScriptSysTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
     {
-        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
         dmResource::NewFactoryParams factory_params;
@@ -63,7 +70,7 @@ protected:
 bool RunFile(lua_State* L, const char* filename)
 {
     char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
+    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
@@ -82,6 +89,8 @@ bool RunString(lua_State* L, const char* script)
     return true;
 }
 
+
+#if defined(__NX__) && !defined(GITHUB_CI) // we cannot run this test unless we have a device connected
 TEST_F(ScriptSysTest, TestSys)
 {
     int top = lua_gettop(L);
@@ -105,11 +114,11 @@ TEST_F(ScriptSysTest, TestSys)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
+#endif
 
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
-
     int ret = jc_test_run_all();
     return ret;
 }

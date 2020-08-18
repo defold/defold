@@ -2,11 +2,18 @@
 
 import os, subprocess, exceptions;
 
+
+try:
+    import BuildUtilityPrivate
+except:
+    class BuildUtilityPrivate(object):
+        @classmethod
+        def get_target_platforms(cls):
+            return []
+
 class BuildUtilityException(Exception):
     def __init__(self, msg):
         self.msg = msg
-    # __init__
-# class BuiltUtilityException
 
 class BuildUtility:
     _platform = None
@@ -30,7 +37,7 @@ class BuildUtility:
                             {'platform': 'arm64-android', 'os': 'android', 'arch': 'arm64'},
                             {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
                             {'platform': 'wasm-web', 'os': 'web', 'arch': 'wasm'}
-                            ]
+                            ] + BuildUtilityPrivate.get_target_platforms()
 
     def __init__(self, platform_id, build_platform_id, dynamo_home = None):
         self._initialise_paths(platform_id, build_platform_id, dynamo_home)

@@ -261,9 +261,19 @@ def archive_editor2(channel = None, engine_artifacts = None, platform = None):
     for platform in platforms:
         call('python scripts/build.py archive_editor2 --platform=%s %s' % (platform, opts_string))
 
+def distclean():
+    call("python scripts/build.py distclean")
 
-def build_bob(channel = None):
-    args = "python scripts/build.py distclean install_ext sync_archive build_bob archive_bob".split()
+
+def install_ext(platform = None):
+    opts = []
+    if platform:
+        opts.append('--platform=%s' % platform)
+
+    call("python scripts/build.py install_ext %s" % ' '.join(opts))
+
+def build_bob(channel = None, branch = None):
+    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
     opts = []
 
     if channel:
@@ -279,6 +289,22 @@ def release(channel = None):
 
     if channel:
         opts.append("--channel=%s" % channel)
+
+    cmd = ' '.join(args + opts)
+    call(cmd)
+
+def release_to_github_markdown(token = None, repo = None, sha1 = None):
+    args = "python scripts/build.py release_to_github_markdown".split()
+    opts = []
+
+    if token:
+        opts.append("--github-token=%s" % token)
+
+    if repo:
+        opts.append("--github-target-repo=%s" % repo)
+
+    if sha1:
+        opts.append("--github-sha1=%s" % sha1)
 
     cmd = ' '.join(args + opts)
     call(cmd)
@@ -323,6 +349,9 @@ def main(argv):
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
+    parser.add_argument('--github-token', dest='github_token', help='GitHub authentication token when releasing to GitHub')
+    parser.add_argument('--github-target-repo', dest='github_target_repo', help='GitHub target repo when releasing artefacts')
+    parser.add_argument('--github-sha1', dest='github_sha1', help='A specific sha1 to use in github operations')
 
     args = parser.parse_args()
 
@@ -397,18 +426,26 @@ def main(argv):
         elif command == "archive-editor":
             archive_editor2(channel = editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":
-            build_bob(channel = engine_channel)
+            build_bob(channel = engine_channel, branch = branch)
         elif command == "sdk":
             build_sdk(channel = engine_channel)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
             install(args)
+        elif command == "install_ext":
+            install_ext(platform = platform)
+        elif command == "distclean":
+            distclean()
         elif command == "release":
             if make_release:
                 release(channel = release_channel)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
+        elif command == "release_to_github_markdown":
+            release_to_github_markdown(token = args.github_token,
+                                repo = args.github_target_repo,
+                                sha1 = args.github_sha1)
         else:
             print("Unknown command {0}".format(command))
 
