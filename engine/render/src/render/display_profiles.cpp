@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -157,8 +157,10 @@ namespace dmRender
         dmSys::GetSystemInfo(&sys_info);
         float width_f = (float) width;
         float height_f = (float) height;
+        dmLogWarning("GetOptimalDisplayProfile() width_f: %f height_f: %f", width_f, height_f);
         float match_area = width_f * height_f;
         float match_ratio = width_f / height_f;
+        dmLogWarning("GetOptimalDisplayProfile() match_area: %f match_ratio: %f", match_area, match_ratio);
         float match_dpi = (float)dpi;
         double match_distance[2] = { DBL_MAX, DBL_MAX };
         dmhash_t match_id[2] = { 0, 0 };
@@ -190,9 +192,12 @@ namespace dmRender
                 }
 
                 int category = IsPortrait(qualifier.m_Width, qualifier.m_Height);
+                dmLogWarning("GetOptimalDisplayProfile() q: %d qualifier.m_Width: %f qualifier.m_Height: %f", q, qualifier.m_Width, qualifier.m_Height);
                 float area = qualifier.m_Width * qualifier.m_Height;
                 float ratio = qualifier.m_Width / qualifier.m_Height;
+                dmLogWarning("GetOptimalDisplayProfile() q: %d area: %f ratio: %f", q, area, ratio);
                 double distance = dmMath::Abs(1.0 - (match_area / area)) + dmMath::Abs(1.0 - (match_ratio / ratio)) + (dpi == 0 ? 0.0 : dmMath::Abs(1.0 - (qualifier.m_Dpi / match_dpi)));
+                dmLogWarning("GetOptimalDisplayProfile() q: %d area: %f ratio: %f distance: %f", q, area, ratio, distance);
                 if(distance < match_distance[category])
                 {
                     match_distance[category] = distance;
