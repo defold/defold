@@ -1099,7 +1099,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLBeginFrame(HContext context)
     {
-        // NOP
+#if defined(ANDROID)
+        glfwAndroidBeginFrame();
+#endif
     }
 
     static void OpenGLFlip(HContext context)
