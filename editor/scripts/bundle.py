@@ -437,7 +437,7 @@ def create_dmg(options):
     exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    if not option.skip_codesign:
+    if not options.skip_codesign:
         certificate = mac_certificate(options.codesigning_identity)
         if certificate == None:
             error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
