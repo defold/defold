@@ -573,8 +573,8 @@ GLFWAPI void glfwSetViewType(int view_type);
 // Defold extensions (Android)
 #if defined(ANDROID)
 GLFWAPI void    glfwAndroidBeginFrame();
-GLFWAPI void    glfwAndroidHandleCommand(android_app* app, int32_t cmd);
-GLFWAPI int32_t glfwAndroidHandleInput(android_app* app, struct AInputEvent* event);
+GLFWAPI void    glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
+GLFWAPI int32_t glfwAndroidHandleInput(struct android_app* app, struct AInputEvent* event);
 GLFWAPI int32_t glfwAndroidWindowOpened();
 GLFWAPI void    glfwAndroidPollEvents();
 GLFWAPI void    glfwAndroidFlushEvents();
